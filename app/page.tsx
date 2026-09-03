@@ -1296,13 +1296,13 @@ function makeChainName(length: number, doubleLocants: number[], tripleLocants: n
   const unsaturationPrefix = (count: number) => simplePrefixes[count] ?? `${count}`;
   if (doubleLocants.length && !tripleLocants.length) {
     if (doubleLocants.length === 1) {
-      return length <= 3 ? `${root}eno` : `${root}-${doubleLocants[0]}-eno`;
+      return length <= 2 ? `${root}eno` : `${root}-${doubleLocants[0]}-eno`;
     }
     return `${root}a-${doubleLocants.join(",")}-${unsaturationPrefix(doubleLocants.length)}eno`;
   }
   if (tripleLocants.length && !doubleLocants.length) {
     if (tripleLocants.length === 1) {
-      return length <= 3 ? `${root}ino` : `${root}-${tripleLocants[0]}-ino`;
+      return length <= 2 ? `${root}ino` : `${root}-${tripleLocants[0]}-ino`;
     }
     return `${root}a-${tripleLocants.join(",")}-${unsaturationPrefix(tripleLocants.length)}ino`;
   }
@@ -2242,8 +2242,12 @@ function analyzeFunctionalAcyclic(
       )
     : baseHydrocarbonName;
   let substituentParts = formatSubstituentGroups(chosen.substituents, enabledAliases);
-  if (
-    chosen.path.length <= 2
+  if (chosen.path.length === 1) {
+    // Metano only has C1, so repeated 1,1- locants on substituent prefixes
+    // provide no information and are omitted in the suggested name.
+    substituentParts = substituentParts.map((part) => part.replace(/^1(?:,1)*-/, ""));
+  } else if (
+    chosen.path.length === 2
     && chosen.substituents.length === 1
     && chosen.substituents[0].locant === 1
   ) {

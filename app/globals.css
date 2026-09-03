@@ -1012,7 +1012,7 @@ button {
 .card-heading,
 .analysis-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
   padding: 22px 24px 17px;
@@ -1038,10 +1038,41 @@ button {
   letter-spacing: -0.02em;
 }
 
+.builder-card .card-heading > div:first-child {
+  min-width: 0;
+}
+
+.builder-card .card-heading h2 {
+  max-inline-size: 21ch;
+  text-wrap: balance;
+}
+
 .heading-actions {
-  display: flex;
+  display: grid;
+  grid-template-areas:
+    "name smiles view"
+    "history history history";
+  grid-template-columns: max-content max-content max-content;
   align-items: center;
-  gap: 10px;
+  justify-content: end;
+  gap: 8px 10px;
+}
+
+.heading-actions > .name-builder-toggle:not(.smiles-toggle) {
+  grid-area: name;
+}
+
+.heading-actions > .smiles-toggle {
+  grid-area: smiles;
+}
+
+.heading-actions > .view-mode-switch {
+  grid-area: view;
+}
+
+.heading-actions > .history-controls {
+  grid-area: history;
+  justify-self: end;
 }
 
 .view-mode-switch {
@@ -3115,6 +3146,10 @@ button:focus-visible,
     justify-content: space-between;
   }
 
+  .heading-actions > .history-controls {
+    justify-self: start;
+  }
+
   .molecule-stage {
     height: 380px;
     margin: 0 9px;
@@ -3315,20 +3350,8 @@ button:focus-visible,
     display: none;
   }
 
-  .history-controls button:not(.new-button) {
-    display: none;
-  }
-
   .view-mode-switch button {
     padding: 0 8px;
-  }
-
-  .mode-label {
-    display: none;
-  }
-
-  .view-mode-switch button {
-    width: 47px;
   }
 
   .molecule-stage {

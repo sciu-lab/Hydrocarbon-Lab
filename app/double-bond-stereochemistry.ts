@@ -478,6 +478,10 @@ export function getMainChainStereoDescriptors(
   const descriptors: StereoDescriptor[] = [];
   mainChain.slice(0, -1).forEach((leftAtomId, index) => {
     const rightAtomId = mainChain[index + 1];
+    // E/Z descriptors are only meaningful for an acyclic alkene in this
+    // simulator. A C=C inside any ring is geometrically constrained and must
+    // never be added to the suggested name.
+    if (!isDoubleBondEZToggleAvailable(molecule, leftAtomId, rightAtomId)) return;
     const inspection = inspectDoubleBondStereochemistry(
       molecule,
       leftAtomId,

@@ -2,6 +2,7 @@ import type { AppLanguage } from "./i18n";
 import {
   compactHalogenatedName,
   hyphenateHalogenatedName,
+  stripMethaneHalogenLocants,
 } from "./iupac-name-normalization.ts";
 
 export type NomenclatureConvention = "current" | "school" | "traditional";
@@ -148,9 +149,10 @@ export function applyNomenclatureConvention(
     : activeConvention === "traditional"
       ? traditionalName(baseName, language)
       : baseName;
+  const methaneLocantsRemoved = stripMethaneHalogenLocants(formattedName);
   const halogenFormattedName = activeConvention === "traditional"
-    ? compactHalogenatedName(formattedName)
-    : hyphenateHalogenatedName(formattedName);
+    ? compactHalogenatedName(methaneLocantsRemoved)
+    : hyphenateHalogenatedName(methaneLocantsRemoved);
   return `${prefix}${halogenFormattedName}`;
 }
 

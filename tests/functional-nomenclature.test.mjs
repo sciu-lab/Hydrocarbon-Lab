@@ -211,6 +211,30 @@ test("expresa como prefijo una función de menor prioridad", () => {
   assert.equal(analyzeMolecule(aromatic).name, "ácido 3-carbamoilbenzoico");
 });
 
+test("nombra haloalquenos y halometanos sin locantes redundantes", () => {
+  const haloalkene = {
+    atoms: [
+      { id: 1, x: 0, y: 0 },
+      { id: 2, x: 1, y: 0 },
+      { id: 3, x: 2, y: 0 },
+      { id: 4, x: 1, y: 1 },
+      { id: 5, x: 0, y: -1, element: "Cl" },
+    ],
+    bonds: [[1, 2, 2], [2, 3, 1], [2, 4, 1], [1, 5, 1]],
+  };
+  const dichloromethane = {
+    atoms: [
+      { id: 1, x: 0, y: 0 },
+      { id: 2, x: -1, y: 0, element: "Cl" },
+      { id: 3, x: 1, y: 0, element: "Cl" },
+    ],
+    bonds: [[1, 2, 1], [1, 3, 1]],
+  };
+
+  assert.equal(analyzeMolecule(haloalkene).name, "1-cloro-2-metilprop-1-eno");
+  assert.equal(analyzeMolecule(dichloromethane).name, "diclorometano");
+});
+
 test("detects every functional group in a ring with a nested oxo substituent", async () => {
   const module = await server.ssrLoadModule("/app/page.tsx");
   const { localNamerCannotSafelyName } = module;

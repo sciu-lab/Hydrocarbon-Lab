@@ -34,6 +34,21 @@ function makeHex3Ene() {
   };
 }
 
+function makeCyclohex1Ene() {
+  return {
+    atoms: [
+      { id: 1, x: 0, y: -1 },
+      { id: 2, x: 0.9, y: -0.5 },
+      { id: 3, x: 0.9, y: 0.5 },
+      { id: 4, x: 0, y: 1 },
+      { id: 5, x: -0.9, y: 0.5 },
+      { id: 6, x: -0.9, y: -0.5 },
+    ],
+    bonds: [[1, 2, 2], [2, 3, 1], [3, 4, 1], [4, 5, 1], [5, 6, 1], [6, 1, 1]],
+    rings: [{ id: 1, kind: "cycloalkane", atomIds: [1, 2, 3, 4, 5, 6] }],
+  };
+}
+
 test("formats alkene and alkyne conventions without molecule lookup tables", () => {
   assert.equal(applyNomenclatureConvention("pent-2-ene", "school", "es"), "penta-2-ene");
   assert.equal(applyNomenclatureConvention("pent-2-ene", "traditional", "en"), "2-pentene");
@@ -119,6 +134,15 @@ test("never displays E/Z for benzene-derived aromatic rings", () => {
       name,
     );
   }
+});
+
+test("never displays E/Z for cycloalkenes", () => {
+  const molecule = makeCyclohex1Ene();
+  assert.deepEqual(getMainChainStereoDescriptors(molecule, [1, 2, 3, 4, 5, 6]), []);
+  assert.equal(
+    formatStereochemicalName(molecule, [1, 2, 3, 4, 5, 6], "ciclohex-1-eno"),
+    "ciclohex-1-eno",
+  );
 });
 
 test("keeps E/Z available for a valid acyclic alkene", () => {

@@ -36,6 +36,7 @@ const commonSpanishNames: Record<string, string> = {
 
 const halogenMultipliers = "di|tri|tetra|penta|hexa|hepta|octa";
 const halogenPrefixes = "fluoro|cloro|chloro|bromo|yodo|iodo";
+const methaneParents = "metano|methane";
 const halogenParents = [
   "metano", "etano", "propano", "butano", "pentano", "hexano", "heptano", "octano", "nonano", "decano",
   "benceno",
@@ -53,22 +54,63 @@ const hyphenatedHalogenName = new RegExp(
   "gi",
 );
 
+const methaneHalogenLocant = new RegExp(
+  `(^|[\\s,(])1(?:,1){0,3}-(?=(?:(?:${halogenMultipliers})-?)?(?:${halogenPrefixes})-?(?:${methaneParents})(?=$|[\\s,.)\\-]))`,
+  "gi",
+);
+
+const multipliedMethaneHalogenName = new RegExp(
+  `(^|[\\s,(\\-])((?:${halogenMultipliers})-?)(${halogenPrefixes})-?(${methaneParents})(?=$|[\\s,.)\\-])`,
+  "gi",
+);
+
+function followsNumericLocant(value: string, matchOffset: number, boundary: string) {
+  return boundary === "-"
+    && /(?:^|[,(])\d+(?:,\d+)*-$/.test(value.slice(0, matchOffset + boundary.length));
+}
+
+/** A one-carbon parent never needs the repeated C1 locants for halogens. */
+export function stripMethaneHalogenLocants(value: string) {
+  return value.replace(methaneHalogenLocant, "$1");
+}
+
+function compactMultipliedMethaneHalogens(value: string) {
+  return value.replace(
+    multipliedMethaneHalogenName,
+    (_match, boundary: string, multiplier: string, halogen: string, parent: string) =>
+      `${boundary}${multiplier.replace(/-$/, "")}${halogen}${parent}`,
+  );
+}
+
 /** Adds presentation hyphens to a directly attached halogen substituent. */
 export function hyphenateHalogenatedName(value: string) {
-  return value.replace(
-    gluedHalogenName,
-    (_match, boundary: string, multiplier: string = "", halogen: string, parent: string) =>
-      `${boundary}${multiplier ? `${multiplier}-` : ""}${halogen}-${parent}`,
+  const withoutMethaneLocants = stripMethaneHalogenLocants(value);
+  const locantAware = withoutMethaneLocants.replace(
+    hyphenatedHalogenName,
+    (match, boundary: string, multiplier: string = "", halogen: string, parent: string, offset: number, whole: string) =>
+      followsNumericLocant(whole, offset, boundary)
+        ? `${boundary}${multiplier.replace(/-$/, "")}${halogen}${parent}`
+        : match,
   );
+  const hyphenated = locantAware.replace(
+    gluedHalogenName,
+    (_match, boundary: string, multiplier: string = "", halogen: string, parent: string, offset: number, whole: string) =>
+      followsNumericLocant(whole, offset, boundary)
+        ? `${boundary}${multiplier}${halogen}${parent}`
+        : `${boundary}${multiplier ? `${multiplier}-` : ""}${halogen}-${parent}`,
+  );
+  return compactMultipliedMethaneHalogens(hyphenated);
 }
 
 /** Restores the traditional, unhyphenated rendering of halogen derivatives. */
 export function compactHalogenatedName(value: string) {
-  return value.replace(
+  const withoutMethaneLocants = stripMethaneHalogenLocants(value);
+  const compacted = withoutMethaneLocants.replace(
     hyphenatedHalogenName,
     (_match, boundary: string, multiplier: string = "", halogen: string, parent: string) =>
       `${boundary}${multiplier.replace(/-$/, "")}${halogen}${parent}`,
   );
+  return compactMultipliedMethaneHalogens(compacted);
 }
 
 function normalizePunctuation(value: string) {
@@ -146,6 +188,9 @@ function translateCore(value: string) {
     .replace(/propil/g, "propyl")
     .replace(/butil/g, "butyl")
     .replace(/oxyet(?=an|en|in)/g, "oxyeth")
+    // When a Spanish halo-methane is written as one word, there is no word
+    // boundary before metano for the generic met -> meth bridge below.
+    .replace(/(fluoro|chloro|bromo|iodo)metano$/g, "$1methane")
     .replace(/\bmet(?=an|en|in)/g, "meth")
     .replace(/\bet(?=an|en|in)/g, "eth");
 
@@ -194,6 +239,8 @@ function translateCore(value: string) {
     .replace(/ano(?=-\d)/g, "ane")
     .replace(/eno(?=-\d)/g, "ene")
     .replace(/ino(?=-\d)/g, "yne")
+    .replace(/-en$/g, "-ene")
+    .replace(/-in$/g, "-yne")
     .replace(/ano$/g, "ane")
     .replace(/eno$/g, "ene")
     .replace(/ino$/g, "yne")
@@ -234,7 +281,7 @@ export function translateSpanishIupacToOpsin(value: string) {
 
 export function getOpsinNameCandidates(value: string) {
   const originalNormalized = normalizePunctuation(value);
-  const normalized = hyphenateHalogenatedName(originalNormalized);
+  const normalized = normalizeHalogenatedNameForOpsin(value);
   const translated = translateSpanishIupacToOpsin(value);
   // Try the normalized spelling first, then retain compact variants as a
   // compatibility fallback for older OPSIN spellings.
