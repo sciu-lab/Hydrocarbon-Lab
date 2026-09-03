@@ -1,4 +1,8 @@
 import type { AppLanguage } from "./i18n";
+import {
+  compactHalogenatedName,
+  hyphenateHalogenatedName,
+} from "./iupac-name-normalization.ts";
 
 export type NomenclatureConvention = "current" | "school" | "traditional";
 
@@ -144,7 +148,10 @@ export function applyNomenclatureConvention(
     : activeConvention === "traditional"
       ? traditionalName(baseName, language)
       : baseName;
-  return `${prefix}${formattedName}`;
+  const halogenFormattedName = activeConvention === "traditional"
+    ? compactHalogenatedName(formattedName)
+    : hyphenateHalogenatedName(formattedName);
+  return `${prefix}${halogenFormattedName}`;
 }
 
 export function nextNomenclatureConvention(

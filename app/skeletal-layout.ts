@@ -11,6 +11,8 @@ type LayoutBond = readonly [number, number, ...unknown[]];
 type LayoutMolecule = {
   atoms: readonly LayoutAtom[];
   bonds: readonly LayoutBond[];
+  /** UI-only state: mirror the generated display coordinates horizontally. */
+  isMirrored?: boolean;
 };
 
 const SKELETAL_BOND_LENGTH = 130;
@@ -144,6 +146,17 @@ export function buildOpenChainSkeletalPositions(
       });
     }
   });
+
+  // Open-chain skeletal geometry is generated from connectivity so it remains
+  // tidy. Reflect that generated geometry only at the display layer when the
+  // user has requested a redraw.
+  if (molecule.isMirrored && positions.size) {
+    const xValues = [...positions.values()].map((point) => point.x);
+    const centerX = (Math.min(...xValues) + Math.max(...xValues)) / 2;
+    positions.forEach((point, atomId) => {
+      positions.set(atomId, { ...point, x: centerX - (point.x - centerX) });
+    });
+  }
 
   return positions;
 }

@@ -34,6 +34,43 @@ const commonSpanishNames: Record<string, string> = {
   "4-isopropiloctano": "4-(propan-2-yl)octane",
 };
 
+const halogenMultipliers = "di|tri|tetra|penta|hexa|hepta|octa";
+const halogenPrefixes = "fluoro|cloro|chloro|bromo|yodo|iodo";
+const halogenParents = [
+  "metano", "etano", "propano", "butano", "pentano", "hexano", "heptano", "octano", "nonano", "decano",
+  "benceno",
+  "methane", "ethane", "propane", "butane", "pentane", "hexane", "heptane", "octane", "nonane", "decane",
+  "benzene",
+].join("|");
+
+const gluedHalogenName = new RegExp(
+  `(^|[\\s,(\\-])((?:${halogenMultipliers})?)(${halogenPrefixes})(${halogenParents})(?=$|[\\s,.)\\-])`,
+  "gi",
+);
+
+const hyphenatedHalogenName = new RegExp(
+  `(^|[\\s,(\\-])((?:${halogenMultipliers})-)?(${halogenPrefixes})-(${halogenParents})(?=$|[\\s,.)\\-])`,
+  "gi",
+);
+
+/** Adds presentation hyphens to a directly attached halogen substituent. */
+export function hyphenateHalogenatedName(value: string) {
+  return value.replace(
+    gluedHalogenName,
+    (_match, boundary: string, multiplier: string = "", halogen: string, parent: string) =>
+      `${boundary}${multiplier ? `${multiplier}-` : ""}${halogen}-${parent}`,
+  );
+}
+
+/** Restores the traditional, unhyphenated rendering of halogen derivatives. */
+export function compactHalogenatedName(value: string) {
+  return value.replace(
+    hyphenatedHalogenName,
+    (_match, boundary: string, multiplier: string = "", halogen: string, parent: string) =>
+      `${boundary}${multiplier.replace(/-$/, "")}${halogen}${parent}`,
+  );
+}
+
 function normalizePunctuation(value: string) {
   const normalized = value
     .trim()
@@ -57,6 +94,14 @@ function normalizePunctuation(value: string) {
   // palabra. OPSIN los distingue de la n minúscula, por lo que se restauran
   // después de normalizar el resto del nombre.
   return withStereochemicalLocants.replace(/(^|[-,(])n(?=[,-])/g, "$1N");
+}
+
+/**
+ * Normalizes a user-entered halogen name before it is passed to OPSIN.
+ * Existing hyphens are left alone; only glued prefix/parent pairs are split.
+ */
+export function normalizeHalogenatedNameForOpsin(value: string) {
+  return hyphenateHalogenatedName(normalizePunctuation(value));
 }
 
 function translateCore(value: string) {
@@ -165,7 +210,7 @@ function translateCore(value: string) {
  * text. This is intentionally a nomenclature bridge, not a structure parser.
  */
 export function translateSpanishIupacToOpsin(value: string) {
-  const normalized = normalizePunctuation(value);
+  const normalized = normalizeHalogenatedNameForOpsin(value);
   if (!normalized) return "";
 
   const common = commonSpanishNames[normalized];
@@ -188,7 +233,16 @@ export function translateSpanishIupacToOpsin(value: string) {
 }
 
 export function getOpsinNameCandidates(value: string) {
-  const normalized = normalizePunctuation(value);
+  const originalNormalized = normalizePunctuation(value);
+  const normalized = hyphenateHalogenatedName(originalNormalized);
   const translated = translateSpanishIupacToOpsin(value);
-  return [...new Set([translated, normalized].filter(Boolean))];
+  // Try the normalized spelling first, then retain compact variants as a
+  // compatibility fallback for older OPSIN spellings.
+  return [...new Set([
+    translated,
+    normalized,
+    compactHalogenatedName(translated),
+    compactHalogenatedName(normalized),
+    originalNormalized,
+  ].filter(Boolean))];
 }

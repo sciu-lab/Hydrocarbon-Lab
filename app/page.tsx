@@ -58,6 +58,7 @@ import {
   SKELETAL_NUMBER_BADGE_OFFSET,
 } from "./skeletal-bond-geometry";
 import { buildOpenChainSkeletalPositions } from "./skeletal-layout";
+import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
 
 type CarbonAtom = {
@@ -86,6 +87,8 @@ type Molecule = {
   atoms: CarbonAtom[];
   bonds: Bond[];
   rings?: RingInfo[];
+  /** UI-only orientation for display-only skeletal coordinates. */
+  isMirrored?: boolean;
 };
 
 type HistoryEntry = {
@@ -1073,6 +1076,7 @@ function cloneMolecule(molecule: Molecule): Molecule {
     rings: molecule.rings
       ? molecule.rings.map((ring) => ({ id: ring.id, kind: ring.kind, atomIds: [...ring.atomIds] }))
       : undefined,
+    ...(molecule.isMirrored ? { isMirrored: true } : {}),
   };
 }
 
@@ -4022,7 +4026,7 @@ export default function Home() {
     }
   }, []);
 
-  const commit = (next: Molecule, message: string) => {
+  const commit = (next: Molecule, message: string, preserveName = false) => {
     const violation = findMoleculeValenceViolation(next);
     if (violation) {
       showValenceError(
@@ -4033,8 +4037,10 @@ export default function Home() {
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
     setFuture([]);
     setMolecule(next);
-    setReasoningSourceName(null);
-    setSourceNameOverride(null);
+    if (!preserveName) {
+      setReasoningSourceName(null);
+      setSourceNameOverride(null);
+    }
     setNotice(message);
     return true;
   };
@@ -5280,6 +5286,14 @@ export default function Home() {
     );
   };
 
+  const redrawMolecule = () => {
+    commit(
+      flipCoordinates(molecule),
+      "Estructura redibujada en espejo sin cambiar su conectividad, nombre ni configuración E/Z.",
+      true,
+    );
+  };
+
   const displayPositions = viewMode === "skeletal" && !molecule.rings?.length
     ? buildOpenChainSkeletalPositions(molecule, analysis.mainChain)
     : new Map(
@@ -5294,7 +5308,9 @@ export default function Home() {
             position,
             containingRing.atomIds.map((atomId) => displayPositions.get(atomId)!),
           )
-        : SKELETAL_NUMBER_BADGE_OFFSET;
+        : molecule.isMirrored
+          ? { x: -SKELETAL_NUMBER_BADGE_OFFSET.x, y: SKELETAL_NUMBER_BADGE_OFFSET.y }
+          : SKELETAL_NUMBER_BADGE_OFFSET;
       return [atom.id, offset];
     }),
   );
@@ -5763,6 +5779,15 @@ export default function Home() {
                 </button>
               </div>
               <div className="history-controls" aria-label={t("Historial de cambios")}>
+                <button
+                  className="new-button redraw-button"
+                  type="button"
+                  onClick={redrawMolecule}
+                  title={t("Redibujar la estructura en espejo")}
+                  aria-label={t("Redibujar la estructura en espejo")}
+                >
+                  <span aria-hidden="true">↔</span> {t("Redibujar")}
+                </button>
                 <button onClick={undo} disabled={!undoStack.length} title={t("Deshacer")}>↶</button>
                 <button onClick={redo} disabled={!future.length} title={t("Rehacer")}>↷</button>
                 <button className="new-button" onClick={newMolecule}>{t("Nueva")}</button>
@@ -6273,7 +6298,7 @@ export default function Home() {
                           )}
                         </text>
                         {effectiveShowNumbering && chainNumber && (
-                          <g transform="translate(25 -27)">
+                          <g transform={`translate(${molecule.isMirrored ? -25 : 25} -27)`}>
                             <circle className="number-circle" r="12" />
                             <text className="number-label" textAnchor="middle" dominantBaseline="central">{chainNumber}</text>
                           </g>

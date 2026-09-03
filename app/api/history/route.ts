@@ -18,6 +18,7 @@ type MoleculePayload = {
     kind: "cycloalkane" | "aromatic";
     atomIds: number[];
   }>;
+  isMirrored?: boolean;
 };
 
 type HistoryPayload = {
@@ -130,6 +131,7 @@ function normalizeMolecule(value: unknown): MoleculePayload | null {
     atoms: atoms as MoleculePayload["atoms"],
     bonds: bonds as MoleculePayload["bonds"],
     ...(rings?.length ? { rings } : {}),
+    ...(candidate.isMirrored === true ? { isMirrored: true } : {}),
   };
 }
 
