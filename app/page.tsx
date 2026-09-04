@@ -3576,12 +3576,13 @@ export default function Home() {
   const [molecule, setMolecule] = useState<Molecule>(() =>
     cloneMolecule(PRESETS.find((preset) => preset.label === "2-metilpropano")!.molecule),
   );
-  const [selectedId, setSelectedId] = useState(2);
+  const [selectedId, setSelectedId] = useState<number | null>(2);
   const [undoStack, setUndoStack] = useState<Molecule[]>([]);
   const [future, setFuture] = useState<Molecule[]>([]);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [savedEntries, setSavedEntries] = useState<HistoryEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [librarySection, setLibrarySection] = useState<LibrarySection>("history");
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyIdentity, setHistoryIdentity] = useState<string | null>(null);
@@ -4774,7 +4775,7 @@ export default function Home() {
       "2",
       "3",
     ];
-    if (!supported.includes(key) || !getAtom(selectedAtom.id, molecule)) return;
+    if (selectedId === null || !supported.includes(key) || !getAtom(selectedAtom.id, molecule)) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.repeat && !key.startsWith("arrow")) return;
@@ -5298,6 +5299,91 @@ export default function Home() {
     );
   };
 
+  useEffect(() => {
+    const handleGlobalShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isEditable = Boolean(target?.matches("input, textarea, select") || target?.isContentEditable);
+
+      if (event.key === "Escape") {
+        if (settingsOpen) {
+          event.preventDefault();
+          setSettingsOpen(false);
+        } else if (!historyOpen && !isEditable && selectedId !== null) {
+          event.preventDefault();
+          previousSelectedId.current = null;
+          setSelectedId(null);
+        }
+        return;
+      }
+
+      if (isEditable) return;
+
+      const commandPressed = (event.ctrlKey || event.metaKey) && !event.altKey;
+      if (!commandPressed) {
+        if (event.key === "Delete" && selectedId !== null) {
+          event.preventDefault();
+          removeSelectedWithKeyboard();
+        }
+        return;
+      }
+
+      const key = event.key.toLocaleLowerCase("es");
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if (key === "y") {
+        event.preventDefault();
+        redo();
+      } else if (key === "r") {
+        event.preventDefault();
+        redrawMolecule();
+      } else if (key === "s") {
+        event.preventDefault();
+        if (event.shiftKey) void exportCurrentSmiles();
+        else void saveCurrentStructure();
+      } else if (key === "i") {
+        event.preventDefault();
+        setNameBuilderOpen(false);
+        setSmilesPanelOpen(true);
+        setSmilesFeedback(null);
+      } else if (key === "n") {
+        event.preventDefault();
+        newMolecule();
+      } else if (key === "1") {
+        event.preventDefault();
+        setSmilesPanelOpen(false);
+        setNameBuilderOpen(true);
+        setNameBuilderFeedback(null);
+      } else if (key === "2") {
+        event.preventDefault();
+        setNameBuilderOpen(false);
+        setSmilesPanelOpen(true);
+        setSmilesFeedback(null);
+      } else if (key === "3") {
+        event.preventDefault();
+        changeViewMode("condensed");
+      } else if (key === "4") {
+        event.preventDefault();
+        changeViewMode("skeletal");
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalShortcut);
+    return () => window.removeEventListener("keydown", handleGlobalShortcut);
+  }, [
+    historyOpen,
+    removeSelectedWithKeyboard,
+    undo,
+    redo,
+    redrawMolecule,
+    exportCurrentSmiles,
+    saveCurrentStructure,
+    newMolecule,
+    changeViewMode,
+    settingsOpen,
+    selectedId,
+  ]);
+
   const displayPositions = viewMode === "skeletal" && !molecule.rings?.length
     ? buildOpenChainSkeletalPositions(molecule, analysis.mainChain)
     : new Map(
@@ -5458,6 +5544,20 @@ export default function Home() {
           >
             <span className="theme-icon" aria-hidden="true">{isDarkTheme ? "☾" : "☀"}</span>
             <span>{t("Tema")} <strong>{themeModeLabel}</strong></span>
+          </button>
+          <button
+            type="button"
+            className="settings-control"
+            onClick={() => {
+              setHistoryOpen(false);
+              setSettingsOpen(true);
+            }}
+            aria-label={t("Abrir configuración")}
+            aria-expanded={settingsOpen}
+            aria-haspopup="dialog"
+            title={t("Configuración")}
+          >
+            <span aria-hidden="true">⚙</span>
           </button>
           <div className="scope-pill">
             <span className="status-dot" />
@@ -5708,6 +5808,118 @@ export default function Home() {
               <span aria-hidden="true">✓</span>
               {t("Historial y Guardados permanecen separados y cada visitante ve únicamente sus propias estructuras.")}
             </p>
+          </aside>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div className="settings-overlay">
+          <button
+            className="settings-scrim"
+            type="button"
+            onClick={() => setSettingsOpen(false)}
+            aria-label={t("Cerrar configuración")}
+          />
+          <aside
+            className="settings-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+          >
+            <div className="settings-panel-heading">
+              <div>
+                <p className="eyebrow">⚙ {t("Configuración")}</p>
+                <h2 id="settings-title">{t("Configuración")}</h2>
+              </div>
+              <button
+                type="button"
+                className="settings-close"
+                onClick={() => setSettingsOpen(false)}
+                aria-label={t("Cerrar configuración")}
+              >
+                ×
+              </button>
+            </div>
+
+            <section className="settings-section" aria-labelledby="settings-options-title">
+              <h3 id="settings-options-title">{t("Configuración")}</h3>
+              <label className="settings-toggle">
+                <span>{t("Mostrar hidrógenos implícitos")}</span>
+                <input
+                  type="checkbox"
+                  checked={showHydrogens}
+                  onChange={(event) => setShowHydrogens(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className={`settings-toggle ${!automaticNumberingAvailable ? "is-disabled" : ""}`}>
+                <span>{t("Numerar anillo")}</span>
+                <input
+                  type="checkbox"
+                  checked={effectiveShowNumbering}
+                  disabled={!automaticNumberingAvailable}
+                  onChange={(event) => setShowNumbering(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Resaltar sustituyentes")}</span>
+                <input
+                  type="checkbox"
+                  checked={highlightSubstituents}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setHighlightSubstituents(enabled);
+                    setNotice(
+                      enabled
+                        ? "Sustituyentes resaltados en amarillo para diferenciarlos de la cadena principal."
+                        : "Color uniforme activado: cadena principal y sustituyentes comparten el mismo color.",
+                    );
+                  }}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Recordar estereoquímica")}</span>
+                <input
+                  type="checkbox"
+                  checked={showStereochemistry}
+                  onChange={(event) => setShowStereochemistry(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+            </section>
+
+            <section className="settings-section settings-shortcuts" aria-labelledby="settings-shortcuts-title">
+              <h3 id="settings-shortcuts-title">{t("Atajos de teclado")}</h3>
+              {[
+                [["Ctrl", "Z"], "Deshacer"],
+                [["Ctrl", "Y"], "Rehacer"],
+                [["Ctrl", "R"], "Redibujar"],
+                [["Ctrl", "S"], "Guardar"],
+                [["Ctrl", "Shift", "S"], "Exportar"],
+                [["Ctrl", "I"], "Importar"],
+                [["Ctrl", "N"], "Nueva molécula"],
+                [["Delete / Supr"], "Borrar"],
+                [["Esc"], "Deseleccionar"],
+                [["Ctrl", "1"], "Por nombre"],
+                [["Ctrl", "2"], "SMILES"],
+                [["Ctrl", "3"], "Semides."],
+                [["Ctrl", "4"], "Esquelética"],
+              ].map(([keys, label]) => (
+                <div className="settings-shortcut" key={`${keys.join("-")}-${label}`}>
+                  <span className="shortcut-keys">
+                    {keys.map((key, index) => (
+                      <span key={key}>
+                        {index > 0 && <b aria-hidden="true">+</b>}
+                        <kbd>{key}</kbd>
+                      </span>
+                    ))}
+                  </span>
+                  <span>{t(label)}</span>
+                </div>
+              ))}
+            </section>
           </aside>
         </div>
       )}
