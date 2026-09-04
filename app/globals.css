@@ -42,6 +42,108 @@ button {
   color: inherit;
 }
 
+/* Accessibility preferences are opt-in and are scoped to the application shell. */
+.a11y-high-contrast {
+  --ink: #081d18;
+  --muted: #26463e;
+  --line: #4b675f;
+  --soft-line: #c8d4cf;
+  --paper: #ffffff;
+  --canvas: #ffffff;
+  --mint-strong: #075f4e;
+  --blue: #074f66;
+  --amber: #9a5b00;
+  --red: #8c211c;
+  --grid-dot: #859c95;
+}
+
+.a11y-high-contrast .builder-card,
+.a11y-high-contrast .analysis-card,
+.a11y-high-contrast .settings-section,
+.a11y-high-contrast .molecule-stage,
+.a11y-high-contrast .name-result,
+.a11y-high-contrast .formula-row > div {
+  border-color: #25483f;
+}
+
+.a11y-high-contrast .main-bond,
+.a11y-high-contrast .uniform-colors .branch-bond {
+  stroke: #07556a;
+}
+
+.a11y-high-contrast .branch-bond {
+  stroke: #8b5200;
+}
+
+.a11y-high-contrast .atom-circle,
+.a11y-high-contrast .skeletal-hetero-badge,
+.a11y-high-contrast .methane-marker circle {
+  stroke: #123b33;
+}
+
+.a11y-large-text {
+  font-size: 112.5%;
+  text-size-adjust: 112.5%;
+}
+
+.a11y-dyslexia-typeface,
+.a11y-dyslexia-typeface button,
+.a11y-dyslexia-typeface input {
+  font-family: Verdana, Arial, Helvetica, sans-serif;
+  letter-spacing: 0.045em;
+  word-spacing: 0.09em;
+}
+
+.a11y-dyslexia-typeface p,
+.a11y-dyslexia-typeface small,
+.a11y-dyslexia-typeface span,
+.a11y-dyslexia-typeface label {
+  line-height: 1.58;
+}
+
+.a11y-large-targets button:not(.settings-scrim),
+.a11y-large-targets [role="button"] {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.a11y-large-targets .bond-hit-target {
+  stroke-width: 44;
+}
+
+.a11y-double-bond-pattern .double-bond-pattern-line {
+  stroke-width: 6.5;
+}
+
+.a11y-double-bond-pattern .double-bond-pattern-1 {
+  stroke-dasharray: 4 4;
+}
+
+.a11y-highlight-interactives button:not(:disabled):not(.settings-scrim) {
+  box-shadow: 0 0 0 3px #f7d84a, 0 0 11px rgba(247, 216, 74, 0.72);
+}
+
+.a11y-highlight-interactives .bond-control .bond {
+  stroke: #e1aa00;
+  stroke-width: 6.5;
+  filter: drop-shadow(0 0 5px rgba(255, 218, 57, 0.95));
+}
+
+.a11y-highlight-interactives .carbon-node .atom-circle,
+.a11y-highlight-interactives .carbon-node .skeletal-anchor,
+.a11y-highlight-interactives .carbon-node .skeletal-hetero-badge,
+.a11y-highlight-interactives .carbon-node .methane-marker circle {
+  stroke: #e1aa00;
+  stroke-width: 4.5;
+  filter: drop-shadow(0 0 5px rgba(255, 218, 57, 0.95));
+}
+
+.a11y-highlight-interactives .carbon-node .skeletal-selection-ring,
+.a11y-highlight-interactives .carbon-node .selection-ring {
+  stroke: #e1aa00;
+  filter: drop-shadow(0 0 5px rgba(255, 218, 57, 0.95));
+}
+
 .app-shell {
   width: min(1460px, calc(100% - 40px));
   margin: 0 auto;
@@ -2700,6 +2802,14 @@ button {
 .nomenclature-name-toggle:focus-visible {
   border-bottom-color: #39806f;
   outline: 0;
+}
+
+.nomenclature-name-static {
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
 }
 
 .alkyl-name-toggle {

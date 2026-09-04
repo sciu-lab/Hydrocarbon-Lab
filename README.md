@@ -119,6 +119,25 @@ Use build and validation commands for targeted diagnosis after a remote failure,
 
 The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
 
+## Accesibilidad opcional
+
+El icono de engranaje abre **Configuración**, donde las adaptaciones de
+accesibilidad se activan de manera independiente y permanecen desactivadas por
+defecto. Esto permite adaptar la interfaz sin cambiar la experiencia base ni la
+lógica química.
+
+- **Lectores de pantalla avanzados** añade etiquetas, roles y anuncios corteses
+  al canvas y a sus elementos editables.
+- **Contraste alto AA**, **texto ampliado** y **tipografía para dislexia**
+  mejoran la legibilidad visual.
+- **Patrón en enlaces dobles** refuerza la distinción de los dobles enlaces con
+  líneas paralelas y un patrón adicional.
+- **Botones ampliados** eleva las áreas de interacción a un mínimo de 44 px;
+  **modo simplificado** oculta los controles de E/Z y los modos PAES y
+  tradicional.
+- **Destacar interactivos** aplica contornos y halos amarillos a botones,
+  átomos editables y enlaces dinámicos, al estilo de las simulaciones PhET.
+
 ## Learn More
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)

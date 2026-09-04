@@ -3602,6 +3602,14 @@ export default function Home() {
   const [showIupacName, setShowIupacName] = useState(true);
   const [nomenclatureConvention, setNomenclatureConvention] = useState<NomenclatureConvention>("current");
   const [showStereochemistry, setShowStereochemistry] = useState(false);
+  const [advancedScreenReaderEnabled, setAdvancedScreenReaderEnabled] = useState(false);
+  const [highContrastEnabled, setHighContrastEnabled] = useState(false);
+  const [largeTextEnabled, setLargeTextEnabled] = useState(false);
+  const [doubleBondPatternEnabled, setDoubleBondPatternEnabled] = useState(false);
+  const [largeTargetsEnabled, setLargeTargetsEnabled] = useState(false);
+  const [dyslexiaTypefaceEnabled, setDyslexiaTypefaceEnabled] = useState(false);
+  const [simplifiedModeEnabled, setSimplifiedModeEnabled] = useState(false);
+  const [highlightInteractivesEnabled, setHighlightInteractivesEnabled] = useState(false);
   const [stereochemistryPreferenceReady, setStereochemistryPreferenceReady] = useState(false);
   const [hasUsedNomenclatureToggle, setHasUsedNomenclatureToggle] = useState(false);
   const [showNomenclatureHint, setShowNomenclatureHint] = useState(false);
@@ -3667,10 +3675,13 @@ export default function Home() {
       : formatStereochemicalName(molecule, analysis.mainChain, pinName),
     [analysis.mainChain, molecule, pinName, stereochemistryAvailable],
   );
-  const nameWithSelectedStereochemistry = showStereochemistry && stereochemistryAvailable
+  const stereochemistryEnabled = showStereochemistry && !simplifiedModeEnabled;
+  const nameWithSelectedStereochemistry = stereochemistryEnabled && stereochemistryAvailable
     ? stereochemicalName
     : pinName;
-  const activeNomenclatureConvention = language === "en" && nomenclatureConvention === "school"
+  const activeNomenclatureConvention = simplifiedModeEnabled
+    ? "current"
+    : language === "en" && nomenclatureConvention === "school"
     ? "current"
     : nomenclatureConvention;
   const displayedIupacName = useMemo(
@@ -4260,7 +4271,7 @@ export default function Home() {
     const currentOrder = getBondOrder(molecule.bonds[bondIndex]);
     if (currentOrder === 2 && !containingRing) {
       const ezToggleAvailable = isDoubleBondEZToggleAvailable(molecule, a, b);
-      if (ezToggleAvailable && !canToggleBondStereochemistry(showStereochemistry, ezToggleAvailable)) {
+      if (ezToggleAvailable && !canToggleBondStereochemistry(stereochemistryEnabled, ezToggleAvailable)) {
         setNotice("Activa Estereoquímica para alternar la configuración E/Z de este doble enlace.");
         return;
       }
@@ -5424,8 +5435,8 @@ export default function Home() {
     [molecule],
   );
   const visibleBondInteractionHintActions = useMemo(
-    () => getVisibleBondInteractionHintActions(bondInteractionHintActions, showStereochemistry),
-    [bondInteractionHintActions, showStereochemistry],
+    () => getVisibleBondInteractionHintActions(bondInteractionHintActions, stereochemistryEnabled),
+    [bondInteractionHintActions, stereochemistryEnabled],
   );
   const isRingStructure = analysis.family !== "acyclic";
   const carbonFamilyLabel = analysis.family === "aromatic"
@@ -5454,6 +5465,7 @@ export default function Home() {
       ? t("Oscuro")
       : t("Claro");
   const cycleNomenclatureConvention = () => {
+    if (simplifiedModeEnabled) return;
     setNomenclatureConvention((current) => nextNomenclatureConvention(
       language === "en" && current === "school" ? "current" : current,
       language,
@@ -5472,7 +5484,19 @@ export default function Home() {
   };
 
   return (
-    <main className="app-shell" onPointerDownCapture={dismissValenceAlert}>
+    <main
+      className={[
+        "app-shell",
+        highContrastEnabled && "a11y-high-contrast",
+        largeTextEnabled && "a11y-large-text",
+        doubleBondPatternEnabled && "a11y-double-bond-pattern",
+        largeTargetsEnabled && "a11y-large-targets",
+        dyslexiaTypefaceEnabled && "a11y-dyslexia-typeface",
+        simplifiedModeEnabled && "a11y-simplified-mode",
+        highlightInteractivesEnabled && "a11y-highlight-interactives",
+      ].filter(Boolean).join(" ")}
+      onPointerDownCapture={dismissValenceAlert}
+    >
       <header className="site-header">
         <div className="brand-mark">
           <img src="../sciu-eye.png" alt="Sciu Science" />
@@ -5842,7 +5866,7 @@ export default function Home() {
             </div>
 
             <section className="settings-section" aria-labelledby="settings-options-title">
-              <h3 id="settings-options-title">{t("Configuración")}</h3>
+              <h3 id="settings-options-title">{t("Preferencias")}</h3>
               <label className="settings-toggle">
                 <span>{t("Mostrar hidrógenos implícitos")}</span>
                 <input
@@ -5885,6 +5909,82 @@ export default function Home() {
                   type="checkbox"
                   checked={showStereochemistry}
                   onChange={(event) => setShowStereochemistry(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+            </section>
+
+            <section className="settings-section settings-accessibility" aria-labelledby="settings-accessibility-title">
+              <h3 id="settings-accessibility-title">{t("Accesibilidad opcional")}</h3>
+              <label className="settings-toggle">
+                <span>{t("Lectores de pantalla avanzados")}</span>
+                <input
+                  type="checkbox"
+                  checked={advancedScreenReaderEnabled}
+                  onChange={(event) => setAdvancedScreenReaderEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Contraste alto AA")}</span>
+                <input
+                  type="checkbox"
+                  checked={highContrastEnabled}
+                  onChange={(event) => setHighContrastEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Texto ampliado")}</span>
+                <input
+                  type="checkbox"
+                  checked={largeTextEnabled}
+                  onChange={(event) => setLargeTextEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Patrón en enlaces dobles")}</span>
+                <input
+                  type="checkbox"
+                  checked={doubleBondPatternEnabled}
+                  onChange={(event) => setDoubleBondPatternEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Botones ampliados")}</span>
+                <input
+                  type="checkbox"
+                  checked={largeTargetsEnabled}
+                  onChange={(event) => setLargeTargetsEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Tipografía para dislexia")}</span>
+                <input
+                  type="checkbox"
+                  checked={dyslexiaTypefaceEnabled}
+                  onChange={(event) => setDyslexiaTypefaceEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Modo simplificado")}</span>
+                <input
+                  type="checkbox"
+                  checked={simplifiedModeEnabled}
+                  onChange={(event) => setSimplifiedModeEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Destacar interactivos")}</span>
+                <input
+                  type="checkbox"
+                  checked={highlightInteractivesEnabled}
+                  onChange={(event) => setHighlightInteractivesEnabled(event.target.checked)}
                 />
                 <i aria-hidden="true" />
               </label>
@@ -6168,18 +6268,18 @@ export default function Home() {
 
           <div
             className={`molecule-stage ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"}`}
-            tabIndex={0}
-            role="group"
-            aria-label={t("Canvas molecular interactivo")}
-            aria-describedby="canvas-keyboard-shortcuts"
+            tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
+            role={advancedScreenReaderEnabled ? "group" : undefined}
+            aria-label={advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
+            aria-describedby={advancedScreenReaderEnabled ? "canvas-keyboard-shortcuts" : undefined}
             onKeyDown={handleCanvasKeyDown}
             onPointerDown={(event) => event.currentTarget.focus({ preventScroll: true })}
           >
             <svg
-              role="img"
-              aria-label={language === "en"
+              role={advancedScreenReaderEnabled ? "img" : undefined}
+              aria-label={advancedScreenReaderEnabled ? language === "en"
                 ? `${viewMode === "skeletal" ? "Skeletal representation" : "Condensed structural representation"} ${showIupacName ? `of ${displayedIupacName}` : "of the constructed molecule"}`
-                : `${viewMode === "skeletal" ? "Representación esquelética" : "Representación semidesarrollada"} ${showIupacName ? `de ${displayedIupacName}` : "de la molécula construida"}`}
+                : `${viewMode === "skeletal" ? "Representación esquelética" : "Representación semidesarrollada"} ${showIupacName ? `de ${displayedIupacName}` : "de la molécula construida"}` : undefined}
               viewBox={`${viewCenterX - viewWidth / 2} ${viewCenterY - viewHeight / 2} ${viewWidth} ${viewHeight}`}
             >
               <defs>
@@ -6295,7 +6395,7 @@ export default function Home() {
                   ? stereoInspection.configuration
                   : null;
                 const stereoToggleAvailable = Boolean(stereoInspection?.stereogenic);
-                const stereoInteractionEnabled = showStereochemistry && stereoToggleAvailable;
+                const stereoInteractionEnabled = stereochemistryEnabled && stereoToggleAvailable;
                 const stereoLocantIndex = stereoToggleAvailable
                   ? analysis.mainChain.slice(0, -1).findIndex((atomId, index) => {
                       const nextAtomId = analysis.mainChain[index + 1];
@@ -6321,9 +6421,9 @@ export default function Home() {
                         cycleBondOrder(a, b);
                       }
                     }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={lockedBond
+                    role={advancedScreenReaderEnabled ? "button" : undefined}
+                    tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
+                    aria-label={advancedScreenReaderEnabled ? (lockedBond
                       ? language === "en"
                         ? `${t(getBondOrderLabel(order))} bond locked to preserve ${isFunctionalBond ? "the functional group" : "the ring structure"}`
                         : `Enlace ${getBondOrderLabel(order)} fijado para conservar ${isFunctionalBond ? "el grupo funcional" : "la estructura cíclica"}`
@@ -6335,7 +6435,7 @@ export default function Home() {
                           ? t("Activa Estereoquímica para alternar la configuración E/Z de este doble enlace")
                         : language === "en"
                           ? `${t(getBondOrderLabel(order))} bond. Activate to change to ${t(getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder))}`
-                          : `Enlace ${getBondOrderLabel(order)}. Activar para cambiar a ${getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder)}`}
+                          : `Enlace ${getBondOrderLabel(order)}. Activar para cambiar a ${getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder)}`) : undefined}
                   >
                     <line
                       className="bond-hit-target"
@@ -6347,7 +6447,7 @@ export default function Home() {
                     {visibleBondSegments.map((segment, index) => (
                       <line
                         key={index}
-                        className={`${isMainBond ? "bond main-bond" : "bond branch-bond"} ${isFunctionalBond ? "functional-bond" : ""} ${viewMode === "skeletal" ? "skeletal-bond" : ""} ${segment.role ? `skeletal-ring-double-bond ring-double-bond-${segment.role}` : ""}`}
+                        className={`${isMainBond ? "bond main-bond" : "bond branch-bond"} ${isFunctionalBond ? "functional-bond" : ""} ${viewMode === "skeletal" ? "skeletal-bond" : ""} ${segment.role ? `skeletal-ring-double-bond ring-double-bond-${segment.role}` : ""} ${doubleBondPatternEnabled && order === 2 ? `double-bond-pattern-line double-bond-pattern-${index}` : ""}`}
                         x1={segment.x}
                         y1={segment.y}
                         x2={segment.x2}
@@ -6407,9 +6507,13 @@ export default function Home() {
                       setSelectedId(atom.id);
                       setNotice(`${elementNames[element][0].toUpperCase()}${elementNames[element].slice(1)} ${chainNumber ?? "del grupo funcional"} seleccionado.`);
                     }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={language === "en" ? `Select ${t(elementNames[element])} ${chainNumber ?? atom.id}` : `Seleccionar ${elementNames[element]} ${chainNumber ?? atom.id}`}
+                    role={advancedScreenReaderEnabled ? "button" : undefined}
+                    tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
+                    aria-label={advancedScreenReaderEnabled
+                      ? language === "en"
+                        ? `Select ${t(elementNames[element])} ${chainNumber ?? atom.id}`
+                        : `Seleccionar ${elementNames[element]} ${chainNumber ?? atom.id}`
+                      : undefined}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         previousSelectedId.current = selectedAtom.id;
@@ -6879,7 +6983,11 @@ export default function Home() {
             </div>
           )}
 
-          <div className="notice" role="status">
+          <div
+            className="notice"
+            role={advancedScreenReaderEnabled ? "status" : undefined}
+            aria-live={advancedScreenReaderEnabled ? "polite" : undefined}
+          >
             <span>i</span>
             {localizedDynamicText(notice)}
           </div>
@@ -6932,20 +7040,22 @@ export default function Home() {
             </div>
             <div className="analysis-status">
               <span className="valid-badge">{t("Estructura válida")}</span>
-              <button
-                className={`stereochemistry-toggle ${showStereochemistry && stereochemistryAvailable ? "is-active" : ""}`}
-                type="button"
-                role="switch"
-                aria-checked={showStereochemistry && stereochemistryAvailable}
-                disabled={!stereochemistryAvailable}
-                title={stereochemistryAvailable
-                  ? t("Mostrar descriptores E/Z")
-                  : t("La estereoquímica E/Z no corresponde a esta estructura")}
-                onClick={() => setShowStereochemistry((visible) => !visible)}
-              >
-                <span aria-hidden="true" />
-                {t("Estereoquímica")}
-              </button>
+              {!simplifiedModeEnabled && (
+                <button
+                  className={`stereochemistry-toggle ${showStereochemistry && stereochemistryAvailable ? "is-active" : ""}`}
+                  type="button"
+                  role="switch"
+                  aria-checked={showStereochemistry && stereochemistryAvailable}
+                  disabled={!stereochemistryAvailable}
+                  title={stereochemistryAvailable
+                    ? t("Mostrar descriptores E/Z")
+                    : t("La estereoquímica E/Z no corresponde a esta estructura")}
+                  onClick={() => setShowStereochemistry((visible) => !visible)}
+                >
+                  <span aria-hidden="true" />
+                  {t("Estereoquímica")}
+                </button>
+              )}
               <button
                 className="name-visibility-button"
                 onClick={() => {
@@ -6963,10 +7073,13 @@ export default function Home() {
             </div>
           </div>
 
-          <div className={`name-result ${showIupacName ? "" : "concealed"}`} aria-live="polite">
+          <div
+            className={`name-result ${showIupacName ? "" : "concealed"}`}
+            aria-live={advancedScreenReaderEnabled ? "polite" : undefined}
+          >
             <div className="name-copy">
               <p>
-                {showIupacName ? (
+                {showIupacName && !simplifiedModeEnabled ? (
                   <button
                     className="nomenclature-name-toggle"
                     type="button"
@@ -6976,17 +7089,19 @@ export default function Home() {
                   >
                     {displayedIupacName}
                   </button>
+                ) : showIupacName ? (
+                  <span className="nomenclature-name-static">{displayedIupacName}</span>
                 ) : t("Respuesta oculta")}
               </p>
-              {showIupacName && (
+              {showIupacName && !simplifiedModeEnabled && (
                 <small className="nomenclature-mode-label">
                   {nomenclatureConventionLabel(activeNomenclatureConvention, language)}
                 </small>
               )}
-              {showIupacName && showNomenclatureHint && (
+              {showIupacName && !simplifiedModeEnabled && showNomenclatureHint && (
                 <small className="nomenclature-name-help">{t("Toca el nombre para cambiar la nomenclatura")}</small>
               )}
-              {showIupacName && analysis.commonName && activeNomenclatureConvention !== "traditional" && (
+              {showIupacName && !simplifiedModeEnabled && analysis.commonName && activeNomenclatureConvention !== "traditional" && (
                 <small>{t("Nombre tradicional:")} <strong>{translateCommonName(language, analysis.commonName)}</strong></small>
               )}
             </div>
