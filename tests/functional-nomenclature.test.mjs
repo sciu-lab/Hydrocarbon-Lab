@@ -176,6 +176,26 @@ test("nombra correctamente funciones principales repetidas en cadenas", () => {
   assert.equal(analyzeMolecule(makeTerminalPair("ester")).name, "butanodioato de dimetilo");
 });
 
+test("elimina la vocal del alcano antes de diol y triol acíclicos", () => {
+  const pentanediol = {
+    atoms: [1, 2, 3, 4, 5].map((id) => ({ id, x: id, y: 0 })).concat([
+      { id: 6, x: 2, y: 1, element: "O" },
+      { id: 7, x: 3, y: 1, element: "O" },
+    ]),
+    bonds: [[1, 2, 1], [2, 3, 1], [3, 4, 1], [4, 5, 1], [2, 6, 1], [3, 7, 1]],
+  };
+  const propanetriol = {
+    atoms: [1, 2, 3].map((id) => ({ id, x: id, y: 0 })).concat([
+      { id: 4, x: 1, y: 1, element: "O" },
+      { id: 5, x: 2, y: 1, element: "O" },
+      { id: 6, x: 3, y: 1, element: "O" },
+    ]),
+    bonds: [[1, 2, 1], [2, 3, 1], [1, 4, 1], [2, 5, 1], [3, 6, 1]],
+  };
+  assert.equal(analyzeMolecule(pentanediol).name, "pentan-2,3-diol");
+  assert.equal(analyzeMolecule(propanetriol).name, "propan-1,2,3-triol");
+});
+
 test("usa carboxi-sufijos múltiples en derivados aromáticos", () => {
   const diacid = makeFunctionalRing([
     { at: 0, group: "carboxylicAcid" },

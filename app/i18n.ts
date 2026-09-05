@@ -172,6 +172,7 @@ const ENGLISH_UI: Record<string, string> = {
   "La estereoquímica E/Z no corresponde a esta estructura": "E/Z stereochemistry does not apply to this structure",
   "Activa Estereoquímica para alternar la configuración E/Z de este doble enlace": "Enable Stereochemistry to switch this double bond's E/Z configuration",
   "Toca el nombre para cambiar la nomenclatura": "Tap the name to switch nomenclature",
+  "Sistemas de nomenclatura disponibles": "Available nomenclature systems",
   "Nombre no disponible para estructuras complejas": "Name unavailable for complex structures",
   "Estructura válida": "Valid structure",
   "Respuesta oculta": "Answer hidden",

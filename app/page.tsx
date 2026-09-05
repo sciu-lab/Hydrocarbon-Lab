@@ -2075,9 +2075,9 @@ function makeFunctionalParentName(
   }
 
   if (sortedLocants.length > 1) {
-    if (kind === "alcohol") return `${hydrocarbonName}-${locantText}-${suffixMultiplier(count, "ol")}ol`;
-    if (kind === "ketone") return `${hydrocarbonName}-${locantText}-${suffixMultiplier(count, "ona")}ona`;
-    if (kind === "amine") return `${hydrocarbonName}-${locantText}-${suffixMultiplier(count, "amina")}amina`;
+    if (kind === "alcohol") return `${stem}-${locantText}-${suffixMultiplier(count, "ol")}ol`;
+    if (kind === "ketone") return `${stem}-${locantText}-${suffixMultiplier(count, "ona")}ona`;
+    if (kind === "amine") return `${stem}-${locantText}-${suffixMultiplier(count, "amina")}amina`;
   }
 
   const locant = sortedLocants[0] ?? 1;
@@ -3681,17 +3681,18 @@ export default function Home() {
     : pinName;
   const activeNomenclatureConvention = simplifiedModeEnabled
     ? "current"
-    : language === "en" && nomenclatureConvention === "school"
-    ? "current"
     : nomenclatureConvention;
-  const displayedIupacName = useMemo(
-    () => applyNomenclatureConvention(
-      localizedIupac(nameWithSelectedStereochemistry),
-      activeNomenclatureConvention,
-      language,
-    ),
-    [activeNomenclatureConvention, language, nameWithSelectedStereochemistry],
-  );
+  const nomenclatureVariants = useMemo(() => {
+    const localizedName = localizedIupac(nameWithSelectedStereochemistry);
+    return (["current", "school", "traditional"] as const).map((convention) => ({
+      convention,
+      label: nomenclatureConventionLabel(convention, language),
+      name: applyNomenclatureConvention(localizedName, convention, language),
+    }));
+  }, [language, nameWithSelectedStereochemistry]);
+  const displayedIupacName = nomenclatureVariants.find(
+    (variant) => variant.convention === activeNomenclatureConvention,
+  )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
   const canonicalIupacName = nameWithSelectedStereochemistry;
   const localizedCanonicalIupacName = localizedIupac(nameWithSelectedStereochemistry);
   const reasoningSteps = useMemo(
@@ -7093,6 +7094,22 @@ export default function Home() {
                   <span className="nomenclature-name-static">{displayedIupacName}</span>
                 ) : t("Respuesta oculta")}
               </p>
+              {showIupacName && !simplifiedModeEnabled && (
+                <div className="nomenclature-variants" aria-label={t("Sistemas de nomenclatura disponibles")}>
+                  {nomenclatureVariants.map((variant) => (
+                    <button
+                      type="button"
+                      key={variant.convention}
+                      className={variant.convention === activeNomenclatureConvention ? "active" : ""}
+                      aria-pressed={variant.convention === activeNomenclatureConvention}
+                      onClick={() => setNomenclatureConvention(variant.convention)}
+                    >
+                      <span>{variant.label}</span>
+                      <strong>{variant.name}</strong>
+                    </button>
+                  ))}
+                </div>
+              )}
               {showIupacName && !simplifiedModeEnabled && (
                 <small className="nomenclature-mode-label">
                   {nomenclatureConventionLabel(activeNomenclatureConvention, language)}

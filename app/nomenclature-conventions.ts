@@ -11,15 +11,20 @@ type ConventionCycle = readonly NomenclatureConvention[];
 
 const conventionCycles: Record<AppLanguage, ConventionCycle> = {
   es: ["current", "school", "traditional"],
-  en: ["current", "traditional"],
+  en: ["current", "school", "traditional"],
 };
 
+const parentStem = "(?:meth|eth|prop|but|pent|hex|hept|oct|non|dec)ane|(?:met|et|prop|but|pent|hex|hept|oct|non|dec)(?:an)?";
 const functionalSuffixes = "ene|yne|eno|ino|ol|one|ona|amine|amina";
+const multiplicativePrefixes = "di|tri|tetra|penta|hexa";
 const locantedSuffix = new RegExp(
-  `([a-záéíóúñ]+)-(\\d+)-(${functionalSuffixes})(?=$|[^a-záéíóúñ])`,
+  `(${parentStem})-(\\d+)-(${functionalSuffixes})(?=$|[^a-záéíóúñ])`,
   "i",
 );
-const unsaturatedSuffix = /^(ene|yne|eno|ino)$/i;
+const locantedMultiplicativeSuffix = new RegExp(
+  `(${parentStem})-(\\d+(?:,\\d+)*)-((?:${multiplicativePrefixes})(?:ol|one|ona|amine|amina))(?=$|[^a-záéíóúñ])`,
+  "i",
+);
 const stereoPrefix = /^(\((?:\d+[EZ](?:,\d+[EZ])*)\)-)(.+)$/;
 
 type TraditionalName = {
@@ -50,10 +55,16 @@ const traditionalNames: Record<string, TraditionalName> = {
   "prop-1-yne": { es: "metilacetileno", en: "methylacetylene" },
   metanol: { es: "metanol", en: "methanol" },
   methanol: { es: "metanol", en: "methanol" },
-  etanol: { es: "etanol", en: "ethanol" },
-  ethanol: { es: "etanol", en: "ethanol" },
   "propan-1-ol": { es: "propanol", en: "propanol" },
-  "propan-2-ol": { es: "2-propanol", en: "2-propanol" },
+  "propan-2-ol": { es: "alcohol isopropílico", en: "isopropyl alcohol" },
+  etanol: { es: "alcohol etílico", en: "ethyl alcohol" },
+  ethanol: { es: "alcohol etílico", en: "ethyl alcohol" },
+  "etan-1,2-diol": { es: "etilenglicol", en: "ethylene glycol" },
+  "ethane-1,2-diol": { es: "etilenglicol", en: "ethylene glycol" },
+  "propan-1,2-diol": { es: "propilenglicol", en: "propylene glycol" },
+  "propane-1,2-diol": { es: "propilenglicol", en: "propylene glycol" },
+  "propan-1,2,3-triol": { es: "glicerina", en: "glycerin" },
+  "propane-1,2,3-triol": { es: "glicerina", en: "glycerin" },
   metoximetano: { es: "dimetil éter", en: "dimethyl ether" },
   methoxymethane: { es: "dimetil éter", en: "dimethyl ether" },
   metoxietano: { es: "etil metil éter", en: "ethyl methyl ether" },
@@ -110,13 +121,29 @@ function splitStereochemicalPrefix(name: string) {
   return { prefix: "", baseName: name };
 }
 
+function schoolParentName(parent: string, suffix: string) {
+  if (parent.endsWith("ane")) return parent;
+  return parent.endsWith("an") && /^(di|tri|tetra|penta|hexa)/i.test(suffix)
+    ? `${parent}o`
+    : parent;
+}
+
 function addSchoolBaseVowel(baseName: string) {
-  return baseName.replace(locantedSuffix, (match, parent: string, locant: string, suffix: string) => (
-    unsaturatedSuffix.test(suffix) ? `${parent}a-${locant}-${suffix}` : match
-  ));
+  const withMultiplicativeLocantsFirst = baseName.replace(
+    locantedMultiplicativeSuffix,
+    (_match, parent: string, locants: string, suffix: string) =>
+      `${locants}-${schoolParentName(parent, suffix)}${suffix}`,
+  );
+  return withMultiplicativeLocantsFirst.replace(
+    locantedSuffix,
+    (_match, parent: string, locant: string, suffix: string) =>
+      `${locant}-${schoolParentName(parent, suffix)}${suffix}`,
+  );
 }
 
 function moveFunctionalLocantToFront(baseName: string) {
+  const schoolName = addSchoolBaseVowel(baseName);
+  if (schoolName !== baseName) return schoolName;
   const match = locantedSuffix.exec(baseName);
   if (!match) return baseName;
 
@@ -140,9 +167,7 @@ export function applyNomenclatureConvention(
   convention: NomenclatureConvention,
   language: AppLanguage,
 ) {
-  const activeConvention = language === "en" && convention === "school"
-    ? "current"
-    : convention;
+  const activeConvention = convention;
   const { prefix, baseName } = splitStereochemicalPrefix(name);
   const formattedName = activeConvention === "school"
     ? addSchoolBaseVowel(baseName)
@@ -169,7 +194,10 @@ export function nomenclatureConventionLabel(
   convention: NomenclatureConvention,
   language: AppLanguage,
 ) {
-  if (language === "en") return convention === "traditional" ? "Traditional" : "IUPAC Preferred";
+  if (language === "en") {
+    if (convention === "school") return "School / PAES";
+    return convention === "traditional" ? "Traditional" : "IUPAC Preferred";
+  }
   if (convention === "school") return "PAES/Escolar";
   return convention === "traditional" ? "Tradicional" : "IUPAC Actual";
 }

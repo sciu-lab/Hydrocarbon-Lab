@@ -2812,6 +2812,53 @@ button {
   line-height: inherit;
 }
 
+.nomenclature-variants {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.nomenclature-variants button {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #d0e1db;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #46645c;
+  cursor: pointer;
+  text-align: left;
+  transition: 150ms ease;
+}
+
+.nomenclature-variants button:hover,
+.nomenclature-variants button:focus-visible,
+.nomenclature-variants button.active {
+  border-color: #2d806b;
+  background: #e4f4ed;
+  color: #185d4e;
+}
+
+.nomenclature-variants span,
+.nomenclature-variants strong {
+  display: block;
+}
+
+.nomenclature-variants span {
+  margin-bottom: 3px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.nomenclature-variants strong {
+  overflow-wrap: anywhere;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  line-height: 1.28;
+}
+
 .alkyl-name-toggle {
   display: inline;
   width: auto;
