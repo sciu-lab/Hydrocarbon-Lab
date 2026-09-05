@@ -17,6 +17,20 @@ La versión de GitHub Pages se genera automáticamente desde la rama `main` con
 `npm run build:pages`. En GitHub Pages, el historial queda guardado localmente
 en el navegador; en Sites se sincroniza mediante su almacenamiento persistente.
 
+## Nomenclatura y estructuras extensas
+
+- La ficha de nombre presenta dos sistemas: **IUPAC Preferido** y
+  **Tradicional**. Este último usa un nombre común conservado cuando existe y
+  muestra `-` en los demás compuestos, salvo alcanos y derivados halogenados
+  cuya forma tradicional coincide con su nombre compacto.
+- El constructor local reconoce y genera padres hidrocarbonados desde C1 hasta
+  C100; la tabla preferida solicitada de C1 a C50 se comparte entre el parser,
+  el generador y el sistema «¿Quisiste decir…?».
+- El botón **Ampliar** abre el canvas en una capa responsive que se cierra con
+  el botón, con `Esc` o pulsando el fondo. Las coordenadas visuales, las fuentes
+  y el espaciado se escalan automáticamente para cadenas cortas, medianas y
+  largas sin modificar la conectividad molecular.
+
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
 Drizzle support.
@@ -133,8 +147,7 @@ lógica química.
 - **Patrón en enlaces dobles** refuerza la distinción de los dobles enlaces con
   líneas paralelas y un patrón adicional.
 - **Botones ampliados** eleva las áreas de interacción a un mínimo de 44 px;
-  **modo simplificado** oculta los controles de E/Z y los modos PAES y
-  tradicional.
+  **modo simplificado** oculta los controles de E/Z y el nombre tradicional.
 - **Destacar interactivos** aplica contornos y halos amarillos a botones,
   átomos editables y enlaces dinámicos, al estilo de las simulaciones PhET.
 

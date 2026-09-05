@@ -1,3 +1,5 @@
+import { IUPAC_ROOT_ALIASES, IUPAC_ROOTS } from "./iupac-prefixes.ts";
+
 export type GeneratedBondOrder = 1 | 2 | 3;
 
 export type GeneratedBond = [number, number, GeneratedBondOrder?];
@@ -61,53 +63,8 @@ export type NameBuildResult =
       error: string;
     };
 
-const hydrocarbonRoots = [
-  "",
-  "met",
-  "et",
-  "prop",
-  "but",
-  "pent",
-  "hex",
-  "hept",
-  "oct",
-  "non",
-  "dec",
-  "undec",
-  "dodec",
-  "tridec",
-  "tetradec",
-  "pentadec",
-  "hexadec",
-  "heptadec",
-  "octadec",
-  "nonadec",
-  "eicos",
-] as const;
-
-const alkylNames = [
-  "",
-  "metil",
-  "etil",
-  "propil",
-  "butil",
-  "pentil",
-  "hexil",
-  "heptil",
-  "octil",
-  "nonil",
-  "decil",
-  "undecil",
-  "dodecil",
-  "tridecil",
-  "tetradecil",
-  "pentadecil",
-  "hexadecil",
-  "heptadecil",
-  "octadecil",
-  "nonadecil",
-  "eicosil",
-] as const;
+const hydrocarbonRoots = IUPAC_ROOTS;
+const alkylNames = IUPAC_ROOTS.map((root) => root ? `${root}il` : "");
 
 const multiplierCounts: Record<string, number> = {
   di: 2,
@@ -292,16 +249,19 @@ function parseParent(value: string): ParentDescription | null {
   const withoutCycle = isRing ? value.slice(5) : value;
 
   for (let size = hydrocarbonRoots.length - 1; size >= 1; size -= 1) {
-    const root = hydrocarbonRoots[size];
-    if (!withoutCycle.startsWith(root)) continue;
-    const tail = withoutCycle.slice(root.length);
-    const unsaturation = parseParentTail(tail, size);
-    if (!unsaturation) continue;
-    return {
-      kind: isRing ? "ring" : "chain",
-      size,
-      ...unsaturation,
-    };
+    const roots = [hydrocarbonRoots[size], ...(IUPAC_ROOT_ALIASES[size] ?? [])]
+      .sort((left, right) => right.length - left.length);
+    for (const root of roots) {
+      if (!withoutCycle.startsWith(root)) continue;
+      const tail = withoutCycle.slice(root.length);
+      const unsaturation = parseParentTail(tail, size);
+      if (!unsaturation) continue;
+      return {
+        kind: isRing ? "ring" : "chain",
+        size,
+        ...unsaturation,
+      };
+    }
   }
 
   return null;
@@ -310,7 +270,7 @@ function parseParent(value: string): ParentDescription | null {
 function substituentFromToken(token: string) {
   const common = commonSubstituents[token];
   if (common) return common;
-  const length = alkylNames.indexOf(token as (typeof alkylNames)[number]);
+  const length = alkylNames.indexOf(token);
   if (length > 0) return { substituent: { kind: "linear", length } as SubstituentKind };
   return null;
 }

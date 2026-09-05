@@ -1553,6 +1553,80 @@ button {
   height: 100%;
 }
 
+.canvas-expand-scrim {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(4, 11, 9, 0.78);
+  cursor: zoom-out;
+  backdrop-filter: blur(5px);
+}
+
+.molecule-stage.is-expanded {
+  position: fixed;
+  z-index: 91;
+  top: 50%;
+  left: 50%;
+  width: min(90vw, calc(82vh * 1.7778));
+  height: auto;
+  max-height: 82vh;
+  aspect-ratio: 16 / 9;
+  margin: 0;
+  border: 2px solid rgba(100, 200, 255, 0.34);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.72);
+  transform: translate(-50%, -50%);
+}
+
+.canvas-expand-button {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid rgba(65, 125, 111, 0.34);
+  border-radius: 999px;
+  background: rgba(250, 253, 252, 0.92);
+  box-shadow: 0 6px 18px rgba(22, 69, 58, 0.14);
+  color: #286b5b;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+  backdrop-filter: blur(7px);
+}
+
+.canvas-expand-button:hover,
+.canvas-expand-button:focus-visible {
+  border-color: #388673;
+  background: #e3f3ed;
+  outline: 0;
+}
+
+.molecule-stage.chain-medium .atom-label {
+  font-size: 17px;
+}
+
+.molecule-stage.chain-long .atom-label {
+  font-size: 22px;
+}
+
+.molecule-stage.chain-extra-long .atom-label {
+  font-size: 26px;
+}
+
+.molecule-stage.chain-long .number-label,
+.molecule-stage.chain-extra-long .number-label {
+  font-size: 12px;
+}
+
 .valence-alert {
   display: flex;
   align-items: center;
@@ -2814,7 +2888,7 @@ button {
 
 .nomenclature-variants {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
   margin-top: 12px;
 }
@@ -4764,6 +4838,18 @@ html[data-theme="dark"] .name-result > button {
 html[data-theme="dark"] .molecule-stage {
   border-color: #30433e;
   background: var(--canvas);
+}
+
+html[data-theme="dark"] .canvas-expand-button {
+  border-color: rgba(116, 190, 170, 0.34);
+  background: rgba(24, 42, 37, 0.92);
+  color: #a4dfce;
+}
+
+html[data-theme="dark"] .canvas-expand-button:hover,
+html[data-theme="dark"] .canvas-expand-button:focus-visible {
+  border-color: #70bba6;
+  background: #24443a;
 }
 
 html[data-theme="dark"] .bond-touch-hint {

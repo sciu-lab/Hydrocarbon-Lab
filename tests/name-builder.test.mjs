@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { IUPAC_ROOTS } from "../app/iupac-prefixes.ts";
 import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
 
 function build(name) {
@@ -69,4 +70,35 @@ test("rejects structures that would exceed carbon valence", () => {
   const result = buildHydrocarbonFromIupacName("2,2,2-trimetilpropano");
   assert.equal(result.ok, false);
   assert.match(result.error, /valencia 4/i);
+});
+
+test("builds preferred long-chain parents through one hundred carbons", () => {
+  for (const [name, carbonCount] of [
+    ["tetracontano", 40],
+    ["pentacontano", 50],
+    ["hexacontano", 60],
+    ["heptacontano", 70],
+    ["octacontano", 80],
+    ["nonacontano", 90],
+    ["hectano", 100],
+  ]) {
+    const result = build(name);
+    assert.equal(result.molecule.atoms.length, carbonCount, name);
+    assert.equal(result.molecule.bonds.length, carbonCount - 1, name);
+  }
+});
+
+test("keeps the requested preferred roots from twenty through fifty", () => {
+  assert.deepEqual(IUPAC_ROOTS.slice(20, 51), [
+    "icos", "henicos", "docos", "tricos", "tetracos", "pentacos", "hexacos", "heptacos", "octacos", "nonacos",
+    "triacont", "hentriacont", "dotriacont", "tritriacont", "tetratriacont", "pentatriacont", "hexatriacont", "heptatriacont", "octatriacont", "nonatriacont",
+    "tetracont", "hentetracont", "dotetracont", "tritetracont", "tetratetracont", "pentatetracont", "hexatetracont", "heptatetracont", "octatetracont", "nonatetracont",
+    "pentacont",
+  ]);
+});
+
+test("builds long-chain polyols with preferred suffix placement", () => {
+  const result = build("tetracontan-2,3-diol");
+  assert.equal(result.molecule.atoms.filter((atom) => !atom.element || atom.element === "C").length, 40);
+  assert.equal(result.molecule.atoms.filter((atom) => atom.element === "O").length, 2);
 });

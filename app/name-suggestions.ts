@@ -1,4 +1,5 @@
 import type { AppLanguage } from "./i18n";
+import { englishIupacRoot, IUPAC_ROOTS } from "./iupac-prefixes.ts";
 
 export type CommonNameSuggestion = {
   id: string;
@@ -27,7 +28,7 @@ export type IupacTokens = {
  * and OpenChemLib.
  */
 export const chemicalDictionary = {
-  roots: ["met", "et", "prop", "but", "pent", "hex", "hept", "oct", "non", "dec"],
+  roots: IUPAC_ROOTS.slice(1),
   suffixes: ["ano", "eno", "ino", "ol", "diol", "triol", "al", "ona", "oico"],
   groups: ["cloro", "bromo", "fluoro", "yodo", "hidroxi", "amino"],
   diolPatterns: [
@@ -36,7 +37,7 @@ export const chemicalDictionary = {
   ],
 } as const;
 
-const englishRoots = ["meth", "eth", "prop", "but", "pent", "hex", "hept", "oct", "non", "dec"] as const;
+const englishRoots = IUPAC_ROOTS.slice(1).map(englishIupacRoot);
 const correctionSuffixes = ["ol", "diol", "triol"] as const;
 
 const commonMolecules: CommonMolecule[] = [
@@ -58,7 +59,9 @@ const commonMolecules: CommonMolecule[] = [
   { id: "glucose", es: "glucosa", en: "glucose", aliases: ["glucosa", "glucose"], suggestOnExactFailure: true },
 ];
 
-const parentPattern = /(?:ciclo)?(?:met|et|prop|but|pent|hex|hept|oct|non|dec)(?:an|en|in)?o?|(?:cyclo)?(?:meth|eth|prop|but|pent|hex|hept|oct|non|dec)(?:ane|ene|yne)?|benceno|benzene/;
+const spanishRootPattern = IUPAC_ROOTS.slice(1).sort((left, right) => right.length - left.length).join("|");
+const englishRootPattern = englishRoots.slice().sort((left, right) => right.length - left.length).join("|");
+const parentPattern = new RegExp(`(?:ciclo)?(?:${spanishRootPattern})(?:an|en|in)?o?|(?:cyclo)?(?:${englishRootPattern})(?:ane|ene|yne)?|benceno|benzene`);
 const suffixPattern = /(?:diol|triol|tetraol|ol|diona|ona|one|al|dial|amina|amine|eno|ene|ino|yne|oico|oicacid)/;
 const substituentPattern = /(?:fluoro|cloro|chloro|bromo|yodo|iodo|metil|methyl|etil|ethyl|hidroxi|hydroxy|amino|nitro)/g;
 

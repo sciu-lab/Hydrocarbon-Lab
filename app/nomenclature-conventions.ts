@@ -4,28 +4,20 @@ import {
   hyphenateHalogenatedName,
   stripMethaneHalogenLocants,
 } from "./iupac-name-normalization.ts";
+import { englishIupacRoot, IUPAC_ROOTS } from "./iupac-prefixes.ts";
 
-export type NomenclatureConvention = "current" | "school" | "traditional";
+export type NomenclatureConvention = "current" | "traditional";
 
 type ConventionCycle = readonly NomenclatureConvention[];
 
 const conventionCycles: Record<AppLanguage, ConventionCycle> = {
-  es: ["current", "school", "traditional"],
-  en: ["current", "school", "traditional"],
+  es: ["current", "traditional"],
+  en: ["current", "traditional"],
 };
-
-const parentStem = "(?:meth|eth|prop|but|pent|hex|hept|oct|non|dec)ane|(?:met|et|prop|but|pent|hex|hept|oct|non|dec)(?:an)?";
-const functionalSuffixes = "ene|yne|eno|ino|ol|one|ona|amine|amina";
-const multiplicativePrefixes = "di|tri|tetra|penta|hexa";
-const locantedSuffix = new RegExp(
-  `(${parentStem})-(\\d+)-(${functionalSuffixes})(?=$|[^a-záéíóúñ])`,
-  "i",
-);
-const locantedMultiplicativeSuffix = new RegExp(
-  `(${parentStem})-(\\d+(?:,\\d+)*)-((?:${multiplicativePrefixes})(?:ol|one|ona|amine|amina))(?=$|[^a-záéíóúñ])`,
-  "i",
-);
 const stereoPrefix = /^(\((?:\d+[EZ](?:,\d+[EZ])*)\)-)(.+)$/;
+const pureAlkaneNames = new Set(
+  IUPAC_ROOTS.slice(1).flatMap((root) => [`${root}ano`, `${englishIupacRoot(root)}ane`]),
+);
 
 type TraditionalName = {
   es: string;
@@ -121,40 +113,13 @@ function splitStereochemicalPrefix(name: string) {
   return { prefix: "", baseName: name };
 }
 
-function schoolParentName(parent: string, suffix: string) {
-  if (parent.endsWith("ane")) return parent;
-  return parent.endsWith("an") && /^(di|tri|tetra|penta|hexa)/i.test(suffix)
-    ? `${parent}o`
-    : parent;
-}
-
-function addSchoolBaseVowel(baseName: string) {
-  const withMultiplicativeLocantsFirst = baseName.replace(
-    locantedMultiplicativeSuffix,
-    (_match, parent: string, locants: string, suffix: string) =>
-      `${locants}-${schoolParentName(parent, suffix)}${suffix}`,
-  );
-  return withMultiplicativeLocantsFirst.replace(
-    locantedSuffix,
-    (_match, parent: string, locant: string, suffix: string) =>
-      `${locant}-${schoolParentName(parent, suffix)}${suffix}`,
-  );
-}
-
-function moveFunctionalLocantToFront(baseName: string) {
-  const schoolName = addSchoolBaseVowel(baseName);
-  if (schoolName !== baseName) return schoolName;
-  const match = locantedSuffix.exec(baseName);
-  if (!match) return baseName;
-
-  const [matched, parent, locant, suffix] = match;
-  const parentName = `${parent}${suffix}`;
-  return `${locant}-${baseName.replace(matched, parentName)}`;
-}
-
 function traditionalName(baseName: string, language: AppLanguage) {
-  return traditionalNames[baseName.toLocaleLowerCase("es")]?.[language]
-    ?? moveFunctionalLocantToFront(baseName);
+  const retainedName = traditionalNames[baseName.toLocaleLowerCase("es")]?.[language];
+  if (retainedName) return retainedName;
+  if (/(?:fluoro|cloro|chloro|bromo|yodo|iodo)/i.test(baseName)) {
+    return compactHalogenatedName(baseName);
+  }
+  return pureAlkaneNames.has(baseName.toLocaleLowerCase("es")) ? baseName : "-";
 }
 
 /**
@@ -169,11 +134,10 @@ export function applyNomenclatureConvention(
 ) {
   const activeConvention = convention;
   const { prefix, baseName } = splitStereochemicalPrefix(name);
-  const formattedName = activeConvention === "school"
-    ? addSchoolBaseVowel(baseName)
-    : activeConvention === "traditional"
-      ? traditionalName(baseName, language)
-      : baseName;
+  const formattedName = activeConvention === "traditional"
+    ? traditionalName(baseName, language)
+    : baseName;
+  if (formattedName === "-") return "-";
   const methaneLocantsRemoved = stripMethaneHalogenLocants(formattedName);
   const halogenFormattedName = activeConvention === "traditional"
     ? compactHalogenatedName(methaneLocantsRemoved)
@@ -195,9 +159,7 @@ export function nomenclatureConventionLabel(
   language: AppLanguage,
 ) {
   if (language === "en") {
-    if (convention === "school") return "School / PAES";
     return convention === "traditional" ? "Traditional" : "IUPAC Preferred";
   }
-  if (convention === "school") return "PAES/Escolar";
-  return convention === "traditional" ? "Tradicional" : "IUPAC Actual";
+  return convention === "traditional" ? "Tradicional" : "IUPAC Preferido";
 }

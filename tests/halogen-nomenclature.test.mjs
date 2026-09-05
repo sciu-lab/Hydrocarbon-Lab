@@ -41,17 +41,13 @@ test("normalizes glued Spanish and English halogen names before OPSIN", () => {
   ]);
 });
 
-test("uses hyphenated halogen names in IUPAC and school modes only", () => {
+test("uses preferred halogen punctuation while retaining compact traditional names", () => {
   assert.equal(applyNomenclatureConvention("bromoetano", "current", "es"), "bromo-etano");
-  assert.equal(applyNomenclatureConvention("bromoetano", "school", "es"), "bromo-etano");
   assert.equal(applyNomenclatureConvention("bromoetano", "traditional", "es"), "bromoetano");
   assert.equal(applyNomenclatureConvention("2-bromopropano", "current", "es"), "2-bromopropano");
-  assert.equal(applyNomenclatureConvention("2-bromo-propano", "school", "es"), "2-bromopropano");
   assert.equal(applyNomenclatureConvention("2-bromo-propano", "traditional", "es"), "2-bromopropano");
   assert.equal(applyNomenclatureConvention("2-bromo-propane", "current", "en"), "2-bromopropane");
   assert.equal(applyNomenclatureConvention("diclorometano", "current", "es"), "diclorometano");
-  assert.equal(applyNomenclatureConvention("1,1-di-cloro-metano", "school", "es"), "diclorometano");
-  assert.equal(applyNomenclatureConvention("fluorobenceno", "school", "es"), "fluoro-benceno");
 
   assert.equal(applyNomenclatureConvention("bromoethane", "current", "en"), "bromo-ethane");
   assert.equal(applyNomenclatureConvention("bromoethane", "traditional", "en"), "bromoethane");

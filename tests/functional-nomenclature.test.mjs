@@ -7,6 +7,7 @@ import { createServer } from "vite";
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
+let canvasCoordinateScaleForCarbonCount;
 
 before(async () => {
   server = await createServer({
@@ -17,7 +18,10 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule } = await server.ssrLoadModule("/app/page.tsx"));
+  ({
+    analyzeMolecule,
+    canvasCoordinateScaleForCarbonCount,
+  } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => {
@@ -103,6 +107,26 @@ function makeTerminalPair(kind, length = 4) {
   });
   return { atoms, bonds };
 }
+
+function makeLinearAlkane(length) {
+  return {
+    atoms: Array.from({ length }, (_, index) => ({ id: index + 1, x: index, y: index % 2 })),
+    bonds: Array.from({ length: length - 1 }, (_, index) => [index + 1, index + 2, 1]),
+  };
+}
+
+test("genera nombres preferidos para cadenas largas sin texto genérico", () => {
+  assert.equal(analyzeMolecule(makeLinearAlkane(40)).name, "tetracontano");
+  assert.equal(analyzeMolecule(makeLinearAlkane(50)).name, "pentacontano");
+  assert.equal(analyzeMolecule(makeLinearAlkane(100)).name, "hectano");
+});
+
+test("reduce progresivamente las coordenadas visuales de cadenas largas", () => {
+  assert.equal(canvasCoordinateScaleForCarbonCount(10), 1);
+  assert.equal(canvasCoordinateScaleForCarbonCount(11), 0.78);
+  assert.equal(canvasCoordinateScaleForCarbonCount(21), 0.5);
+  assert.equal(canvasCoordinateScaleForCarbonCount(51), 0.36);
+});
 
 test("mantiene fenol para un único OH unido al benceno", () => {
   const molecule = makeFunctionalRing([{ at: 0, group: "alcohol" }]);

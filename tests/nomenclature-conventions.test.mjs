@@ -49,30 +49,21 @@ function makeCyclohex1Ene() {
   };
 }
 
-test("formats PAES locants before the parent without inserting an extra vowel", () => {
-  assert.equal(applyNomenclatureConvention("pent-2-eno", "school", "es"), "2-penteno");
-  assert.equal(applyNomenclatureConvention("pent-2-ene", "traditional", "en"), "2-pentene");
-  assert.equal(applyNomenclatureConvention("hex-2-ino", "school", "es"), "2-hexino");
-  assert.equal(applyNomenclatureConvention("hex-2-yne", "traditional", "en"), "2-hexyne");
-  assert.equal(applyNomenclatureConvention("pent-2-ene", "school", "en"), "2-pentene");
-});
-
-test("formats polyfunctional alcohols in preferred, PAES, and common systems", () => {
+test("formats polyfunctional alcohols in preferred and common systems", () => {
   assert.equal(applyNomenclatureConvention("pentan-2,3-diol", "current", "es"), "pentan-2,3-diol");
-  assert.equal(applyNomenclatureConvention("pentan-2,3-diol", "school", "es"), "2,3-pentanodiol");
-  assert.equal(applyNomenclatureConvention("butan-1,4-diol", "school", "es"), "1,4-butanodiol");
-  assert.equal(applyNomenclatureConvention("propan-1,2,3-triol", "school", "es"), "1,2,3-propanotriol");
+  assert.equal(applyNomenclatureConvention("pentan-2,3-diol", "traditional", "es"), "-");
   assert.equal(applyNomenclatureConvention("etan-1,2-diol", "traditional", "es"), "etilenglicol");
   assert.equal(applyNomenclatureConvention("propan-1,2-diol", "traditional", "es"), "propilenglicol");
   assert.equal(applyNomenclatureConvention("propan-1,2,3-triol", "traditional", "es"), "glicerina");
 });
 
-test("keeps alcohol, ketone, amine, and acid suffixes systematic", () => {
-  assert.equal(applyNomenclatureConvention("propan-2-ol", "school", "es"), "2-propanol");
+test("uses a dash when no retained traditional name exists", () => {
   assert.equal(applyNomenclatureConvention("propan-2-ol", "traditional", "en"), "isopropyl alcohol");
-  assert.equal(applyNomenclatureConvention("hexan-3-one", "traditional", "en"), "3-hexanone");
-  assert.equal(applyNomenclatureConvention("butan-2-amine", "traditional", "en"), "2-butanamine");
-  assert.equal(applyNomenclatureConvention("2-methylpropanoic acid", "traditional", "en"), "2-methylpropanoic acid");
+  assert.equal(applyNomenclatureConvention("hexan-3-one", "traditional", "en"), "-");
+  assert.equal(applyNomenclatureConvention("butan-2-amine", "traditional", "en"), "-");
+  assert.equal(applyNomenclatureConvention("2-methylpropanoic acid", "traditional", "en"), "-");
+  assert.equal(applyNomenclatureConvention("tetracontano", "traditional", "es"), "tetracontano");
+  assert.equal(applyNomenclatureConvention("pentacontane", "traditional", "en"), "pentacontane");
 });
 
 test("uses common traditional names while preserving the IUPAC current mode", () => {
@@ -116,18 +107,16 @@ test("normalizes the extended Spanish common-name catalog before OPSIN", () => {
   assert.equal(translateSpanishIupacToOpsin("etil metil cetona"), "butan-2-one");
 });
 
-test("preserves E/Z independently from the nomenclature convention", () => {
-  assert.equal(applyNomenclatureConvention("(2E)-pent-2-eno", "school", "es"), "(2E)-2-penteno");
-  assert.equal(applyNomenclatureConvention("(2E)-pent-2-ene", "traditional", "en"), "(2E)-2-pentene");
+test("preserves E/Z independently from the preferred convention", () => {
+  assert.equal(applyNomenclatureConvention("(2E)-pent-2-eno", "current", "es"), "(2E)-pent-2-eno");
+  assert.equal(applyNomenclatureConvention("(2E)-pent-2-ene", "traditional", "en"), "-");
   assert.equal(stripStereochemicalDescriptors("(2Z)-pent-2-ene"), "pent-2-ene");
   assert.equal(stripStereochemicalDescriptors("ácido (2E)-hex-2-enoico"), "ácido hex-2-enoico");
 });
 
 test("uses the language-specific convention cycle", () => {
-  assert.equal(nextNomenclatureConvention("current", "es"), "school");
-  assert.equal(nextNomenclatureConvention("school", "es"), "traditional");
-  assert.equal(nextNomenclatureConvention("current", "en"), "school");
-  assert.equal(nextNomenclatureConvention("school", "en"), "traditional");
+  assert.equal(nextNomenclatureConvention("current", "es"), "traditional");
+  assert.equal(nextNomenclatureConvention("current", "en"), "traditional");
   assert.equal(nextNomenclatureConvention("traditional", "en"), "current");
 });
 

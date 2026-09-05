@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { buildHydrocarbonFromIupacName } from "./name-to-molecule";
+import { IUPAC_ROOTS } from "./iupac-prefixes";
 import { translateSpanishIupacToOpsin } from "./iupac-name-normalization";
 import {
   type AppLanguage,
@@ -217,53 +218,8 @@ export type IupacReasoningStep = {
   explanation: string;
 };
 
-const alkaneRoots = [
-  "",
-  "met",
-  "et",
-  "prop",
-  "but",
-  "pent",
-  "hex",
-  "hept",
-  "oct",
-  "non",
-  "dec",
-  "undec",
-  "dodec",
-  "tridec",
-  "tetradec",
-  "pentadec",
-  "hexadec",
-  "heptadec",
-  "octadec",
-  "nonadec",
-  "eicos",
-];
-
-const alkylNames = [
-  "",
-  "metil",
-  "etil",
-  "propil",
-  "butil",
-  "pentil",
-  "hexil",
-  "heptil",
-  "octil",
-  "nonil",
-  "decil",
-  "undecil",
-  "dodecil",
-  "tridecil",
-  "tetradecil",
-  "pentadecil",
-  "hexadecil",
-  "heptadecil",
-  "octadecil",
-  "nonadecil",
-  "eicosil",
-];
+const alkaneRoots = IUPAC_ROOTS;
+const alkylNames = IUPAC_ROOTS.map((root) => root ? `${root}il` : "");
 
 const simplePrefixes = ["", "", "di", "tri", "tetra", "penta", "hexa", "hepta", "octa"];
 const complexPrefixes = ["", "", "bis", "tris", "tetrakis", "pentakis", "hexakis"];
@@ -3042,6 +2998,13 @@ function getDisplayPosition(atom: CarbonAtom, viewMode: ViewMode, preserveGeomet
   return { x: atom.x * 130, y: atom.y * 106 };
 }
 
+export function canvasCoordinateScaleForCarbonCount(carbonCount: number) {
+  if (carbonCount <= 10) return 1;
+  if (carbonCount <= 20) return 0.78;
+  if (carbonCount <= 50) return 0.5;
+  return 0.36;
+}
+
 function ringIconPoints(size: number) {
   return Array.from({ length: size }, (_, index) => {
     const angle = -Math.PI / 2 + (index * Math.PI * 2) / size;
@@ -3598,6 +3561,7 @@ export default function Home() {
   const [savedEntries, setSavedEntries] = useState<HistoryEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [canvasExpanded, setCanvasExpanded] = useState(false);
   const [librarySection, setLibrarySection] = useState<LibrarySection>("history");
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyIdentity, setHistoryIdentity] = useState<string | null>(null);
@@ -3656,6 +3620,15 @@ export default function Home() {
   const valenceAlertTimer = useRef<number | null>(null);
   const nomenclatureHintTimer = useRef<number | null>(null);
 
+  useEffect(() => {
+    if (!canvasExpanded) return undefined;
+    const previousOverflow = window.document.body.style.overflow;
+    window.document.body.style.overflow = "hidden";
+    return () => {
+      window.document.body.style.overflow = previousOverflow;
+    };
+  }, [canvasExpanded]);
+
   const adjacency = useMemo(() => buildAdjacency(molecule), [molecule]);
   const calculatedAnalysis = useMemo(
     () => analyzeMolecule(molecule, commonAlkylNameSelections),
@@ -3699,7 +3672,7 @@ export default function Home() {
     : nomenclatureConvention;
   const nomenclatureVariants = useMemo(() => {
     const localizedName = localizedIupac(nameWithSelectedStereochemistry);
-    return (["current", "school", "traditional"] as const).map((convention) => ({
+    return (["current", "traditional"] as const).map((convention) => ({
       convention,
       label: nomenclatureConventionLabel(convention, language),
       name: applyNomenclatureConvention(localizedName, convention, language),
@@ -5362,7 +5335,10 @@ export default function Home() {
       const isEditable = Boolean(target?.matches("input, textarea, select") || target?.isContentEditable);
 
       if (event.key === "Escape") {
-        if (settingsOpen) {
+        if (canvasExpanded) {
+          event.preventDefault();
+          setCanvasExpanded(false);
+        } else if (settingsOpen) {
           event.preventDefault();
           setSettingsOpen(false);
         } else if (!historyOpen && !isEditable && selectedId !== null) {
@@ -5437,15 +5413,24 @@ export default function Home() {
     saveCurrentStructure,
     newMolecule,
     changeViewMode,
+    canvasExpanded,
     settingsOpen,
     selectedId,
   ]);
 
-  const displayPositions = viewMode === "skeletal" && !molecule.rings?.length
+  const carbonCount = molecule.atoms.filter(isCarbonAtom).length;
+  const rawDisplayPositions = viewMode === "skeletal" && !molecule.rings?.length
     ? buildOpenChainSkeletalPositions(molecule, analysis.mainChain)
     : new Map(
         molecule.atoms.map((atom) => [atom.id, getDisplayPosition(atom, viewMode, Boolean(molecule.rings?.length))]),
       );
+  const coordinateScale = canvasCoordinateScaleForCarbonCount(carbonCount);
+  const displayPositions = new Map(
+    [...rawDisplayPositions].map(([atomId, point]) => [atomId, {
+      x: point.x * coordinateScale,
+      y: point.y * coordinateScale,
+    }]),
+  );
   const skeletalNumberBadgeOffsets = new Map(
     molecule.atoms.map((atom) => {
       const containingRing = molecule.rings?.find((ring) => ring.atomIds.includes(atom.id));
@@ -5474,7 +5459,13 @@ export default function Home() {
   const selectedHydrogens = getImplicitHydrogens(selectedAtom.id, molecule);
   const selectedElement = getElement(selectedAtom);
   const selectedValenceLimit = getValenceLimit(selectedAtom.id, molecule);
-  const carbonCount = molecule.atoms.filter(isCarbonAtom).length;
+  const canvasScaleClass = carbonCount <= 10
+    ? "chain-short"
+    : carbonCount <= 20
+      ? "chain-medium"
+      : carbonCount <= 50
+        ? "chain-long"
+        : "chain-extra-long";
   const hasMultipleBonds = analysis.doubleBondLocants.length > 0 || analysis.tripleBondLocants.length > 0;
   const bondInteractionHintActions = useMemo(
     () => getBondInteractionHintActions(molecule),
@@ -5513,7 +5504,7 @@ export default function Home() {
   const cycleNomenclatureConvention = () => {
     if (simplifiedModeEnabled) return;
     setNomenclatureConvention((current) => nextNomenclatureConvention(
-      language === "en" && current === "school" ? "current" : current,
+      current,
       language,
     ));
     if (hasUsedNomenclatureToggle) return;
@@ -6315,8 +6306,17 @@ export default function Home() {
             </section>
           )}
 
+          {canvasExpanded && (
+            <button
+              type="button"
+              className="canvas-expand-scrim"
+              aria-label={t("Cerrar vista ampliada")}
+              onClick={() => setCanvasExpanded(false)}
+            />
+          )}
+
           <div
-            className={`molecule-stage ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"}`}
+            className={`molecule-stage ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasExpanded ? "is-expanded" : ""} ${canvasScaleClass}`}
             tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
             role={advancedScreenReaderEnabled ? "group" : undefined}
             aria-label={advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
@@ -6324,6 +6324,18 @@ export default function Home() {
             onKeyDown={handleCanvasKeyDown}
             onPointerDown={(event) => event.currentTarget.focus({ preventScroll: true })}
           >
+            <button
+              type="button"
+              className="canvas-expand-button"
+              aria-expanded={canvasExpanded}
+              aria-label={canvasExpanded ? t("Cerrar vista ampliada") : t("Ampliar canvas")}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => setCanvasExpanded((expanded) => !expanded)}
+            >
+              <span aria-hidden="true">{canvasExpanded ? "×" : "⌕"}</span>
+              {canvasExpanded ? t("Cerrar") : t("Ampliar")}
+            </button>
+
             <svg
               role={advancedScreenReaderEnabled ? "img" : undefined}
               aria-label={advancedScreenReaderEnabled ? language === "en"
@@ -7165,9 +7177,6 @@ export default function Home() {
               )}
               {showIupacName && !simplifiedModeEnabled && showNomenclatureHint && (
                 <small className="nomenclature-name-help">{t("Toca el nombre para cambiar la nomenclatura")}</small>
-              )}
-              {showIupacName && !simplifiedModeEnabled && analysis.commonName && activeNomenclatureConvention !== "traditional" && (
-                <small>{t("Nombre tradicional:")} <strong>{translateCommonName(language, analysis.commonName)}</strong></small>
               )}
             </div>
             <button

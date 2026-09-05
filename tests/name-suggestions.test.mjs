@@ -123,6 +123,19 @@ test("normalizes common-name aliases and weights connecting vowels lightly", () 
   assert.deepEqual(findCommonNameSuggestion("alcohol isopropilico", "es"), { id: "isopropanol", name: "propan-2-ol" });
 });
 
+test("keeps long preferred diols and modernizes their school-style spelling", () => {
+  assert.equal(findCommonNameSuggestion("tetracontan-2,3-diol", "es"), null);
+  assert.deepEqual(findCommonNameSuggestion("tetracontano-2,3-diol", "es"), {
+    id: "systematic-format",
+    name: "tetracontan-2,3-diol",
+  });
+  const schoolLocants = Array.from({ length: 19 }, (_unused, index) => index + 2).join(",");
+  assert.deepEqual(findCommonNameSuggestion(`${schoolLocants}-icosanodiol`, "es"), {
+    id: "systematic-format",
+    name: `icosan-${schoolLocants}-diol`,
+  });
+});
+
 test("hides only the E/Z canvas hint while stereochemistry is off", () => {
   const actions = ["change-order", "switch-ez"];
   assert.deepEqual(getVisibleBondInteractionHintActions(actions, false), ["change-order"]);
