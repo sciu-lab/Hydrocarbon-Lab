@@ -4135,14 +4135,17 @@ button:focus-visible,
 
 .name-suggestion-tooltip {
   position: absolute;
-  z-index: 4;
-  bottom: calc(100% + 8px);
-  left: 50%;
+  z-index: 20;
+  top: calc(100% + 9px);
+  bottom: auto;
+  left: 0;
   display: grid;
-  min-width: 126px;
-  min-height: 44px;
-  place-items: center;
-  padding: 6px;
+  grid-template-rows: auto auto;
+  gap: 5px;
+  width: 166px;
+  min-width: 166px;
+  min-height: 124px;
+  padding: 8px;
   border: 1px solid #c7d9d3;
   border-radius: 10px;
   background: #fff;
@@ -4150,24 +4153,34 @@ button:focus-visible,
   color: #59736b;
   font-weight: 700;
   opacity: 0;
-  transform: translate(-50%, 4px);
+  pointer-events: none;
+  transform: translateY(-4px);
   transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .name-suggestion-name:hover .name-suggestion-tooltip,
 .name-suggestion-name:focus-visible .name-suggestion-tooltip {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translateY(0);
 }
 
 .name-suggestion-tooltip .history-molecule-preview {
-  width: 120px;
-  height: 64px;
+  width: 150px;
+  height: 100px;
+  display: block;
+  border-radius: 5px;
+  background: #f5faf7;
 }
 
-.name-suggestion-tooltip small {
-  font-size: 8px;
-  white-space: nowrap;
+.name-suggestion-tooltip .name-suggestion-iupac {
+  display: block;
+  width: 150px;
+  color: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
 }
 
 html[data-theme="dark"] .name-builder-toggle {

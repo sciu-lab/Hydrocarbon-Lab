@@ -3347,28 +3347,40 @@ function readChemistryDocument(value: unknown): PortableStructure[] {
   return structures;
 }
 
-function MoleculeHistoryPreview({ molecule }: { molecule: Molecule }) {
+function MoleculeHistoryPreview({
+  molecule,
+  width: previewWidth = 120,
+  height: previewHeight = 64,
+}: {
+  molecule: Molecule;
+  width?: number;
+  height?: number;
+}) {
   const minX = Math.min(...molecule.atoms.map((atom) => atom.x));
   const maxX = Math.max(...molecule.atoms.map((atom) => atom.x));
   const minY = Math.min(...molecule.atoms.map((atom) => atom.y));
   const maxY = Math.max(...molecule.atoms.map((atom) => atom.y));
   const width = Math.max(maxX - minX, 1);
   const height = Math.max(maxY - minY, 1);
-  const scale = Math.min(94 / width, 48 / height, 25);
+  const scale = Math.min((previewWidth - 26) / width, (previewHeight - 16) / height, 25);
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
   const positions = new Map(
     molecule.atoms.map((atom) => [
       atom.id,
       {
-        x: 60 + (atom.x - centerX) * scale,
-        y: 32 + (atom.y - centerY) * scale,
+        x: previewWidth / 2 + (atom.x - centerX) * scale,
+        y: previewHeight / 2 + (atom.y - centerY) * scale,
       },
     ]),
   );
 
   return (
-    <svg className="history-molecule-preview" viewBox="0 0 120 64" aria-hidden="true">
+    <svg
+      className="history-molecule-preview"
+      viewBox={`0 0 ${previewWidth} ${previewHeight}`}
+      aria-hidden="true"
+    >
       {molecule.bonds.flatMap((bond) => {
         const start = positions.get(bond[0]);
         const end = positions.get(bond[1]);
@@ -3430,6 +3442,9 @@ export default function Home() {
 
     const continuing = source.match(/^Continuamos donde quedaste: (.+)\.$/);
     if (continuing) return `Continuing where you left off: ${localizedIupac(continuing[1])}.`;
+
+    const updatedMolecule = source.match(/^Molécula actualizada: (.+)\.$/);
+    if (updatedMolecule) return `Molecule updated: ${localizedIupac(updatedMolecule[1])}.`;
 
     const saved = source.match(/^(.+) quedó añadido a Guardados\.$/);
     if (saved) return `${localizedIupac(saved[1])} was added to Saved.`;
@@ -3693,6 +3708,12 @@ export default function Home() {
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
+  const suggestionPreviewIupacName = useMemo(
+    () => nameSuggestionPreview
+      ? localizedIupac(stripStereochemicalDescriptors(analyzeMolecule(nameSuggestionPreview).name))
+      : nameSuggestion?.name ?? "",
+    [language, nameSuggestion, nameSuggestionPreview],
+  );
   const canonicalIupacName = nameWithSelectedStereochemistry;
   const localizedCanonicalIupacName = localizedIupac(nameWithSelectedStereochemistry);
   const reasoningSteps = useMemo(
@@ -4062,7 +4083,7 @@ export default function Home() {
     return true;
   };
 
-  const constructFromName = async (requestedName: string) => {
+  const constructFromName = async (requestedName: string, fromSuggestion = false) => {
     const submittedName = requestedName.trim();
     if (!submittedName) {
       setNameBuilderOpen(true);
@@ -4148,7 +4169,9 @@ export default function Home() {
       setIupacInput(submittedName);
       setNameBuilderFeedback({
         kind: "success",
-        message: `Lista con ${engineLabel}: ${resultName}${commonName}.${serviceWarning} Ya quedó añadida a tu historial automático.`,
+        message: fromSuggestion
+          ? `Molécula actualizada: ${resultName}.`
+          : `Lista con ${engineLabel}: ${resultName}${commonName}.${serviceWarning} Ya quedó añadida a tu historial automático.`,
       });
     } catch (error) {
       setNameBuilderOpen(true);
@@ -4189,7 +4212,10 @@ export default function Home() {
   const applyNameSuggestion = () => {
     if (!nameSuggestion) return;
     setIupacInput(nameSuggestion.name);
-    void constructFromName(nameSuggestion.name);
+    setNameSuggestion(null);
+    setNameSuggestionPreview(null);
+    setNameSuggestionPreviewLoading(false);
+    void constructFromName(nameSuggestion.name, true);
   };
 
   const cycleTheme = () => {
@@ -6196,7 +6222,7 @@ export default function Home() {
               )}
               {nameSuggestion && (
                 <div className="name-suggestion" role="status">
-                  <span aria-hidden="true">?</span>
+                  <span aria-hidden="true">💡</span>
                   <p>
                     {t("Quizás quisiste decir:")}{" "}
                     <button
@@ -6210,7 +6236,10 @@ export default function Home() {
                       {nameSuggestion.name}
                       <span className="name-suggestion-tooltip" role="tooltip">
                         {nameSuggestionPreview ? (
-                          <MoleculeHistoryPreview molecule={nameSuggestionPreview} />
+                          <>
+                            <MoleculeHistoryPreview molecule={nameSuggestionPreview} width={150} height={100} />
+                            <small className="name-suggestion-iupac">{suggestionPreviewIupacName}</small>
+                          </>
                         ) : nameSuggestionPreviewLoading ? (
                           <small>{t("Generando vista previa…")}</small>
                         ) : (
