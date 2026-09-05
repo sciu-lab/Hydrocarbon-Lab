@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  chemicalLevenshtein,
   damerauLevenshteinDistance,
   findCommonNameSuggestion,
+  generateVariants,
   jaroWinklerSimilarity,
   levenshteinDistance,
+  normalizeChemicalInput,
   tokenizeIupacName,
 } from "../app/name-suggestions.ts";
 import {
@@ -62,6 +65,62 @@ test("uses transposition, similarity, and IUPAC tokens for conservative correcti
     name: "pentan-2,3-diol",
   });
   assert.equal(findCommonNameSuggestion("butan-1,4-diol", "es"), null);
+});
+
+test("corrects Spanish diol presentations before they reach the chemical parser", () => {
+  for (const [input, expected] of [
+    ["butano-1,4-diol", "butan-1,4-diol"],
+    ["pentano-2,3-diol", "pentan-2,3-diol"],
+    ["propano-1,2-diol", "propan-1,2-diol"],
+    ["hexano-1,6-diol", "hexan-1,6-diol"],
+    ["butano-2,3-diol", "butan-2,3-diol"],
+    ["pentano-1,5-diol", "pentan-1,5-diol"],
+    ["heptano-2,3-diol", "heptan-2,3-diol"],
+    ["octano-1,8-diol", "octan-1,8-diol"],
+    ["1,2-propanodiol", "propan-1,2-diol"],
+  ]) {
+    assert.deepEqual(findCommonNameSuggestion(input, "es"), {
+      id: "systematic-format",
+      name: expected,
+    }, input);
+  }
+});
+
+test("repairs inserted, omitted, transposed, and substituted chemical letters", () => {
+  for (const [input, expected] of [
+    ["butano-1,4-diolo", "butan-1,4-diol"],
+    ["butan-1,4-dol", "butan-1,4-diol"],
+    ["pentano-2,3-dil", "pentan-2,3-diol"],
+    ["etan-1,2-dil", "etan-1,2-diol"],
+    ["buntao-1,4-diol", "butan-1,4-diol"],
+    ["pentna-2,3-diol", "pentan-2,3-diol"],
+    ["propna-1,2-diol", "propan-1,2-diol"],
+    ["hexna-1,6-diol", "hexan-1,6-diol"],
+    ["butano-1,4-diel", "butan-1,4-diol"],
+    ["pentano-2,3-dial", "pentan-2,3-diol"],
+    ["propan-1,2-dial", "propan-1,2-diol"],
+    ["propanol-2", "propan-2-ol"],
+    ["pentol-2", "pentan-2-ol"],
+  ]) {
+    assert.deepEqual(findCommonNameSuggestion(input, "es"), {
+      id: "systematic-format",
+      name: expected,
+    }, input);
+  }
+  assert.deepEqual(findCommonNameSuggestion("etanolol", "es"), { id: "ethanol", name: "etanol" });
+  assert.equal(findCommonNameSuggestion("propan-2-ol", "es"), null);
+});
+
+test("normalizes common-name aliases and weights connecting vowels lightly", () => {
+  assert.equal(normalizeChemicalInput("  propano – 1, 2 - diol  "), "propano-1,2-diol");
+  assert.ok(chemicalLevenshtein("pentano-2,3-diol", "pentan-2,3-diol")
+    < chemicalLevenshtein("pentano-2,3-diol", "butan-2,3-diol"));
+  assert.ok(generateVariants("pentano-2,3-diol", "es").includes("pentan-2,3-diol"));
+  assert.deepEqual(findCommonNameSuggestion("etilenglicol", "es"), { id: "ethanediol", name: "etan-1,2-diol" });
+  assert.deepEqual(findCommonNameSuggestion("propilenglicol", "es"), { id: "propanediol", name: "propan-1,2-diol" });
+  assert.deepEqual(findCommonNameSuggestion("glicerina", "es"), { id: "glycerol", name: "propan-1,2,3-triol" });
+  assert.deepEqual(findCommonNameSuggestion("alcohol etilico", "es"), { id: "ethanol-systematic", name: "etan-1-ol" });
+  assert.deepEqual(findCommonNameSuggestion("alcohol isopropilico", "es"), { id: "isopropanol", name: "propan-2-ol" });
 });
 
 test("hides only the E/Z canvas hint while stereochemistry is off", () => {

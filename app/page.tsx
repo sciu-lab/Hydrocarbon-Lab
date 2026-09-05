@@ -4090,6 +4090,25 @@ export default function Home() {
       setNameBuilderFeedback({ kind: "error", message: "Escribe un nombre IUPAC para crear la estructura." });
       return;
     }
+
+    // Some legacy or near-correct names are accepted by the external parser.
+    // Correct them before parsing so the user can explicitly accept the PIN
+    // instead of silently retaining a malformed presentation.
+    const suggestedCorrection = fromSuggestion
+      ? null
+      : findCommonNameSuggestion(submittedName, language);
+    if (suggestedCorrection) {
+      setNameBuilderOpen(true);
+      setNameSuggestion(suggestedCorrection);
+      setNameSuggestionPreview(null);
+      setNameSuggestionPreviewLoading(false);
+      setNameBuilderFeedback({
+        kind: "error",
+        message: "Revisa el nombre propuesto antes de crear la estructura.",
+      });
+      return;
+    }
+
     const preserveSourceName = usesNitrogenLocants(submittedName);
 
     setNameBuilderBusy(true);
