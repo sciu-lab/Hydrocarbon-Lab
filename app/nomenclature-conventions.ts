@@ -19,6 +19,22 @@ const pureAlkaneNames = new Set(
   IUPAC_ROOTS.slice(1).flatMap((root) => [`${root}ano`, `${englishIupacRoot(root)}ane`]),
 );
 
+const traditionalRoots: Record<AppLanguage, readonly string[]> = {
+  es: IUPAC_ROOTS.slice(1),
+  en: IUPAC_ROOTS.slice(1).map(englishIupacRoot),
+};
+
+const traditionalRootPatterns: Record<AppLanguage, string> = {
+  es: rootPatternFor("es"),
+  en: rootPatternFor("en"),
+};
+
+function rootPatternFor(language: AppLanguage) {
+  return [...new Set(traditionalRoots[language])]
+    .sort((left, right) => right.length - left.length)
+    .join("|");
+}
+
 type TraditionalName = {
   es: string;
   en: string;
@@ -115,7 +131,77 @@ function splitStereochemicalPrefix(name: string) {
   return { prefix: "", baseName: name };
 }
 
+function withTraditionalPrefix(prefix: string, name: string) {
+  return prefix ? `${prefix}-${name}` : name;
+}
+
+/**
+ * Converts a localized preferred IUPAC name to the systematic, pre-2013
+ * classroom convention. This is intentionally a display-only formatter:
+ * structural interpretation remains with OPSIN/OpenChemLib.
+ */
+export function formatTraditionalSystematicName(baseName: string, language: AppLanguage) {
+  const value = baseName.toLocaleLowerCase("es");
+  const root = traditionalRootPatterns[language];
+  const parent = `(.*?)(${root})`;
+
+  // Monohydric alcohols: the terminal OH is implicit in the traditional form;
+  // all other OH positions move in front of the parent name.
+  const alcohol = value.match(new RegExp(`^${parent}an-(\\d+)-ol$`, "i"));
+  if (alcohol) {
+    const [, substituents, parentRoot, position] = alcohol;
+    return position === "1"
+      ? `${substituents}${parentRoot}anol`
+      : withTraditionalPrefix(substituents, `${position}-${parentRoot}anol`);
+  }
+  if (new RegExp(`^${parent}anol$`, "i").test(value)) return value;
+
+  // Polyols always keep every OH locant, but put those locants before the
+  // parent: propan-1,2-diol -> 1,2-propanodiol.
+  const polyolConnector = language === "es" ? "an" : "ane";
+  const polyol = value.match(
+    new RegExp(`^${parent}${polyolConnector}-(\\d+(?:,\\d+)*)-(di|tri|tetra|penta|hexa)ol$`, "i"),
+  );
+  if (polyol) {
+    const [, substituents, parentRoot, positions, multiplier] = polyol;
+    return withTraditionalPrefix(substituents, `${positions}-${parentRoot}ano${multiplier}ol`);
+  }
+
+  // Aldehyde and acid locants are inherent to carbon 1, so their systematic
+  // traditional names are unchanged. Returning them here avoids replacing a
+  // valid educational name with a retained common name (e.g. formaldehyde).
+  if (new RegExp(`^${parent}anal$`, "i").test(value)) return value;
+  if (language === "es" && new RegExp(`^ácido ${parent}anoico$`, "i").test(value)) return value;
+  if (language === "en" && new RegExp(`^${parent}anoic acid$`, "i").test(value)) return value;
+
+  // Ketones use a leading locant, except propan-2-one/propan-2-ona whose only
+  // possible carbonyl position is traditionally implicit.
+  const ketoneSuffix = language === "es" ? "ona" : "one";
+  const ketone = value.match(new RegExp(`^${parent}an-(\\d+)-${ketoneSuffix}$`, "i"));
+  if (ketone) {
+    const [, substituents, parentRoot, position] = ketone;
+    if (!substituents && parentRoot === "prop" && position === "2") {
+      return `${parentRoot}an${ketoneSuffix}`;
+    }
+    return withTraditionalPrefix(substituents, `${position}-${parentRoot}an${ketoneSuffix}`);
+  }
+  if (new RegExp(`^${parent}an${ketoneSuffix}$`, "i").test(value)) return value;
+
+  // The legacy placement for a single double or triple bond is before the
+  // parent: 4-cloropent-2-eno -> 4-cloro-2-penteno.
+  const unsaturationSuffix = language === "es" ? "eno|ino" : "ene|yne";
+  const unsaturation = value.match(new RegExp(`^${parent}-(\\d+)-(${unsaturationSuffix})$`, "i"));
+  if (unsaturation) {
+    const [, substituents, parentRoot, position, suffix] = unsaturation;
+    return withTraditionalPrefix(substituents, `${position}-${parentRoot}${suffix}`);
+  }
+
+  return undefined;
+}
+
 function traditionalName(baseName: string, language: AppLanguage) {
+  const systematicName = formatTraditionalSystematicName(baseName, language);
+  if (systematicName) return systematicName;
   const retainedName = traditionalNames[baseName.toLocaleLowerCase("es")]?.[language];
   if (retainedName) return retainedName;
   if (/(?:fluoro|cloro|chloro|bromo|yodo|iodo)/i.test(baseName)) {

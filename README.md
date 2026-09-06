@@ -20,9 +20,11 @@ en el navegador; en Sites se sincroniza mediante su almacenamiento persistente.
 ## Nomenclatura y estructuras extensas
 
 - La ficha de nombre presenta dos sistemas: **IUPAC Preferido** y
-  **Tradicional**. Este último usa un nombre común conservado cuando existe y
-  muestra `-` en los demás compuestos, salvo alcanos y derivados halogenados
-  cuya forma tradicional coincide con su nombre compacto.
+  **Tradicional**. Este último convierte de forma sistemática las familias de
+  uso escolar: `hexan-1-ol` → `hexanol`, `pentan-2-ol` → `2-pentanol`,
+  `propan-1,2-diol` → `1,2-propanodiol`, `butan-2-ona` → `2-butanona` y
+  `pent-2-eno` → `2-penteno`. Los nombres comunes conservados se mantienen
+  para las familias que no tienen una conversión tradicional sistemática.
 - El constructor local reconoce y genera padres hidrocarbonados desde C1 hasta
   C100; la tabla preferida solicitada de C1 a C50 se comparte entre el parser,
   el generador y el sistema «¿Quisiste decir…?».

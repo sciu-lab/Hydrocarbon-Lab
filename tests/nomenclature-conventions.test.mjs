@@ -49,30 +49,68 @@ function makeCyclohex1Ene() {
   };
 }
 
-test("formats polyfunctional alcohols in preferred and common systems", () => {
+test("formats alcohols and polyols in preferred and traditional systems", () => {
   assert.equal(applyNomenclatureConvention("pentan-2,3-diol", "current", "es"), "pentan-2,3-diol");
-  assert.equal(applyNomenclatureConvention("pentan-2,3-diol", "traditional", "es"), "-");
-  assert.equal(applyNomenclatureConvention("etan-1,2-diol", "traditional", "es"), "etilenglicol");
-  assert.equal(applyNomenclatureConvention("propan-1,2-diol", "traditional", "es"), "propilenglicol");
-  assert.equal(applyNomenclatureConvention("propan-1,2,3-triol", "traditional", "es"), "glicerina");
+  assert.equal(applyNomenclatureConvention("pentan-2,3-diol", "traditional", "es"), "2,3-pentanodiol");
+  assert.equal(applyNomenclatureConvention("etan-1,2-diol", "traditional", "es"), "1,2-etanodiol");
+  assert.equal(applyNomenclatureConvention("propan-1,2-diol", "traditional", "es"), "1,2-propanodiol");
+  assert.equal(applyNomenclatureConvention("propan-1,2,3-triol", "traditional", "es"), "1,2,3-propanotriol");
 });
 
-test("uses a dash when no retained traditional name exists", () => {
-  assert.equal(applyNomenclatureConvention("propan-2-ol", "traditional", "en"), "isopropyl alcohol");
-  assert.equal(applyNomenclatureConvention("hexan-3-one", "traditional", "en"), "-");
+test("follows the requested Spanish traditional nomenclature table", () => {
+  for (const [iupac, traditional] of [
+    ["metanol", "metanol"],
+    ["etan-1-ol", "etanol"], ["propan-1-ol", "propanol"], ["propan-2-ol", "2-propanol"],
+    ["butan-1-ol", "butanol"], ["butan-2-ol", "2-butanol"],
+    ["pentan-1-ol", "pentanol"], ["pentan-2-ol", "2-pentanol"], ["pentan-3-ol", "3-pentanol"],
+    ["hexan-1-ol", "hexanol"], ["hexan-2-ol", "2-hexanol"], ["hexan-3-ol", "3-hexanol"],
+    ["propan-1,2-diol", "1,2-propanodiol"], ["propan-1,3-diol", "1,3-propanodiol"],
+    ["butan-1,4-diol", "1,4-butanodiol"], ["butan-2,3-diol", "2,3-butanodiol"],
+    ["pentan-2,3-diol", "2,3-pentanodiol"],
+    ["propan-2-ona", "propanona"], ["butan-2-ona", "2-butanona"],
+    ["pentan-2-ona", "2-pentanona"], ["pentan-3-ona", "3-pentanona"],
+    ["hexan-2-ona", "2-hexanona"], ["hexan-3-ona", "3-hexanona"],
+    ["metanal", "metanal"], ["etanal", "etanal"], ["propanal", "propanal"],
+    ["butanal", "butanal"], ["pentanal", "pentanal"], ["hexanal", "hexanal"],
+    ["ácido metanoico", "ácido metanoico"], ["ácido etanoico", "ácido etanoico"],
+    ["ácido propanoico", "ácido propanoico"], ["ácido butanoico", "ácido butanoico"],
+    ["ácido pentanoico", "ácido pentanoico"], ["ácido hexanoico", "ácido hexanoico"],
+  ]) {
+    assert.equal(applyNomenclatureConvention(iupac, "traditional", "es"), traditional, iupac);
+  }
+});
+
+test("moves locants without breaking substituents or leaving dangling hyphens", () => {
+  for (const [iupac, traditional] of [
+    ["2-metilpropan-1-ol", "2-metilpropanol"],
+    ["3-cloropentan-2-ol", "3-cloro-2-pentanol"],
+    ["but-2-eno", "2-buteno"], ["pent-2-eno", "2-penteno"],
+    ["hex-3-eno", "3-hexeno"], ["pent-2-ino", "2-pentino"],
+    ["4-cloropent-2-eno", "4-cloro-2-penteno"],
+    ["2-bromo-3-clorobutano", "2-bromo-3-clorobutano"],
+  ]) {
+    const result = applyNomenclatureConvention(iupac, "traditional", "es");
+    assert.equal(result, traditional, iupac);
+    assert.equal(result.endsWith("-"), false, iupac);
+  }
+});
+
+test("uses traditional systematic forms before optional retained common names", () => {
+  assert.equal(applyNomenclatureConvention("propan-2-ol", "traditional", "en"), "2-propanol");
+  assert.equal(applyNomenclatureConvention("hexan-3-one", "traditional", "en"), "3-hexanone");
   assert.equal(applyNomenclatureConvention("butan-2-amine", "traditional", "en"), "-");
-  assert.equal(applyNomenclatureConvention("2-methylpropanoic acid", "traditional", "en"), "-");
+  assert.equal(applyNomenclatureConvention("2-methylpropanoic acid", "traditional", "en"), "2-methylpropanoic acid");
   assert.equal(applyNomenclatureConvention("tetracontano", "traditional", "es"), "tetracontano");
   assert.equal(applyNomenclatureConvention("pentacontane", "traditional", "en"), "pentacontane");
 });
 
-test("uses common traditional names while preserving the IUPAC current mode", () => {
+test("keeps preferred IUPAC untouched while applying traditional formatting", () => {
   for (const [iupac, traditional] of [
     ["ethyne", "acetylene"],
     ["methylbenzene", "toluene"],
-    ["propan-2-one", "acetone"],
-    ["methanal", "formaldehyde"],
-    ["propan-2-ol", "isopropyl alcohol"],
+    ["propan-2-one", "propanone"],
+    ["methanal", "methanal"],
+    ["propan-2-ol", "2-propanol"],
   ]) {
     assert.equal(applyNomenclatureConvention(iupac, "current", "en"), iupac);
     assert.equal(applyNomenclatureConvention(iupac, "traditional", "en"), traditional);
@@ -80,20 +118,20 @@ test("uses common traditional names while preserving the IUPAC current mode", ()
 
   assert.equal(applyNomenclatureConvention("etino", "traditional", "es"), "acetileno");
   assert.equal(applyNomenclatureConvention("metilbenceno", "traditional", "es"), "tolueno");
-  assert.equal(applyNomenclatureConvention("propan-2-ona", "traditional", "es"), "acetona");
-  assert.equal(applyNomenclatureConvention("metanal", "traditional", "es"), "formaldehído");
+  assert.equal(applyNomenclatureConvention("propan-2-ona", "traditional", "es"), "propanona");
+  assert.equal(applyNomenclatureConvention("metanal", "traditional", "es"), "metanal");
 });
 
 test("covers the extended common-name catalog by functional family", () => {
   for (const [iupac, traditional] of [
     ["methane", "methane"], ["ethane", "ethane"], ["propane", "propane"],
-    ["ethene", "ethylene"], ["prop-1-yne", "methylacetylene"],
+    ["ethene", "ethylene"], ["prop-1-yne", "1-propyne"],
     ["methanol", "methanol"], ["propan-1-ol", "propanol"],
     ["methoxymethane", "dimethyl ether"], ["methoxyethane", "ethyl methyl ether"], ["ethoxyethane", "diethyl ether"],
-    ["ethanal", "acetaldehyde"], ["propanal", "propionaldehyde"], ["butan-2-one", "ethyl methyl ketone"],
+    ["ethanal", "ethanal"], ["propanal", "propanal"], ["butan-2-one", "2-butanone"],
     ["benzene", "benzene"], ["phenol", "phenol"], ["aniline", "aniline"], ["benzoic acid", "benzoic acid"],
     ["ethenylbenzene", "styrene"], ["naphthalene", "naphthalene"],
-    ["methanoic acid", "formic acid"], ["ethanoic acid", "acetic acid"], ["propanoic acid", "propionic acid"],
+    ["methanoic acid", "methanoic acid"], ["ethanoic acid", "ethanoic acid"], ["propanoic acid", "propanoic acid"],
   ]) {
     assert.equal(applyNomenclatureConvention(iupac, "traditional", "en"), traditional, iupac);
   }
@@ -109,7 +147,7 @@ test("normalizes the extended Spanish common-name catalog before OPSIN", () => {
 
 test("preserves E/Z independently from the preferred convention", () => {
   assert.equal(applyNomenclatureConvention("(2E)-pent-2-eno", "current", "es"), "(2E)-pent-2-eno");
-  assert.equal(applyNomenclatureConvention("(2E)-pent-2-ene", "traditional", "en"), "-");
+  assert.equal(applyNomenclatureConvention("(2E)-pent-2-ene", "traditional", "en"), "(2E)-2-pentene");
   assert.equal(stripStereochemicalDescriptors("(2Z)-pent-2-ene"), "pent-2-ene");
   assert.equal(stripStereochemicalDescriptors("ácido (2E)-hex-2-enoico"), "ácido hex-2-enoico");
 });
