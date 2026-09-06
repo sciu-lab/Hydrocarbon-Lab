@@ -184,6 +184,7 @@ function translateCore(value: string) {
     .replace(/etoxi/g, "ethoxy")
     .replace(/propoxi/g, "propoxy")
     .replace(/butoxi/g, "butoxy")
+    .replace(/carbonil/g, "carbonyl")
     .replace(/hidroxi/g, "hydroxy")
     .replace(/amino/g, "__amino_prefix__")
     .replace(/carbamoil/g, "carbamoyl")
@@ -298,6 +299,13 @@ export function translateSpanishIupacToOpsin(value: string) {
   const acid = normalized.match(/^acido\s+(.+)$/);
   if (acid) {
     const acidName = translateCore(acid[1]);
+    return acidName.endsWith("acid") ? acidName : `${acidName} acid`;
+  }
+
+  // Spanish acid names are also frequently entered without the leading word
+  // "ácido". OPSIN's public HTTP service expects the English "acid" word.
+  if (/(?:oico|carboxilico)$/.test(normalized)) {
+    const acidName = translateCore(normalized);
     return acidName.endsWith("acid") ? acidName : `${acidName} acid`;
   }
 

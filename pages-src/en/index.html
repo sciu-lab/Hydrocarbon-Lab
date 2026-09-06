@@ -8,6 +8,41 @@
       content="Interactive organic chemistry laboratory for building hydrocarbons and functional groups, validating valence, and exploring IUPAC nomenclature."
     />
     <title>Hydrocarbon Lab | Sciu Science</title>
+    <!-- Google tag (gtag.js) -->
+    <script id="google-analytics-script" async src="https://www.googletagmanager.com/gtag/js?id=G-FZ76EQBG32"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      const analyticsMeasurementId = "G-FZ76EQBG32";
+      const analyticsDebugMode =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        new URLSearchParams(window.location.search).get("ga_debug") === "1";
+      const analyticsScript = document.getElementById("google-analytics-script");
+      if (analyticsDebugMode && analyticsScript) {
+        analyticsScript.addEventListener("load", () => console.info("✅ gtag.js downloaded"));
+        analyticsScript.addEventListener("error", () => console.error(
+          "❌ gtag.js was blocked or unavailable. Check ad blockers and tracking protection.",
+        ));
+      }
+      gtag("js", new Date());
+      gtag("config", analyticsMeasurementId, {
+        debug_mode: analyticsDebugMode,
+        send_page_view: !analyticsDebugMode,
+      });
+      if (analyticsDebugMode) {
+        console.info("✅ Google Analytics initialized");
+        console.info("📊 ID:", analyticsMeasurementId);
+        gtag("event", "page_view", {
+          page_title: document.title || "GA test",
+          page_location: window.location.href,
+          page_path: window.location.pathname + window.location.search,
+          debug_mode: true,
+          send_to: analyticsMeasurementId,
+        });
+        console.info("✅ Test event sent");
+      }
+    </script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

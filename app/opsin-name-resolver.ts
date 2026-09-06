@@ -27,6 +27,17 @@ export type NameStructureResolutionResult =
     };
 
 const embeddedSmilesFallback: Record<string, string> = {
+  "2-ethyl-5-methyl-4-(methoxycarbonyl)heptanoic acid": "O=C(O)C(CC)CC(C(=O)OC)C(C)CC",
+  "3-(2-chloroethyl)-4-methylhexanoic acid": "O=C(O)CC(CCCl)C(C)CC",
+  "2,3-dichloro-4-(methoxycarbonyl)pentanoic acid": "O=C(O)C(Cl)C(Cl)C(C(=O)OC)C",
+  "2-ethyl-3-(2-chloroethyl)butanedioic acid": "O=C(O)C(CC)C(CCCl)C(=O)O",
+  "3-(bromomethyl)-4-(2-chloroethyl)hexanoic acid": "O=C(O)CC(CBr)C(CCCl)CC",
+  "methyl 2-ethyl-4-(methoxycarbonyl)hexanoate": "COC(=O)C(CC)CC(C(=O)OC)CC",
+  "ethyl 3-chloro-2-(methoxycarbonyl)propanoate": "CCOC(=O)C(C(=O)OC)CCl",
+  "methyl 2-bromo-3-(ethoxycarbonyl)butanoate": "COC(=O)C(Br)C(C(=O)OCC)C",
+  "4-ethyl-3-(2-chloroethyl)-2-hydroxyhexanoic acid": "O=C(O)C(O)C(CCCl)C(CC)CC",
+  "2-(bromomethyl)-3-(2-chloroethyl)-4-methylpentanedioic acid": "O=C(O)C(CBr)C(CCCl)C(C)C(=O)O",
+  "3-(2-chloroethyl)-4-(methoxycarbonyl)hexanoic acid": "O=C(O)CC(CCCl)C(C(=O)OC)CC",
   "(2E)-2-ethyl-3-methylhex-2-enal": "C(C)/C(/C=O)=C(\\CCC)/C",
   "N-(2-cyclohexylethyl)-4-methyl-3-oxohexanamide": "C1(CCCCC1)CCNC(CC(C(CC)C)=O)=O",
   "N-cyclohexyl-N-methylpropan-2-amine": "C1(CCCCC1)N(C(C)C)C",
@@ -88,6 +99,21 @@ export async function resolveNameWithOpsin(
 ): Promise<NameStructureResolutionResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const candidates = getOpsinNameCandidates(originalName);
+  const impossibleCarbonylSubstitution = candidates.find((candidate) => {
+    const normalizedCandidate = candidate.toLocaleLowerCase("en");
+    const ketoneLocant = normalizedCandidate.match(/-(\d+)-one$/)?.[1];
+    return ketoneLocant
+      ? new RegExp(`(?:^|-)${ketoneLocant}-(?:fluoro|chloro|bromo|iodo)(?:-|$)`).test(normalizedCandidate)
+      : false;
+  });
+  if (impossibleCarbonylSubstitution) {
+    return {
+      ok: false,
+      serviceReached: false,
+      error: "El nombre asigna un halógeno al mismo carbono de una cetona; ese carbono superaría la valencia permitida.",
+      detail: "Cambia el localizador del halógeno o el de la cetona antes de volver a intentarlo.",
+    };
+  }
   let serviceReached = false;
   let lastMessage = "OPSIN no reconoció ese nombre.";
 

@@ -3081,7 +3081,7 @@ async function resolveNameStructure(name: string): Promise<NameStructureResoluti
 
   const directResult = await resolveNameWithOpsin(name);
   if (directResult.ok) return directResult.value;
-  throw new Error(directResult.error);
+  throw new Error(`${directResult.error}${directResult.detail ? ` ${directResult.detail}` : ""}`);
 }
 
 const COMPLEX_NAME_LIMIT_MESSAGE = "El motor no puede interpretar heterociclos o aminas complejas en este momento.";
@@ -3134,11 +3134,29 @@ function usesSupportedParenthesizedSubstituent(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "")
     .toLocaleLowerCase("es");
-  return /\((?:clorometil|bromometil|2-cloroetil|2-hidroxietil)\)/.test(normalized);
+  const groups = [...normalized.matchAll(/\(([^()]*)\)/g)].map((match) => match[1]);
+  return groups.some((group) => /[a-z]/.test(group)
+    && !/^\d*[ersz](?:,\d*[ersz])*$/.test(group));
 }
 
 function preservesSourceName(value: string) {
   return usesNitrogenLocants(value) || usesSupportedParenthesizedSubstituent(value);
+}
+
+function shouldTryAdvancedNameParserFirst(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es");
+  let depth = 0;
+  for (const character of normalized) {
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (depth < 0) return false;
+  }
+  if (depth !== 0) return false;
+  return /\([^()]*[a-z][^()]*\)/.test(normalized)
+    && /(?:oico|dioico|oato\s+de|ona|one|ol|al)$/.test(normalized.trim());
 }
 
 function readLocalLibrary(): LocalLibraryState {
@@ -4061,7 +4079,7 @@ export default function Home() {
     // Correct them before parsing so the user can explicitly accept the PIN
     // instead of silently retaining a malformed presentation.
     const localPreflight = buildHydrocarbonFromIupacName(submittedName);
-    const suggestedCorrection = fromSuggestion || localPreflight.ok
+    const suggestedCorrection = fromSuggestion || localPreflight.ok || shouldTryAdvancedNameParserFirst(submittedName)
       ? null
       : findCommonNameSuggestion(submittedName, language);
     if (suggestedCorrection) {

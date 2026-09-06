@@ -55,6 +55,35 @@ test("translates Spanish functional-group names into OPSIN candidates", () => {
   );
 });
 
+test("translates complex acids, esters and carbonyl substituents for OPSIN", () => {
+  const names = [
+    [
+      "ácido 2-etil-5-metil-4-(metoxicarbonil)heptanoico",
+      "2-ethyl-5-methyl-4-(methoxycarbonyl)heptanoic acid",
+    ],
+    [
+      "ácido 3-(2-cloroetil)-4-metilhexanoico",
+      "3-(2-chloroethyl)-4-methylhexanoic acid",
+    ],
+    [
+      "2-etil-4-(metoxicarbonil)hexanoato de metilo",
+      "methyl 2-ethyl-4-(methoxycarbonyl)hexanoate",
+    ],
+    [
+      "4-etil-3-(2-cloroetil)-2-hidroxihexanoico",
+      "4-ethyl-3-(2-chloroethyl)-2-hydroxyhexanoic acid",
+    ],
+    [
+      "2-(bromometil)-3-(2-cloroetil)-4-metilpentanodioico",
+      "2-(bromomethyl)-3-(2-chloroethyl)-4-methylpentanedioic acid",
+    ],
+  ];
+
+  names.forEach(([spanish, english]) => {
+    assert.equal(translateSpanishIupacToOpsin(spanish), english);
+  });
+});
+
 test("keeps both translated and original OPSIN candidates", () => {
   assert.deepEqual(getOpsinNameCandidates("Etanamida"), ["ethanamide", "etanamida"]);
   assert.deepEqual(getOpsinNameCandidates("propan-2-ol"), ["propan-2-ol"]);
@@ -137,6 +166,40 @@ test("known classroom names still resolve when the network is unavailable", asyn
   assert.equal(result.ok, true);
   assert.equal(result.value.source, "integrated-fallback");
   assert.equal(result.value.smiles, "O=C(CC1CC(CCC1)=O)C");
+});
+
+test("complex acid and ester examples keep validated offline structures", async () => {
+  const names = [
+    "ácido 2-etil-5-metil-4-(metoxicarbonil)heptanoico",
+    "ácido 3-(2-cloroetil)-4-metilhexanoico",
+    "2-etil-4-(metoxicarbonil)hexanoato de metilo",
+    "4-etil-3-(2-cloroetil)-2-hidroxihexanoico",
+    "2-(bromometil)-3-(2-cloroetil)-4-metilpentanodioico",
+    "3-(2-cloroetil)-4-(metoxicarbonil)hexanoico",
+  ];
+
+  for (const name of names) {
+    const result = await resolveNameWithOpsin(name, {
+      fetchImpl: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    assert.equal(result.ok, true, name);
+    assert.equal(result.value.source, "integrated-fallback", name);
+    const converted = moleculeFromSmiles(result.value.smiles);
+    assert.equal(converted.ok, true, name);
+    assert.ok(converted.molecule.atoms.length >= 8, name);
+  }
+});
+
+test("rejects a halogen placed on the carbonyl carbon of a ketone", async () => {
+  const result = await resolveNameWithOpsin(
+    "2-cloro-5-metil-3-(metoxicarbonil)hexan-2-ona",
+    { fetchImpl: async () => { throw new Error("should not fetch"); } },
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /mismo carbono de una cetona/i);
 });
 
 test("complex N-substituted names retain an integrated fallback", async () => {
