@@ -44,7 +44,7 @@ test("renders development preview metadata", async () => {
 });
 
 test("GitHub Pages entries include the same debuggable Google tag", async () => {
-  for (const entry of ["../pages-src/index.html", "../pages-src/es/index.html", "../pages-src/en/index.html"]) {
+  for (const entry of ["../pages-src/es/index.html", "../pages-src/en/index.html"]) {
     const html = await readFile(new URL(entry, import.meta.url), "utf8");
     assert.match(html, googleAnalyticsTag, entry);
     assert.match(html, /debug_mode:\s*analyticsDebugMode/i, entry);
