@@ -30,6 +30,11 @@ en el navegador; en Sites se sincroniza mediante su almacenamiento persistente.
   el botón, con `Esc` o pulsando el fondo. Las coordenadas visuales, las fuentes
   y el espaciado se escalan automáticamente para cadenas cortas, medianas y
   largas sin modificar la conectividad molecular.
+- El constructor local reconoce alcoholes, aldehídos, cetonas y ácidos simples
+  escritos sin localizador, como `hexanol`, `hexanal`, `hexanona` y
+  `ácido hexanoico`, y genera su estructura funcional editable.
+- El canvas no reserva letras, flechas ni números para dibujar. Se mantienen
+  los atajos globales documentados con Ctrl, además de `Delete` y `Esc`.
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

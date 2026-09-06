@@ -51,6 +51,8 @@ const traditionalNames: Record<string, TraditionalName> = {
   "propan-2-ol": { es: "alcohol isopropílico", en: "isopropyl alcohol" },
   etanol: { es: "alcohol etílico", en: "ethyl alcohol" },
   ethanol: { es: "alcohol etílico", en: "ethyl alcohol" },
+  "etan-1-ol": { es: "alcohol etílico", en: "ethyl alcohol" },
+  "ethan-1-ol": { es: "alcohol etílico", en: "ethyl alcohol" },
   "etan-1,2-diol": { es: "etilenglicol", en: "ethylene glycol" },
   "ethane-1,2-diol": { es: "etilenglicol", en: "ethylene glycol" },
   "propan-1,2-diol": { es: "propilenglicol", en: "propylene glycol" },

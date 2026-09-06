@@ -51,6 +51,12 @@ test("calculates standard edit distance after normalizing accents and punctuatio
   assert.equal(levenshteinDistance("hex-1-eno", "hexeno"), 1);
 });
 
+test("does not replace valid unlocanted oxygenated parents with alkanes", () => {
+  ["hexanol", "hexanal", "hexanona", "ácido hexanoico"].forEach((name) => {
+    assert.equal(findCommonNameSuggestion(name, "es"), null, name);
+  });
+});
+
 test("uses transposition, similarity, and IUPAC tokens for conservative corrections", () => {
   assert.equal(damerauLevenshteinDistance("etanlo", "etanol"), 1);
   assert.ok(jaroWinklerSimilarity("pentano-2,3-diol", "pentan-2,3-diol") > 0.9);

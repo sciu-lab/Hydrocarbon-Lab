@@ -3,7 +3,6 @@
 import {
   type ChangeEvent,
   type FormEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useMemo,
   useRef,
@@ -2038,7 +2037,7 @@ function makeFunctionalParentName(
 
   const locant = sortedLocants[0] ?? 1;
   if (kind === "alcohol") {
-    if (!doubleLocants.length && !tripleLocants.length && length <= 2) return `${stem}ol`;
+    if (!doubleLocants.length && !tripleLocants.length && length === 1) return `${stem}ol`;
     return `${stem}-${locant}-ol`;
   }
   if (kind === "ketone") return `${stem}-${locant}-ona`;
@@ -3427,18 +3426,6 @@ export default function Home() {
     const internalRequirement = source.match(/^(.+) requiere un carbono interno unido por enlaces simples a otros dos carbonos\.$/);
     if (internalRequirement) return `${t(internalRequirement[1])} requires an internal carbon connected by single bonds to two other carbons.`;
 
-    const selectedByKeyboard = source.match(/^(.+) (\d+) seleccionado con el teclado\.$/);
-    if (selectedByKeyboard) return `${t(selectedByKeyboard[1])} ${selectedByKeyboard[2]} selected with the keyboard.`;
-
-    const alreadyAssigned = source.match(/^(.+) (\d+) ya tiene esa asignación\.$/);
-    if (alreadyAssigned) return `${t(alreadyAssigned[1])} ${alreadyAssigned[2]} already has that assignment.`;
-
-    const createGroup = source.match(/^Para crear (.+), selecciona un nodo terminal unido mediante un enlace simple\.$/);
-    if (createGroup) return `To create ${createGroup[1]}, select a terminal node connected by a single bond.`;
-
-    const previousBond = source.match(/^El enlace con el nodo anterior ya es (simple|doble|triple)\.$/);
-    if (previousBond) return `The bond to the previous node is already ${t(previousBond[1])}.`;
-
     const selectedBond = source.match(/^Enlace (simple|doble|triple) seleccionado\. Añade un carbono o pulsa un enlace dibujado para cambiarlo\.$/);
     if (selectedBond) return `${t(selectedBond[1])[0].toUpperCase()}${t(selectedBond[1]).slice(1)} bond selected. Add a carbon or tap a drawn bond to change it.`;
 
@@ -3469,20 +3456,11 @@ export default function Home() {
     const bondUpdated = source.match(/^Enlace actualizado: (simple|doble|triple) → (simple|doble|triple)\. Fórmula y nombre recalculados\.$/);
     if (bondUpdated) return `Bond updated: ${t(bondUpdated[1])} → ${t(bondUpdated[2])}. Formula and name recalculated.`;
 
-    const keyboardCarbon = source.match(/^Atajo de dibujo: Carbono (\d+) añadido con enlace simple y seleccionado\.$/);
-    if (keyboardCarbon) return `Drawing shortcut: carbon ${keyboardCarbon[1]} added with a single bond and selected.`;
+    const removedNodeReconnect = source.match(/^Nodo (\d+) eliminado; sus dos vecinos se reconectaron mediante un enlace simple\.$/);
+    if (removedNodeReconnect) return `Node ${removedNodeReconnect[1]} removed; its two neighbors were reconnected with a single bond.`;
 
-    const convertedNode = source.match(/^Nodo (\d+) convertido en (.+) mediante el atajo (.+)\.$/);
-    if (convertedNode) return `Node ${convertedNode[1]} converted to ${convertedNode[2]} using the ${convertedNode[3]} shortcut.`;
-
-    const shortcutBond = source.match(/^Atajo ([123]): enlace con el nodo anterior cambiado a (simple|doble|triple)\.$/);
-    if (shortcutBond) return `Shortcut ${shortcutBond[1]}: bond to the previous node changed to ${t(shortcutBond[2])}.`;
-
-    const removedNodeReconnect = source.match(/^Nodo (\d+) eliminado con X; sus dos vecinos se reconectaron mediante un enlace simple\.$/);
-    if (removedNodeReconnect) return `Node ${removedNodeReconnect[1]} removed with X; its two neighbors were reconnected with a single bond.`;
-
-    const removedNode = source.match(/^Nodo (\d+) eliminado con X\.$/);
-    if (removedNode) return `Node ${removedNode[1]} removed with X.`;
+    const removedNode = source.match(/^Nodo (\d+) eliminado\.$/);
+    if (removedNode) return `Node ${removedNode[1]} removed.`;
 
     const createdFrom = source.match(/^Estructura creada desde «(.+)»\. Puedes seguir editándola átomo por átomo\.$/);
     if (createdFrom) return `Structure created from “${localizedIupac(createdFrom[1])}”. You can keep editing it atom by atom.`;
@@ -4067,7 +4045,8 @@ export default function Home() {
     // Some legacy or near-correct names are accepted by the external parser.
     // Correct them before parsing so the user can explicitly accept the PIN
     // instead of silently retaining a malformed presentation.
-    const suggestedCorrection = fromSuggestion
+    const localPreflight = buildHydrocarbonFromIupacName(submittedName);
+    const suggestedCorrection = fromSuggestion || localPreflight.ok
       ? null
       : findCommonNameSuggestion(submittedName, language);
     if (suggestedCorrection) {
@@ -4549,196 +4528,9 @@ export default function Home() {
     setSelectedId(neighbor ?? next.atoms[0].id);
   };
 
-  const selectCanvasAtom = (atomId: number) => {
-    const atom = getAtom(atomId, molecule);
-    if (!atom || atomId === selectedAtom.id) return;
-    previousSelectedId.current = selectedAtom.id;
-    setSelectedId(atomId);
-    setNotice(`${titleCaseElement(getElement(atom))} ${analysis.numberedAtoms.get(atomId) ?? atomId} seleccionado con el teclado.`);
-  };
-
-  const addKeyboardCarbon = (dx: number, dy: number) => {
-    const violation = getAtomValenceViolation(molecule, selectedAtom.id, 1);
-    if (violation) {
-      showValenceError(formatBondValenceError(1, violation));
-      return;
-    }
-
-    const targetX = selectedAtom.x + dx;
-    const targetY = selectedAtom.y + dy;
-    if (molecule.atoms.some((atom) =>
-      Math.abs(atom.x - targetX) < 0.05 && Math.abs(atom.y - targetY) < 0.05
-    )) {
-      setNotice("Ya existe un nodo en esa dirección; selecciónalo o utiliza otra flecha.");
-      return;
-    }
-
-    const nextId = Math.max(...molecule.atoms.map((atom) => atom.id)) + 1;
-    const next: Molecule = {
-      ...molecule,
-      atoms: [...molecule.atoms, { id: nextId, x: targetX, y: targetY, element: "C" }],
-      bonds: [...molecule.bonds, [selectedAtom.id, nextId, 1]],
-    };
-    const committed = commit(
-      next,
-      `Atajo de dibujo: Carbono ${nextId} añadido con enlace simple y seleccionado.`,
-    );
-    if (!committed) return;
-    previousSelectedId.current = selectedAtom.id;
-    setSelectedId(nextId);
-  };
-
-  const navigateCanvasHorizontally = (dx: -1 | 1) => {
-    const neighborId = findDirectionalNeighborId(molecule, selectedAtom.id, dx, 0);
-    if (neighborId !== null) {
-      selectCanvasAtom(neighborId);
-      return;
-    }
-    const neighbors = adjacency.get(selectedAtom.id) ?? [];
-    if (neighbors.length <= 1) {
-      addKeyboardCarbon(dx, 0);
-      return;
-    }
-    setNotice("No hay un vecino en esa dirección. Usa ↑ o ↓ para crear una ramificación desde este nodo.");
-  };
-
-  const createKeyboardBranch = (dy: -1 | 1) => {
-    const neighborAtoms = (adjacency.get(selectedAtom.id) ?? [])
-      .map((atomId) => getAtom(atomId, molecule))
-      .filter((atom): atom is CarbonAtom => Boolean(atom));
-    const hasLeftNeighbor = neighborAtoms.some((atom) => atom.x < selectedAtom.x - 0.05);
-    const hasRightNeighbor = neighborAtoms.some((atom) => atom.x > selectedAtom.x + 0.05);
-    if (!hasLeftNeighbor || !hasRightNeighbor) {
-      setNotice("Para crear una rama con ↑ o ↓, selecciona un nodo que tenga vecinos a izquierda y derecha.");
-      return;
-    }
-    addKeyboardCarbon(0, dy);
-  };
-
-  const replaceSelectedElement = (element: ChemicalElement) => {
-    const currentElement = getElement(selectedAtom);
-    if (currentElement === element) {
-      setNotice(`${titleCaseElement(element)} ${selectedAtom.id} ya tiene esa asignación.`);
-      return;
-    }
-    if (element !== "C" && ringContainingAtom(molecule, selectedAtom.id)) {
-      setNotice(COMPLEX_NAME_LIMIT_MESSAGE);
-      return;
-    }
-
-    const neighbors = atomNeighbors(selectedAtom.id, molecule);
-    if (element !== "C" && (neighbors.length !== 1 || neighbors[0].order !== 1)) {
-      const requestedGroup = element === "O"
-        ? "OH"
-        : element === "N"
-          ? "NH₂"
-          : element;
-      setNotice(`Para crear ${requestedGroup}, selecciona un nodo terminal unido mediante un enlace simple.`);
-      return;
-    }
-
-    const currentValence = getValenceUsed(selectedAtom.id, molecule);
-    const targetLimit = elementValences[element];
-    if (currentValence > targetLimit) {
-      showValenceError(
-        `No se puede convertir el nodo ${selectedAtom.id} en ${titleCaseElement(element)}: conservaría ${currentValence} enlaces y su máximo es ${targetLimit}.`,
-      );
-      return;
-    }
-
-    const next: Molecule = {
-      ...molecule,
-      atoms: molecule.atoms.map((atom) =>
-        atom.id === selectedAtom.id ? { ...atom, element, charge: undefined } : { ...atom },
-      ),
-    };
-    const hydrogens = getImplicitHydrogens(selectedAtom.id, next);
-    const resultingLabel = element === "C"
-      ? hydrogens === 0 ? "C" : `CH${hydrogens > 1 ? toSubscript(hydrogens) : ""}`
-      : element === "O"
-        ? "OH"
-        : element === "N"
-          ? "NH₂"
-          : element;
-    commit(next, `Nodo ${selectedAtom.id} convertido en ${resultingLabel} mediante el atajo ${element === "Br" ? "B" : element}.`);
-  };
-
-  const getPreviousNeighborId = () => {
-    const neighborIds = adjacency.get(selectedAtom.id) ?? [];
-    if (
-      previousSelectedId.current !== null
-      && neighborIds.includes(previousSelectedId.current)
-    ) {
-      return previousSelectedId.current;
-    }
-
-    const currentNumber = analysis.numberedAtoms.get(selectedAtom.id);
-    if (currentNumber && currentNumber > 1) {
-      const numberedPrevious = neighborIds.find(
-        (atomId) => analysis.numberedAtoms.get(atomId) === currentNumber - 1,
-      );
-      if (numberedPrevious !== undefined) return numberedPrevious;
-    }
-
-    const leftNeighbor = findDirectionalNeighborId(molecule, selectedAtom.id, -1, 0);
-    if (leftNeighbor !== null) return leftNeighbor;
-    return neighborIds.length === 1 ? neighborIds[0] : null;
-  };
-
-  const setPreviousBondOrder = (nextOrder: BondOrder) => {
-    const previousId = getPreviousNeighborId();
-    if (previousId === null) {
-      setNotice("No hay un vecino anterior identificado. Muévete primero con ← o → y vuelve a pulsar 1, 2 o 3.");
-      return;
-    }
-
-    const bondIndex = molecule.bonds.findIndex(
-      ([a, b]) => (a === selectedAtom.id && b === previousId)
-        || (a === previousId && b === selectedAtom.id),
-    );
-    if (bondIndex < 0) return;
-    const currentOrder = getBondOrder(molecule.bonds[bondIndex]);
-    if (currentOrder === nextOrder) {
-      setNotice(`El enlace con el nodo anterior ya es ${getBondOrderLabel(nextOrder)}.`);
-      return;
-    }
-
-    const containingRing = molecule.rings?.find(
-      (ring) => ring.atomIds.includes(selectedAtom.id) && ring.atomIds.includes(previousId),
-    );
-    if (containingRing?.kind === "aromatic") {
-      setNotice("Los enlaces internos del benceno están fijados para conservar su aromaticidad.");
-      return;
-    }
-    if (molecule.rings?.length && !containingRing) {
-      setNotice("Los enlaces que unen un anillo con otra parte de la molécula se mantienen simples.");
-      return;
-    }
-
-    const violation = findBondValenceViolation(
-      molecule,
-      selectedAtom.id,
-      previousId,
-      nextOrder,
-      currentOrder,
-    );
-    if (violation) {
-      showValenceError(formatBondValenceError(nextOrder, violation));
-      return;
-    }
-
-    const nextBonds = molecule.bonds.map((bond, index) =>
-      index === bondIndex ? [bond[0], bond[1], nextOrder] as Bond : [...bond] as Bond,
-    );
-    commit(
-      { ...molecule, bonds: nextBonds },
-      `Atajo ${nextOrder}: enlace con el nodo anterior cambiado a ${getBondOrderLabel(nextOrder)}.`,
-    );
-  };
-
   const removeSelectedWithKeyboard = () => {
     if (ringContainingAtom(molecule, selectedAtom.id)) {
-      setNotice("El atajo X no elimina vértices de un anillo, porque alteraría su cierre y su aromaticidad.");
+      setNotice("No se puede borrar un vértice de un anillo, porque alteraría su cierre y su aromaticidad.");
       return;
     }
     const neighborIds = adjacency.get(selectedAtom.id) ?? [];
@@ -4776,51 +4568,12 @@ export default function Home() {
     const committed = commit(
       next,
       neighborIds.length === 2
-        ? `Nodo ${selectedAtom.id} eliminado con X; sus dos vecinos se reconectaron mediante un enlace simple.`
-        : `Nodo ${selectedAtom.id} eliminado con X.`,
+        ? `Nodo ${selectedAtom.id} eliminado; sus dos vecinos se reconectaron mediante un enlace simple.`
+        : `Nodo ${selectedAtom.id} eliminado.`,
     );
     if (!committed) return;
     previousSelectedId.current = null;
     setSelectedId(neighborIds[0] ?? remainingAtoms[0].id);
-  };
-
-  const handleCanvasKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (target.matches("input, textarea, select") || target.isContentEditable) return;
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-
-    const key = event.key.toLocaleLowerCase("es");
-    const supported = [
-      "arrowleft",
-      "arrowright",
-      "arrowup",
-      "arrowdown",
-      "c",
-      "o",
-      "n",
-      "b",
-      "f",
-      "x",
-      "1",
-      "2",
-      "3",
-    ];
-    if (selectedId === null || !supported.includes(key) || !getAtom(selectedAtom.id, molecule)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.repeat && !key.startsWith("arrow")) return;
-
-    if (key === "arrowleft") navigateCanvasHorizontally(-1);
-    else if (key === "arrowright") navigateCanvasHorizontally(1);
-    else if (key === "arrowup") createKeyboardBranch(-1);
-    else if (key === "arrowdown") createKeyboardBranch(1);
-    else if (key === "c") replaceSelectedElement("C");
-    else if (key === "o") replaceSelectedElement("O");
-    else if (key === "n") replaceSelectedElement("N");
-    else if (key === "b") replaceSelectedElement("Br");
-    else if (key === "f") replaceSelectedElement("F");
-    else if (key === "x") removeSelectedWithKeyboard();
-    else setPreviousBondOrder(Number(key) as BondOrder);
   };
 
   const undo = () => {
@@ -6320,8 +6073,6 @@ export default function Home() {
             tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
             role={advancedScreenReaderEnabled ? "group" : undefined}
             aria-label={advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
-            aria-describedby={advancedScreenReaderEnabled ? "canvas-keyboard-shortcuts" : undefined}
-            onKeyDown={handleCanvasKeyDown}
             onPointerDown={(event) => event.currentTarget.focus({ preventScroll: true })}
           >
             <button
@@ -6740,15 +6491,6 @@ export default function Home() {
               <p>{localizedDynamicText(valenceAlert)}</p>
             </div>
           )}
-
-          <div className="canvas-keyboard-shortcuts" id="canvas-keyboard-shortcuts">
-            <strong>{t("Atajos del canvas")}</strong>
-            <span><kbd>←</kbd><kbd>→</kbd> {t("mover/crear")}</span>
-            <span><kbd>↑</kbd><kbd>↓</kbd> {t("rama")}</span>
-            <span><kbd>C</kbd><kbd>O</kbd><kbd>N</kbd><kbd>B</kbd><kbd>F</kbd> {t("átomo")}</span>
-            <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> {t("enlace")}</span>
-            <span><kbd>X</kbd> {t("borrar")}</span>
-          </div>
 
           <div className="builder-toolbar">
             <div className="selection-summary">

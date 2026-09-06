@@ -3,6 +3,7 @@ import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
+import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
@@ -126,6 +127,46 @@ test("reduce progresivamente las coordenadas visuales de cadenas largas", () => 
   assert.equal(canvasCoordinateScaleForCarbonCount(11), 0.78);
   assert.equal(canvasCoordinateScaleForCarbonCount(21), 0.5);
   assert.equal(canvasCoordinateScaleForCarbonCount(51), 0.36);
+});
+
+test("interpreta y nombra los padres oxigenados sin localizador escrito", () => {
+  const examples = [
+    ["metanol", "metanol"],
+    ["etanol", "etan-1-ol"],
+    ["propanol", "propan-1-ol"],
+    ["butanol", "butan-1-ol"],
+    ["pentanol", "pentan-1-ol"],
+    ["hexanol", "hexan-1-ol"],
+    ["heptanol", "heptan-1-ol"],
+    ["octanol", "octan-1-ol"],
+    ["nonanol", "nonan-1-ol"],
+    ["decanol", "decan-1-ol"],
+    ["metanal", "metanal"],
+    ["etanal", "etanal"],
+    ["propanal", "propanal"],
+    ["butanal", "butanal"],
+    ["pentanal", "pentanal"],
+    ["hexanal", "hexanal"],
+    ["heptanal", "heptanal"],
+    ["octanal", "octanal"],
+    ["nonanal", "nonanal"],
+    ["decanal", "decanal"],
+    ["propanona", "propan-2-ona"],
+    ["butanona", "butan-2-ona"],
+    ["pentanona", "pentan-2-ona"],
+    ["hexanona", "hexan-2-ona"],
+    ["ácido metanoico", "ácido metanoico"],
+    ["ácido etanoico", "ácido etanoico"],
+    ["ácido propanoico", "ácido propanoico"],
+    ["ácido butanoico", "ácido butanoico"],
+  ];
+
+  examples.forEach(([enteredName, expectedName]) => {
+    const built = buildHydrocarbonFromIupacName(enteredName);
+    assert.equal(built.ok, true, enteredName);
+    if (!built.ok) return;
+    assert.equal(analyzeMolecule(built.molecule).name, expectedName, enteredName);
+  });
 });
 
 test("mantiene fenol para un único OH unido al benceno", () => {

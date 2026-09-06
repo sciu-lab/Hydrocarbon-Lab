@@ -395,32 +395,114 @@ function attachHydroxylGroups(
   });
 }
 
-function parseAlcoholName(name: string): ParsedName | null {
-  const phenolLocants = name === "fenol" ? [1] : null;
-  const match = phenolLocants
-    ? null
-    : name.match(/^(.*)-(\d+(?:,\d+)*)-(di|tri|tetra|penta|hexa)?ol$/);
-  if (!phenolLocants && !match) return null;
+function attachCarbonylGroup(
+  molecule: GeneratedMolecule,
+  parent: ParentDescription,
+  locant: number,
+  includeHydroxyl: boolean,
+) {
+  const anchor = molecule.atoms.find((atom) => atom.id === locant);
+  if (!anchor) return false;
 
-  const locants = phenolLocants ?? parseLocants(match?.[2] ?? "");
-  const multiplier = phenolLocants ? "" : (match?.[3] ?? "");
-  if (!locants || locants.length !== alcoholMultiplierCounts[multiplier]) return null;
-  if (new Set(locants).size !== locants.length) return null;
+  const nextId = Math.max(...molecule.atoms.map((atom) => atom.id)) + 1;
+  const outwardX = parent.kind === "chain" ? 0 : anchor.x / (Math.hypot(anchor.x, anchor.y) || 1);
+  const outwardY = parent.kind === "chain" ? -1 : anchor.y / (Math.hypot(anchor.x, anchor.y) || 1);
+  molecule.atoms.push({
+    id: nextId,
+    x: anchor.x + outwardX * 1.15,
+    y: anchor.y + outwardY * 1.15,
+    element: "O",
+  });
+  molecule.bonds.push([anchor.id, nextId, 2]);
 
-  const hydrocarbonName = phenolLocants
-    ? "benceno"
-    : hydrocarbonParentFromAlcoholStem(match?.[1] ?? "");
-  const parsedParent = parseHydrocarbonName(hydrocarbonName);
-  if (!parsedParent) return null;
+  if (includeHydroxyl) {
+    molecule.atoms.push({
+      id: nextId + 1,
+      x: anchor.x - outwardX * 1.15,
+      y: anchor.y - outwardY * 1.15,
+      element: "O",
+    });
+    molecule.bonds.push([anchor.id, nextId + 1, 1]);
+  }
+  return true;
+}
+
+function oxygenatedParsedName(
+  name: string,
+  parentName: string,
+  locants: number[],
+  kind: "alcohol" | "aldehyde" | "ketone" | "carboxylicAcid",
+): ParsedName | null {
+  const parsedParent = parseHydrocarbonName(parentName);
+  if (!parsedParent || (kind !== "alcohol" && parsedParent.parent.kind !== "chain")) return null;
   if (locants.some((locant) => locant < 1 || locant > parsedParent.parent.size)) return null;
+  if ((kind === "aldehyde" || kind === "carboxylicAcid") && !locants.every(
+    (locant) => locant === 1 || locant === parsedParent.parent.size,
+  )) return null;
+  if (kind === "ketone" && locants.some(
+    (locant) => locant <= 1 || locant >= parsedParent.parent.size,
+  )) return null;
 
   const molecule = graphForParsedName(parsedParent);
-  attachHydroxylGroups(molecule, parsedParent.parent, locants);
+  if (kind === "alcohol") {
+    attachHydroxylGroups(molecule, parsedParent.parent, locants);
+  } else if (!locants.every((locant) => attachCarbonylGroup(
+    molecule,
+    parsedParent.parent,
+    locant,
+    kind === "carboxylicAcid",
+  ))) {
+    return null;
+  }
+
   return {
     ...parsedParent,
     normalizedInput: name,
     prebuiltMolecule: molecule,
   };
+}
+
+function parseAlcoholName(name: string): ParsedName | null {
+  const phenolLocants = name === "fenol" ? [1] : null;
+  const locantedMatch = phenolLocants
+    ? null
+    : name.match(/^(.*)-(\d+(?:,\d+)*)-(di|tri|tetra|penta|hexa)?ol$/);
+  const unlocantedMatch = phenolLocants || locantedMatch ? null : name.match(/^(.+)ol$/);
+  if (!phenolLocants && !locantedMatch && !unlocantedMatch) return null;
+
+  const locants = phenolLocants ?? (locantedMatch
+    ? parseLocants(locantedMatch[2])
+    : [1]);
+  const multiplier = phenolLocants ? "" : (locantedMatch?.[3] ?? "");
+  if (!locants || locants.length !== alcoholMultiplierCounts[multiplier]) return null;
+  if (new Set(locants).size !== locants.length) return null;
+
+  const hydrocarbonName = phenolLocants
+    ? "benceno"
+    : hydrocarbonParentFromAlcoholStem(locantedMatch?.[1] ?? unlocantedMatch?.[1] ?? "");
+  return oxygenatedParsedName(name, hydrocarbonName, locants, "alcohol");
+}
+
+function parseAldehydeName(name: string): ParsedName | null {
+  const match = name.match(/^(.+)al$/);
+  if (!match) return null;
+  const parentName = hydrocarbonParentFromAlcoholStem(match[1]);
+  return oxygenatedParsedName(name, parentName, [1], "aldehyde");
+}
+
+function parseKetoneName(name: string): ParsedName | null {
+  const locanted = name.match(/^(.*)-(\d+)-ona$/);
+  const simple = locanted ? null : name.match(/^(.+)ona$/);
+  if (!locanted && !simple) return null;
+  const parentName = hydrocarbonParentFromAlcoholStem(locanted?.[1] ?? simple?.[1] ?? "");
+  return oxygenatedParsedName(name, parentName, [locanted ? Number(locanted[2]) : 2], "ketone");
+}
+
+function parseCarboxylicAcidName(name: string): ParsedName | null {
+  const match = name.match(/^acido(.+)oico$/);
+  if (!match) return null;
+  const parentName = hydrocarbonParentFromAlcoholStem(match[1]);
+  return oxygenatedParsedName(name, parentName, [1], "carboxylicAcid");
 }
 
 function makeChain(size: number): GeneratedMolecule {
@@ -621,7 +703,11 @@ export function buildHydrocarbonFromIupacName(value: string): NameBuildResult {
     return { ok: false, error: "Escribe un nombre, por ejemplo: 3-etil-2-metilhexano." };
   }
 
-  const parsed = parseAlcoholName(normalizedInput) ?? parseHydrocarbonName(normalizedInput);
+  const parsed = parseAlcoholName(normalizedInput)
+    ?? parseAldehydeName(normalizedInput)
+    ?? parseKetoneName(normalizedInput)
+    ?? parseCarboxylicAcidName(normalizedInput)
+    ?? parseHydrocarbonName(normalizedInput);
   if (!parsed) {
     return {
       ok: false,

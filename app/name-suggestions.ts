@@ -62,6 +62,10 @@ const commonMolecules: CommonMolecule[] = [
 const spanishRootPattern = IUPAC_ROOTS.slice(1).sort((left, right) => right.length - left.length).join("|");
 const englishRootPattern = englishRoots.slice().sort((left, right) => right.length - left.length).join("|");
 const parentPattern = new RegExp(`(?:ciclo)?(?:${spanishRootPattern})(?:an|en|in)?o?|(?:cyclo)?(?:${englishRootPattern})(?:ane|ene|yne)?|benceno|benzene`);
+const unlocantedOxygenatedParentPattern = new RegExp(
+  `^(?:(?:${spanishRootPattern})an(?:ol|al|ona)|acido(?:${spanishRootPattern})anoico)$`,
+  "i",
+);
 const suffixPattern = /(?:diol|triol|tetraol|ol|diona|ona|one|al|dial|amina|amine|eno|ene|ino|yne|oico|oicacid)/;
 const substituentPattern = /(?:fluoro|cloro|chloro|bromo|yodo|iodo|metil|methyl|etil|ethyl|hidroxi|hydroxy|amino|nitro)/g;
 
@@ -378,6 +382,9 @@ function scoreCandidate(input: string, candidate: string) {
 export function findCommonNameSuggestion(input: string, language: AppLanguage): CommonNameSuggestion | null {
   const normalizedInput = normalizeName(input);
   if (normalizedInput.length < 3) return null;
+  // These parent names are accepted directly by the local functional-group
+  // parser, so they must never be replaced by a nearby alkane suggestion.
+  if (unlocantedOxygenatedParentPattern.test(normalizeChemicalText(input))) return null;
   const candidates: SuggestionCandidate[] = [
     ...systematicCandidates(input, language),
     ...commonMolecules.map((molecule) => ({
