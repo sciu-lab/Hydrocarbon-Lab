@@ -3,6 +3,7 @@ import test from "node:test";
 
 const developmentPreviewMeta =
   /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
+const googleAnalyticsTag = /https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=G-FZ76EQBG32/i;
 
 test("renders development preview metadata", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -31,6 +32,8 @@ test("renders development preview metadata", async () => {
   );
   const html = await response.text();
   assert.match(html, developmentPreviewMeta);
+  assert.match(html, googleAnalyticsTag);
+  assert.match(html, /gtag\(['"]config['"],\s*['"]G-FZ76EQBG32['"]\)/i);
 
   const bondsLayerIndex = html.indexOf('class="molecule-bonds-layer"');
   const nodesLayerIndex = html.indexOf('class="molecule-nodes-layer"');

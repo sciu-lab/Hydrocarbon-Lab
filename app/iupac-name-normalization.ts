@@ -139,11 +139,36 @@ function normalizePunctuation(value: string) {
 }
 
 /**
+ * Accepts the classroom placement of a single multiple-bond locant and
+ * returns the preferred parent-first notation before either parser sees it.
+ * This only rearranges presentation; it does not infer a structure.
+ */
+export function normalizeTraditionalUnsaturationNotation(value: string) {
+  const substituentPrefix = "(?:(?:\\d+(?:,\\d+)*-(?:fluoro|cloro|bromo|yodo|metil|etil|hidroxi|amino)-)+)";
+  const prefixed = value.match(
+    new RegExp(`^(${substituentPrefix})(\\d+)-((?:ciclo)?[a-z]+)-?(eno|ino)$`, "i"),
+  );
+  if (prefixed) {
+    const [, prefix, locant, parent, suffix] = prefixed;
+    return `${prefix.slice(0, -1)}${parent}-${locant}-${suffix}`;
+  }
+
+  const simple = value.match(/^(\d+)-((?:ciclo)?[a-z]+)-?(eno|ino)$/i);
+  if (simple) {
+    const [, locant, parent, suffix] = simple;
+    return `${parent}-${locant}-${suffix}`;
+  }
+  return value;
+}
+
+/**
  * Normalizes a user-entered halogen name before it is passed to OPSIN.
  * Existing hyphens are left alone; only glued prefix/parent pairs are split.
  */
 export function normalizeHalogenatedNameForOpsin(value: string) {
-  return hyphenateHalogenatedName(normalizePunctuation(value));
+  return hyphenateHalogenatedName(
+    normalizeTraditionalUnsaturationNotation(normalizePunctuation(value)),
+  );
 }
 
 function translateCore(value: string) {

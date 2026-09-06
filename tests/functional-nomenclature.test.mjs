@@ -144,13 +144,13 @@ test("interpreta y nombra los padres oxigenados sin localizador escrito", () => 
     ["metanal", "metanal"],
     ["etanal", "etanal"],
     ["propanal", "propanal"],
-    ["butanal", "butanal"],
-    ["pentanal", "pentanal"],
-    ["hexanal", "hexanal"],
-    ["heptanal", "heptanal"],
-    ["octanal", "octanal"],
-    ["nonanal", "nonanal"],
-    ["decanal", "decanal"],
+    ["butanal", "butan-1-al"],
+    ["pentanal", "pentan-1-al"],
+    ["hexanal", "hexan-1-al"],
+    ["heptanal", "heptan-1-al"],
+    ["octanal", "octan-1-al"],
+    ["nonanal", "nonan-1-al"],
+    ["decanal", "decan-1-al"],
     ["propanona", "propan-2-ona"],
     ["butanona", "butan-2-ona"],
     ["pentanona", "pentan-2-ona"],
@@ -167,6 +167,18 @@ test("interpreta y nombra los padres oxigenados sin localizador escrito", () => 
     if (!built.ok) return;
     assert.equal(analyzeMolecule(built.molecule).name, expectedName, enteredName);
   });
+});
+
+test("retains preferred unsaturated ketone and haloalkene formatting", () => {
+  const enone = buildHydrocarbonFromIupacName("pent-3-en-2-ona");
+  assert.equal(enone.ok, true, enone.ok ? undefined : enone.error);
+  if (enone.ok) assert.equal(analyzeMolecule(enone.molecule).name, "pent-3-en-2-ona");
+
+  const traditionalHaloalkene = buildHydrocarbonFromIupacName("4-cloro-2-penteno");
+  assert.equal(traditionalHaloalkene.ok, true, traditionalHaloalkene.ok ? undefined : traditionalHaloalkene.error);
+  if (traditionalHaloalkene.ok) {
+    assert.equal(analyzeMolecule(traditionalHaloalkene.molecule).name, "4-cloropent-2-eno");
+  }
 });
 
 test("mantiene fenol para un único OH unido al benceno", () => {

@@ -72,6 +72,51 @@ test("rejects structures that would exceed carbon valence", () => {
   assert.match(result.error, /valencia 4/i);
 });
 
+test("accepts preferred and traditional placements for one double bond", () => {
+  for (const name of ["3-hexeno", "3-hex-eno", "hex-3-eno"]) {
+    const result = build(name);
+    assert.deepEqual(
+      result.molecule.bonds.find(([left, right]) => left === 3 && right === 4),
+      [3, 4, 2],
+      name,
+    );
+  }
+  for (const name of ["2-penteno", "pent-2-eno"]) {
+    const result = build(name);
+    assert.deepEqual(
+      result.molecule.bonds.find(([left, right]) => left === 2 && right === 3),
+      [2, 3, 2],
+      name,
+    );
+  }
+});
+
+test("builds haloalkenes and supported parenthesized substituents as one branch", () => {
+  const haloalkene = build("4-cloro-2-penteno");
+  assert.ok(haloalkene.molecule.atoms.some((atom) => atom.element === "Cl"));
+  assert.deepEqual(
+    haloalkene.molecule.bonds.find(([left, right]) => left === 2 && right === 3),
+    [2, 3, 2],
+  );
+
+  for (const [name, carbonCount, elements] of [
+    ["2-(clorometil)butano", 5, ["Cl"]],
+    ["3-(2-cloroetil)pentano", 7, ["Cl"]],
+    ["2-(bromometil)-3-cloropentano", 6, ["Br", "Cl"]],
+    ["4-(2-hidroxietil)hexano", 8, ["O"]],
+  ]) {
+    const result = build(name);
+    assert.equal(
+      result.molecule.atoms.filter((atom) => !atom.element || atom.element === "C").length,
+      carbonCount,
+      name,
+    );
+    elements.forEach((element) => {
+      assert.ok(result.molecule.atoms.some((atom) => atom.element === element), `${name}: ${element}`);
+    });
+  }
+});
+
 test("builds preferred long-chain parents through one hundred carbons", () => {
   for (const [name, carbonCount] of [
     ["tetracontano", 40],

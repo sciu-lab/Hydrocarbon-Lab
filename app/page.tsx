@@ -2026,7 +2026,9 @@ function makeFunctionalParentName(
   if (kind === "aldehyde") {
     return count > 1
       ? `${hydrocarbonName}${suffixMultiplier(count, "al")}al`
-      : `${stem}al`;
+      : length <= 3 && !doubleLocants.length && !tripleLocants.length
+        ? `${stem}al`
+        : `${stem}-1-al`;
   }
 
   if (sortedLocants.length > 1) {
@@ -3126,6 +3128,19 @@ function usesNitrogenLocants(value: string) {
     && /(^|[-,(])n(?=[,-])/.test(normalized);
 }
 
+function usesSupportedParenthesizedSubstituent(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "")
+    .toLocaleLowerCase("es");
+  return /\((?:clorometil|bromometil|2-cloroetil|2-hidroxietil)\)/.test(normalized);
+}
+
+function preservesSourceName(value: string) {
+  return usesNitrogenLocants(value) || usesSupportedParenthesizedSubstituent(value);
+}
+
 function readLocalLibrary(): LocalLibraryState {
   try {
     const stored = window.localStorage.getItem(localLibraryStorageKey);
@@ -3784,8 +3799,8 @@ export default function Home() {
             viewMode: data.draft.viewMode,
           });
           setMolecule(restored);
-          setSourceNameOverride(usesNitrogenLocants(data.draft.name) ? data.draft.name : null);
-          setReasoningSourceName(usesNitrogenLocants(data.draft.name) ? data.draft.name : null);
+          setSourceNameOverride(preservesSourceName(data.draft.name) ? data.draft.name : null);
+          setReasoningSourceName(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setSelectedId(restored.atoms[0].id);
           setViewMode(data.draft.viewMode);
           setNotice(`Continuamos donde quedaste: ${data.draft.name}.`);
@@ -3838,8 +3853,8 @@ export default function Home() {
             viewMode: data.draft.viewMode,
           });
           setMolecule(restored);
-          setSourceNameOverride(usesNitrogenLocants(data.draft.name) ? data.draft.name : null);
-          setReasoningSourceName(usesNitrogenLocants(data.draft.name) ? data.draft.name : null);
+          setSourceNameOverride(preservesSourceName(data.draft.name) ? data.draft.name : null);
+          setReasoningSourceName(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setSelectedId(restored.atoms[0].id);
           setViewMode(data.draft.viewMode);
           setNotice(`Continuamos donde quedaste: ${data.draft.name}.`);
@@ -4061,7 +4076,7 @@ export default function Home() {
       return;
     }
 
-    const preserveSourceName = usesNitrogenLocants(submittedName);
+    const preserveSourceName = preservesSourceName(submittedName);
 
     setNameBuilderBusy(true);
     setNameBuilderFeedback(null);
@@ -4106,8 +4121,8 @@ export default function Home() {
       }
 
       const generatedAnalysis = analyzeMolecule(next, enabledAliases);
-      const preserveTrustedSourceName = advancedNameResolved
-        && (preserveSourceName || localNamerCannotSafelyName(next, generatedAnalysis));
+      const preserveTrustedSourceName = preserveSourceName || (advancedNameResolved
+        && localNamerCannotSafelyName(next, generatedAnalysis));
       const resultName = preserveTrustedSourceName ? submittedName : generatedAnalysis.name;
       const commonName = generatedAnalysis.commonName
         ? `; también se conoce como ${generatedAnalysis.commonName}`
@@ -4662,7 +4677,7 @@ export default function Home() {
       restored,
       `Estructura recuperada de ${source === "saved" ? "Guardados" : "tu historial"}: ${entry.name}.`,
     );
-    if (usesNitrogenLocants(entry.name)) {
+    if (preservesSourceName(entry.name)) {
       setSourceNameOverride(entry.name);
       setReasoningSourceName(entry.name);
     }

@@ -167,6 +167,13 @@ export function formatTraditionalSystematicName(baseName: string, language: AppL
     return withTraditionalPrefix(substituents, `${positions}-${parentRoot}ano${multiplier}ol`);
   }
 
+  // Aldehyde locants are explicit in the preferred display for C4 and above,
+  // but remain implicit in the traditional classroom form.
+  const preferredAldehyde = value.match(new RegExp(`^${parent}an-1-al$`, "i"));
+  if (preferredAldehyde) {
+    const [, substituents, parentRoot] = preferredAldehyde;
+    return `${substituents}${parentRoot}anal`;
+  }
   // Aldehyde and acid locants are inherent to carbon 1, so their systematic
   // traditional names are unchanged. Returning them here avoids replacing a
   // valid educational name with a retained common name (e.g. formaldehyde).
@@ -174,9 +181,22 @@ export function formatTraditionalSystematicName(baseName: string, language: AppL
   if (language === "es" && new RegExp(`^ácido ${parent}anoico$`, "i").test(value)) return value;
   if (language === "en" && new RegExp(`^${parent}anoic acid$`, "i").test(value)) return value;
 
+  // Unsaturated ketones keep the double-bond locant first and the carbonyl
+  // locant immediately before its suffix: pent-3-en-2-ona -> 3-penten-2-ona.
+  const ketoneSuffix = language === "es" ? "ona" : "one";
+  const unsaturatedKetone = value.match(
+    new RegExp(`^${parent}-(\\d+)-en-(\\d+)-${ketoneSuffix}$`, "i"),
+  );
+  if (unsaturatedKetone) {
+    const [, substituents, parentRoot, doublePosition, ketonePosition] = unsaturatedKetone;
+    return withTraditionalPrefix(
+      substituents,
+      `${doublePosition}-${parentRoot}en-${ketonePosition}-${ketoneSuffix}`,
+    );
+  }
+
   // Ketones use a leading locant, except propan-2-one/propan-2-ona whose only
   // possible carbonyl position is traditionally implicit.
-  const ketoneSuffix = language === "es" ? "ona" : "one";
   const ketone = value.match(new RegExp(`^${parent}an-(\\d+)-${ketoneSuffix}$`, "i"));
   if (ketone) {
     const [, substituents, parentRoot, position] = ketone;

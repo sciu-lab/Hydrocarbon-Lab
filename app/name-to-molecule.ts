@@ -1,4 +1,5 @@
 import { IUPAC_ROOT_ALIASES, IUPAC_ROOTS } from "./iupac-prefixes.ts";
+import { normalizeTraditionalUnsaturationNotation } from "./iupac-name-normalization.ts";
 
 export type GeneratedBondOrder = 1 | 2 | 3;
 
@@ -33,6 +34,12 @@ type ParentDescription = {
 
 type SubstituentKind =
   | { kind: "linear"; length: number }
+  | { kind: "halogen"; element: "F" | "Cl" | "Br" | "I" }
+  | {
+      kind: "structured";
+      atoms: Array<{ x: number; y: number; element?: GeneratedAtom["element"] }>;
+      connections: Array<readonly [number, number]>;
+    }
   | { kind: "isopropyl" }
   | { kind: "isobutyl" }
   | { kind: "sec-butyl" }
@@ -99,13 +106,47 @@ const commonSubstituents: Record<
   "tert-butil": { substituent: { kind: "tert-butyl" }, systematicAlias: "1,1-dimetiletil" },
 };
 
+const halogenSubstituents: Record<string, Extract<SubstituentKind, { kind: "halogen" }>> = {
+  fluoro: { kind: "halogen", element: "F" },
+  cloro: { kind: "halogen", element: "Cl" },
+  bromo: { kind: "halogen", element: "Br" },
+  yodo: { kind: "halogen", element: "I" },
+};
+
+const parenthesizedSubstituents: Record<
+  string,
+  Extract<SubstituentKind, { kind: "structured" }>
+> = {
+  clorometil: {
+    kind: "structured",
+    atoms: [{ x: 0, y: 1 }, { x: 0, y: 2, element: "Cl" }],
+    connections: [[-1, 0], [0, 1]],
+  },
+  bromometil: {
+    kind: "structured",
+    atoms: [{ x: 0, y: 1 }, { x: 0, y: 2, element: "Br" }],
+    connections: [[-1, 0], [0, 1]],
+  },
+  "2-cloroetil": {
+    kind: "structured",
+    atoms: [{ x: 0, y: 1 }, { x: 0, y: 2 }, { x: 0, y: 3, element: "Cl" }],
+    connections: [[-1, 0], [0, 1], [1, 2]],
+  },
+  "2-hidroxietil": {
+    kind: "structured",
+    atoms: [{ x: 0, y: 1 }, { x: 0, y: 2 }, { x: 0, y: 3, element: "O" }],
+    connections: [[-1, 0], [0, 1], [1, 2]],
+  },
+};
+
 const substituentTokens = [
   ...Object.keys(commonSubstituents),
+  ...Object.keys(halogenSubstituents),
   ...alkylNames.slice(1),
 ].sort((left, right) => right.length - left.length);
 
 function normalizeName(value: string) {
-  return value
+  const normalized = value
     .trim()
     .toLocaleLowerCase("es")
     .normalize("NFD")
@@ -118,6 +159,7 @@ function normalizeName(value: string) {
     .replace(/\(?2-metilpropil\)?/g, "isobutil")
     .replace(/\(?(?:butan-2-il|1-metilpropil)\)?/g, "sec-butil")
     .replace(/\(?1,1-dimetiletil\)?/g, "terc-butil");
+  return normalizeTraditionalUnsaturationNotation(normalized);
 }
 
 function directAlias(name: string): ParsedName | null {
@@ -270,6 +312,8 @@ function parseParent(value: string): ParentDescription | null {
 function substituentFromToken(token: string) {
   const common = commonSubstituents[token];
   if (common) return common;
+  const halogen = halogenSubstituents[token];
+  if (halogen) return { substituent: halogen };
   const length = alkylNames.indexOf(token);
   if (length > 0) return { substituent: { kind: "linear", length } as SubstituentKind };
   return null;
@@ -298,6 +342,17 @@ function parseSubstitutions(
     }
 
     if (!locants) return null;
+
+    if (remaining.startsWith("(")) {
+      const closingIndex = remaining.indexOf(")");
+      if (closingIndex < 0) return null;
+      const descriptor = parenthesizedSubstituents[remaining.slice(1, closingIndex)];
+      if (!descriptor || locants.length !== 1) return null;
+      substitutions.push({ locant: locants[0], substituent: descriptor });
+      remaining = remaining.slice(closingIndex + 1);
+      if (remaining.startsWith("-")) remaining = remaining.slice(1);
+      continue;
+    }
 
     let multiplier = "";
     for (const candidate of Object.keys(multiplierCounts).sort((a, b) => b.length - a.length)) {
@@ -565,6 +620,13 @@ function branchTemplate(kind: SubstituentKind) {
       connections: Array.from({ length: kind.length }, (_, index) => [index - 1, index] as const),
     };
   }
+  if (kind.kind === "halogen") {
+    return {
+      atoms: [{ x: 0, y: 1, element: kind.element }],
+      connections: [[-1, 0]] as const,
+    };
+  }
+  if (kind.kind === "structured") return kind;
   if (kind.kind === "isopropyl") {
     return {
       atoms: [{ x: 0, y: 1 }, { x: -0.75, y: 2 }, { x: 0.75, y: 2 }],
@@ -636,6 +698,7 @@ function attachSubstituent(
     id: firstId + index,
     x: anchor.x + outwardX * point.y + perpendicularX * point.x,
     y: anchor.y + outwardY * point.y + perpendicularY * point.x,
+    ...(point.element ? { element: point.element } : {}),
   }));
   molecule.atoms.push(...atoms);
   template.connections.forEach(([from, to]) => {

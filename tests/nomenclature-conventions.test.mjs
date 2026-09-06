@@ -95,6 +95,18 @@ test("moves locants without breaking substituents or leaving dangling hyphens", 
   }
 });
 
+test("keeps preferred aldehyde locants and formats unsaturated ketones traditionally", () => {
+  for (const [preferred, traditional] of [
+    ["butan-1-al", "butanal"], ["pentan-1-al", "pentanal"], ["hexan-1-al", "hexanal"],
+    ["pent-3-en-2-ona", "3-penten-2-ona"], ["hex-3-en-2-ona", "3-hexen-2-ona"],
+    ["hex-4-en-2-ona", "4-hexen-2-ona"], ["but-3-en-2-ona", "3-buten-2-ona"],
+    ["pent-4-en-2-ona", "4-penten-2-ona"],
+  ]) {
+    assert.equal(applyNomenclatureConvention(preferred, "current", "es"), preferred, preferred);
+    assert.equal(applyNomenclatureConvention(preferred, "traditional", "es"), traditional, preferred);
+  }
+});
+
 test("uses traditional systematic forms before optional retained common names", () => {
   assert.equal(applyNomenclatureConvention("propan-2-ol", "traditional", "en"), "2-propanol");
   assert.equal(applyNomenclatureConvention("hexan-3-one", "traditional", "en"), "3-hexanone");

@@ -22,6 +22,10 @@ test("translates Spanish functional-group names into OPSIN candidates", () => {
     "benzene-1,3,5-triol",
   );
   assert.equal(translateSpanishIupacToOpsin("butan-2-ona"), "butan-2-one");
+  assert.equal(translateSpanishIupacToOpsin("3-hexeno"), "hex-3-ene");
+  assert.equal(translateSpanishIupacToOpsin("3-hex-eno"), "hex-3-ene");
+  assert.equal(translateSpanishIupacToOpsin("4-cloro-2-penteno"), "4-chloropent-2-ene");
+  assert.equal(translateSpanishIupacToOpsin("2-(clorometil)butano"), "2-(chloromethyl)butane");
   assert.equal(translateSpanishIupacToOpsin("Benceno"), "benzene");
   assert.equal(translateSpanishIupacToOpsin("Etilbenceno"), "ethylbenzene");
   assert.equal(translateSpanishIupacToOpsin("p-Xileno"), "p-xylene");
