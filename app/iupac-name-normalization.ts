@@ -71,7 +71,7 @@ const heterocycleTranslations: Record<string, string> = {
  * Longer entries are intentionally replaced first so, for example,
  * "pirrolidina" cannot be partly translated as "pirrol".
  */
-export function translateHeterocycles(name: string) {
+export function translateHeterocycles(name: string): string {
   let translated = name;
   const sortedKeys = Object.keys(heterocycleTranslations)
     .sort((left, right) => right.length - left.length);
@@ -85,6 +85,17 @@ export function translateHeterocycles(name: string) {
   }
 
   return translated;
+}
+
+declare global {
+  interface Window {
+    translateHeterocycles: typeof translateHeterocycles;
+  }
+}
+
+// Keep the translator available to the simulator and to browser-console users.
+if (typeof window !== "undefined") {
+  window.translateHeterocycles = translateHeterocycles;
 }
 
 const halogenMultipliers = "di|tri|tetra|penta|hexa|hepta|octa";

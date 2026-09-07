@@ -3304,6 +3304,53 @@ function downloadSmilesFile(smiles: string, fileName: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
+const SVG_EXPORT_STYLE_PROPERTIES = [
+  "display",
+  "fill",
+  "fill-opacity",
+  "filter",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "letter-spacing",
+  "opacity",
+  "paint-order",
+  "stroke",
+  "stroke-dasharray",
+  "stroke-linecap",
+  "stroke-linejoin",
+  "stroke-opacity",
+  "stroke-width",
+  "visibility",
+] as const;
+
+function inlineSvgStyles(source: SVGSVGElement, clone: SVGSVGElement) {
+  const sourceElements = [source, ...source.querySelectorAll<SVGElement>("*")];
+  const clonedElements = [clone, ...clone.querySelectorAll<SVGElement>("*")];
+
+  sourceElements.forEach((sourceElement, index) => {
+    const clonedElement = clonedElements[index];
+    if (!clonedElement) return;
+    const computedStyle = window.getComputedStyle(sourceElement);
+    const inlineStyle = SVG_EXPORT_STYLE_PROPERTIES
+      .map((property) => `${property}:${computedStyle.getPropertyValue(property)}`)
+      .join(";");
+    clonedElement.setAttribute("style", inlineStyle);
+  });
+}
+
+function safePngFileName(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 70);
+  return normalized || "molecula";
+}
+
 function isPortableStructure(value: unknown): value is PortableStructure {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<PortableStructure>;
@@ -3630,6 +3677,7 @@ export default function Home() {
   const previousSelectedId = useRef<number | null>(null);
   const valenceAlertTimer = useRef<number | null>(null);
   const nomenclatureHintTimer = useRef<number | null>(null);
+  const moleculeSvgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     if (!canvasExpanded) return undefined;
@@ -4774,6 +4822,81 @@ export default function Home() {
           ? localizedDynamicText(error.message)
           : t("No fue posible exportar esta estructura como SMILES."),
       });
+    }
+  };
+
+  const exportCanvasAsPNG = () => {
+    const sourceSvg = moleculeSvgRef.current;
+    if (!sourceSvg) {
+      setNotice("No fue posible exportar el canvas como imagen PNG.");
+      return;
+    }
+
+    try {
+      const bounds = sourceSvg.getBoundingClientRect();
+      const viewBox = sourceSvg.viewBox.baseVal;
+      const width = Math.max(1, Math.round(bounds.width || viewBox.width || 600));
+      const height = Math.max(1, Math.round(bounds.height || viewBox.height || 400));
+      const clonedSvg = sourceSvg.cloneNode(true) as SVGSVGElement;
+      inlineSvgStyles(sourceSvg, clonedSvg);
+      clonedSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clonedSvg.setAttribute("width", String(width));
+      clonedSvg.setAttribute("height", String(height));
+
+      const serializedSvg = new XMLSerializer().serializeToString(clonedSvg);
+      const svgUrl = URL.createObjectURL(new Blob([serializedSvg], {
+        type: "image/svg+xml;charset=utf-8",
+      }));
+      const image = new Image();
+
+      image.onload = () => {
+        URL.revokeObjectURL(svgUrl);
+        const outputScale = Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
+        const canvas = window.document.createElement("canvas");
+        canvas.width = Math.round(width * outputScale);
+        canvas.height = Math.round(height * outputScale);
+        const context = canvas.getContext("2d");
+        if (!context) {
+          setNotice("No fue posible exportar el canvas como imagen PNG.");
+          return;
+        }
+
+        context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+        const stage = sourceSvg.closest<HTMLElement>(".molecule-stage");
+        const stageStyle = stage ? window.getComputedStyle(stage) : null;
+        const background = stageStyle?.backgroundColor
+          || stageStyle?.getPropertyValue("--canvas").trim()
+          || "#f7faf8";
+        context.fillStyle = background === "rgba(0, 0, 0, 0)" ? "#f7faf8" : background;
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            setNotice("No fue posible exportar el canvas como imagen PNG.");
+            return;
+          }
+          const pngUrl = URL.createObjectURL(blob);
+          const link = window.document.createElement("a");
+          const currentName = molecule.atoms.length ? localizedCanonicalIupacName : "molecula";
+          link.download = `${safePngFileName(currentName)}.png`;
+          link.href = pngUrl;
+          link.style.display = "none";
+          window.document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.setTimeout(() => URL.revokeObjectURL(pngUrl), 1_000);
+          setNotice("La imagen PNG de la molécula se descargó correctamente.");
+        }, "image/png");
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(svgUrl);
+        setNotice("No fue posible exportar el canvas como imagen PNG.");
+      };
+      image.src = svgUrl;
+    } catch {
+      setNotice("No fue posible exportar el canvas como imagen PNG.");
     }
   };
 
@@ -6108,19 +6231,32 @@ export default function Home() {
             aria-label={advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
             onPointerDown={(event) => event.currentTarget.focus({ preventScroll: true })}
           >
-            <button
-              type="button"
-              className="canvas-expand-button"
-              aria-expanded={canvasExpanded}
-              aria-label={canvasExpanded ? t("Cerrar vista ampliada") : t("Ampliar canvas")}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => setCanvasExpanded((expanded) => !expanded)}
-            >
-              <span aria-hidden="true">{canvasExpanded ? "×" : "⌕"}</span>
-              {canvasExpanded ? t("Cerrar") : t("Ampliar")}
-            </button>
+            <div className="canvas-toolbar-left" role="group" aria-label={t("Acciones del canvas")}>
+              <button
+                type="button"
+                className="canvas-expand-button"
+                aria-expanded={canvasExpanded}
+                aria-label={canvasExpanded ? t("Cerrar vista ampliada") : t("Ampliar canvas")}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => setCanvasExpanded((expanded) => !expanded)}
+              >
+                <span aria-hidden="true">{canvasExpanded ? "×" : "⌕"}</span>
+                {canvasExpanded ? t("Cerrar") : t("Ampliar")}
+              </button>
+              <button
+                type="button"
+                className="canvas-export-button"
+                aria-label={t("Descargar canvas como imagen PNG")}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={exportCanvasAsPNG}
+              >
+                <span aria-hidden="true">📷</span>
+                {t("Exportar PNG")}
+              </button>
+            </div>
 
             <svg
+              ref={moleculeSvgRef}
               role={advancedScreenReaderEnabled ? "img" : undefined}
               aria-label={advancedScreenReaderEnabled ? language === "en"
                 ? `${viewMode === "skeletal" ? "Skeletal representation" : "Condensed structural representation"} ${showIupacName ? `of ${displayedIupacName}` : "of the constructed molecule"}`

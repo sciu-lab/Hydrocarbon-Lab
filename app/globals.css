@@ -1550,7 +1550,8 @@ button {
 .molecule-stage svg {
   display: block;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 58px);
+  margin-top: 58px;
 }
 
 .canvas-expand-scrim {
@@ -1582,11 +1583,17 @@ button {
   transform: translate(-50%, -50%);
 }
 
-.canvas-expand-button {
+.canvas-toolbar-left {
   position: absolute;
   z-index: 5;
   top: 12px;
-  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-toolbar-left button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1601,10 +1608,11 @@ button {
   font-weight: 850;
   cursor: pointer;
   backdrop-filter: blur(7px);
+  white-space: nowrap;
 }
 
-.canvas-expand-button:hover,
-.canvas-expand-button:focus-visible {
+.canvas-toolbar-left button:hover,
+.canvas-toolbar-left button:focus-visible {
   border-color: #388673;
   background: #e3f3ed;
   outline: 0;
@@ -1977,7 +1985,7 @@ button {
 
 .skeletal-hint {
   position: absolute;
-  top: 13px;
+  top: 69px;
   left: 14px;
   display: flex;
   align-items: center;
@@ -2034,6 +2042,10 @@ button {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   pointer-events: none;
+  max-width: calc(100% - 250px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .structure-family-badge.family-aromatic {
@@ -3602,6 +3614,22 @@ button:focus-visible,
     margin: 0 9px;
   }
 
+  .molecule-stage svg {
+    height: calc(100% - 98px);
+    margin-top: 98px;
+  }
+
+  .canvas-toolbar-left {
+    top: 8px;
+    left: 8px;
+  }
+
+  .structure-family-badge {
+    top: 55px;
+    right: 8px;
+    max-width: calc(100% - 16px);
+  }
+
   .valence-alert {
     margin-right: 12px;
     margin-left: 12px;
@@ -3618,7 +3646,7 @@ button:focus-visible,
   }
 
   .skeletal-hint {
-    top: 8px;
+    top: 106px;
     left: 8px;
   }
 
@@ -4798,14 +4826,14 @@ html[data-theme="dark"] .molecule-stage {
   background: var(--canvas);
 }
 
-html[data-theme="dark"] .canvas-expand-button {
+html[data-theme="dark"] .canvas-toolbar-left button {
   border-color: rgba(116, 190, 170, 0.34);
   background: rgba(24, 42, 37, 0.92);
   color: #a4dfce;
 }
 
-html[data-theme="dark"] .canvas-expand-button:hover,
-html[data-theme="dark"] .canvas-expand-button:focus-visible {
+html[data-theme="dark"] .canvas-toolbar-left button:hover,
+html[data-theme="dark"] .canvas-toolbar-left button:focus-visible {
   border-color: #70bba6;
   background: #24443a;
 }
