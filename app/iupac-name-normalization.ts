@@ -34,6 +34,59 @@ const commonSpanishNames: Record<string, string> = {
   "4-isopropiloctano": "4-(propan-2-yl)octane",
 };
 
+/** Spanish heterocycle parent names accepted by the laboratory interface. */
+const heterocycleTranslations: Record<string, string> = {
+  // Aromatic and unsaturated heterocycles.
+  pirrol: "pyrrole",
+  furan: "furan",
+  furano: "furan",
+  tiofeno: "thiophene",
+  piridina: "pyridine",
+
+  // Frequently used substituted pyridines.
+  "2-metilpiridina": "2-methylpyridine",
+  "3-metilpiridina": "3-methylpyridine",
+  "4-metilpiridina": "4-methylpyridine",
+  "2-cloropiridina": "2-chloropyridine",
+  "3-cloropiridina": "3-chloropyridine",
+  "4-cloropiridina": "4-chloropyridine",
+
+  // Saturated heterocycles.
+  pirrolidina: "pyrrolidine",
+  piperidina: "piperidine",
+  tetrahidrofurano: "tetrahydrofuran",
+  tetrahidropirano: "tetrahydropyran",
+  oxirano: "oxirane",
+  aziridina: "aziridine",
+  oxetano: "oxetane",
+  azetidina: "azetidine",
+
+  // Oxygen-containing rings.
+  "1,3-dioxolano": "1,3-dioxolane",
+  "1,4-dioxano": "1,4-dioxane",
+};
+
+/**
+ * Translates Spanish heterocycle fragments before sending a name to OPSIN.
+ * Longer entries are intentionally replaced first so, for example,
+ * "pirrolidina" cannot be partly translated as "pirrol".
+ */
+export function translateHeterocycles(name: string) {
+  let translated = name;
+  const sortedKeys = Object.keys(heterocycleTranslations)
+    .sort((left, right) => right.length - left.length);
+
+  for (const key of sortedKeys) {
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    translated = translated.replace(
+      new RegExp(escapedKey, "gi"),
+      heterocycleTranslations[key],
+    );
+  }
+
+  return translated;
+}
+
 const halogenMultipliers = "di|tri|tetra|penta|hexa|hepta|octa";
 const halogenPrefixes = "fluoro|cloro|chloro|bromo|yodo|iodo";
 const methaneParents = "metano|methane";
@@ -289,14 +342,16 @@ export function translateSpanishIupacToOpsin(value: string) {
   const common = commonSpanishNames[normalized];
   if (common) return common;
 
-  const ester = normalized.match(/^(.+?(?:oato|carboxilato))\s+de\s+(.+?(?:ilo|il))$/);
+  const heterocycleName = translateHeterocycles(normalized);
+
+  const ester = heterocycleName.match(/^(.+?(?:oato|carboxilato))\s+de\s+(.+?(?:ilo|il))$/);
   if (ester) {
     const acidPart = translateCore(ester[1]);
     const alkylPart = translateCore(ester[2]);
     return `${alkylPart} ${acidPart}`;
   }
 
-  const acid = normalized.match(/^acido\s+(.+)$/);
+  const acid = heterocycleName.match(/^acido\s+(.+)$/);
   if (acid) {
     const acidName = translateCore(acid[1]);
     return acidName.endsWith("acid") ? acidName : `${acidName} acid`;
@@ -304,12 +359,12 @@ export function translateSpanishIupacToOpsin(value: string) {
 
   // Spanish acid names are also frequently entered without the leading word
   // "ácido". OPSIN's public HTTP service expects the English "acid" word.
-  if (/(?:oico|carboxilico)$/.test(normalized)) {
-    const acidName = translateCore(normalized);
+  if (/(?:oico|carboxilico)$/.test(heterocycleName)) {
+    const acidName = translateCore(heterocycleName);
     return acidName.endsWith("acid") ? acidName : `${acidName} acid`;
   }
 
-  return translateCore(normalized);
+  return translateCore(heterocycleName);
 }
 
 export function getOpsinNameCandidates(value: string) {

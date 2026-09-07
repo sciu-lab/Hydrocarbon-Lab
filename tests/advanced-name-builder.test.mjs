@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   getOpsinNameCandidates,
+  translateHeterocycles,
   translateSpanishIupacToOpsin,
 } from "../app/iupac-name-normalization.ts";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
@@ -52,6 +53,41 @@ test("translates Spanish functional-group names into OPSIN candidates", () => {
   assert.equal(
     translateSpanishIupacToOpsin("tetrahidropirano"),
     "tetrahydropyran",
+  );
+});
+
+test("translates Spanish heterocycles before they reach OPSIN", () => {
+  const translations = [
+    ["pirrol", "pyrrole"],
+    ["furan", "furan"],
+    ["furano", "furan"],
+    ["tiofeno", "thiophene"],
+    ["piridina", "pyridine"],
+    ["2-metilpiridina", "2-methylpyridine"],
+    ["3-metilpiridina", "3-methylpyridine"],
+    ["4-metilpiridina", "4-methylpyridine"],
+    ["2-cloropiridina", "2-chloropyridine"],
+    ["3-cloropiridina", "3-chloropyridine"],
+    ["4-cloropiridina", "4-chloropyridine"],
+    ["pirrolidina", "pyrrolidine"],
+    ["piperidina", "piperidine"],
+    ["tetrahidrofurano", "tetrahydrofuran"],
+    ["tetrahidropirano", "tetrahydropyran"],
+    ["oxirano", "oxirane"],
+    ["aziridina", "aziridine"],
+    ["oxetano", "oxetane"],
+    ["azetidina", "azetidine"],
+    ["1,3-dioxolano", "1,3-dioxolane"],
+    ["1,4-dioxano", "1,4-dioxane"],
+  ];
+
+  translations.forEach(([spanish, english]) => {
+    assert.equal(translateHeterocycles(spanish), english, spanish);
+    assert.equal(translateSpanishIupacToOpsin(spanish), english, spanish);
+  });
+  assert.equal(
+    translateSpanishIupacToOpsin("N-metilpirrolidina"),
+    "N-methylpyrrolidine",
   );
 });
 
@@ -154,6 +190,20 @@ test("the browser resolver uses OPSIN directly and preserves stereodescriptors",
 
   assert.equal(result.ok, true);
   assert.match(requestedUrls[0], /\(2E\)-2-ethyl-3-methylhex-2-enal\.json$/);
+});
+
+test("the resolver sends the translated heterocycle to OPSIN first", async () => {
+  const requestedUrls = [];
+  const result = await resolveNameWithOpsin("2-metilpiridina", {
+    fetchImpl: async (url) => {
+      requestedUrls.push(String(url));
+      return Response.json({ status: "SUCCESS", smiles: "Cc1ccccn1", warnings: [] });
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(requestedUrls[0], /2-methylpyridine\.json$/);
+  assert.equal(result.value.originalName, "2-metilpiridina");
 });
 
 test("known classroom names still resolve when the network is unavailable", async () => {
