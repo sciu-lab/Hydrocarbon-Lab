@@ -69,9 +69,13 @@ type CarbonAtom = {
   charge?: number;
 };
 
-type ChemicalElement = "C" | "O" | "N" | "F" | "Cl" | "Br" | "I";
+type ChemicalElement = "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
 
 type BondOrder = 1 | 2 | 3;
+
+type PngExportScale = 1 | 2 | 4;
+
+type PngBackgroundMode = "canvas" | "transparent";
 
 type Bond = [number, number, BondOrder?];
 
@@ -264,6 +268,7 @@ const elementValences: Record<ChemicalElement, number> = {
   C: 4,
   O: 2,
   N: 3,
+  S: 2,
   F: 1,
   Cl: 1,
   Br: 1,
@@ -274,6 +279,7 @@ const elementNames: Record<ChemicalElement, string> = {
   C: "carbono",
   O: "oxígeno",
   N: "nitrógeno",
+  S: "azufre",
   F: "flúor",
   Cl: "cloro",
   Br: "bromo",
@@ -1297,6 +1303,7 @@ function molecularFormula(molecule: Molecule) {
     formatCount("I"),
     formatCount("N"),
     formatCount("O"),
+    formatCount("S"),
   ].filter(Boolean).join("");
 }
 
@@ -1636,6 +1643,75 @@ function carbonSkeleton(molecule: Molecule): Molecule {
       .filter(([a, b]) => carbonIds.has(a) && carbonIds.has(b))
       .map((bond) => [...bond] as Bond),
     rings: molecule.rings?.map((ring) => ({ ...ring, atomIds: [...ring.atomIds] })),
+  };
+}
+
+function heterocycleRing(molecule: Molecule) {
+  return molecule.rings?.find((ring) => ring.atomIds.some((atomId) => {
+    const atom = getAtom(atomId, molecule);
+    return atom ? !isCarbonAtom(atom) : false;
+  }));
+}
+
+function moleculeContainsHeterocycle(molecule: Molecule) {
+  return Boolean(heterocycleRing(molecule));
+}
+
+function heterocycleParentName(molecule: Molecule, ring: RingInfo) {
+  const elements = ring.atomIds.map((atomId) => {
+    const atom = getAtom(atomId, molecule);
+    return atom ? getElement(atom) : "C";
+  });
+  const count = (element: ChemicalElement) => elements.filter((value) => value === element).length;
+  const size = ring.atomIds.length;
+
+  if (ring.kind === "aromatic") {
+    if (size === 5 && count("N") === 1 && count("O") === 0 && count("S") === 0) return "pirrol";
+    if (size === 5 && count("O") === 1 && count("N") === 0 && count("S") === 0) return "furano";
+    if (size === 5 && count("S") === 1 && count("N") === 0 && count("O") === 0) return "tiofeno";
+    if (size === 6 && count("N") === 1 && count("O") === 0 && count("S") === 0) return "piridina";
+  } else {
+    if (size === 3 && count("O") === 1) return "oxirano";
+    if (size === 3 && count("N") === 1) return "aziridina";
+    if (size === 4 && count("O") === 1) return "oxetano";
+    if (size === 4 && count("N") === 1) return "azetidina";
+    if (size === 5 && count("N") === 1 && count("O") === 0) return "pirrolidina";
+    if (size === 5 && count("O") === 1 && count("N") === 0) return "tetrahidrofurano";
+    if (size === 5 && count("O") === 2) return "1,3-dioxolano";
+    if (size === 6 && count("N") === 1 && count("O") === 0) return "piperidina";
+    if (size === 6 && count("O") === 1 && count("N") === 0) return "tetrahidropirano";
+    if (size === 6 && count("O") === 1 && count("N") === 1) return "morfolina";
+    if (size === 6 && count("O") === 2) return "1,4-dioxano";
+  }
+
+  return `heterociclo de ${size} miembros`;
+}
+
+function analyzeHeterocycleMolecule(molecule: Molecule, ring: RingInfo): Analysis {
+  const bondOrders = new Map(
+    molecule.bonds.map((bond) => [bondKey(bond[0], bond[1]), getBondOrder(bond)]),
+  );
+  const doubleBondLocants: number[] = [];
+  const tripleBondLocants: number[] = [];
+  ring.atomIds.forEach((atomId, index) => {
+    const nextAtomId = ring.atomIds[(index + 1) % ring.atomIds.length];
+    const order = bondOrders.get(bondKey(atomId, nextAtomId)) ?? 1;
+    if (order === 2) doubleBondLocants.push(index + 1);
+    if (order === 3) tripleBondLocants.push(index + 1);
+  });
+  const chainName = heterocycleParentName(molecule, ring);
+
+  return {
+    name: chainName,
+    formula: molecularFormula(molecule),
+    family: ring.kind,
+    mainChain: [...ring.atomIds],
+    chainName,
+    substituents: [],
+    numberedAtoms: new Map(ring.atomIds.map((atomId, index) => [atomId, index + 1])),
+    doubleBondLocants,
+    tripleBondLocants,
+    functionalGroups: [],
   };
 }
 
@@ -2459,6 +2535,9 @@ function analyzeFunctionalRing(
 }
 
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
+  const heterocycle = heterocycleRing(molecule);
+  if (heterocycle) return analyzeHeterocycleMolecule(molecule, heterocycle);
+
   const skeleton = carbonSkeleton(molecule);
   const baseAnalysis = analyzeHydrocarbonMolecule(skeleton, enabledAliases);
   const groups = detectFunctionalGroups(molecule);
@@ -2700,7 +2779,9 @@ export function buildIupacReasoningSteps(
   }
 
   let parentExplanation: string;
-  if (analysis.family === "aromatic") {
+  if (moleculeContainsHeterocycle(molecule)) {
+    parentExplanation = `El anillo contiene uno o más heteroátomos (N, O o S). OPSIN y OpenChemLib conservan su conectividad y el nombre base ${analysis.chainName}.`;
+  } else if (analysis.family === "aromatic") {
     parentExplanation = `Se elige el anillo aromático de ${chainLength} carbonos que contiene la función prioritaria cuando existe. La elección se hace por conectividad, no por la orientación visual del dibujo, y aporta el nombre base ${analysis.chainName}.`;
   } else if (analysis.family === "polycyclic") {
     parentExplanation = `Se comparan los anillos del sistema y se elige como principal el que conserva la función prioritaria y el mayor número de conexiones. El esqueleto seleccionado aporta ${analysis.chainName}.`;
@@ -3084,7 +3165,7 @@ async function resolveNameStructure(name: string): Promise<NameStructureResoluti
   throw new Error(`${directResult.error}${directResult.detail ? ` ${directResult.detail}` : ""}`);
 }
 
-const COMPLEX_NAME_LIMIT_MESSAGE = "El motor no puede interpretar heterociclos o aminas complejas en este momento.";
+const COMPLEX_NAME_LIMIT_MESSAGE = "El motor no puede interpretar esta estructura compleja en este momento.";
 const COMPLEX_NAME_UNAVAILABLE_MESSAGE = "Nombre no disponible para estructuras complejas";
 const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 
@@ -3620,6 +3701,9 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [canvasExpanded, setCanvasExpanded] = useState(false);
+  const [pngExportOpen, setPngExportOpen] = useState(false);
+  const [pngExportScale, setPngExportScale] = useState<PngExportScale>(2);
+  const [pngBackgroundMode, setPngBackgroundMode] = useState<PngBackgroundMode>("canvas");
   const [librarySection, setLibrarySection] = useState<LibrarySection>("history");
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyIdentity, setHistoryIdentity] = useState<string | null>(null);
@@ -3680,19 +3764,20 @@ export default function Home() {
   const moleculeSvgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
-    if (!canvasExpanded) return undefined;
+    if (!canvasExpanded && !pngExportOpen) return undefined;
     const previousOverflow = window.document.body.style.overflow;
     window.document.body.style.overflow = "hidden";
     return () => {
       window.document.body.style.overflow = previousOverflow;
     };
-  }, [canvasExpanded]);
+  }, [canvasExpanded, pngExportOpen]);
 
   const adjacency = useMemo(() => buildAdjacency(molecule), [molecule]);
   const calculatedAnalysis = useMemo(
     () => analyzeMolecule(molecule, commonAlkylNameSelections),
     [molecule, commonAlkylNameSelections],
   );
+  const hasHeterocycle = useMemo(() => moleculeContainsHeterocycle(molecule), [molecule]);
   const localSuggestedNameUnavailable = sourceNameOverride === null
     && localNamerCannotSafelyName(molecule, calculatedAnalysis);
   const analysis = useMemo(
@@ -3764,7 +3849,9 @@ export default function Home() {
     [analysis, language, molecule, reasoningSteps],
   );
   const isDarkTheme = themePreference === "dark" || (themePreference === "auto" && automaticDark);
-  const historyFamilyLabel = analysis.primaryFunctionalLabel
+  const historyFamilyLabel = hasHeterocycle
+    ? "Heterociclo"
+    : analysis.primaryFunctionalLabel
     ?? analysis.functionalGroups[0]?.label
     ?? (analysis.family === "aromatic"
       ? "Aromático"
@@ -4187,7 +4274,9 @@ export default function Home() {
       }
 
       const generatedAnalysis = analyzeMolecule(next, enabledAliases);
-      const preserveTrustedSourceName = preserveSourceName || (advancedNameResolved
+      const preserveTrustedSourceName = preserveSourceName
+        || moleculeContainsHeterocycle(next)
+        || (advancedNameResolved
         && localNamerCannotSafelyName(next, generatedAnalysis));
       const resultName = preserveTrustedSourceName ? submittedName : generatedAnalysis.name;
       const commonName = generatedAnalysis.commonName
@@ -4825,7 +4914,10 @@ export default function Home() {
     }
   };
 
-  const exportCanvasAsPNG = () => {
+  const exportCanvasAsPNG = (
+    outputScale: PngExportScale = pngExportScale,
+    backgroundMode: PngBackgroundMode = pngBackgroundMode,
+  ) => {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) {
       setNotice("No fue posible exportar el canvas como imagen PNG.");
@@ -4839,6 +4931,9 @@ export default function Home() {
       const height = Math.max(1, Math.round(bounds.height || viewBox.height || 400));
       const clonedSvg = sourceSvg.cloneNode(true) as SVGSVGElement;
       inlineSvgStyles(sourceSvg, clonedSvg);
+      if (backgroundMode === "transparent") {
+        clonedSvg.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
+      }
       clonedSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       clonedSvg.setAttribute("width", String(width));
       clonedSvg.setAttribute("height", String(height));
@@ -4851,7 +4946,6 @@ export default function Home() {
 
       image.onload = () => {
         URL.revokeObjectURL(svgUrl);
-        const outputScale = Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
         const canvas = window.document.createElement("canvas");
         canvas.width = Math.round(width * outputScale);
         canvas.height = Math.round(height * outputScale);
@@ -4862,13 +4956,15 @@ export default function Home() {
         }
 
         context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-        const stage = sourceSvg.closest<HTMLElement>(".molecule-stage");
-        const stageStyle = stage ? window.getComputedStyle(stage) : null;
-        const background = stageStyle?.backgroundColor
-          || stageStyle?.getPropertyValue("--canvas").trim()
-          || "#f7faf8";
-        context.fillStyle = background === "rgba(0, 0, 0, 0)" ? "#f7faf8" : background;
-        context.fillRect(0, 0, width, height);
+        if (backgroundMode === "canvas") {
+          const stage = sourceSvg.closest<HTMLElement>(".molecule-stage");
+          const stageStyle = stage ? window.getComputedStyle(stage) : null;
+          const background = stageStyle?.backgroundColor
+            || stageStyle?.getPropertyValue("--canvas").trim()
+            || "#f7faf8";
+          context.fillStyle = background === "rgba(0, 0, 0, 0)" ? "#f7faf8" : background;
+          context.fillRect(0, 0, width, height);
+        }
         context.drawImage(image, 0, 0, width, height);
 
         canvas.toBlob((blob) => {
@@ -4886,6 +4982,7 @@ export default function Home() {
           link.click();
           link.remove();
           window.setTimeout(() => URL.revokeObjectURL(pngUrl), 1_000);
+          setPngExportOpen(false);
           setNotice("La imagen PNG de la molécula se descargó correctamente.");
         }, "image/png");
       };
@@ -5244,7 +5341,10 @@ export default function Home() {
       const isEditable = Boolean(target?.matches("input, textarea, select") || target?.isContentEditable);
 
       if (event.key === "Escape") {
-        if (canvasExpanded) {
+        if (pngExportOpen) {
+          event.preventDefault();
+          setPngExportOpen(false);
+        } else if (canvasExpanded) {
           event.preventDefault();
           setCanvasExpanded(false);
         } else if (settingsOpen) {
@@ -5323,6 +5423,7 @@ export default function Home() {
     newMolecule,
     changeViewMode,
     canvasExpanded,
+    pngExportOpen,
     settingsOpen,
     selectedId,
   ]);
@@ -5385,7 +5486,9 @@ export default function Home() {
     [bondInteractionHintActions, stereochemistryEnabled],
   );
   const isRingStructure = analysis.family !== "acyclic";
-  const carbonFamilyLabel = analysis.family === "aromatic"
+  const carbonFamilyLabel = hasHeterocycle
+    ? t("Heterociclo")
+    : analysis.family === "aromatic"
     ? t("Aromático")
     : analysis.family === "polycyclic"
       ? `${molecule.rings?.length ?? 0} ${language === "en" ? "rings" : "anillos"}`
@@ -5970,6 +6073,88 @@ export default function Home() {
         </div>
       )}
 
+      {pngExportOpen && (
+        <div className="png-export-overlay">
+          <button
+            className="png-export-scrim"
+            type="button"
+            onClick={() => setPngExportOpen(false)}
+            aria-label={t("Cerrar opciones de exportación PNG")}
+          />
+          <section
+            className="png-export-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="png-export-title"
+          >
+            <div className="png-export-heading">
+              <div>
+                <p className="eyebrow">PNG</p>
+                <h2 id="png-export-title">{t("Exportar imagen")}</h2>
+                <p>{t("Elige la resolución y el fondo antes de descargar.")}</p>
+              </div>
+              <button
+                type="button"
+                className="png-export-close"
+                onClick={() => setPngExportOpen(false)}
+                aria-label={t("Cerrar opciones de exportación PNG")}
+              >
+                ×
+              </button>
+            </div>
+
+            <fieldset className="png-export-options">
+              <legend>{t("Resolución")}</legend>
+              <div className="png-resolution-grid">
+                {([1, 2, 4] as const).map((scale) => (
+                  <label key={scale} className={pngExportScale === scale ? "is-selected" : ""}>
+                    <input
+                      type="radio"
+                      name="png-resolution"
+                      checked={pngExportScale === scale}
+                      onChange={() => setPngExportScale(scale)}
+                    />
+                    <strong>{scale}×</strong>
+                    <span>{t(scale === 1 ? "Estándar" : scale === 2 ? "Alta" : "Máxima")}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="png-export-options">
+              <legend>{t("Fondo")}</legend>
+              <div className="png-background-grid">
+                {([
+                  ["canvas", "Con fondo", "Usa el color del canvas actual."],
+                  ["transparent", "Sin fondo", "Conserva la transparencia del PNG."],
+                ] as const).map(([mode, label, detail]) => (
+                  <label key={mode} className={pngBackgroundMode === mode ? "is-selected" : ""}>
+                    <input
+                      type="radio"
+                      name="png-background"
+                      checked={pngBackgroundMode === mode}
+                      onChange={() => setPngBackgroundMode(mode)}
+                    />
+                    <span className={`png-background-swatch ${mode}`} aria-hidden="true" />
+                    <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="png-export-actions">
+              <button type="button" className="png-export-cancel" onClick={() => setPngExportOpen(false)}>
+                {t("Cancelar")}
+              </button>
+              <button type="button" className="png-export-download" onClick={() => exportCanvasAsPNG()}>
+                <span aria-hidden="true">↓</span>
+                {t("Descargar PNG")}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <section className="intro-strip" aria-label={t("Instrucciones breves")}>
         <div>
           <span className="step-number">1</span>
@@ -6248,7 +6433,7 @@ export default function Home() {
                 className="canvas-export-button"
                 aria-label={t("Descargar canvas como imagen PNG")}
                 onPointerDown={(event) => event.stopPropagation()}
-                onClick={exportCanvasAsPNG}
+                onClick={() => setPngExportOpen(true)}
               >
                 <span aria-hidden="true">📷</span>
                 {t("Exportar PNG")}
@@ -6269,6 +6454,7 @@ export default function Home() {
                 </pattern>
               </defs>
               <rect
+                className="canvas-background-layer"
                 x={viewCenterX - viewWidth / 2}
                 y={viewCenterY - viewHeight / 2}
                 width={viewWidth}

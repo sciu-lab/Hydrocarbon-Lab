@@ -21,7 +21,12 @@ test("the canvas toolbar exposes expand and PNG export actions on the left", () 
   assert.match(page, /className="canvas-toolbar-left"/);
   assert.match(page, /className="canvas-expand-button"/);
   assert.match(page, /className="canvas-export-button"/);
-  assert.match(page, /onClick=\{exportCanvasAsPNG\}/);
+  assert.match(page, /onClick=\{\(\) => setPngExportOpen\(true\)\}/);
+  assert.match(page, /className="png-export-dialog"/);
+  assert.match(page, /\(\[1, 2, 4\] as const\)/);
+  assert.match(page, /name="png-background"/);
+  assert.match(page, /"transparent", "Sin fondo"/);
+  assert.match(page, /querySelectorAll\("\.canvas-background-layer"\)/);
   assert.match(page, /link\.download = `\$\{safePngFileName\(currentName\)\}\.png`/);
 
   const toolbarRule = css.match(/\.canvas-toolbar-left\s*\{([^}]*)\}/)?.[1] ?? "";

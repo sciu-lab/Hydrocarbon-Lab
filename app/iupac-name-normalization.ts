@@ -64,6 +64,7 @@ const heterocycleTranslations: Record<string, string> = {
   // Oxygen-containing rings.
   "1,3-dioxolano": "1,3-dioxolane",
   "1,4-dioxano": "1,4-dioxane",
+  morfolina: "morpholine",
 };
 
 /**

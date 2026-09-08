@@ -2,7 +2,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { savedMolecules } from "../../../db/schema";
 
-type ChemicalElement = "C" | "O" | "N" | "F" | "Cl" | "Br" | "I";
+type ChemicalElement = "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
 type BondOrder = 1 | 2 | 3;
 
 type MoleculePayload = {

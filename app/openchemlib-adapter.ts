@@ -21,6 +21,7 @@ const atomicNumberByElement: Record<SupportedElement, number> = {
   C: 6,
   N: 7,
   O: 8,
+  S: 16,
   F: 9,
   Cl: 17,
   Br: 35,
@@ -86,6 +87,7 @@ const supportedElements = new Map<number, SupportedElement>([
   [6, "C"],
   [7, "N"],
   [8, "O"],
+  [16, "S"],
   [9, "F"],
   [17, "Cl"],
   [35, "Br"],
@@ -170,7 +172,7 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
     if (!element) {
       return {
         ok: false,
-        error: `La estructura contiene ${oclMolecule.getAtomLabel(atomIndex)}. Por ahora el laboratorio admite C, O, N y halógenos.`,
+        error: `La estructura contiene ${oclMolecule.getAtomLabel(atomIndex)}. Por ahora el laboratorio admite C, O, N, S y halógenos.`,
       };
     }
     if (!isSupportedFormalCharge(atomIndex)) {
@@ -239,12 +241,6 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
       atomIndexToId.get(atomIndex),
     ).filter((id): id is number => typeof id === "number");
     if (ringAtomIds.length < 3) continue;
-    if (ringAtomIds.some((id) => atoms[id - 1].element !== "C")) {
-      return {
-        ok: false,
-        error: "El motor no puede interpretar heterociclos o aminas complejas en este momento.",
-      };
-    }
     rings.push({
       id: rings.length + 1,
       kind: ringSet.isAromatic(ringIndex) ? "aromatic" : "cycloalkane",

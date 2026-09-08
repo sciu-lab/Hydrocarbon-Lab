@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
+import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
@@ -108,6 +109,25 @@ function makeTerminalPair(kind, length = 4) {
   });
   return { atoms, bonds };
 }
+
+test("analyzes common heterocycle parents without reducing them to carbon rings", () => {
+  const examples = [
+    ["n1ccccc1", "piridina", "N"],
+    ["c1cc[nH]c1", "pirrol", "N"],
+    ["o1cccc1", "furano", "O"],
+    ["s1cccc1", "tiofeno", "S"],
+    ["N1CCCCC1", "piperidina", "N"],
+    ["O1CCNCC1", "morfolina", "O"],
+  ];
+
+  for (const [smiles, expectedName, formulaElement] of examples) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    const analysis = analyzeMolecule(converted.molecule);
+    assert.equal(analysis.name, expectedName, smiles);
+    assert.match(analysis.formula, new RegExp(formulaElement), smiles);
+  }
+});
 
 function makeLinearAlkane(length) {
   return {

@@ -269,6 +269,247 @@ button {
   box-shadow: 0 8px 18px rgba(37, 91, 77, 0.045);
 }
 
+.png-export-overlay {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  padding: 20px;
+  place-items: center;
+}
+
+.png-export-scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: rgba(5, 17, 14, 0.66);
+  cursor: default;
+  backdrop-filter: blur(5px);
+  animation: history-fade-in 160ms ease-out;
+}
+
+.png-export-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(540px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid #cfe2db;
+  border-radius: 22px;
+  background: #f8fbf9;
+  box-shadow: 0 26px 75px rgba(5, 22, 17, 0.32);
+  animation: png-export-pop 180ms ease-out;
+}
+
+@keyframes png-export-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.png-export-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.png-export-heading h2 {
+  margin: 3px 0 5px;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.png-export-heading p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.png-export-close {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #d4e1dd;
+  border-radius: 12px;
+  background: #fff;
+  color: #587069;
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.png-export-options {
+  min-width: 0;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+}
+
+.png-export-options legend {
+  margin-bottom: 9px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.png-resolution-grid,
+.png-background-grid {
+  display: grid;
+  gap: 9px;
+}
+
+.png-resolution-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.png-background-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.png-resolution-grid label,
+.png-background-grid label {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  border: 1px solid #d7e5e0;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  transition: 150ms ease;
+}
+
+.png-resolution-grid label {
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 9px;
+}
+
+.png-background-grid label {
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.png-resolution-grid label:hover,
+.png-background-grid label:hover,
+.png-resolution-grid label.is-selected,
+.png-background-grid label.is-selected {
+  border-color: #4b9d87;
+  background: #edf8f4;
+  box-shadow: 0 0 0 2px rgba(75, 157, 135, 0.12);
+}
+
+.png-resolution-grid input,
+.png-background-grid input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.png-resolution-grid strong {
+  color: #267360;
+  font-size: 19px;
+}
+
+.png-resolution-grid span,
+.png-background-grid strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.png-background-grid label > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.png-background-grid small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.png-background-swatch {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #cbd9d4;
+  border-radius: 9px;
+}
+
+.png-background-swatch.canvas {
+  background: var(--canvas);
+}
+
+.png-background-swatch.transparent {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #dce4e1 25%, transparent 25%),
+    linear-gradient(-45deg, #dce4e1 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #dce4e1 75%),
+    linear-gradient(-45deg, transparent 75%, #dce4e1 75%);
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  background-size: 12px 12px;
+}
+
+.png-export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 4px;
+}
+
+.png-export-actions button {
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.png-export-cancel {
+  border: 1px solid #d5e1dd;
+  background: #fff;
+  color: #536d66;
+}
+
+.png-export-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #267965;
+  background: #2d806b;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(39, 119, 98, 0.2);
+}
+
+.png-export-close:focus-visible,
+.png-resolution-grid label:has(input:focus-visible),
+.png-background-grid label:has(input:focus-visible),
+.png-export-actions button:focus-visible {
+  outline: 3px solid rgba(48, 139, 116, 0.3);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .png-export-overlay { padding: 12px; }
+  .png-export-dialog { padding: 20px 16px; }
+  .png-background-grid { grid-template-columns: 1fr; }
+}
+
 .settings-section + .settings-section {
   margin-top: 14px;
 }
@@ -4821,6 +5062,38 @@ html[data-theme="dark"] .name-result > button {
   color: #9ed2c1;
 }
 
+html[data-theme="dark"] .png-export-dialog {
+  border-color: #3a514a;
+  background: #14231f;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.62);
+}
+
+html[data-theme="dark"] .png-export-close,
+html[data-theme="dark"] .png-resolution-grid label,
+html[data-theme="dark"] .png-background-grid label,
+html[data-theme="dark"] .png-export-cancel {
+  border-color: #3b534c;
+  background: #1b2d28;
+  color: #aec3bc;
+}
+
+html[data-theme="dark"] .png-resolution-grid label:hover,
+html[data-theme="dark"] .png-background-grid label:hover,
+html[data-theme="dark"] .png-resolution-grid label.is-selected,
+html[data-theme="dark"] .png-background-grid label.is-selected {
+  border-color: #69b39f;
+  background: #213b33;
+  box-shadow: 0 0 0 2px rgba(105, 179, 159, 0.13);
+}
+
+html[data-theme="dark"] .png-resolution-grid strong {
+  color: #91d7c3;
+}
+
+html[data-theme="dark"] .png-background-swatch {
+  border-color: #49625a;
+}
+
 html[data-theme="dark"] .molecule-stage {
   border-color: #30433e;
   background: var(--canvas);
@@ -5281,6 +5554,12 @@ html[data-theme="dark"] .creator-credit strong {
   stroke: #557eb7;
 }
 
+.hetero-node.element-s .atom-circle,
+.uniform-colors .hetero-node.element-s.on-branch .atom-circle {
+  fill: #fff8e5;
+  stroke: #c7992f;
+}
+
 .hetero-node.element-f .atom-circle,
 .hetero-node.element-cl .atom-circle,
 .hetero-node.element-br .atom-circle,
@@ -5295,6 +5574,7 @@ html[data-theme="dark"] .creator-credit strong {
 
 .hetero-node.element-o .atom-label { fill: #a8443f; }
 .hetero-node.element-n .atom-label { fill: #345f9a; }
+.hetero-node.element-s .atom-label { fill: #846313; }
 .hetero-node.element-f .atom-label,
 .hetero-node.element-cl .atom-label,
 .hetero-node.element-br .atom-label,
@@ -5310,6 +5590,12 @@ html[data-theme="dark"] .creator-credit strong {
   border-color: #aebfda;
   background: #edf3fc;
   color: #3f669d;
+}
+
+.selection-s {
+  border-color: #ddc27d;
+  background: #fff8e6;
+  color: #7c5d14;
 }
 
 .selection-f,
@@ -5567,6 +5853,12 @@ html[data-theme="dark"] .uniform-colors .hetero-node.element-n.on-branch .atom-c
   stroke: #759bd1;
 }
 
+html[data-theme="dark"] .hetero-node.element-s .atom-circle,
+html[data-theme="dark"] .uniform-colors .hetero-node.element-s.on-branch .atom-circle {
+  fill: #352c18;
+  stroke: #d0a94a;
+}
+
 html[data-theme="dark"] .hetero-node.element-f .atom-circle,
 html[data-theme="dark"] .hetero-node.element-cl .atom-circle,
 html[data-theme="dark"] .hetero-node.element-br .atom-circle,
@@ -5581,6 +5873,7 @@ html[data-theme="dark"] .uniform-colors .hetero-node.element-i.on-branch .atom-c
 
 html[data-theme="dark"] .hetero-node.element-o .atom-label { fill: #ef9a93; }
 html[data-theme="dark"] .hetero-node.element-n .atom-label { fill: #9ab9e5; }
+html[data-theme="dark"] .hetero-node.element-s .atom-label { fill: #efd07b; }
 html[data-theme="dark"] .hetero-node.element-f .atom-label,
 html[data-theme="dark"] .hetero-node.element-cl .atom-label,
 html[data-theme="dark"] .hetero-node.element-br .atom-label,

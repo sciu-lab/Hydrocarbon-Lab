@@ -6,7 +6,7 @@ import {
   translateHeterocycles,
   translateSpanishIupacToOpsin,
 } from "../app/iupac-name-normalization.ts";
-import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
+import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
 import { resolveNameWithOpsin } from "../app/opsin-name-resolver.ts";
 
 test("translates Spanish functional-group names into OPSIN candidates", () => {
@@ -79,6 +79,7 @@ test("translates Spanish heterocycles before they reach OPSIN", () => {
     ["azetidina", "azetidine"],
     ["1,3-dioxolano", "1,3-dioxolane"],
     ["1,4-dioxano", "1,4-dioxane"],
+    ["morfolina", "morpholine"],
   ];
 
   translations.forEach(([spanish, english]) => {
@@ -166,13 +167,26 @@ test("the reported complex names become editable OpenChemLib molecules", () => {
   assert.equal(nestedAmide.molecule.atoms.filter((atom) => atom.element === "O").length, 2);
 });
 
-test("heterocycles receive the friendly canvas limitation message", () => {
-  const heterocycle = moleculeFromSmiles("O1CCCCC1");
-  assert.equal(heterocycle.ok, false);
-  assert.equal(
-    heterocycle.error,
-    "El motor no puede interpretar heterociclos o aminas complejas en este momento.",
-  );
+test("OpenChemLib imports common N, O and S heterocycles as editable rings", () => {
+  const examples = [
+    ["n1ccccc1", "N", 6, "aromatic"],
+    ["c1cc[nH]c1", "N", 5, "aromatic"],
+    ["o1cccc1", "O", 5, "aromatic"],
+    ["s1cccc1", "S", 5, "aromatic"],
+    ["N1CCCCC1", "N", 6, "cycloalkane"],
+    ["O1CCCCC1", "O", 6, "cycloalkane"],
+    ["O1CCNCC1", "O", 6, "cycloalkane"],
+  ];
+
+  for (const [smiles, element, size, kind] of examples) {
+    const heterocycle = moleculeFromSmiles(smiles);
+    assert.equal(heterocycle.ok, true, heterocycle.ok ? undefined : heterocycle.error);
+    assert.equal(heterocycle.molecule.rings?.[0].atomIds.length, size, smiles);
+    assert.equal(heterocycle.molecule.rings?.[0].kind, kind, smiles);
+    assert.ok(heterocycle.molecule.atoms.some((atom) => atom.element === element), smiles);
+    const exported = moleculeToSmiles(heterocycle.molecule);
+    assert.equal(exported.ok, true, exported.ok ? undefined : exported.error);
+  }
 });
 
 test("the browser resolver uses OPSIN directly and preserves stereodescriptors", async () => {
@@ -204,6 +218,21 @@ test("the resolver sends the translated heterocycle to OPSIN first", async () =>
   assert.equal(result.ok, true);
   assert.match(requestedUrls[0], /2-methylpyridine\.json$/);
   assert.equal(result.value.originalName, "2-metilpiridina");
+});
+
+test("common heterocycles retain editable offline fallbacks", async () => {
+  const names = ["pirrol", "furano", "tiofeno", "piridina", "piperidina", "morfolina"];
+
+  for (const name of names) {
+    const result = await resolveNameWithOpsin(name, {
+      fetchImpl: async () => { throw new TypeError("Failed to fetch"); },
+    });
+    assert.equal(result.ok, true, name);
+    assert.equal(result.value.source, "integrated-fallback", name);
+    const converted = moleculeFromSmiles(result.value.smiles);
+    assert.equal(converted.ok, true, name);
+    assert.ok(converted.molecule.rings?.length, name);
+  }
 });
 
 test("known classroom names still resolve when the network is unavailable", async () => {

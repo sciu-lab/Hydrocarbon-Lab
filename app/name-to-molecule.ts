@@ -9,7 +9,7 @@ export type GeneratedAtom = {
   id: number;
   x: number;
   y: number;
-  element?: "C" | "O" | "N" | "F" | "Cl" | "Br" | "I";
+  element?: "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
   charge?: number;
 };
 

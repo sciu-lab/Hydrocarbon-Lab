@@ -1,6 +1,6 @@
 export type StereoConfiguration = "E" | "Z";
 
-type StereoElement = "C" | "O" | "N" | "F" | "Cl" | "Br" | "I";
+type StereoElement = "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
 type StereoBondOrder = 1 | 2 | 3;
 
 export type StereoMolecule = {
