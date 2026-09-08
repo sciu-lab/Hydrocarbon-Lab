@@ -17,29 +17,42 @@ test("the heterocycle translator is exported to the browser global scope", async
   }
 });
 
-test("the canvas toolbar exposes expand and PNG export actions on the left", () => {
+test("the canvas toolbar exposes expand and PNG/SVG export actions on the left", () => {
   assert.match(page, /className="canvas-toolbar-left"/);
   assert.match(page, /className="canvas-expand-button"/);
   assert.match(page, /className="canvas-export-button"/);
   assert.match(page, /onClick=\{openPngExportDialog\}/);
   assert.match(page, /className="png-export-dialog"/);
+  assert.match(page, /name="image-export-format"/);
+  assert.match(page, /\["png", "svg"\] as const/);
   assert.match(page, /\(\[1, 2, 4\] as const\)/);
+  assert.match(page, /id="png-export-width"/);
+  assert.match(page, /id="png-export-height"/);
+  assert.match(page, /normalizeExportPixels/);
   assert.match(page, /name="png-background"/);
   assert.match(page, /"transparent", "Sin fondo"/);
   assert.match(page, /name="png-color-mode"/);
   assert.match(page, /"grayscale", "Escala de grises"/);
   assert.match(page, /"monochrome", "Blanco y negro"/);
-  assert.match(page, /applyPngColorMode\(context, canvas\.width, canvas\.height, colorMode\)/);
+  assert.match(page, /applyPngColorMode\(context, canvas\.width, canvas\.height, pngColorMode\)/);
+  assert.match(page, /const exportCanvasAsSVG/);
+  assert.match(page, /type: "image\/svg\+xml;charset=utf-8"/);
   assert.match(page, /name="png-background"/);
   assert.match(page, /checked=\{pngIncludeSelection\}/);
   assert.match(page, /removeSelectionFromSvg\(clonedSvg\)/);
   assert.match(page, /className="canvas-deselect-button"/);
   assert.match(page, /const isSelected = atom\.id === selectedId/);
-  assert.match(page, /className="settings-section settings-colors"/);
+  assert.doesNotMatch(page, /className="settings-section settings-colors"/);
+  assert.match(page, /pngColorMode === "color"/);
+  assert.match(page, /className="png-export-options png-export-color-controls"/);
   assert.match(page, /type="color"/);
-  assert.match(page, /"--structure-main": mainChainColor/);
+  assert.match(page, /"--structure-main": exportColors\.main/);
+  assert.match(page, /"--structure-functional": exportColors\.functional/);
+  assert.match(page, /"--structure-branch": exportColors\.substituent/);
+  assert.match(page, /applyExportColorPalette\(clonedSvg, exportColors\)/);
   assert.match(page, /querySelectorAll\("\.canvas-background-layer"\)/);
-  assert.match(page, /link\.download = `\$\{safePngFileName\(currentName\)\}\.png`/);
+  assert.match(page, /downloadBlobFile\(blob, `\$\{safePngFileName\(currentName\)\}\.png`\)/);
+  assert.match(page, /`\$\{safePngFileName\(currentName\)\}\.svg`/);
 
   const toolbarRule = css.match(/\.canvas-toolbar-left\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(toolbarRule, /left:\s*12px/);
@@ -49,6 +62,8 @@ test("the canvas toolbar exposes expand and PNG export actions on the left", () 
   assert.match(badgeRule, /right:\s*14px/);
 
   assert.match(css, /\.png-color-mode-grid/);
+  assert.match(css, /\.png-format-grid/);
+  assert.match(css, /\.png-manual-size/);
   assert.match(css, /\.structure-color-controls/);
   assert.match(css, /stroke:\s*var\(--structure-main\)/);
   assert.match(css, /stroke:\s*var\(--structure-branch\)/);

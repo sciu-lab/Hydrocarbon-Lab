@@ -85,10 +85,22 @@ type PngBackgroundMode = "canvas" | "transparent";
 
 type PngColorMode = "color" | "grayscale" | "monochrome";
 
+type ImageExportFormat = "png" | "svg";
+
+type ExportColorPalette = {
+  main: string;
+  functional: string;
+  substituent: string;
+};
+
 const DEFAULT_STRUCTURE_COLORS = {
   main: "#4d8c94",
   branch: "#d5a254",
+  functional: "#8a6ca0",
 } as const;
+
+const MIN_EXPORT_PIXELS = 200;
+const MAX_EXPORT_PIXELS = 8000;
 
 type Bond = [number, number, BondOrder?];
 
@@ -3398,6 +3410,18 @@ function downloadSmilesFile(smiles: string, fileName: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
+function downloadBlobFile(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = window.document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.style.display = "none";
+  window.document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
 const SVG_EXPORT_STYLE_PROPERTIES = [
   "display",
   "fill",
@@ -3444,16 +3468,111 @@ function removeSelectionFromSvg(svg: SVGSVGElement) {
   });
 }
 
+function getSvgBaseDimensions(source: SVGSVGElement) {
+  const bounds = source.getBoundingClientRect();
+  const viewBox = source.viewBox.baseVal;
+  return {
+    width: Math.max(1, Math.round(bounds.width || viewBox.width || 600)),
+    height: Math.max(1, Math.round(bounds.height || viewBox.height || 400)),
+  };
+}
+
+function normalizeExportPixels(value: number, fallback: number) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(MAX_EXPORT_PIXELS, Math.max(MIN_EXPORT_PIXELS, Math.round(value)));
+}
+
+function resolveCanvasBackgroundColor(source: SVGSVGElement) {
+  const stage = source.closest<HTMLElement>(".molecule-stage");
+  const stageStyle = stage ? window.getComputedStyle(stage) : null;
+  const background = stageStyle?.backgroundColor
+    || stageStyle?.getPropertyValue("--canvas").trim()
+    || "#f7faf8";
+  return background === "rgba(0, 0, 0, 0)" ? "#f7faf8" : background;
+}
+
+function applyExportColorPalette(svg: SVGSVGElement, palette: ExportColorPalette) {
+  const paint = (selector: string, property: "fill" | "stroke", color: string) => {
+    svg.querySelectorAll<SVGElement>(selector).forEach((element) => {
+      element.style.setProperty(property, color);
+    });
+  };
+
+  paint(".main-bond:not(.functional-bond)", "stroke", palette.main);
+  paint(".branch-bond:not(.functional-bond)", "stroke", palette.substituent);
+  paint(".functional-bond", "stroke", palette.functional);
+  paint(".carbon-node.on-main-chain .atom-circle", "stroke", palette.main);
+  paint(".carbon-node.on-branch:not(.hetero-node) .atom-circle", "stroke", palette.substituent);
+  paint(".skeletal-node.on-main-chain .skeletal-anchor", "fill", palette.main);
+  paint(".skeletal-node.on-branch .skeletal-anchor", "fill", palette.substituent);
+  paint(".hetero-node .atom-circle, .skeletal-hetero-badge", "stroke", palette.functional);
+  paint(".hetero-node .atom-label", "fill", palette.functional);
+  paint(".methane-marker circle", "stroke", palette.main);
+  paint(".number-circle", "fill", palette.main);
+}
+
+function addSvgCanvasBackground(svg: SVGSVGElement, color: string) {
+  const viewBox = svg.viewBox.baseVal;
+  const background = window.document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  background.setAttribute("x", String(viewBox.x));
+  background.setAttribute("y", String(viewBox.y));
+  background.setAttribute("width", String(viewBox.width));
+  background.setAttribute("height", String(viewBox.height));
+  background.setAttribute("fill", color);
+  background.setAttribute("class", "export-solid-background");
+  const firstDrawable = Array.from(svg.children).find((element) => element.tagName.toLowerCase() !== "defs");
+  svg.insertBefore(background, firstDrawable ?? null);
+}
+
+function applySvgColorMode(svg: SVGSVGElement, colorMode: PngColorMode) {
+  if (colorMode === "color") return;
+  const namespace = "http://www.w3.org/2000/svg";
+  let defs = svg.querySelector<SVGDefsElement>(":scope > defs");
+  if (!defs) {
+    defs = window.document.createElementNS(namespace, "defs");
+    svg.insertBefore(defs, svg.firstChild);
+  }
+  const filter = window.document.createElementNS(namespace, "filter");
+  filter.setAttribute("id", "export-color-filter");
+  filter.setAttribute("color-interpolation-filters", "sRGB");
+  const grayscale = window.document.createElementNS(namespace, "feColorMatrix");
+  grayscale.setAttribute("type", "saturate");
+  grayscale.setAttribute("values", "0");
+  filter.appendChild(grayscale);
+
+  if (colorMode === "monochrome") {
+    const threshold = window.document.createElementNS(namespace, "feComponentTransfer");
+    (["R", "G", "B"] as const).forEach((channel) => {
+      const component = window.document.createElementNS(namespace, `feFunc${channel}`);
+      component.setAttribute("type", "discrete");
+      component.setAttribute("tableValues", "0 1");
+      threshold.appendChild(component);
+    });
+    filter.appendChild(threshold);
+  }
+  defs.appendChild(filter);
+
+  const filteredGroup = window.document.createElementNS(namespace, "g");
+  filteredGroup.setAttribute("filter", "url(#export-color-filter)");
+  Array.from(svg.children)
+    .filter((element) => element !== defs)
+    .forEach((element) => filteredGroup.appendChild(element));
+  svg.appendChild(filteredGroup);
+}
+
 function buildPngPreviewMarkup(
   source: SVGSVGElement,
   includeSelection: boolean,
   backgroundMode: PngBackgroundMode,
+  colorMode: PngColorMode,
+  palette: ExportColorPalette,
 ) {
   const clone = source.cloneNode(true) as SVGSVGElement;
   if (!includeSelection) removeSelectionFromSvg(clone);
   if (backgroundMode === "transparent") {
     clone.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
   }
+  if (colorMode === "color") applyExportColorPalette(clone, palette);
   clone.removeAttribute("width");
   clone.removeAttribute("height");
   clone.setAttribute("aria-hidden", "true");
@@ -3768,11 +3887,22 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [canvasExpanded, setCanvasExpanded] = useState(false);
   const [pngExportOpen, setPngExportOpen] = useState(false);
+  const [imageExportFormat, setImageExportFormat] = useState<ImageExportFormat>("png");
   const [pngExportScale, setPngExportScale] = useState<PngExportScale>(2);
+  const [pngUsingCustomSize, setPngUsingCustomSize] = useState(false);
+  const [pngExportWidth, setPngExportWidth] = useState("1200");
+  const [pngExportHeight, setPngExportHeight] = useState("800");
+  const [pngExportAspectRatio, setPngExportAspectRatio] = useState(1.5);
+  const [pngLockAspectRatio, setPngLockAspectRatio] = useState(true);
   const [pngBackgroundMode, setPngBackgroundMode] = useState<PngBackgroundMode>("canvas");
   const [pngColorMode, setPngColorMode] = useState<PngColorMode>("color");
   const [pngIncludeSelection, setPngIncludeSelection] = useState(false);
   const [pngPreviewMarkup, setPngPreviewMarkup] = useState("");
+  const [exportColors, setExportColors] = useState<ExportColorPalette>({
+    main: DEFAULT_STRUCTURE_COLORS.main,
+    functional: DEFAULT_STRUCTURE_COLORS.functional,
+    substituent: DEFAULT_STRUCTURE_COLORS.branch,
+  });
   const [librarySection, setLibrarySection] = useState<LibrarySection>("history");
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyIdentity, setHistoryIdentity] = useState<string | null>(null);
@@ -3787,8 +3917,6 @@ export default function Home() {
   const [showHydrogens, setShowHydrogens] = useState(true);
   const [showNumbering, setShowNumbering] = useState(true);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
-  const [mainChainColor, setMainChainColor] = useState<string>(DEFAULT_STRUCTURE_COLORS.main);
-  const [branchColor, setBranchColor] = useState<string>(DEFAULT_STRUCTURE_COLORS.branch);
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [showIupacName, setShowIupacName] = useState(true);
@@ -3855,9 +3983,14 @@ export default function Home() {
   );
   const hasHeterocycle = useMemo(() => moleculeContainsHeterocycle(molecule), [molecule]);
   const structureColorStyle = useMemo(() => ({
-    "--structure-main": mainChainColor,
-    "--structure-branch": branchColor,
-  }) as CSSProperties, [branchColor, mainChainColor]);
+    "--structure-main": DEFAULT_STRUCTURE_COLORS.main,
+    "--structure-branch": DEFAULT_STRUCTURE_COLORS.branch,
+  }) as CSSProperties, []);
+  const exportColorStyle = useMemo(() => ({
+    "--structure-main": exportColors.main,
+    "--structure-branch": exportColors.substituent,
+    "--structure-functional": exportColors.functional,
+  }) as CSSProperties, [exportColors]);
   const localSuggestedNameUnavailable = sourceNameOverride === null
     && localNamerCannotSafelyName(molecule, calculatedAnalysis);
   const analysis = useMemo(
@@ -5088,12 +5221,25 @@ export default function Home() {
     }
   };
 
-  const exportCanvasAsPNG = (
-    outputScale: PngExportScale = pngExportScale,
-    backgroundMode: PngBackgroundMode = pngBackgroundMode,
-    colorMode: PngColorMode = pngColorMode,
-    includeSelection: boolean = pngIncludeSelection,
+  const prepareSvgForExport = (
+    sourceSvg: SVGSVGElement,
+    backgroundMode: PngBackgroundMode,
+    colorMode: PngColorMode,
+    includeSelection: boolean,
   ) => {
+    const clonedSvg = sourceSvg.cloneNode(true) as SVGSVGElement;
+    inlineSvgStyles(sourceSvg, clonedSvg);
+    if (!includeSelection) removeSelectionFromSvg(clonedSvg);
+    if (backgroundMode === "transparent") {
+      clonedSvg.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
+    }
+    if (colorMode === "color") applyExportColorPalette(clonedSvg, exportColors);
+    clonedSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clonedSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    return clonedSvg;
+  };
+
+  const exportCanvasAsPNG = () => {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) {
       setNotice("No fue posible exportar el canvas como imagen PNG.");
@@ -5101,17 +5247,15 @@ export default function Home() {
     }
 
     try {
-      const bounds = sourceSvg.getBoundingClientRect();
-      const viewBox = sourceSvg.viewBox.baseVal;
-      const width = Math.max(1, Math.round(bounds.width || viewBox.width || 600));
-      const height = Math.max(1, Math.round(bounds.height || viewBox.height || 400));
-      const clonedSvg = sourceSvg.cloneNode(true) as SVGSVGElement;
-      inlineSvgStyles(sourceSvg, clonedSvg);
-      if (!includeSelection) removeSelectionFromSvg(clonedSvg);
-      if (backgroundMode === "transparent") {
-        clonedSvg.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
-      }
-      clonedSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      const baseDimensions = getSvgBaseDimensions(sourceSvg);
+      const width = normalizeExportPixels(Number(pngExportWidth), baseDimensions.width * pngExportScale);
+      const height = normalizeExportPixels(Number(pngExportHeight), baseDimensions.height * pngExportScale);
+      const clonedSvg = prepareSvgForExport(
+        sourceSvg,
+        pngBackgroundMode,
+        pngColorMode,
+        pngIncludeSelection,
+      );
       clonedSvg.setAttribute("width", String(width));
       clonedSvg.setAttribute("height", String(height));
 
@@ -5124,42 +5268,28 @@ export default function Home() {
       image.onload = () => {
         URL.revokeObjectURL(svgUrl);
         const canvas = window.document.createElement("canvas");
-        canvas.width = Math.round(width * outputScale);
-        canvas.height = Math.round(height * outputScale);
+        canvas.width = width;
+        canvas.height = height;
         const context = canvas.getContext("2d");
         if (!context) {
           setNotice("No fue posible exportar el canvas como imagen PNG.");
           return;
         }
 
-        context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-        if (backgroundMode === "canvas") {
-          const stage = sourceSvg.closest<HTMLElement>(".molecule-stage");
-          const stageStyle = stage ? window.getComputedStyle(stage) : null;
-          const background = stageStyle?.backgroundColor
-            || stageStyle?.getPropertyValue("--canvas").trim()
-            || "#f7faf8";
-          context.fillStyle = background === "rgba(0, 0, 0, 0)" ? "#f7faf8" : background;
+        if (pngBackgroundMode === "canvas") {
+          context.fillStyle = resolveCanvasBackgroundColor(sourceSvg);
           context.fillRect(0, 0, width, height);
         }
         context.drawImage(image, 0, 0, width, height);
-        applyPngColorMode(context, canvas.width, canvas.height, colorMode);
+        applyPngColorMode(context, canvas.width, canvas.height, pngColorMode);
 
         canvas.toBlob((blob) => {
           if (!blob) {
             setNotice("No fue posible exportar el canvas como imagen PNG.");
             return;
           }
-          const pngUrl = URL.createObjectURL(blob);
-          const link = window.document.createElement("a");
           const currentName = molecule.atoms.length ? localizedCanonicalIupacName : "molecula";
-          link.download = `${safePngFileName(currentName)}.png`;
-          link.href = pngUrl;
-          link.style.display = "none";
-          window.document.body.appendChild(link);
-          link.click();
-          link.remove();
-          window.setTimeout(() => URL.revokeObjectURL(pngUrl), 1_000);
+          downloadBlobFile(blob, `${safePngFileName(currentName)}.png`);
           setPngExportOpen(false);
           setNotice("La imagen PNG de la molécula se descargó correctamente.");
         }, "image/png");
@@ -5175,19 +5305,118 @@ export default function Home() {
     }
   };
 
+  const exportCanvasAsSVG = () => {
+    const sourceSvg = moleculeSvgRef.current;
+    if (!sourceSvg) {
+      setNotice("No fue posible exportar el canvas como imagen SVG.");
+      return;
+    }
+
+    try {
+      const clonedSvg = prepareSvgForExport(
+        sourceSvg,
+        pngBackgroundMode,
+        pngColorMode,
+        pngIncludeSelection,
+      );
+      const dimensions = getSvgBaseDimensions(sourceSvg);
+      clonedSvg.setAttribute("width", String(dimensions.width));
+      clonedSvg.setAttribute("height", String(dimensions.height));
+      if (pngBackgroundMode === "canvas") {
+        addSvgCanvasBackground(clonedSvg, resolveCanvasBackgroundColor(sourceSvg));
+      }
+      applySvgColorMode(clonedSvg, pngColorMode);
+      const serializedSvg = new XMLSerializer().serializeToString(clonedSvg);
+      const currentName = molecule.atoms.length ? localizedCanonicalIupacName : "molecula";
+      downloadBlobFile(
+        new Blob([serializedSvg], { type: "image/svg+xml;charset=utf-8" }),
+        `${safePngFileName(currentName)}.svg`,
+      );
+      setPngExportOpen(false);
+      setNotice("La imagen SVG de la molécula se descargó correctamente.");
+    } catch {
+      setNotice("No fue posible exportar el canvas como imagen SVG.");
+    }
+  };
+
+  const exportCanvasImage = () => {
+    if (imageExportFormat === "svg") exportCanvasAsSVG();
+    else exportCanvasAsPNG();
+  };
+
   const updatePngPreview = (
     includeSelection = pngIncludeSelection,
     backgroundMode = pngBackgroundMode,
+    colorMode = pngColorMode,
+    palette = exportColors,
   ) => {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) return;
-    setPngPreviewMarkup(buildPngPreviewMarkup(sourceSvg, includeSelection, backgroundMode));
+    setPngPreviewMarkup(buildPngPreviewMarkup(
+      sourceSvg,
+      includeSelection,
+      backgroundMode,
+      colorMode,
+      palette,
+    ));
+  };
+
+  const applyPngResolutionPreset = (scale: PngExportScale) => {
+    const sourceSvg = moleculeSvgRef.current;
+    if (!sourceSvg) return;
+    const dimensions = getSvgBaseDimensions(sourceSvg);
+    setPngExportScale(scale);
+    setPngUsingCustomSize(false);
+    setPngExportWidth(String(Math.round(dimensions.width * scale)));
+    setPngExportHeight(String(Math.round(dimensions.height * scale)));
+  };
+
+  const updateManualPngDimension = (axis: "width" | "height", value: string) => {
+    const numericValue = Number(value);
+    setPngUsingCustomSize(true);
+    if (axis === "width") {
+      setPngExportWidth(value);
+      if (pngLockAspectRatio && Number.isFinite(numericValue) && numericValue > 0) {
+        setPngExportHeight(String(Math.round(numericValue / pngExportAspectRatio)));
+      }
+    } else {
+      setPngExportHeight(value);
+      if (pngLockAspectRatio && Number.isFinite(numericValue) && numericValue > 0) {
+        setPngExportWidth(String(Math.round(numericValue * pngExportAspectRatio)));
+      }
+    }
+  };
+
+  const commitManualPngDimension = (axis: "width" | "height") => {
+    const sourceSvg = moleculeSvgRef.current;
+    const baseDimensions = sourceSvg ? getSvgBaseDimensions(sourceSvg) : { width: 600, height: 400 };
+    if (axis === "width") {
+      const width = normalizeExportPixels(Number(pngExportWidth), baseDimensions.width * pngExportScale);
+      setPngExportWidth(String(width));
+      if (pngLockAspectRatio) {
+        setPngExportHeight(String(normalizeExportPixels(width / pngExportAspectRatio, baseDimensions.height)));
+      }
+      return;
+    }
+    const height = normalizeExportPixels(Number(pngExportHeight), baseDimensions.height * pngExportScale);
+    setPngExportHeight(String(height));
+    if (pngLockAspectRatio) {
+      setPngExportWidth(String(normalizeExportPixels(height * pngExportAspectRatio, baseDimensions.width)));
+    }
   };
 
   const openPngExportDialog = () => {
+    const sourceSvg = moleculeSvgRef.current;
     const includeSelection = selectedId !== null && pngIncludeSelection;
     setPngIncludeSelection(includeSelection);
-    updatePngPreview(includeSelection, pngBackgroundMode);
+    if (sourceSvg) {
+      const dimensions = getSvgBaseDimensions(sourceSvg);
+      setPngUsingCustomSize(false);
+      setPngExportAspectRatio(dimensions.width / dimensions.height);
+      setPngExportWidth(String(Math.round(dimensions.width * pngExportScale)));
+      setPngExportHeight(String(Math.round(dimensions.height * pngExportScale)));
+    }
+    updatePngPreview(includeSelection, pngBackgroundMode, pngColorMode, exportColors);
     setPngExportOpen(true);
   };
 
@@ -6160,46 +6389,6 @@ export default function Home() {
               </label>
             </section>
 
-            <section
-              className="settings-section settings-colors"
-              style={structureColorStyle}
-              aria-labelledby="settings-colors-title"
-            >
-              <h3 id="settings-colors-title">{t("Colores de la estructura")}</h3>
-              <p>{t("Personaliza los colores de la cadena principal y de sus sustituyentes.")}</p>
-              <div className="structure-color-controls">
-                <label>
-                  <span><i className="main-key" aria-hidden="true" />{t("Cadena principal")}</span>
-                  <input
-                    type="color"
-                    value={mainChainColor}
-                    onChange={(event) => setMainChainColor(event.target.value)}
-                    aria-label={t("Elegir color de la cadena principal")}
-                  />
-                </label>
-                <label>
-                  <span><i className="branch-key" aria-hidden="true" />{t("Sustituyentes")}</span>
-                  <input
-                    type="color"
-                    value={branchColor}
-                    onChange={(event) => setBranchColor(event.target.value)}
-                    aria-label={t("Elegir color de los sustituyentes")}
-                  />
-                </label>
-              </div>
-              <button
-                type="button"
-                className="reset-structure-colors"
-                onClick={() => {
-                  setMainChainColor(DEFAULT_STRUCTURE_COLORS.main);
-                  setBranchColor(DEFAULT_STRUCTURE_COLORS.branch);
-                  setNotice("Se restauraron los colores predeterminados de la estructura.");
-                }}
-              >
-                {t("Restaurar colores")}
-              </button>
-            </section>
-
             <section className="settings-section settings-accessibility" aria-labelledby="settings-accessibility-title">
               <h3 id="settings-accessibility-title">{t("Accesibilidad opcional")}</h3>
               <label className="settings-toggle">
@@ -6316,7 +6505,7 @@ export default function Home() {
             className="png-export-scrim"
             type="button"
             onClick={() => setPngExportOpen(false)}
-            aria-label={t("Cerrar opciones de exportación PNG")}
+            aria-label={t("Cerrar opciones de exportación de imagen")}
           />
           <section
             className="png-export-dialog"
@@ -6327,15 +6516,15 @@ export default function Home() {
           >
             <div className="png-export-heading">
               <div>
-                <p className="eyebrow">PNG</p>
+                <p className="eyebrow">{imageExportFormat.toUpperCase()}</p>
                 <h2 id="png-export-title">{t("Exportar imagen")}</h2>
-                <p>{t("Elige la resolución y el fondo antes de descargar.")}</p>
+                <p>{t("Elige el formato, el tamaño, el fondo y el modo de color antes de descargar.")}</p>
               </div>
               <button
                 type="button"
                 className="png-export-close"
                 onClick={() => setPngExportOpen(false)}
-                aria-label={t("Cerrar opciones de exportación PNG")}
+                aria-label={t("Cerrar opciones de exportación de imagen")}
               >
                 ×
               </button>
@@ -6343,10 +6532,29 @@ export default function Home() {
 
             <div
               className={`png-live-preview background-${pngBackgroundMode} color-${pngColorMode}`}
+              style={exportColorStyle}
               aria-label={t("Vista previa de exportación")}
             >
               <div dangerouslySetInnerHTML={{ __html: pngPreviewMarkup }} />
             </div>
+
+            <fieldset className="png-export-options">
+              <legend>{t("Formato")}</legend>
+              <div className="png-format-grid">
+                {(["png", "svg"] as const).map((format) => (
+                  <label key={format} className={imageExportFormat === format ? "is-selected" : ""}>
+                    <input
+                      type="radio"
+                      name="image-export-format"
+                      checked={imageExportFormat === format}
+                      onChange={() => setImageExportFormat(format)}
+                    />
+                    <strong>{format.toUpperCase()}</strong>
+                    <span>{t(format === "png" ? "Imagen por píxeles" : "Vector escalable")}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
             <fieldset className="png-export-options png-selection-options">
               <legend>{t("Selección activa")}</legend>
@@ -6358,7 +6566,7 @@ export default function Home() {
                   onChange={(event) => {
                     const includeSelection = event.target.checked;
                     setPngIncludeSelection(includeSelection);
-                    updatePngPreview(includeSelection, pngBackgroundMode);
+                    updatePngPreview(includeSelection, pngBackgroundMode, pngColorMode, exportColors);
                   }}
                 />
                 <span className="png-selection-check" aria-hidden="true">{pngIncludeSelection ? "✓" : ""}</span>
@@ -6371,30 +6579,82 @@ export default function Home() {
               </label>
             </fieldset>
 
-            <fieldset className="png-export-options">
-              <legend>{t("Resolución")}</legend>
-              <div className="png-resolution-grid">
-                {([1, 2, 4] as const).map((scale) => (
-                  <label key={scale} className={pngExportScale === scale ? "is-selected" : ""}>
+            {imageExportFormat === "png" && (
+              <fieldset className="png-export-options">
+                <legend>{t("Tamaño PNG")}</legend>
+                <div className="png-resolution-grid">
+                  {([1, 2, 4] as const).map((scale) => (
+                    <label key={scale} className={!pngUsingCustomSize && pngExportScale === scale ? "is-selected" : ""}>
+                      <input
+                        type="radio"
+                        name="png-resolution"
+                        checked={!pngUsingCustomSize && pngExportScale === scale}
+                        onChange={() => applyPngResolutionPreset(scale)}
+                      />
+                      <strong>{scale}×</strong>
+                      <span>{t(scale === 1 ? "Estándar" : scale === 2 ? "Alta" : "Máxima")}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="png-manual-size">
+                  <div className="png-dimension-inputs">
+                    <label>
+                      <span>{t("Ancho")}</span>
+                      <span className="png-pixel-input">
+                        <input
+                          id="png-export-width"
+                          type="number"
+                          min={MIN_EXPORT_PIXELS}
+                          max={MAX_EXPORT_PIXELS}
+                          step="1"
+                          inputMode="numeric"
+                          value={pngExportWidth}
+                          onChange={(event) => updateManualPngDimension("width", event.target.value)}
+                          onBlur={() => commitManualPngDimension("width")}
+                          aria-label={t("Ancho del PNG en píxeles")}
+                        />
+                        <small>px</small>
+                      </span>
+                    </label>
+                    <span aria-hidden="true">×</span>
+                    <label>
+                      <span>{t("Alto")}</span>
+                      <span className="png-pixel-input">
+                        <input
+                          id="png-export-height"
+                          type="number"
+                          min={MIN_EXPORT_PIXELS}
+                          max={MAX_EXPORT_PIXELS}
+                          step="1"
+                          inputMode="numeric"
+                          value={pngExportHeight}
+                          onChange={(event) => updateManualPngDimension("height", event.target.value)}
+                          onBlur={() => commitManualPngDimension("height")}
+                          aria-label={t("Alto del PNG en píxeles")}
+                        />
+                        <small>px</small>
+                      </span>
+                    </label>
+                  </div>
+                  <label className="png-aspect-lock">
                     <input
-                      type="radio"
-                      name="png-resolution"
-                      checked={pngExportScale === scale}
-                      onChange={() => setPngExportScale(scale)}
+                      type="checkbox"
+                      checked={pngLockAspectRatio}
+                      onChange={(event) => setPngLockAspectRatio(event.target.checked)}
                     />
-                    <strong>{scale}×</strong>
-                    <span>{t(scale === 1 ? "Estándar" : scale === 2 ? "Alta" : "Máxima")}</span>
+                    <span>{t("Mantener proporción")}</span>
                   </label>
-                ))}
-              </div>
-            </fieldset>
+                  <p>{t("Puedes escribir un tamaño exacto entre 200 y 8000 píxeles.")}</p>
+                </div>
+              </fieldset>
+            )}
 
             <fieldset className="png-export-options">
               <legend>{t("Fondo")}</legend>
               <div className="png-background-grid">
                 {([
                   ["canvas", "Con fondo", "Usa el color del canvas actual."],
-                  ["transparent", "Sin fondo", "Conserva la transparencia del PNG."],
+                  ["transparent", "Sin fondo", "Conserva la transparencia del archivo."],
                 ] as const).map(([mode, label, detail]) => (
                   <label key={mode} className={pngBackgroundMode === mode ? "is-selected" : ""}>
                     <input
@@ -6403,7 +6663,7 @@ export default function Home() {
                       checked={pngBackgroundMode === mode}
                       onChange={() => {
                         setPngBackgroundMode(mode);
-                        updatePngPreview(pngIncludeSelection, mode);
+                        updatePngPreview(pngIncludeSelection, mode, pngColorMode, exportColors);
                       }}
                     />
                     <span className={`png-background-swatch ${mode}`} aria-hidden="true" />
@@ -6417,7 +6677,7 @@ export default function Home() {
               <legend>{t("Modo de color")}</legend>
               <div className="png-color-mode-grid">
                 {([
-                  ["color", "Color original", "Conserva los colores elegidos en el canvas."],
+                  ["color", "Color", "Permite elegir colores para la imagen exportada."],
                   ["grayscale", "Escala de grises", "Convierte la imagen a grises para imprimir."],
                   ["monochrome", "Blanco y negro", "Usa alto contraste para fotocopias e impresoras."],
                 ] as const).map(([mode, label, detail]) => (
@@ -6426,7 +6686,10 @@ export default function Home() {
                       type="radio"
                       name="png-color-mode"
                       checked={pngColorMode === mode}
-                      onChange={() => setPngColorMode(mode)}
+                      onChange={() => {
+                        setPngColorMode(mode);
+                        updatePngPreview(pngIncludeSelection, pngBackgroundMode, mode, exportColors);
+                      }}
                     />
                     <span className={`png-color-mode-swatch ${mode}`} aria-hidden="true" />
                     <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
@@ -6435,13 +6698,56 @@ export default function Home() {
               </div>
             </fieldset>
 
+            {pngColorMode === "color" && (
+              <fieldset className="png-export-options png-export-color-controls" style={exportColorStyle}>
+                <legend>{t("Colores de exportación")}</legend>
+                <p>{t("Estos colores se aplican solo al archivo exportado.")}</p>
+                <div className="structure-color-controls">
+                  {([
+                    ["main", "Cadena principal", "main-key"],
+                    ["functional", "Grupo funcional", "functional-key"],
+                    ["substituent", "Sustituyentes", "branch-key"],
+                  ] as const).map(([key, label, swatchClass]) => (
+                    <label key={key}>
+                      <span><i className={swatchClass} aria-hidden="true" />{t(label)}</span>
+                      <input
+                        type="color"
+                        value={exportColors[key]}
+                        onChange={(event) => {
+                          const palette = { ...exportColors, [key]: event.target.value };
+                          setExportColors(palette);
+                          updatePngPreview(pngIncludeSelection, pngBackgroundMode, pngColorMode, palette);
+                        }}
+                        aria-label={t(`Elegir color de ${label.toLowerCase()}`)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="reset-structure-colors"
+                  onClick={() => {
+                    const palette = {
+                      main: DEFAULT_STRUCTURE_COLORS.main,
+                      functional: DEFAULT_STRUCTURE_COLORS.functional,
+                      substituent: DEFAULT_STRUCTURE_COLORS.branch,
+                    };
+                    setExportColors(palette);
+                    updatePngPreview(pngIncludeSelection, pngBackgroundMode, pngColorMode, palette);
+                  }}
+                >
+                  {t("Restaurar colores")}
+                </button>
+              </fieldset>
+            )}
+
             <div className="png-export-actions">
               <button type="button" className="png-export-cancel" onClick={() => setPngExportOpen(false)}>
                 {t("Cancelar")}
               </button>
-              <button type="button" className="png-export-download" onClick={() => exportCanvasAsPNG()}>
+              <button type="button" className="png-export-download" onClick={exportCanvasImage}>
                 <span aria-hidden="true">↓</span>
-                {t("Descargar PNG")}
+                {t(imageExportFormat === "png" ? "Descargar PNG" : "Descargar SVG")}
               </button>
             </div>
           </section>
@@ -6868,12 +7174,12 @@ export default function Home() {
               <button
                 type="button"
                 className="canvas-export-button"
-                aria-label={t("Descargar canvas como imagen PNG")}
+                aria-label={t("Exportar canvas como imagen PNG o SVG")}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={openPngExportDialog}
               >
                 <span aria-hidden="true">📷</span>
-                {t("Exportar PNG")}
+                {t("Exportar PNG/SVG")}
               </button>
               <button
                 type="button"
