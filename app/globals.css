@@ -364,7 +364,8 @@ button {
 }
 
 .png-resolution-grid,
-.png-background-grid {
+.png-background-grid,
+.png-color-mode-grid {
   display: grid;
   gap: 9px;
 }
@@ -377,8 +378,13 @@ button {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.png-color-mode-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .png-resolution-grid label,
-.png-background-grid label {
+.png-background-grid label,
+.png-color-mode-grid label {
   position: relative;
   display: flex;
   min-width: 0;
@@ -402,10 +408,18 @@ button {
   padding: 12px;
 }
 
+.png-color-mode-grid label {
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+}
+
 .png-resolution-grid label:hover,
 .png-background-grid label:hover,
+.png-color-mode-grid label:hover,
 .png-resolution-grid label.is-selected,
-.png-background-grid label.is-selected {
+.png-background-grid label.is-selected,
+.png-color-mode-grid label.is-selected {
   border-color: #4b9d87;
   background: #edf8f4;
   box-shadow: 0 0 0 2px rgba(75, 157, 135, 0.12);
@@ -413,6 +427,14 @@ button {
 
 .png-resolution-grid input,
 .png-background-grid input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.png-color-mode-grid input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -436,7 +458,18 @@ button {
   gap: 2px;
 }
 
+.png-color-mode-grid label > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
 .png-background-grid small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.png-color-mode-grid small {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.3;
@@ -463,6 +496,26 @@ button {
     linear-gradient(-45deg, transparent 75%, #dce4e1 75%);
   background-position: 0 0, 0 6px, 6px -6px, -6px 0;
   background-size: 12px 12px;
+}
+
+.png-color-mode-swatch {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #cbd9d4;
+  border-radius: 8px;
+}
+
+.png-color-mode-swatch.color {
+  background: linear-gradient(135deg, var(--structure-main, #4d8c94) 0 48%, #fff 48% 52%, var(--structure-branch, #d5a254) 52% 100%);
+}
+
+.png-color-mode-swatch.grayscale {
+  background: linear-gradient(135deg, #242424, #d7d7d7);
+}
+
+.png-color-mode-swatch.monochrome {
+  background: linear-gradient(135deg, #111 0 48%, #fff 48% 52%, #111 52% 100%);
 }
 
 .png-export-actions {
@@ -499,6 +552,7 @@ button {
 .png-export-close:focus-visible,
 .png-resolution-grid label:has(input:focus-visible),
 .png-background-grid label:has(input:focus-visible),
+.png-color-mode-grid label:has(input:focus-visible),
 .png-export-actions button:focus-visible {
   outline: 3px solid rgba(48, 139, 116, 0.3);
   outline-offset: 2px;
@@ -508,6 +562,7 @@ button {
   .png-export-overlay { padding: 12px; }
   .png-export-dialog { padding: 20px 16px; }
   .png-background-grid { grid-template-columns: 1fr; }
+  .png-color-mode-grid { grid-template-columns: 1fr; }
 }
 
 .settings-section + .settings-section {
@@ -540,6 +595,69 @@ button {
 
 .settings-section h3 + .settings-toggle {
   border-top: 0;
+}
+
+.settings-colors > p {
+  margin: -2px 0 12px;
+  color: #70847e;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.structure-color-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.structure-color-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 45px;
+  padding: 7px 9px 7px 12px;
+  border: 1px solid #dbe8e4;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #31574d;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.structure-color-controls label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.structure-color-controls i {
+  display: inline-block;
+  width: 20px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.structure-color-controls input[type="color"] {
+  width: 34px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid #bed3cb;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.reset-structure-colors {
+  width: 100%;
+  min-height: 36px;
+  margin-top: 10px;
+  border: 1px solid #c8ddd5;
+  border-radius: 10px;
+  background: #f5faf8;
+  color: #2a705f;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .settings-toggle input {
@@ -1773,6 +1891,8 @@ button {
 }
 
 .molecule-stage {
+  --structure-main: #4d8c94;
+  --structure-branch: #d5a254;
   position: relative;
   height: clamp(390px, 45vh, 520px);
   margin: 0 18px;
@@ -2016,12 +2136,12 @@ button {
 }
 
 .main-bond {
-  stroke: #4d8c94;
+  stroke: var(--structure-main);
   stroke-width: 5;
 }
 
 .branch-bond {
-  stroke: #d5a254;
+  stroke: var(--structure-branch);
   stroke-width: 4;
   stroke-dasharray: 8 5;
 }
@@ -2042,7 +2162,7 @@ button {
 
 .atom-circle {
   fill: #fff;
-  stroke: #61919a;
+  stroke: var(--structure-main);
   stroke-width: 2.5;
   filter: drop-shadow(0 5px 5px rgba(30, 65, 58, 0.1));
   transition: 150ms ease;
@@ -2050,11 +2170,11 @@ button {
 
 .carbon-node.on-branch .atom-circle {
   fill: #fffbf4;
-  stroke: #d5a254;
+  stroke: var(--structure-branch);
 }
 
 .uniform-colors .branch-bond {
-  stroke: #4d8c94;
+  stroke: var(--structure-main);
   stroke-width: 5;
   stroke-dasharray: none;
 }
@@ -2069,7 +2189,7 @@ button {
 
 .uniform-colors .carbon-node.on-branch .atom-circle {
   fill: #fff;
-  stroke: #61919a;
+  stroke: var(--structure-main);
 }
 
 .carbon-node:hover .atom-circle,
@@ -2092,7 +2212,7 @@ button {
 }
 
 .skeletal-anchor {
-  fill: #2c796b;
+  fill: var(--structure-main);
   opacity: 0;
   transition: 150ms ease;
 }
@@ -2110,11 +2230,11 @@ button {
 }
 
 .skeletal-node.on-branch .skeletal-anchor {
-  fill: #c58b2e;
+  fill: var(--structure-branch);
 }
 
 .uniform-colors .skeletal-node.on-branch .skeletal-anchor {
-  fill: #2c796b;
+  fill: var(--structure-main);
 }
 
 .skeletal-selection-ring {
@@ -2125,11 +2245,11 @@ button {
 }
 
 .skeletal-node.on-branch .skeletal-selection-ring {
-  stroke: #c79039;
+  stroke: var(--structure-branch);
 }
 
 .uniform-colors .skeletal-node.on-branch .skeletal-selection-ring {
-  stroke: #3d8f7b;
+  stroke: var(--structure-main);
 }
 
 .skeletal-hetero-hit-target {
@@ -2263,8 +2383,8 @@ button {
   border-radius: 2px;
 }
 
-.main-key { background: #4d8c94; }
-.branch-key { background: #d5a254; }
+.main-key { background: var(--structure-main, #4d8c94); }
+.branch-key { background: var(--structure-branch, #d5a254); }
 
 .structure-family-badge {
   position: absolute;
@@ -5071,6 +5191,7 @@ html[data-theme="dark"] .png-export-dialog {
 html[data-theme="dark"] .png-export-close,
 html[data-theme="dark"] .png-resolution-grid label,
 html[data-theme="dark"] .png-background-grid label,
+html[data-theme="dark"] .png-color-mode-grid label,
 html[data-theme="dark"] .png-export-cancel {
   border-color: #3b534c;
   background: #1b2d28;
@@ -5079,8 +5200,10 @@ html[data-theme="dark"] .png-export-cancel {
 
 html[data-theme="dark"] .png-resolution-grid label:hover,
 html[data-theme="dark"] .png-background-grid label:hover,
+html[data-theme="dark"] .png-color-mode-grid label:hover,
 html[data-theme="dark"] .png-resolution-grid label.is-selected,
-html[data-theme="dark"] .png-background-grid label.is-selected {
+html[data-theme="dark"] .png-background-grid label.is-selected,
+html[data-theme="dark"] .png-color-mode-grid label.is-selected {
   border-color: #69b39f;
   background: #213b33;
   box-shadow: 0 0 0 2px rgba(105, 179, 159, 0.13);
@@ -5092,6 +5215,22 @@ html[data-theme="dark"] .png-resolution-grid strong {
 
 html[data-theme="dark"] .png-background-swatch {
   border-color: #49625a;
+}
+
+html[data-theme="dark"] .png-color-mode-swatch,
+html[data-theme="dark"] .structure-color-controls input[type="color"] {
+  border-color: #49625a;
+}
+
+html[data-theme="dark"] .settings-colors > p {
+  color: #93aaa2;
+}
+
+html[data-theme="dark"] .structure-color-controls label,
+html[data-theme="dark"] .reset-structure-colors {
+  border-color: #3c574f;
+  background: #1b2d28;
+  color: #b2ccc3;
 }
 
 html[data-theme="dark"] .molecule-stage {
@@ -5128,23 +5267,23 @@ html[data-theme="dark"] .bond-touch-hint strong {
 
 html[data-theme="dark"] .main-bond,
 html[data-theme="dark"] .uniform-colors .branch-bond {
-  stroke: #72b6bf;
+  stroke: var(--structure-main);
 }
 
 html[data-theme="dark"] .branch-bond {
-  stroke: #e0aa59;
+  stroke: var(--structure-branch);
 }
 
 html[data-theme="dark"] .atom-circle,
 html[data-theme="dark"] .uniform-colors .carbon-node.on-branch .atom-circle,
 html[data-theme="dark"] .methane-marker circle {
   fill: #182824;
-  stroke: #70adb6;
+  stroke: var(--structure-main);
 }
 
 html[data-theme="dark"] .carbon-node.on-branch .atom-circle {
   fill: #2d261a;
-  stroke: #d7a14e;
+  stroke: var(--structure-branch);
 }
 
 html[data-theme="dark"] .selection-ring {

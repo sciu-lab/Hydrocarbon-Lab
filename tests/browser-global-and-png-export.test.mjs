@@ -26,6 +26,13 @@ test("the canvas toolbar exposes expand and PNG export actions on the left", () 
   assert.match(page, /\(\[1, 2, 4\] as const\)/);
   assert.match(page, /name="png-background"/);
   assert.match(page, /"transparent", "Sin fondo"/);
+  assert.match(page, /name="png-color-mode"/);
+  assert.match(page, /"grayscale", "Escala de grises"/);
+  assert.match(page, /"monochrome", "Blanco y negro"/);
+  assert.match(page, /applyPngColorMode\(context, canvas\.width, canvas\.height, colorMode\)/);
+  assert.match(page, /className="settings-section settings-colors"/);
+  assert.match(page, /type="color"/);
+  assert.match(page, /"--structure-main": mainChainColor/);
   assert.match(page, /querySelectorAll\("\.canvas-background-layer"\)/);
   assert.match(page, /link\.download = `\$\{safePngFileName\(currentName\)\}\.png`/);
 
@@ -35,4 +42,9 @@ test("the canvas toolbar exposes expand and PNG export actions on the left", () 
 
   const badgeRule = css.match(/\.structure-family-badge\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(badgeRule, /right:\s*14px/);
+
+  assert.match(css, /\.png-color-mode-grid/);
+  assert.match(css, /\.structure-color-controls/);
+  assert.match(css, /stroke:\s*var\(--structure-main\)/);
+  assert.match(css, /stroke:\s*var\(--structure-branch\)/);
 });

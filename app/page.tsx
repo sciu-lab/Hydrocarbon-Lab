@@ -2,6 +2,7 @@
 
 import {
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
   useEffect,
   useMemo,
@@ -76,6 +77,13 @@ type BondOrder = 1 | 2 | 3;
 type PngExportScale = 1 | 2 | 4;
 
 type PngBackgroundMode = "canvas" | "transparent";
+
+type PngColorMode = "color" | "grayscale" | "monochrome";
+
+const DEFAULT_STRUCTURE_COLORS = {
+  main: "#4d8c94",
+  branch: "#d5a254",
+} as const;
 
 type Bond = [number, number, BondOrder?];
 
@@ -3432,6 +3440,32 @@ function safePngFileName(value: string) {
   return normalized || "molecula";
 }
 
+function applyPngColorMode(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  colorMode: PngColorMode,
+) {
+  if (colorMode === "color") return;
+  const imageData = context.getImageData(0, 0, width, height);
+  const pixels = imageData.data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index + 3] === 0) continue;
+    const luminance = Math.round(
+      pixels[index] * 0.2126
+      + pixels[index + 1] * 0.7152
+      + pixels[index + 2] * 0.0722,
+    );
+    const output = colorMode === "monochrome"
+      ? (luminance >= 150 ? 255 : 0)
+      : luminance;
+    pixels[index] = output;
+    pixels[index + 1] = output;
+    pixels[index + 2] = output;
+  }
+  context.putImageData(imageData, 0, 0);
+}
+
 function isPortableStructure(value: unknown): value is PortableStructure {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<PortableStructure>;
@@ -3704,6 +3738,7 @@ export default function Home() {
   const [pngExportOpen, setPngExportOpen] = useState(false);
   const [pngExportScale, setPngExportScale] = useState<PngExportScale>(2);
   const [pngBackgroundMode, setPngBackgroundMode] = useState<PngBackgroundMode>("canvas");
+  const [pngColorMode, setPngColorMode] = useState<PngColorMode>("color");
   const [librarySection, setLibrarySection] = useState<LibrarySection>("history");
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyIdentity, setHistoryIdentity] = useState<string | null>(null);
@@ -3718,6 +3753,8 @@ export default function Home() {
   const [showHydrogens, setShowHydrogens] = useState(true);
   const [showNumbering, setShowNumbering] = useState(true);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
+  const [mainChainColor, setMainChainColor] = useState(DEFAULT_STRUCTURE_COLORS.main);
+  const [branchColor, setBranchColor] = useState(DEFAULT_STRUCTURE_COLORS.branch);
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [showIupacName, setShowIupacName] = useState(true);
@@ -3778,6 +3815,10 @@ export default function Home() {
     [molecule, commonAlkylNameSelections],
   );
   const hasHeterocycle = useMemo(() => moleculeContainsHeterocycle(molecule), [molecule]);
+  const structureColorStyle = useMemo(() => ({
+    "--structure-main": mainChainColor,
+    "--structure-branch": branchColor,
+  }) as CSSProperties, [branchColor, mainChainColor]);
   const localSuggestedNameUnavailable = sourceNameOverride === null
     && localNamerCannotSafelyName(molecule, calculatedAnalysis);
   const analysis = useMemo(
@@ -4917,6 +4958,7 @@ export default function Home() {
   const exportCanvasAsPNG = (
     outputScale: PngExportScale = pngExportScale,
     backgroundMode: PngBackgroundMode = pngBackgroundMode,
+    colorMode: PngColorMode = pngColorMode,
   ) => {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) {
@@ -4966,6 +5008,7 @@ export default function Home() {
           context.fillRect(0, 0, width, height);
         }
         context.drawImage(image, 0, 0, width, height);
+        applyPngColorMode(context, canvas.width, canvas.height, colorMode);
 
         canvas.toBlob((blob) => {
           if (!blob) {
@@ -5963,6 +6006,46 @@ export default function Home() {
               </label>
             </section>
 
+            <section
+              className="settings-section settings-colors"
+              style={structureColorStyle}
+              aria-labelledby="settings-colors-title"
+            >
+              <h3 id="settings-colors-title">{t("Colores de la estructura")}</h3>
+              <p>{t("Personaliza los colores de la cadena principal y de sus sustituyentes.")}</p>
+              <div className="structure-color-controls">
+                <label>
+                  <span><i className="main-key" aria-hidden="true" />{t("Cadena principal")}</span>
+                  <input
+                    type="color"
+                    value={mainChainColor}
+                    onChange={(event) => setMainChainColor(event.target.value)}
+                    aria-label={t("Elegir color de la cadena principal")}
+                  />
+                </label>
+                <label>
+                  <span><i className="branch-key" aria-hidden="true" />{t("Sustituyentes")}</span>
+                  <input
+                    type="color"
+                    value={branchColor}
+                    onChange={(event) => setBranchColor(event.target.value)}
+                    aria-label={t("Elegir color de los sustituyentes")}
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                className="reset-structure-colors"
+                onClick={() => {
+                  setMainChainColor(DEFAULT_STRUCTURE_COLORS.main);
+                  setBranchColor(DEFAULT_STRUCTURE_COLORS.branch);
+                  setNotice("Se restauraron los colores predeterminados de la estructura.");
+                }}
+              >
+                {t("Restaurar colores")}
+              </button>
+            </section>
+
             <section className="settings-section settings-accessibility" aria-labelledby="settings-accessibility-title">
               <h3 id="settings-accessibility-title">{t("Accesibilidad opcional")}</h3>
               <label className="settings-toggle">
@@ -6083,6 +6166,7 @@ export default function Home() {
           />
           <section
             className="png-export-dialog"
+            style={structureColorStyle}
             role="dialog"
             aria-modal="true"
             aria-labelledby="png-export-title"
@@ -6136,6 +6220,28 @@ export default function Home() {
                       onChange={() => setPngBackgroundMode(mode)}
                     />
                     <span className={`png-background-swatch ${mode}`} aria-hidden="true" />
+                    <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="png-export-options">
+              <legend>{t("Modo de color")}</legend>
+              <div className="png-color-mode-grid">
+                {([
+                  ["color", "Color original", "Conserva los colores elegidos en el canvas."],
+                  ["grayscale", "Escala de grises", "Convierte la imagen a grises para imprimir."],
+                  ["monochrome", "Blanco y negro", "Usa alto contraste para fotocopias e impresoras."],
+                ] as const).map(([mode, label, detail]) => (
+                  <label key={mode} className={pngColorMode === mode ? "is-selected" : ""}>
+                    <input
+                      type="radio"
+                      name="png-color-mode"
+                      checked={pngColorMode === mode}
+                      onChange={() => setPngColorMode(mode)}
+                    />
+                    <span className={`png-color-mode-swatch ${mode}`} aria-hidden="true" />
                     <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
                   </label>
                 ))}
@@ -6411,6 +6517,7 @@ export default function Home() {
 
           <div
             className={`molecule-stage ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasExpanded ? "is-expanded" : ""} ${canvasScaleClass}`}
+            style={structureColorStyle}
             tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
             role={advancedScreenReaderEnabled ? "group" : undefined}
             aria-label={advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
