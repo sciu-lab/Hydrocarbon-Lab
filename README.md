@@ -38,6 +38,23 @@ en el navegador; en Sites se sincroniza mediante su almacenamiento persistente.
 - El canvas no reserva letras, flechas ni números para dibujar. Se mantienen
   los atajos globales documentados con Ctrl, además de `Delete` y `Esc`.
 
+## Constructor por fórmula y exportación docente
+
+- **Por fórmula molecular** acepta números normales o subíndices Unicode (por
+  ejemplo, `C6H14` y `C₄H₁₀O`), valida los elementos, calcula el índice de
+  deficiencia de hidrógeno (IDH) y presenta tarjetas que se cargan directamente
+  en el canvas mediante SMILES local.
+- Los catálogos de `C6H14` y `C4H10O` contienen, respectivamente, sus 5 y 7
+  isómeros constitucionales completos. Cuando una fórmula tiene un espacio
+  isomérico más amplio, la interfaz la identifica expresamente como **catálogo
+  representativo** para no confundirlo con una enumeración exhaustiva.
+- **Deseleccionar** retira el halo activo sin cambiar la molécula. En la ventana
+  de exportación PNG, la casilla de selección actualiza una vista previa en
+  tiempo real y permite decidir si ese halo aparecerá en la descarga.
+- La exportación PNG permite conservar los colores elegidos para la cadena y
+  los sustituyentes, convertirlos a escala de grises o generar una versión en
+  blanco y negro, además de elegir resolución y fondo transparente.
+
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
 Drizzle support.

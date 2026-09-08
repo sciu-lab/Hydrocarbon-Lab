@@ -61,6 +61,11 @@ import {
 import { buildOpenChainSkeletalPositions } from "./skeletal-layout";
 import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
+import {
+  type FormulaIsomer,
+  type FormulaIsomerGeneration,
+  generateFormulaIsomers,
+} from "./formula-isomers";
 
 type CarbonAtom = {
   id: number;
@@ -3429,6 +3434,33 @@ function inlineSvgStyles(source: SVGSVGElement, clone: SVGSVGElement) {
   });
 }
 
+function removeSelectionFromSvg(svg: SVGSVGElement) {
+  svg.querySelectorAll(".selection-ring, .skeletal-selection-ring").forEach((element) => element.remove());
+  svg.querySelectorAll<SVGElement>(".carbon-node.selected").forEach((element) => {
+    element.classList.remove("selected");
+    element.querySelectorAll<SVGElement>(".skeletal-anchor").forEach((anchor) => {
+      anchor.style.opacity = "0";
+    });
+  });
+}
+
+function buildPngPreviewMarkup(
+  source: SVGSVGElement,
+  includeSelection: boolean,
+  backgroundMode: PngBackgroundMode,
+) {
+  const clone = source.cloneNode(true) as SVGSVGElement;
+  if (!includeSelection) removeSelectionFromSvg(clone);
+  if (backgroundMode === "transparent") {
+    clone.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
+  }
+  clone.removeAttribute("width");
+  clone.removeAttribute("height");
+  clone.setAttribute("aria-hidden", "true");
+  clone.setAttribute("focusable", "false");
+  return clone.outerHTML;
+}
+
 function safePngFileName(value: string) {
   const normalized = value
     .normalize("NFD")
@@ -3739,6 +3771,8 @@ export default function Home() {
   const [pngExportScale, setPngExportScale] = useState<PngExportScale>(2);
   const [pngBackgroundMode, setPngBackgroundMode] = useState<PngBackgroundMode>("canvas");
   const [pngColorMode, setPngColorMode] = useState<PngColorMode>("color");
+  const [pngIncludeSelection, setPngIncludeSelection] = useState(false);
+  const [pngPreviewMarkup, setPngPreviewMarkup] = useState("");
   const [librarySection, setLibrarySection] = useState<LibrarySection>("history");
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyIdentity, setHistoryIdentity] = useState<string | null>(null);
@@ -3753,8 +3787,8 @@ export default function Home() {
   const [showHydrogens, setShowHydrogens] = useState(true);
   const [showNumbering, setShowNumbering] = useState(true);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
-  const [mainChainColor, setMainChainColor] = useState(DEFAULT_STRUCTURE_COLORS.main);
-  const [branchColor, setBranchColor] = useState(DEFAULT_STRUCTURE_COLORS.branch);
+  const [mainChainColor, setMainChainColor] = useState<string>(DEFAULT_STRUCTURE_COLORS.main);
+  const [branchColor, setBranchColor] = useState<string>(DEFAULT_STRUCTURE_COLORS.branch);
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [showIupacName, setShowIupacName] = useState(true);
@@ -3792,6 +3826,11 @@ export default function Home() {
   const [smilesPanelOpen, setSmilesPanelOpen] = useState(false);
   const [smilesImporting, setSmilesImporting] = useState(false);
   const [smilesFeedback, setSmilesFeedback] = useState<HistoryTransferNotice | null>(null);
+  const [formulaPanelOpen, setFormulaPanelOpen] = useState(false);
+  const [formulaInput, setFormulaInput] = useState("");
+  const [formulaFeedback, setFormulaFeedback] = useState<NameBuilderFeedback | null>(null);
+  const [formulaResult, setFormulaResult] = useState<FormulaIsomerGeneration | null>(null);
+  const [selectedFormulaIsomer, setSelectedFormulaIsomer] = useState<string | null>(null);
   const [reasoningSourceName, setReasoningSourceName] = useState<string | null>(null);
   const [sourceNameOverride, setSourceNameOverride] = useState<string | null>(null);
   const lastPersistedSignature = useRef("");
@@ -3829,6 +3868,7 @@ export default function Home() {
   );
   const automaticNumberingAvailable = sourceNameOverride === null;
   const effectiveShowNumbering = showNumbering && automaticNumberingAvailable;
+  const hasActiveSelection = selectedId !== null;
   const selectedAtom = molecule.atoms.find((atom) => atom.id === selectedId) ?? molecule.atoms[0];
   const mainChainSet = useMemo(() => new Set(analysis.mainChain), [analysis.mainChain]);
   const pinName = useMemo(
@@ -4376,6 +4416,91 @@ export default function Home() {
     void constructFromName(iupacInput);
   };
 
+  const generateIsomersFromFormula = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = generateFormulaIsomers(formulaInput);
+    setSelectedFormulaIsomer(null);
+    if (!result.ok) {
+      setFormulaResult(null);
+      setFormulaFeedback({
+        kind: "error",
+        message: language === "en" ? t(result.error) : result.error,
+      });
+      return;
+    }
+
+    setFormulaResult(result);
+    if (!result.isomers.length) {
+      setFormulaFeedback({
+        kind: "error",
+        message: language === "en"
+          ? `The formula ${result.formula} is valid (DoU ${result.idh}), but it does not yet have a verifiable catalog in the builder.`
+          : `La fórmula ${result.formula} es válida (IDH ${result.idh}), pero todavía no tiene un catálogo verificable en el constructor.`,
+      });
+      return;
+    }
+
+    setFormulaFeedback({
+      kind: "success",
+      message: result.complete
+        ? language === "en"
+          ? `${result.isomers.length} constitutional isomers were found for ${result.formula}.`
+          : `Se encontraron ${result.isomers.length} isómeros constitucionales para ${result.formula}.`
+        : language === "en"
+          ? `${result.isomers.length} representative structures were found for ${result.formula}. The list is not intended to be exhaustive.`
+          : `Se encontraron ${result.isomers.length} estructuras representativas para ${result.formula}. La lista no pretende ser exhaustiva.`,
+    });
+  };
+
+  const selectFormulaIsomer = async (isomer: FormulaIsomer) => {
+    const selectedName = language === "en" ? isomer.nameEn : isomer.nameEs;
+    setFormulaFeedback(null);
+    try {
+      const { moleculeFromSmiles } = await import("./openchemlib-adapter");
+      const converted = moleculeFromSmiles(isomer.smiles);
+      if (!converted.ok) throw new Error(converted.error);
+      const next = converted.molecule;
+      const committed = commit(
+        next,
+        language === "en"
+          ? `Isomer loaded from the molecular formula: ${selectedName}.`
+          : `Isómero cargado desde la fórmula molecular: ${selectedName}.`,
+      );
+      if (!committed) throw new Error("La estructura no superó la validación de valencia del canvas.");
+
+      setSelectedFormulaIsomer(isomer.id);
+      setSelectedId(next.atoms[0]?.id ?? null);
+      setIupacInput(selectedName);
+      // The structure remains the source of truth for both nomenclature modes;
+      // the catalog label is only the input that led to it.
+      setSourceNameOverride(null);
+      setReasoningSourceName(isomer.nameEs);
+      setCommonAlkylNameSelections([]);
+      setShowIupacName(true);
+      setRingInsertMode("replace");
+      setShowAlkylPalette(false);
+      setShowRingPalette(false);
+      setShowFunctionalPalette(false);
+      setFormulaFeedback({
+        kind: "success",
+        message: language === "en"
+          ? `Molecule updated: ${selectedName}.`
+          : `Molécula actualizada: ${selectedName}.`,
+      });
+      window.requestAnimationFrame(() => {
+        window.document.querySelector<HTMLElement>(".molecule-stage")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
+    } catch (error) {
+      setFormulaFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : "No se pudo dibujar este isómero.",
+      });
+    }
+  };
+
   const loadNameSuggestionPreview = async () => {
     if (!nameSuggestion || nameSuggestionPreview || nameSuggestionPreviewLoading) return;
     setNameSuggestionPreviewLoading(true);
@@ -4416,6 +4541,10 @@ export default function Home() {
   };
 
   const addCarbon = (dx: number, dy: number) => {
+    if (!hasActiveSelection) {
+      setNotice("Selecciona un átomo antes de añadir un carbono.");
+      return;
+    }
     if (!isCarbonAtom(selectedAtom) && newBondOrder !== 1) {
       setNotice("En esta etapa, los nuevos enlaces desde O o N se añaden como enlaces simples para conservar un grupo funcional reconocido.");
       return;
@@ -4524,7 +4653,7 @@ export default function Home() {
   };
 
   const addAlkylGroup = (template: AlkylTemplate) => {
-    if (!isCarbonAtom(selectedAtom)) {
+    if (!hasActiveSelection || !isCarbonAtom(selectedAtom)) {
       setNotice("Selecciona un carbono para añadir un grupo alquilo.");
       return;
     }
@@ -4597,7 +4726,7 @@ export default function Home() {
   };
 
   const addFunctionalGroup = (template: FunctionalGroupTemplate) => {
-    if (!isCarbonAtom(selectedAtom)) {
+    if (!hasActiveSelection || !isCarbonAtom(selectedAtom)) {
       setNotice("Los grupos funcionales de la biblioteca se incorporan desde un carbono seleccionado.");
       return;
     }
@@ -4715,6 +4844,10 @@ export default function Home() {
   };
 
   const removeSelected = () => {
+    if (!hasActiveSelection) {
+      setNotice("Selecciona un átomo antes de retirarlo.");
+      return;
+    }
     if (ringContainingAtom(molecule, selectedAtom.id)) {
       setNotice("El carbono seleccionado forma parte del anillo y no puede retirarse. Elige un sustituyente terminal.");
       return;
@@ -4959,6 +5092,7 @@ export default function Home() {
     outputScale: PngExportScale = pngExportScale,
     backgroundMode: PngBackgroundMode = pngBackgroundMode,
     colorMode: PngColorMode = pngColorMode,
+    includeSelection: boolean = pngIncludeSelection,
   ) => {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) {
@@ -4973,6 +5107,7 @@ export default function Home() {
       const height = Math.max(1, Math.round(bounds.height || viewBox.height || 400));
       const clonedSvg = sourceSvg.cloneNode(true) as SVGSVGElement;
       inlineSvgStyles(sourceSvg, clonedSvg);
+      if (!includeSelection) removeSelectionFromSvg(clonedSvg);
       if (backgroundMode === "transparent") {
         clonedSvg.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
       }
@@ -5038,6 +5173,22 @@ export default function Home() {
     } catch {
       setNotice("No fue posible exportar el canvas como imagen PNG.");
     }
+  };
+
+  const updatePngPreview = (
+    includeSelection = pngIncludeSelection,
+    backgroundMode = pngBackgroundMode,
+  ) => {
+    const sourceSvg = moleculeSvgRef.current;
+    if (!sourceSvg) return;
+    setPngPreviewMarkup(buildPngPreviewMarkup(sourceSvg, includeSelection, backgroundMode));
+  };
+
+  const openPngExportDialog = () => {
+    const includeSelection = selectedId !== null && pngIncludeSelection;
+    setPngIncludeSelection(includeSelection);
+    updatePngPreview(includeSelection, pngBackgroundMode);
+    setPngExportOpen(true);
   };
 
   const importSmilesDocument = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -5296,7 +5447,7 @@ export default function Home() {
 
   const loadRingTemplate = (template: RingTemplate) => {
     if (ringInsertMode === "attach") {
-      if (!isCarbonAtom(selectedAtom)) {
+      if (!hasActiveSelection || !isCarbonAtom(selectedAtom)) {
         setNotice("Selecciona un carbono antes de unir un anillo.");
         return;
       }
@@ -5429,6 +5580,7 @@ export default function Home() {
       } else if (key === "i") {
         event.preventDefault();
         setNameBuilderOpen(false);
+        setFormulaPanelOpen(false);
         setSmilesPanelOpen(true);
         setSmilesFeedback(null);
       } else if (key === "n") {
@@ -5437,11 +5589,13 @@ export default function Home() {
       } else if (key === "1") {
         event.preventDefault();
         setSmilesPanelOpen(false);
+        setFormulaPanelOpen(false);
         setNameBuilderOpen(true);
         setNameBuilderFeedback(null);
       } else if (key === "2") {
         event.preventDefault();
         setNameBuilderOpen(false);
+        setFormulaPanelOpen(false);
         setSmilesPanelOpen(true);
         setSmilesFeedback(null);
       } else if (key === "3") {
@@ -6187,6 +6341,36 @@ export default function Home() {
               </button>
             </div>
 
+            <div
+              className={`png-live-preview background-${pngBackgroundMode} color-${pngColorMode}`}
+              aria-label={t("Vista previa de exportación")}
+            >
+              <div dangerouslySetInnerHTML={{ __html: pngPreviewMarkup }} />
+            </div>
+
+            <fieldset className="png-export-options png-selection-options">
+              <legend>{t("Selección activa")}</legend>
+              <label className={pngIncludeSelection ? "is-selected" : ""}>
+                <input
+                  type="checkbox"
+                  checked={pngIncludeSelection}
+                  disabled={selectedId === null}
+                  onChange={(event) => {
+                    const includeSelection = event.target.checked;
+                    setPngIncludeSelection(includeSelection);
+                    updatePngPreview(includeSelection, pngBackgroundMode);
+                  }}
+                />
+                <span className="png-selection-check" aria-hidden="true">{pngIncludeSelection ? "✓" : ""}</span>
+                <span>
+                  <strong>{t("Exportar con el átomo o grupo seleccionado")}</strong>
+                  <small>{selectedId === null
+                    ? t("No hay una selección activa en el canvas.")
+                    : t("Desmárcalo para ocultar el halo de selección en la imagen.")}</small>
+                </span>
+              </label>
+            </fieldset>
+
             <fieldset className="png-export-options">
               <legend>{t("Resolución")}</legend>
               <div className="png-resolution-grid">
@@ -6217,7 +6401,10 @@ export default function Home() {
                       type="radio"
                       name="png-background"
                       checked={pngBackgroundMode === mode}
-                      onChange={() => setPngBackgroundMode(mode)}
+                      onChange={() => {
+                        setPngBackgroundMode(mode);
+                        updatePngPreview(pngIncludeSelection, mode);
+                      }}
                     />
                     <span className={`png-background-swatch ${mode}`} aria-hidden="true" />
                     <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
@@ -6289,7 +6476,14 @@ export default function Home() {
               <button
                 className={`name-builder-toggle ${nameBuilderOpen ? "active" : ""}`}
                 onClick={() => {
-                  setNameBuilderOpen((open) => !open);
+                  setNameBuilderOpen((open) => {
+                    const next = !open;
+                    if (next) {
+                      setSmilesPanelOpen(false);
+                      setFormulaPanelOpen(false);
+                    }
+                    return next;
+                  });
                   setNameBuilderFeedback(null);
                 }}
                 aria-expanded={nameBuilderOpen}
@@ -6301,7 +6495,14 @@ export default function Home() {
               <button
                 className={`name-builder-toggle smiles-toggle ${smilesPanelOpen ? "active" : ""}`}
                 onClick={() => {
-                  setSmilesPanelOpen((open) => !open);
+                  setSmilesPanelOpen((open) => {
+                    const next = !open;
+                    if (next) {
+                      setNameBuilderOpen(false);
+                      setFormulaPanelOpen(false);
+                    }
+                    return next;
+                  });
                   setSmilesFeedback(null);
                 }}
                 aria-expanded={smilesPanelOpen}
@@ -6310,6 +6511,26 @@ export default function Home() {
               >
                 <span aria-hidden="true">S</span>
                 SMILES
+              </button>
+              <button
+                className={`name-builder-toggle formula-toggle ${formulaPanelOpen ? "active" : ""}`}
+                onClick={() => {
+                  setFormulaPanelOpen((open) => {
+                    const next = !open;
+                    if (next) {
+                      setNameBuilderOpen(false);
+                      setSmilesPanelOpen(false);
+                    }
+                    return next;
+                  });
+                  setFormulaFeedback(null);
+                }}
+                aria-expanded={formulaPanelOpen}
+                aria-controls="molecular-formula-builder"
+                title={t("Generar isómeros desde una fórmula molecular")}
+              >
+                <span aria-hidden="true">Σ</span>
+                {t("Por fórmula molecular")}
               </button>
               <div className="view-mode-switch" role="group" aria-label={t("Tipo de representación molecular")}>
                 <button
@@ -6463,6 +6684,115 @@ export default function Home() {
             </form>
           )}
 
+          {formulaPanelOpen && (
+            <section
+              id="molecular-formula-builder"
+              className="formula-builder-panel"
+              aria-label={t("Constructor por fórmula molecular")}
+            >
+              <div className="formula-builder-intro">
+                <span className="formula-builder-mark" aria-hidden="true">Σ</span>
+                <div>
+                  <strong>{t("Constructor por fórmula molecular")}</strong>
+                  <small>{t("Calcula el IDH y muestra isómeros constitucionales verificables que puedes cargar en el canvas.")}</small>
+                </div>
+                <span className="formula-builder-scope">IDH + OpenChemLib</span>
+              </div>
+
+              <form className="formula-builder-form" onSubmit={generateIsomersFromFormula}>
+                <label htmlFor="molecular-formula-input">{t("Fórmula molecular")}</label>
+                <div className="formula-builder-input-group">
+                  <input
+                    id="molecular-formula-input"
+                    type="text"
+                    value={formulaInput}
+                    onChange={(event) => {
+                      setFormulaInput(event.target.value);
+                      setFormulaFeedback(null);
+                      setFormulaResult(null);
+                      setSelectedFormulaIsomer(null);
+                    }}
+                    placeholder={t("Ej.: C6H12O o C₄H₁₀O")}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button type="submit">
+                    <span aria-hidden="true">⌬</span>
+                    {t("Generar isómeros")}
+                  </button>
+                </div>
+              </form>
+
+              <div className="formula-builder-examples" aria-label={t("Ejemplos de fórmulas compatibles")}>
+                <span>{t("Prueba:")}</span>
+                {["C6H14", "C4H10O", "C3H6O", "C5H10", "C6H12O"].map((formula) => (
+                  <button
+                    type="button"
+                    key={formula}
+                    onClick={() => {
+                      setFormulaInput(formula);
+                      setFormulaFeedback(null);
+                      setFormulaResult(null);
+                      setSelectedFormulaIsomer(null);
+                    }}
+                  >
+                    {formula}
+                  </button>
+                ))}
+              </div>
+
+              {formulaFeedback && (
+                <div className={`formula-builder-feedback ${formulaFeedback.kind}`} role={formulaFeedback.kind === "error" ? "alert" : "status"}>
+                  <span aria-hidden="true">{formulaFeedback.kind === "success" ? "✓" : "!"}</span>
+                  <p>{localizedDynamicText(formulaFeedback.message)}</p>
+                </div>
+              )}
+
+              {formulaResult?.ok && formulaResult.isomers.length > 0 && (
+                <div className="formula-results">
+                  <div className="formula-results-header">
+                    <div>
+                      <p className="eyebrow">{t("Isómeros encontrados")}</p>
+                      <h3>{formulaResult.formula}</h3>
+                    </div>
+                    <div className="formula-result-metrics">
+                      <span>IDH <strong>{formulaResult.idh}</strong></span>
+                      <span>{t("Estructuras")} <strong>{formulaResult.isomers.length}</strong></span>
+                    </div>
+                  </div>
+                  <div className={`formula-scope-note ${formulaResult.complete ? "complete" : "representative"}`}>
+                    <span aria-hidden="true">{formulaResult.complete ? "✓" : "i"}</span>
+                    <p>{formulaResult.complete
+                      ? t("Enumeración completa de isómeros constitucionales para esta fórmula dentro del alcance orgánico indicado.")
+                      : t("Catálogo representativo: esta fórmula admite más isómeros. No se presenta como una enumeración exhaustiva.")}</p>
+                  </div>
+                  <div className="isomers-grid">
+                    {formulaResult.isomers.map((isomer) => {
+                      const isSelected = selectedFormulaIsomer === isomer.id;
+                      return (
+                        <button
+                          type="button"
+                          className={`isomer-card ${isSelected ? "selected" : ""}`}
+                          key={isomer.id}
+                          onClick={() => { void selectFormulaIsomer(isomer); }}
+                          aria-pressed={isSelected}
+                        >
+                          <span className="isomer-card-topline">
+                            <span className="isomer-type">{language === "en" ? isomer.familyEn : isomer.familyEs}</span>
+                            {isSelected && <span className="isomer-selected-mark" aria-label={t("Seleccionado")}>✓</span>}
+                          </span>
+                          <strong>{language === "en" ? isomer.nameEn : isomer.nameEs}</strong>
+                          <small>{formulaResult.formula}</small>
+                          <span className="isomer-load-label">{t("Dibujar en el canvas")} →</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           {smilesPanelOpen && (
             <section id="smiles-interop-panel" className="smiles-interop-panel" aria-label={t("Compatibilidad SMILES")}>
               <div className="smiles-interop-intro">
@@ -6540,10 +6870,25 @@ export default function Home() {
                 className="canvas-export-button"
                 aria-label={t("Descargar canvas como imagen PNG")}
                 onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => setPngExportOpen(true)}
+                onClick={openPngExportDialog}
               >
                 <span aria-hidden="true">📷</span>
                 {t("Exportar PNG")}
+              </button>
+              <button
+                type="button"
+                className="canvas-deselect-button"
+                disabled={selectedId === null}
+                aria-label={t("Quitar la selección del canvas")}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => {
+                  previousSelectedId.current = selectedId;
+                  setSelectedId(null);
+                  setNotice("Selección retirada. La molécula no cambió.");
+                }}
+              >
+                <span aria-hidden="true">⊘</span>
+                {t("Deseleccionar")}
               </button>
             </div>
 
@@ -6750,7 +7095,7 @@ export default function Home() {
                 const element = getElement(atom);
                 const carbonAtom = isCarbonAtom(atom);
                 const hydrogenCount = getImplicitHydrogens(atom.id, molecule);
-                const isSelected = atom.id === selectedAtom.id;
+                const isSelected = atom.id === selectedId;
                 const chainNumber = analysis.numberedAtoms.get(atom.id);
                 const position = displayPositions.get(atom.id)!;
                 const numberBadgeOffset = skeletalNumberBadgeOffsets.get(atom.id)
@@ -6777,7 +7122,7 @@ export default function Home() {
                     className={`carbon-node ${carbonAtom ? "carbon-element" : `hetero-node element-${element.toLowerCase()}`} ${viewMode === "skeletal" ? (carbonAtom ? "skeletal-node" : "skeletal-hetero-node") : "condensed-node"} ${isSelected ? "selected" : ""} ${mainChainSet.has(atom.id) ? "on-main-chain" : "on-branch"}`}
                     transform={`translate(${position.x} ${position.y})`}
                     onClick={() => {
-                      previousSelectedId.current = selectedAtom.id;
+                      previousSelectedId.current = selectedId;
                       setSelectedId(atom.id);
                       setNotice(`${elementNames[element][0].toUpperCase()}${elementNames[element].slice(1)} ${chainNumber ?? "del grupo funcional"} seleccionado.`);
                     }}
@@ -6790,7 +7135,7 @@ export default function Home() {
                       : undefined}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
-                        previousSelectedId.current = selectedAtom.id;
+                        previousSelectedId.current = selectedId;
                         setSelectedId(atom.id);
                       }
                     }}
@@ -6956,11 +7301,23 @@ export default function Home() {
 
           <div className="builder-toolbar">
             <div className="selection-summary">
-              <span className={`selection-icon selection-${selectedElement.toLowerCase()}`}>{selectedElement}</span>
-              <div>
-                <p>{language === "en" ? `${t(elementNames[selectedElement])} ${t("seleccionado")}` : `${elementNames[selectedElement][0].toUpperCase() + elementNames[selectedElement].slice(1)} seleccionado`}</p>
-                <strong>{selectedHydrogens} {selectedHydrogens === 1 ? t("H implícito") : t("H implícitos")} · {t("valencia")} {selectedValence}/{selectedValenceLimit}</strong>
-              </div>
+              {hasActiveSelection ? (
+                <>
+                  <span className={`selection-icon selection-${selectedElement.toLowerCase()}`}>{selectedElement}</span>
+                  <div>
+                    <p>{language === "en" ? `${t(elementNames[selectedElement])} ${t("seleccionado")}` : `${elementNames[selectedElement][0].toUpperCase() + elementNames[selectedElement].slice(1)} seleccionado`}</p>
+                    <strong>{selectedHydrogens} {selectedHydrogens === 1 ? t("H implícito") : t("H implícitos")} · {t("valencia")} {selectedValence}/{selectedValenceLimit}</strong>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="selection-icon selection-none">—</span>
+                  <div>
+                    <p>{t("Sin selección")}</p>
+                    <strong>{t("Selecciona un átomo para editarlo")}</strong>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="bond-order-picker" role="group" aria-label={t("Orden del próximo enlace")}>
@@ -6993,6 +7350,7 @@ export default function Home() {
                   key={option.label}
                   className={option.className}
                   onClick={() => addCarbon(option.dx, option.dy)}
+                  disabled={!hasActiveSelection}
                   aria-label={language === "en" ? `Add carbon ${t(option.label).toLowerCase()}` : `Añadir carbono hacia ${option.label.toLowerCase()}`}
                   title={language === "en" ? `Add ${t(option.label).toLowerCase()}` : `Añadir hacia ${option.label.toLowerCase()}`}
                 >
@@ -7051,7 +7409,7 @@ export default function Home() {
                 <span aria-hidden="true">OH</span>
                 {t("Grupos funcionales")}
               </button>
-              <button className="remove-button" onClick={removeSelected}>
+              <button className="remove-button" onClick={removeSelected} disabled={!hasActiveSelection}>
                 <span>−</span>
                 {t("Retirar terminal")}
               </button>
@@ -7073,6 +7431,7 @@ export default function Home() {
                     key={template.id}
                     className="alkyl-option"
                     onClick={() => addAlkylGroup(template)}
+                    disabled={!hasActiveSelection}
                     title={language === "en" ? `Add ${localizedCommonAlkylName(template.label).toLowerCase()}: ${localizedIupac(template.systematic)}` : `Añadir ${template.label.toLowerCase()}: ${template.systematic}`}
                   >
                     <span className="alkyl-formula">{template.formula}</span>
@@ -7114,8 +7473,8 @@ export default function Home() {
                   className={ringInsertMode === "attach" ? "active" : ""}
                   onClick={() => setRingInsertMode("attach")}
                   aria-pressed={ringInsertMode === "attach"}
-                  disabled={!isCarbonAtom(selectedAtom) || selectedValence >= 4}
-                  title={!isCarbonAtom(selectedAtom) || selectedValence >= 4 ? t("Selecciona un carbono con una valencia libre") : undefined}
+                  disabled={!hasActiveSelection || !isCarbonAtom(selectedAtom) || selectedValence >= 4}
+                  title={!hasActiveSelection || !isCarbonAtom(selectedAtom) || selectedValence >= 4 ? t("Selecciona un carbono con una valencia libre") : undefined}
                 >
                   <span aria-hidden="true">＋</span>
                   {t("Unir al C seleccionado")}
@@ -7140,6 +7499,7 @@ export default function Home() {
                       key={template.id}
                       className="ring-option"
                       onClick={() => loadRingTemplate(template)}
+                      disabled={ringInsertMode === "attach" && !hasActiveSelection}
                       title={`${ringInsertMode === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}`}
                     >
                       <span className="ring-preview" aria-hidden="true">
@@ -7173,7 +7533,7 @@ export default function Home() {
                         title={unavailable
                           ? t("Este derivado se carga como ejemplo completo; usa Benceno para unir otro anillo")
                           : `${ringInsertMode === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}`}
-                        disabled={unavailable}
+                        disabled={unavailable || (ringInsertMode === "attach" && !hasActiveSelection)}
                       >
                         <span className="ring-preview aromatic-preview" aria-hidden="true">
                           <svg viewBox="0 0 48 48">
@@ -7228,6 +7588,7 @@ export default function Home() {
                           className="functional-option"
                           key={template.id}
                           onClick={() => addFunctionalGroup(template)}
+                          disabled={!hasActiveSelection}
                           title={language === "en" ? `Add ${t(template.label).toLowerCase()}: ${t(template.detail)}` : `Añadir ${template.label.toLowerCase()}: ${template.detail}`}
                         >
                           <span className="functional-formula">{template.shortFormula}</span>
