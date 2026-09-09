@@ -5,10 +5,12 @@ import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
+import { generarNombreTradicional } from "../app/traditional-nomenclature.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
+let buildTraditionalMoleculeStructure;
 let canvasCoordinateScaleForCarbonCount;
 
 before(async () => {
@@ -22,6 +24,7 @@ before(async () => {
   });
   ({
     analyzeMolecule,
+    buildTraditionalMoleculeStructure,
     canvasCoordinateScaleForCarbonCount,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
@@ -135,6 +138,62 @@ function makeLinearAlkane(length) {
     bonds: Array.from({ length: length - 1 }, (_, index) => [index + 1, index + 2, 1]),
   };
 }
+
+test("integrates the structure-only traditional engine with the molecular graph", () => {
+  const hexan1Ol = makeLinearAlkane(6);
+  hexan1Ol.atoms.push({ id: 7, x: 0, y: -1, element: "O" });
+  hexan1Ol.bonds.push([1, 7, 1]);
+
+  const pentan2OlWithChlorine = makeLinearAlkane(5);
+  pentan2OlWithChlorine.atoms.push(
+    { id: 6, x: 1, y: -1, element: "O" },
+    { id: 7, x: 2, y: 1, element: "Cl" },
+  );
+  pentan2OlWithChlorine.bonds.push([2, 6, 1], [3, 7, 1]);
+
+  const methylEthylEther = {
+    atoms: [
+      { id: 1, x: 0, y: 0 },
+      { id: 2, x: 1, y: 0, element: "O" },
+      { id: 3, x: 2, y: 0 },
+      { id: 4, x: 3, y: 0 },
+    ],
+    bonds: [[1, 2, 1], [2, 3, 1], [3, 4, 1]],
+  };
+
+  const methylEthanoate = {
+    atoms: [
+      { id: 1, x: 0, y: 0 },
+      { id: 2, x: -1, y: 0 },
+      { id: 3, x: 0, y: -1, element: "O" },
+      { id: 4, x: 1, y: 0, element: "O" },
+      { id: 5, x: 2, y: 0 },
+    ],
+    bonds: [[1, 2, 1], [1, 3, 2], [1, 4, 1], [4, 5, 1]],
+  };
+
+  const methylEthanamine = {
+    atoms: [
+      { id: 1, x: 0, y: 0 },
+      { id: 2, x: 1, y: 0 },
+      { id: 3, x: 2, y: 0, element: "N" },
+      { id: 4, x: 2, y: 1 },
+    ],
+    bonds: [[1, 2, 1], [2, 3, 1], [3, 4, 1]],
+  };
+
+  for (const [molecule, expected] of [
+    [hexan1Ol, "hexanol"],
+    [pentan2OlWithChlorine, "3-cloro-2-pentanol"],
+    [methylEthylEther, "etil metil éter"],
+    [methylEthanoate, "etanoato de metilo"],
+    [methylEthanamine, "N-metiletanamina"],
+  ]) {
+    const analysis = analyzeMolecule(molecule);
+    const input = buildTraditionalMoleculeStructure(molecule, analysis);
+    assert.equal(generarNombreTradicional(input), expected, analysis.name);
+  }
+});
 
 test("genera nombres preferidos para cadenas largas sin texto genérico", () => {
   assert.equal(analyzeMolecule(makeLinearAlkane(40)).name, "tetracontano");

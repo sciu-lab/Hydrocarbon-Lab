@@ -47,6 +47,11 @@ import {
   stripStereochemicalDescriptors,
 } from "./nomenclature-conventions";
 import {
+  generarNombreTradicional,
+  type MoleculeStructure,
+  type TraditionalGroupType,
+} from "./traditional-nomenclature";
+import {
   findCommonNameSuggestion,
   type CommonNameSuggestion,
 } from "./name-suggestions";
@@ -1989,6 +1994,102 @@ function esterAlkylName(startId: number | undefined, skeleton: Molecule) {
   const length = simpleAlkylLength(startId, skeleton);
   const name = alkylNames[length];
   return name ? `${name}o` : "alquilo";
+}
+
+const traditionalGroupKinds: Record<FunctionalGroupKind, TraditionalGroupType> = {
+  carboxylicAcid: "acid",
+  ester: "ester",
+  amide: "amide",
+  nitrile: "nitrile",
+  aldehyde: "aldehyde",
+  ketone: "ketone",
+  alcohol: "alcohol",
+  amine: "amine",
+  ether: "ether",
+  halogen: "halide",
+  nitro: "nitro",
+};
+
+function traditionalStereochemicalPrefix(name: string) {
+  const direct = name.match(/^(\((?:\d+[EZ](?:,\d+[EZ])*)\)-)/i);
+  if (direct) return direct[1];
+  return name.match(/^ácido (\((?:\d+[EZ](?:,\d+[EZ])*)\)-)/i)?.[1];
+}
+
+/** Adapts the simulator's local graph analysis to the standalone engine DTO. */
+export function buildTraditionalMoleculeStructure(
+  molecule: Molecule,
+  analysis: Analysis,
+  displayedSourceName = analysis.name,
+): MoleculeStructure {
+  const skeleton = carbonSkeleton(molecule);
+  const etherHeteroAtomIds = new Set(
+    analysis.primaryFunctionalGroup
+      ? []
+      : analysis.functionalGroups
+          .filter((group) => group.kind === "ether")
+          .map((group) => group.heteroAtomId),
+  );
+  const substituents = analysis.substituents
+    .filter((substituent) => !substituent.atomIds.some((atomId) => etherHeteroAtomIds.has(atomId)))
+    .map((substituent) => ({
+      pos: substituent.locant,
+      name: substituent.name,
+      complex: substituent.complex,
+    }));
+
+  const groups = analysis.functionalGroups.map((group) => {
+    const pos = locantForGroup(group, analysis.mainChain)
+      ?? anchorLocantForGroup(group, analysis.mainChain, skeleton)
+      ?? 1;
+    const attachedAlkylNames = group.kind === "ester"
+      ? [esterAlkylName(group.alkylCarbonId, skeleton)]
+      : group.kind === "ether"
+        ? group.carbonIds.map((carbonId) => {
+            const length = simpleAlkylLength(carbonId, skeleton);
+            return alkylNames[length] ?? "alquil";
+          })
+        : undefined;
+    return {
+      pos,
+      type: traditionalGroupKinds[group.kind],
+      name: group.kind === "halogen" ? group.label.toLocaleLowerCase("es") : undefined,
+      alkylNames: attachedAlkylNames,
+    };
+  });
+
+  const hasBranches = analysis.substituents.some((substituent) =>
+    substituent.atomIds.length > 0
+    && substituent.atomIds.every((atomId) => {
+      const atom = getAtom(atomId, molecule);
+      return Boolean(atom && isCarbonAtom(atom));
+    }));
+  const family = moleculeContainsHeterocycle(molecule) ? "heterocycle" : analysis.family;
+  const parentCarbonCount = analysis.mainChain.length
+    || molecule.atoms.filter(isCarbonAtom).length;
+  const carbonCount = molecule.atoms.filter(isCarbonAtom).length;
+  const primaryGroup = analysis.functionalGroups.find(
+    (group) => group.kind === analysis.primaryFunctionalGroup,
+  );
+
+  return {
+    carbonCount,
+    parentCarbonCount,
+    bondType: analysis.tripleBondLocants.length ? "triple" : analysis.doubleBondLocants.length ? "doble" : "simple",
+    bondPositions: analysis.doubleBondLocants.length
+      ? [...analysis.doubleBondLocants]
+      : [...analysis.tripleBondLocants],
+    doubleBondPositions: [...analysis.doubleBondLocants],
+    tripleBondPositions: [...analysis.tripleBondLocants],
+    groups,
+    mainChain: analysis.chainName,
+    substituents,
+    family,
+    sourceName: stripStereochemicalDescriptors(displayedSourceName),
+    hasBranches,
+    stereochemicalPrefix: traditionalStereochemicalPrefix(displayedSourceName),
+    prefixes: nitrogenSubstituentPrefixes(primaryGroup, analysis.mainChain, molecule, skeleton),
+  };
 }
 
 function locantForGroup(group: FunctionalGroup, path: number[]) {
@@ -4025,6 +4126,14 @@ export default function Home() {
   const nameWithSelectedStereochemistry = stereochemistryEnabled && stereochemistryAvailable
     ? stereochemicalName
     : pinName;
+  const traditionalStructure = useMemo(
+    () => buildTraditionalMoleculeStructure(molecule, analysis, nameWithSelectedStereochemistry),
+    [analysis, molecule, nameWithSelectedStereochemistry],
+  );
+  const structuralTraditionalName = useMemo(
+    () => generarNombreTradicional(traditionalStructure),
+    [traditionalStructure],
+  );
   const activeNomenclatureConvention = simplifiedModeEnabled
     ? "current"
     : nomenclatureConvention;
@@ -4033,9 +4142,11 @@ export default function Home() {
     return (["current", "traditional"] as const).map((convention) => ({
       convention,
       label: nomenclatureConventionLabel(convention, language),
-      name: applyNomenclatureConvention(localizedName, convention, language),
+      name: convention === "traditional" && language === "es"
+        ? structuralTraditionalName
+        : applyNomenclatureConvention(localizedName, convention, language),
     }));
-  }, [language, nameWithSelectedStereochemistry]);
+  }, [language, nameWithSelectedStereochemistry, structuralTraditionalName]);
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
