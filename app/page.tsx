@@ -3544,6 +3544,281 @@ const SVG_EXPORT_STYLE_PROPERTIES = [
   "visibility",
 ] as const;
 
+type SvgBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type SvgViewBoxPadding = number | {
+  ratio?: number;
+  units?: number;
+};
+
+const SVG_EXPORT_VIEWBOX_PADDING = 0.065;
+const SVG_EXPORT_BOUNDS_IGNORED_SELECTOR = [
+  ".canvas-background-layer",
+  ".bond-hit-target",
+  ".skeletal-hit-target",
+  ".skeletal-hetero-hit-target",
+].join(", ");
+
+function unionSvgBounds(current: SvgBounds | null, next: SvgBounds): SvgBounds {
+  if (!current) return next;
+  const x = Math.min(current.x, next.x);
+  const y = Math.min(current.y, next.y);
+  const maxX = Math.max(current.x + current.width, next.x + next.width);
+  const maxY = Math.max(current.y + current.height, next.y + next.height);
+  return { x, y, width: maxX - x, height: maxY - y };
+}
+
+function hasVisibleSvgPaint(value: string, opacity: string) {
+  if (!Number.isFinite(Number(opacity)) || Number(opacity) <= 0) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized !== "none"
+    && normalized !== "transparent"
+    && !/^rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(normalized)
+    && !/^hsla\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(normalized);
+}
+
+function isRenderedSvgElement(element: SVGElement, root: SVGSVGElement) {
+  let current: Element | null = element;
+  while (current instanceof SVGElement) {
+    const style = window.getComputedStyle(current);
+    if (
+      style.display === "none"
+      || style.visibility === "hidden"
+      || style.visibility === "collapse"
+      || Number(style.opacity) <= 0
+    ) {
+      return false;
+    }
+    if (current === root) break;
+    current = current.parentElement;
+  }
+  return true;
+}
+
+function cssFilterOutsets(filterValue: string) {
+  const outsets = { top: 0, right: 0, bottom: 0, left: 0 };
+  const functions: Array<{ name: string; value: string }> = [];
+  const functionPattern = /([a-z-]+)\(/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = functionPattern.exec(filterValue))) {
+    let depth = 1;
+    let cursor = functionPattern.lastIndex;
+    while (cursor < filterValue.length && depth > 0) {
+      if (filterValue[cursor] === "(") depth += 1;
+      if (filterValue[cursor] === ")") depth -= 1;
+      cursor += 1;
+    }
+    if (depth === 0) {
+      functions.push({
+        name: match[1].toLowerCase(),
+        value: filterValue.slice(functionPattern.lastIndex, cursor - 1),
+      });
+      functionPattern.lastIndex = cursor;
+    }
+  }
+
+  functions.forEach(({ name, value }) => {
+    if (name === "blur") {
+      const radius = Math.abs(Number.parseFloat(value)) || 0;
+      const spread = radius * 3;
+      outsets.top += spread;
+      outsets.right += spread;
+      outsets.bottom += spread;
+      outsets.left += spread;
+      return;
+    }
+    if (name !== "drop-shadow") return;
+    const withoutColor = value
+      .replace(/(?:rgb|hsl)a?\([^)]*\)/gi, " ")
+      .replace(/#[\da-f]{3,8}\b/gi, " ")
+      .replace(/\b(?:transparent|currentcolor|[a-z]+)\b/gi, " ");
+    const lengths = withoutColor.match(/-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi)?.map(Number) ?? [];
+    const [offsetX = 0, offsetY = 0, blurRadius = 0] = lengths;
+    const spread = Math.abs(blurRadius) * 3;
+    outsets.left += Math.max(0, spread - offsetX);
+    outsets.right += Math.max(0, spread + offsetX);
+    outsets.top += Math.max(0, spread - offsetY);
+    outsets.bottom += Math.max(0, spread + offsetY);
+  });
+
+  return outsets;
+}
+
+function mapSvgBoxToRoot(
+  box: SvgBounds,
+  elementMatrix: DOMMatrix,
+  rootMatrix: DOMMatrix,
+): SvgBounds {
+  const matrix = rootMatrix.inverse().multiply(elementMatrix);
+  const corners = [
+    new DOMPoint(box.x, box.y),
+    new DOMPoint(box.x + box.width, box.y),
+    new DOMPoint(box.x, box.y + box.height),
+    new DOMPoint(box.x + box.width, box.y + box.height),
+  ].map((point) => point.matrixTransform(matrix));
+  const x = Math.min(...corners.map((point) => point.x));
+  const y = Math.min(...corners.map((point) => point.y));
+  const maxX = Math.max(...corners.map((point) => point.x));
+  const maxY = Math.max(...corners.map((point) => point.y));
+  return { x, y, width: maxX - x, height: maxY - y };
+}
+
+function fitViewBoxToContent(
+  svgElement: SVGSVGElement,
+  padding: SvgViewBoxPadding = SVG_EXPORT_VIEWBOX_PADDING,
+) {
+  const originalParent = svgElement.parentNode;
+  const originalNextSibling = svgElement.nextSibling;
+  const originalWidth = svgElement.getAttribute("width");
+  const originalHeight = svgElement.getAttribute("height");
+  let measurementHost: HTMLDivElement | null = null;
+
+  if (!svgElement.isConnected) {
+    const viewBox = svgElement.viewBox.baseVal;
+    if (!originalWidth && viewBox.width > 0) svgElement.setAttribute("width", String(viewBox.width));
+    if (!originalHeight && viewBox.height > 0) svgElement.setAttribute("height", String(viewBox.height));
+    measurementHost = window.document.createElement("div");
+    measurementHost.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;overflow:visible;opacity:0;pointer-events:none;z-index:-1";
+    window.document.body.appendChild(measurementHost);
+    measurementHost.appendChild(svgElement);
+  }
+
+  try {
+    const rootMatrix = svgElement.getScreenCTM();
+    if (!rootMatrix) return null;
+    let contentBounds: SvgBounds | null = null;
+    const elements = svgElement.querySelectorAll<SVGElement>("*");
+
+    for (const element of elements) {
+      if (
+        element.closest("defs, clipPath, mask, marker, pattern, symbol")
+        || element.matches(SVG_EXPORT_BOUNDS_IGNORED_SELECTOR)
+        || element.closest(SVG_EXPORT_BOUNDS_IGNORED_SELECTOR)
+        || !isRenderedSvgElement(element, svgElement)
+        || typeof (element as SVGGraphicsElement).getBBox !== "function"
+      ) {
+        continue;
+      }
+
+      const style = window.getComputedStyle(element);
+      const fillVisible = hasVisibleSvgPaint(style.fill, style.fillOpacity);
+      const strokeVisible = hasVisibleSvgPaint(style.stroke, style.strokeOpacity)
+        && (Number.parseFloat(style.strokeWidth) || 0) > 0;
+      const filterVisible = style.filter !== "none";
+      const tagName = element.tagName.toLowerCase();
+      const paintsWithoutFillOrStroke = ["image", "use", "foreignobject"].includes(tagName);
+      const isContainer = ["a", "g", "svg"].includes(tagName);
+      if (isContainer && !filterVisible) continue;
+      const isFilteredContainer = isContainer && filterVisible;
+      if (!fillVisible && !strokeVisible && !paintsWithoutFillOrStroke && !isFilteredContainer) continue;
+
+      const graphicsElement = element as SVGGraphicsElement;
+      const elementMatrix = graphicsElement.getScreenCTM();
+      if (!elementMatrix) continue;
+
+      try {
+        const geometryBox = graphicsElement.getBBox();
+        let paintedBox: SvgBounds = {
+          x: geometryBox.x,
+          y: geometryBox.y,
+          width: geometryBox.width,
+          height: geometryBox.height,
+        };
+        let browserIncludedStroke = false;
+
+        if (strokeVisible) {
+          try {
+            const strokeBox = (graphicsElement.getBBox as unknown as (options: {
+              fill: boolean;
+              stroke: boolean;
+              markers: boolean;
+              clipped: boolean;
+            }) => DOMRect)({ fill: fillVisible, stroke: true, markers: true, clipped: false });
+            browserIncludedStroke = Math.abs(strokeBox.x - geometryBox.x) > 0.001
+              || Math.abs(strokeBox.y - geometryBox.y) > 0.001
+              || Math.abs(strokeBox.width - geometryBox.width) > 0.001
+              || Math.abs(strokeBox.height - geometryBox.height) > 0.001;
+            if (browserIncludedStroke) {
+              paintedBox = {
+                x: strokeBox.x,
+                y: strokeBox.y,
+                width: strokeBox.width,
+                height: strokeBox.height,
+              };
+            }
+          } catch {
+            // Older SVG engines only expose the parameterless getBBox().
+          }
+        }
+
+        if (strokeVisible && !browserIncludedStroke) {
+          const halfStroke = (Number.parseFloat(style.strokeWidth) || 0) / 2;
+          const miterScale = tagName === "path" && style.strokeLinejoin === "miter"
+            ? Math.max(1, Number.parseFloat(style.strokeMiterlimit) || 1)
+            : 1;
+          const strokeOutset = halfStroke * miterScale;
+          paintedBox = {
+            x: paintedBox.x - strokeOutset,
+            y: paintedBox.y - strokeOutset,
+            width: paintedBox.width + strokeOutset * 2,
+            height: paintedBox.height + strokeOutset * 2,
+          };
+        }
+
+        const filterOutsets = cssFilterOutsets(style.filter);
+        paintedBox = {
+          x: paintedBox.x - filterOutsets.left,
+          y: paintedBox.y - filterOutsets.top,
+          width: paintedBox.width + filterOutsets.left + filterOutsets.right,
+          height: paintedBox.height + filterOutsets.top + filterOutsets.bottom,
+        };
+        const rootBox = mapSvgBoxToRoot(paintedBox, elementMatrix, rootMatrix);
+        if ([rootBox.x, rootBox.y, rootBox.width, rootBox.height].every(Number.isFinite)) {
+          contentBounds = unionSvgBounds(contentBounds, rootBox);
+        }
+      } catch {
+        // A non-rendered or unsupported SVG graphics node contributes no visible area.
+      }
+    }
+
+    if (!contentBounds || (contentBounds.width <= 0 && contentBounds.height <= 0)) return null;
+    const ratio = typeof padding === "number" ? Math.max(0, padding) : Math.max(0, padding.ratio ?? 0);
+    const units = typeof padding === "number" ? 0 : Math.max(0, padding.units ?? 0);
+    const horizontalPadding = contentBounds.width * ratio + units;
+    const verticalPadding = contentBounds.height * ratio + units;
+    const fittedBounds = {
+      x: contentBounds.x - horizontalPadding,
+      y: contentBounds.y - verticalPadding,
+      width: contentBounds.width + horizontalPadding * 2,
+      height: contentBounds.height + verticalPadding * 2,
+    };
+    const formatNumber = (value: number) => String(Math.round(value * 1_000) / 1_000);
+    svgElement.setAttribute("viewBox", [
+      fittedBounds.x,
+      fittedBounds.y,
+      fittedBounds.width,
+      fittedBounds.height,
+    ].map(formatNumber).join(" "));
+    return fittedBounds;
+  } finally {
+    if (measurementHost) {
+      if (originalParent) originalParent.insertBefore(svgElement, originalNextSibling);
+      else svgElement.remove();
+      if (originalWidth === null) svgElement.removeAttribute("width");
+      else svgElement.setAttribute("width", originalWidth);
+      if (originalHeight === null) svgElement.removeAttribute("height");
+      else svgElement.setAttribute("height", originalHeight);
+      measurementHost.remove();
+    }
+  }
+}
+
 function inlineSvgStyles(source: SVGSVGElement, clone: SVGSVGElement) {
   const sourceElements = [source, ...source.querySelectorAll<SVGElement>("*")];
   const clonedElements = [clone, ...clone.querySelectorAll<SVGElement>("*")];
@@ -5430,7 +5705,19 @@ export default function Home() {
         pngColorMode,
         pngIncludeSelection,
       );
-      const dimensions = getSvgBaseDimensions(sourceSvg);
+      const fittedBounds = fitViewBoxToContent(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING);
+      const baseDimensions = getSvgBaseDimensions(sourceSvg);
+      const sourceViewBox = sourceSvg.viewBox.baseVal;
+      const outputScale = Math.min(
+        baseDimensions.width / Math.max(1, sourceViewBox.width),
+        baseDimensions.height / Math.max(1, sourceViewBox.height),
+      );
+      const dimensions = fittedBounds
+        ? {
+            width: fittedBounds.width * outputScale,
+            height: fittedBounds.height * outputScale,
+          }
+        : baseDimensions;
       clonedSvg.setAttribute("width", String(dimensions.width));
       clonedSvg.setAttribute("height", String(dimensions.height));
       if (pngBackgroundMode === "canvas") {

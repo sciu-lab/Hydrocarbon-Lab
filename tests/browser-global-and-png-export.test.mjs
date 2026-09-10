@@ -51,6 +51,11 @@ test("the canvas toolbar exposes expand and PNG/SVG export actions on the left",
   assert.match(page, /"--structure-branch": exportColors\.substituent/);
   assert.match(page, /applyExportColorPalette\(clonedSvg, exportColors\)/);
   assert.match(page, /querySelectorAll\("\.canvas-background-layer"\)/);
+  assert.match(page, /function fitViewBoxToContent/);
+  assert.match(page, /const SVG_EXPORT_VIEWBOX_PADDING = 0\.065/);
+  assert.match(page, /fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
+  assert.match(page, /element\.closest\("defs, clipPath, mask, marker, pattern, symbol"\)/);
+  assert.match(page, /graphicsElement\.getScreenCTM\(\)/);
   assert.match(page, /downloadBlobFile\(blob, `\$\{safePngFileName\(currentName\)\}\.png`\)/);
   assert.match(page, /`\$\{safePngFileName\(currentName\)\}\.svg`/);
 
