@@ -11,7 +11,14 @@ import {
 } from "react";
 import { buildHydrocarbonFromIupacName } from "./name-to-molecule";
 import { IUPAC_ROOTS } from "./iupac-prefixes";
-import { translateSpanishIupacToOpsin } from "./iupac-name-normalization";
+import {
+  localizeChemicalNameForDisplay,
+  translateSpanishIupacToOpsin,
+} from "./iupac-name-normalization";
+import {
+  getSubstituentAlias,
+  localizeCommonSubstituentAlias,
+} from "./substituent-aliases";
 import {
   type AppLanguage,
   detectInitialLanguage,
@@ -64,6 +71,11 @@ import {
   SKELETAL_NUMBER_BADGE_OFFSET,
 } from "./skeletal-bond-geometry";
 import { buildOpenChainSkeletalPositions } from "./skeletal-layout";
+import { getAutoPlacedCarbonPosition } from "./manual-layout";
+import {
+  hasCarbonylAttachment,
+  orientCarbonylTemplateOutsideRing,
+} from "./functional-group-layout";
 import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
 import {
@@ -256,15 +268,6 @@ const alkylNames = IUPAC_ROOTS.map((root) => root ? `${root}il` : "");
 
 const simplePrefixes = ["", "", "di", "tri", "tetra", "penta", "hexa", "hepta", "octa"];
 const complexPrefixes = ["", "", "bis", "tris", "tetrakis", "pentakis", "hexakis"];
-
-const commonAlkylAliases = {
-  "1-metiletil": "isopropil",
-  "2-metilpropil": "isobutil",
-  "1-metilpropil": "sec-butil",
-  "1,1-dimetiletil": "terc-butil",
-} as const;
-
-type AlkylAliasKey = keyof typeof commonAlkylAliases;
 
 const subscriptDigits: Record<string, string> = {
   "0": "₀",
@@ -1142,12 +1145,11 @@ function resolveSubstituentNaming(
   substituent: NamedSubstituent,
   enabledAliases: ReadonlySet<string>,
 ) {
-  const systematic = substituent.name as AlkylAliasKey;
-  const common = commonAlkylAliases[systematic];
-  if (common && enabledAliases.has(systematic)) {
+  const alias = getSubstituentAlias(substituent.name);
+  if (alias && enabledAliases.has(alias.systematic)) {
     return {
-      name: common,
-      sortName: stripForAlphabetizing(common),
+      name: alias.common,
+      sortName: stripForAlphabetizing(alias.common),
       complex: false,
     };
   }
@@ -2332,6 +2334,14 @@ function analyzeFunctionalAcyclic(
           .filter((locant): locant is number => Boolean(locant))
           .sort((a, b) => a - b)
       : [];
+    // When two equally long parent paths both contain the principal group,
+    // retain the one that also contains the greatest number of other
+    // characteristic groups. Otherwise CH2OH can be mistaken for a
+    // hydroxy-methyl branch merely because that branch gives duplicate
+    // substituent locants.
+    const characteristicGroupCoverage = groups.filter((group) =>
+      group.carbonIds.some((carbonId) => path.includes(carbonId)),
+    ).length;
     const functionalPrefixes = functionalPrefixSubstituents(
       groups,
       path,
@@ -2348,12 +2358,16 @@ function analyzeFunctionalAcyclic(
       tripleBondLocants,
       multipleBondCount: doubleBondLocants.length + tripleBondLocants.length,
       primaryLocants,
+      characteristicGroupCoverage,
     };
   });
 
   candidates.sort((left, right) => {
     if (left.primaryLocants.length !== right.primaryLocants.length) {
       return right.primaryLocants.length - left.primaryLocants.length;
+    }
+    if (left.characteristicGroupCoverage !== right.characteristicGroupCoverage) {
+      return right.characteristicGroupCoverage - left.characteristicGroupCoverage;
     }
     if (left.multipleBondCount !== right.multipleBondCount) {
       return right.multipleBondCount - left.multipleBondCount;
@@ -2682,6 +2696,39 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
     );
   }
   return analyzeFunctionalAcyclic(molecule, skeleton, groups, primaryKind, enabledAliases);
+}
+
+/**
+ * A single C1 double/triple-bond locant in an unsubstituted ring is optional
+ * in the short IUPAC spelling (ciclohexeno/ciclohexino).  Keep this as a
+ * presentation option: the analysis itself always retains the explicit
+ * locant, which is needed by functional-ring naming and by the editor.
+ */
+export function getSingleRingUnsaturationNameOption(analysis: Analysis) {
+  if (analysis.family !== "cycloalkane") return undefined;
+
+  const hasSingleDoubleBond = analysis.doubleBondLocants.length === 1
+    && analysis.doubleBondLocants[0] === 1
+    && analysis.tripleBondLocants.length === 0;
+  const hasSingleTripleBond = analysis.tripleBondLocants.length === 1
+    && analysis.tripleBondLocants[0] === 1
+    && analysis.doubleBondLocants.length === 0;
+
+  if (hasSingleDoubleBond && /-1-eno$/.test(analysis.chainName)) {
+    return {
+      systematic: analysis.chainName,
+      simplified: analysis.chainName.replace(/-1-eno$/, "eno"),
+      bondKind: "doble" as const,
+    };
+  }
+  if (hasSingleTripleBond && /-1-ino$/.test(analysis.chainName)) {
+    return {
+      systematic: analysis.chainName,
+      simplified: analysis.chainName.replace(/-1-ino$/, "ino"),
+      bondKind: "triple" as const,
+    };
+  }
+  return undefined;
 }
 
 function joinSpanishList(items: string[]) {
@@ -3557,11 +3604,31 @@ type SvgViewBoxPadding = number | {
 };
 
 const SVG_EXPORT_VIEWBOX_PADDING = 0.065;
-const SVG_EXPORT_BOUNDS_IGNORED_SELECTOR = [
-  ".canvas-background-layer",
+const SVG_EXPORT_INTERFACE_SELECTOR = [
   ".bond-hit-target",
   ".skeletal-hit-target",
   ".skeletal-hetero-hit-target",
+  ".skeletal-anchor",
+  ".selection-ring",
+  ".skeletal-selection-ring",
+  ".skeletal-hetero-selection-ring",
+  "[class~='handle']",
+  "[class*='-handle']",
+  "[class*='handle-']",
+  "[class*='control-point']",
+  "[class*='controlPoint']",
+  "[class*='hit-target']",
+  "[class*='hitTarget']",
+  "[class*='selection-overlay']",
+  "[class*='selectionOverlay']",
+  "[class*='selection-ring']",
+  "[class*='selectionRing']",
+  "[data-editor-only='true']",
+  "[data-export='false']",
+].join(", ");
+const SVG_EXPORT_BOUNDS_IGNORED_SELECTOR = [
+  ".canvas-background-layer",
+  SVG_EXPORT_INTERFACE_SELECTOR,
 ].join(", ");
 
 function unionSvgBounds(current: SvgBounds | null, next: SvgBounds): SvgBounds {
@@ -3844,6 +3911,13 @@ function removeSelectionFromSvg(svg: SVGSVGElement) {
   });
 }
 
+function cleanSvgForExport(svgClone: SVGSVGElement) {
+  svgClone.querySelectorAll(SVG_EXPORT_INTERFACE_SELECTOR).forEach((element) => element.remove());
+  svgClone.querySelectorAll<SVGElement>(".carbon-node.selected").forEach((element) => {
+    element.classList.remove("selected");
+  });
+}
+
 function getSvgBaseDimensions(source: SVGSVGElement) {
   const bounds = source.getBoundingClientRect();
   const viewBox = source.viewBox.baseVal;
@@ -4108,21 +4182,28 @@ export default function Home() {
   const t = (spanish: string) => uiText(language, spanish);
   const localizedIupac = (name: string) => {
     if (name === COMPLEX_NAME_UNAVAILABLE_MESSAGE) return t(COMPLEX_NAME_UNAVAILABLE_MESSAGE);
-    return language === "en" ? translateSpanishIupacToOpsin(name) || name : name;
+    return language === "en"
+      ? translateSpanishIupacToOpsin(name) || name
+      : localizeChemicalNameForDisplay(name, "es");
   };
   const localizedCommonAlkylName = (name: string) => {
-    if (language === "es") return name;
-    const commonNames: Record<string, string> = {
-      isopropil: "isopropyl",
-      isobutil: "isobutyl",
-      "sec-butil": "sec-butyl",
-      "terc-butil": "tert-butyl",
-    };
-    return commonNames[name.toLocaleLowerCase("es")] ?? localizedIupac(name);
+    const localized = localizeCommonSubstituentAlias(name, language);
+    return language === "es" || localized !== name ? localized : localizedIupac(name);
   };
   const localizedDynamicText = (value: string | null | undefined) => {
     const source = value ?? "";
     if (!source || language === "es") return source;
+
+    const complexPolycycle = source.match(/^OpenChemLib reconoció un sistema policíclico complejo \((fusionado|puenteado|espiro|policíclico)\)\. El análisis y edición de estructuras fusionadas, puenteadas o espiro todavía tienen soporte limitado\.$/);
+    if (complexPolycycle) {
+      const topology = {
+        fusionado: "fused",
+        puenteado: "bridged",
+        espiro: "spiro",
+        policíclico: "polycyclic",
+      }[complexPolycycle[1]];
+      return `OpenChemLib recognized a complex ${topology} polycyclic system. Analysis and editing of fused, bridged, and spiro structures remain limited.`;
+    }
 
     const continuing = source.match(/^Continuamos donde quedaste: (.+)\.$/);
     if (continuing) return `Continuing where you left off: ${localizedIupac(continuing[1])}.`;
@@ -4425,6 +4506,14 @@ export default function Home() {
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
+  const availableSubstituentAliases = useMemo(() => {
+    const found = new Map<string, ReturnType<typeof getSubstituentAlias>>();
+    calculatedAnalysis.substituents.forEach((substituent) => {
+      const alias = getSubstituentAlias(substituent.name);
+      if (alias) found.set(alias.systematic, alias);
+    });
+    return [...found.values()].filter((alias): alias is NonNullable<typeof alias> => Boolean(alias));
+  }, [calculatedAnalysis.substituents]);
   const suggestionPreviewIupacName = useMemo(
     () => nameSuggestionPreview
       ? localizedIupac(stripStereochemicalDescriptors(analyzeMolecule(nameSuggestionPreview).name))
@@ -5077,8 +5166,9 @@ export default function Home() {
       showValenceError(formatBondValenceError(newBondOrder, violation));
       return;
     }
-    const targetX = selectedAtom.x + dx;
-    const targetY = selectedAtom.y + dy;
+    const target = getAutoPlacedCarbonPosition(molecule, selectedAtom.id, { x: dx, y: dy });
+    const targetX = target.x;
+    const targetY = target.y;
     if (molecule.atoms.some((atom) => atom.x === targetX && atom.y === targetY)) {
       setNotice("Ese espacio ya está ocupado. Prueba otra dirección.");
       return;
@@ -5315,19 +5405,35 @@ export default function Home() {
     }
 
     let placement: { x: number; y: number }[] | null = null;
-    for (const orientation of orientations) {
-      for (const mirror of [1, -1]) {
-        const candidate = template.atoms.map((atom) => ({
-          x: selectedAtom.x + atom.x * orientation.dx - atom.y * orientation.dy * mirror,
-          y: selectedAtom.y + atom.x * orientation.dy + atom.y * orientation.dx * mirror,
-        }));
-        const keys = candidate.map((atom) => `${atom.x.toFixed(4)},${atom.y.toFixed(4)}`);
-        if (keys.every((key) => !occupied.has(key)) && new Set(keys).size === keys.length) {
-          placement = candidate;
-          break;
-        }
+    if (selectedRing && hasCarbonylAttachment(template.bonds)) {
+      const ringPoints = molecule.atoms
+        .filter((atom) => selectedRing.atomIds.includes(atom.id))
+        .map((atom) => ({ x: atom.x, y: atom.y }));
+      const candidate = orientCarbonylTemplateOutsideRing(
+        template.atoms,
+        template.bonds,
+        selectedAtom,
+        ringPoints,
+      );
+      const keys = candidate.map((atom) => `${atom.x.toFixed(4)},${atom.y.toFixed(4)}`);
+      if (keys.every((key) => !occupied.has(key)) && new Set(keys).size === keys.length) {
+        placement = candidate;
       }
-      if (placement) break;
+    } else {
+      for (const orientation of orientations) {
+        for (const mirror of [1, -1]) {
+          const candidate = template.atoms.map((atom) => ({
+            x: selectedAtom.x + atom.x * orientation.dx - atom.y * orientation.dy * mirror,
+            y: selectedAtom.y + atom.x * orientation.dy + atom.y * orientation.dx * mirror,
+          }));
+          const keys = candidate.map((atom) => `${atom.x.toFixed(4)},${atom.y.toFixed(4)}`);
+          if (keys.every((key) => !occupied.has(key)) && new Set(keys).size === keys.length) {
+            placement = candidate;
+            break;
+          }
+        }
+        if (placement) break;
+      }
     }
 
     if (!placement) {
@@ -5705,6 +5811,7 @@ export default function Home() {
         pngColorMode,
         pngIncludeSelection,
       );
+      cleanSvgForExport(clonedSvg);
       const fittedBounds = fitViewBoxToContent(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING);
       const baseDimensions = getSvgBaseDimensions(sourceSvg);
       const sourceViewBox = sourceSvg.viewBox.baseVal;
@@ -6354,6 +6461,18 @@ export default function Home() {
       setShowNomenclatureHint(false);
       nomenclatureHintTimer.current = null;
     }, 3600);
+  };
+
+  const toggleSubstituentAlias = (systematic: string) => {
+    const alias = getSubstituentAlias(systematic);
+    if (!alias) return;
+    const active = commonAlkylNameSelections.includes(systematic);
+    setCommonAlkylNameSelections((current) => active
+      ? current.filter((item) => item !== systematic)
+      : [...current, systematic]);
+    setNotice(active
+      ? `${alias.common} volvió a mostrarse como (${alias.systematic}) y se recalculó el orden alfabético.`
+      : `(${alias.systematic}) ahora se muestra como ${alias.common}; el nombre completo se reordenó alfabéticamente.`);
   };
 
   return (
@@ -8443,6 +8562,26 @@ export default function Home() {
                 <small className="nomenclature-mode-label">
                   {nomenclatureConventionLabel(activeNomenclatureConvention, language)}
                 </small>
+              )}
+              {showIupacName && !simplifiedModeEnabled && availableSubstituentAliases.length > 0 && (
+                <div className="nomenclature-aliases" aria-label={t("Nombres alternativos de sustituyentes")}>
+                  {availableSubstituentAliases.map((alias) => {
+                    const active = commonAlkylNameSelections.includes(alias.systematic);
+                    return (
+                      <button
+                        type="button"
+                        key={alias.systematic}
+                        aria-pressed={active}
+                        onClick={() => toggleSubstituentAlias(alias.systematic)}
+                        title={t("Cambiar el nombre de este sustituyente")}
+                      >
+                        {active ? localizedCommonAlkylName(alias.common) : localizedIupac(alias.systematic)}
+                        <span aria-hidden="true"> ↔ </span>
+                        {active ? localizedIupac(alias.systematic) : localizedCommonAlkylName(alias.common)}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
               {showIupacName && !simplifiedModeEnabled && showNomenclatureHint && (
                 <small className="nomenclature-name-help">{t("Toca el nombre para cambiar la nomenclatura")}</small>

@@ -3512,6 +3512,33 @@ button {
   line-height: 1.28;
 }
 
+.nomenclature-aliases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.nomenclature-aliases button {
+  padding: 4px 7px;
+  border: 1px dashed #bd7d17;
+  border-radius: 999px;
+  background: rgba(245, 188, 80, 0.12);
+  color: #80520c;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.nomenclature-aliases button:hover,
+.nomenclature-aliases button:focus-visible,
+.nomenclature-aliases button[aria-pressed="true"] {
+  border-style: solid;
+  background: rgba(245, 188, 80, 0.26);
+  color: #684100;
+}
+
 .alkyl-name-toggle {
   display: inline;
   width: auto;

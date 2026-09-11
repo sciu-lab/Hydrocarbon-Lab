@@ -1,3 +1,5 @@
+import { translateSubstituentAliasesForOpsin } from "./substituent-aliases.ts";
+
 const commonSpanishNames: Record<string, string> = {
   acetaldehido: "ethanal",
   acetileno: "ethyne",
@@ -31,7 +33,7 @@ const commonSpanishNames: Record<string, string> = {
   "o-xileno": "o-xylene",
   "m-xileno": "m-xylene",
   "p-xileno": "p-xylene",
-  "4-isopropiloctano": "4-(propan-2-yl)octane",
+  decalina: "decalin",
 };
 
 /** Spanish heterocycle parent names accepted by the laboratory interface. */
@@ -237,7 +239,7 @@ export function normalizeHalogenatedNameForOpsin(value: string) {
 }
 
 function translateCore(value: string) {
-  let translated = value
+  let translated = translateSubstituentAliasesForOpsin(value)
     // Retained and systematic nitrogen parent names need to be translated
     // before the generic suffix rules. This also covers substituted parents
     // such as 4-nitroanilina and N-metilanilina.
@@ -254,6 +256,11 @@ function translateCore(value: string) {
     .replace(/amino/g, "__amino_prefix__")
     .replace(/carbamoil/g, "carbamoyl")
     .replace(/ciano/g, "cyano")
+    // Acyl fragments are lexical chemical units, not molecule-specific
+    // exceptions. Keeping them here lets any substituted parent reach OPSIN.
+    .replace(/(^|[-(])acetil(?=[a-z-]|$)/g, "$1acetyl")
+    .replace(/(^|[-(])propionil(?=[a-z-]|$)/g, "$1propionyl")
+    .replace(/(^|[-(])butiril(?=[a-z-]|$)/g, "$1butyryl")
     .replace(/benceno/g, "benzene")
     .replace(/fenol/g, "phenol")
     .replace(/fenoxi/g, "phenoxy")
@@ -264,12 +271,13 @@ function translateCore(value: string) {
       /ciclo(prop|but|pent|hex|hept|oct|non|dec)il/g,
       (_match, root: string) => `cyclo${root}yl`,
     )
+    .replace(/naftaleno/g, "naphthalene")
+    .replace(/naftalen(?=-|$)/g, "naphthalen")
+    .replace(/espiro(?=\[)/g, "spiro")
+    .replace(/biciclo(?=\[)/g, "bicyclo")
     .replace(/ciclo/g, "cyclo")
     .replace(/tetrahidro/g, "tetrahydro")
     .replace(/pirano/g, "pyran")
-    .replace(/isopropil/g, "propan-2-yl")
-    .replace(/isobutil/g, "2-methylpropyl")
-    .replace(/terc-butil|tert-butil/g, "tert-butyl")
     .replace(/metilo/g, "methyl")
     .replace(/etilo/g, "ethyl")
     .replace(/propilo/g, "propyl")
@@ -379,10 +387,53 @@ export function translateSpanishIupacToOpsin(value: string) {
   return translateCore(heterocycleName);
 }
 
+/**
+ * Public parser boundary. Input normalization is intentionally separate from
+ * display localization so parser vocabulary never leaks into the Spanish UI.
+ */
+export function normalizeChemicalNameForParser(value: string, locale: "es" | "en" = "es") {
+  if (locale === "en") return normalizeHalogenatedNameForOpsin(value);
+  return translateSpanishIupacToOpsin(value);
+}
+
+type DisplayVocabularyEntry = {
+  /** A chemical morpheme boundary; this module is never used for generic UI text. */
+  pattern: RegExp;
+  spanish: string;
+};
+
+const displayVocabulary: readonly DisplayVocabularyEntry[] = [
+  { pattern: /naphthalene(?=$|[-,.)])/gi, spanish: "naftaleno" },
+  { pattern: /naphthalen(?=$|[-,.)])/gi, spanish: "naftalen" },
+  { pattern: /pyridine(?=$|[-,.)])/gi, spanish: "piridina" },
+  { pattern: /pyrrole(?=$|[-,.)])/gi, spanish: "pirrol" },
+  { pattern: /morpholine(?=$|[-,.)])/gi, spanish: "morfolina" },
+  { pattern: /decalin(?=$|[-,.)])/gi, spanish: "decalina" },
+  { pattern: /bicyclo(?=\[)/gi, spanish: "biciclo" },
+  { pattern: /spiro(?=\[)/gi, spanish: "espiro" },
+  // These stems appear inside a complete IUPAC component such as
+  // 2-methylpyridine; a following chemical suffix is an intentional boundary.
+  { pattern: /methyl(?=[a-z]|$|[-,.)])/gi, spanish: "metil" },
+  { pattern: /ethyl(?=[a-z]|$|[-,.)])/gi, spanish: "etil" },
+  { pattern: /hydroxy(?=[a-z]|$|[-,.)])/gi, spanish: "hidroxi" },
+  { pattern: /acetyl(?=[a-z]|$|[-,.)])/gi, spanish: "acetil" },
+  { pattern: /propionyl(?=[a-z]|$|[-,.)])/gi, spanish: "propionil" },
+  { pattern: /butyryl(?=[a-z]|$|[-,.)])/gi, spanish: "butiril" },
+];
+
+/** Localizes canonical chemical output through the controlled vocabulary above. */
+export function localizeChemicalNameForDisplay(value: string, locale: "es" | "en") {
+  if (locale === "en") return value;
+  return displayVocabulary.reduce(
+    (localized, entry) => localized.replace(entry.pattern, entry.spanish),
+    value,
+  );
+}
+
 export function getOpsinNameCandidates(value: string) {
   const originalNormalized = normalizePunctuation(value);
   const normalized = normalizeHalogenatedNameForOpsin(value);
-  const translated = translateSpanishIupacToOpsin(value);
+  const translated = normalizeChemicalNameForParser(value, "es");
   // Try the normalized spelling first, then retain compact variants as a
   // compatibility fallback for older OPSIN spellings.
   return [...new Set([

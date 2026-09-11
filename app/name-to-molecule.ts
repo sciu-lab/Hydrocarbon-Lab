@@ -1,5 +1,6 @@
 import { IUPAC_ROOT_ALIASES, IUPAC_ROOTS } from "./iupac-prefixes.ts";
 import { normalizeTraditionalUnsaturationNotation } from "./iupac-name-normalization.ts";
+import { normalizeSubstituentAliasesForLocalParser } from "./substituent-aliases.ts";
 
 export type GeneratedBondOrder = 1 | 2 | 3;
 
@@ -146,7 +147,7 @@ const substituentTokens = [
 ].sort((left, right) => right.length - left.length);
 
 function normalizeName(value: string) {
-  const normalized = value
+  const normalized = normalizeSubstituentAliasesForLocalParser(value
     .trim()
     .toLocaleLowerCase("es")
     .normalize("NFD")
@@ -154,11 +155,7 @@ function normalizeName(value: string) {
     .replace(/[–—−]/g, "-")
     .replace(/\s+/g, "")
     .replace(/\.+$/g, "")
-    .replace(/--+/g, "-")
-    .replace(/\(?(?:propan-2-il|1-metiletil)\)?/g, "isopropil")
-    .replace(/\(?2-metilpropil\)?/g, "isobutil")
-    .replace(/\(?(?:butan-2-il|1-metilpropil)\)?/g, "sec-butil")
-    .replace(/\(?1,1-dimetiletil\)?/g, "terc-butil");
+    .replace(/--+/g, "-"));
   return normalizeTraditionalUnsaturationNotation(normalized);
 }
 

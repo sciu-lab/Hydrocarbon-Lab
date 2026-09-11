@@ -251,9 +251,10 @@ export function getSkeletalRingDoubleBondSegments(
   }
 
   // La línea exterior coincide con el lado geométrico del polígono. La línea
-  // interior se desplaza un poco más hacia el centro (≈6,25–7,8 px entre
-  // ejes) para que en benceno y ciclohexeno se distingan dos trazos claros.
-  const innerInset = clamp(length * 0.05, 6.25, 7.8);
+  // interior se desplaza hacia el centro (≈4,75–5,75 px entre ejes): así
+  // sigue siendo distinguible sin invadir el espacio de los números de anillo
+  // ni competir visualmente con sustituyentes próximos.
+  const innerInset = clamp(length * 0.04, 4.75, 5.75);
   const endpointTrim = clamp(length * 0.09, 10, 18);
 
   return [

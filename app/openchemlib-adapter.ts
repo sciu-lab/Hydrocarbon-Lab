@@ -16,6 +16,38 @@ export type OpenChemLibSmilesExportResult =
   | { ok: true; smiles: string }
   | { ok: false; error: string };
 
+export type PolycyclicTopology = "monocyclic" | "fused" | "bridged" | "spiro" | "other";
+
+export type PolycyclicTopologyInput = {
+  ringCount: number;
+  cyclomaticNumber: number;
+  sharedAtomCounts: readonly number[];
+};
+
+/**
+ * Classifies the topology represented by OpenChemLib's ring set. A bridged
+ * system has more perceived simple cycles than independent graph cycles;
+ * this differentiates norbornane-like frameworks from ordinary fused rings.
+ */
+export function classifyPolycyclicTopology(input: PolycyclicTopologyInput): PolycyclicTopology {
+  if (input.ringCount <= 1) return "monocyclic";
+  if (input.ringCount > input.cyclomaticNumber) return "bridged";
+  if (input.sharedAtomCounts.some((count) => count === 1)) return "spiro";
+  if (input.sharedAtomCounts.some((count) => count >= 2)) return "fused";
+  return "other";
+}
+
+function polycyclicSupportMessage(topology: PolycyclicTopology) {
+  const label = topology === "fused"
+    ? "fusionado"
+    : topology === "bridged"
+      ? "puenteado"
+      : topology === "spiro"
+        ? "espiro"
+        : "policíclico";
+  return `OpenChemLib reconoció un sistema policíclico complejo (${label}). El análisis y edición de estructuras fusionadas, puenteadas o espiro todavía tienen soporte limitado.`;
+}
+
 
 const atomicNumberByElement: Record<SupportedElement, number> = {
   C: 6,
@@ -248,16 +280,20 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
     });
   }
 
+  const sharedAtomCounts: number[] = [];
   for (let left = 0; left < rings.length; left += 1) {
     for (let right = left + 1; right < rings.length; right += 1) {
-      const sharedAtoms = rings[left].atomIds.filter((id) => rings[right].atomIds.includes(id));
-      if (sharedAtoms.length > 1) {
-        return {
-          ok: false,
-          error: "OpenChemLib reconoció un sistema de anillos fusionados. Su análisis y edición se incorporarán en una próxima ampliación.",
-        };
-      }
+      sharedAtomCounts.push(rings[left].atomIds.filter((id) => rings[right].atomIds.includes(id)).length);
     }
+  }
+  const cyclomaticNumber = bonds.length - atoms.length + 1;
+  const topology = classifyPolycyclicTopology({
+    ringCount: rings.length,
+    cyclomaticNumber,
+    sharedAtomCounts,
+  });
+  if (topology === "fused" || topology === "bridged" || topology === "spiro") {
+    return { ok: false, error: polycyclicSupportMessage(topology) };
   }
 
   return {
