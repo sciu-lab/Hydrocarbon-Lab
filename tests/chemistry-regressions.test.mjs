@@ -21,6 +21,8 @@ import { orientCarbonylTemplateOutsideRing } from "../app/functional-group-layou
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
+let getSubstituentAliasSelectionKey;
+let localNamerCannotSafelyName;
 
 before(async () => {
   server = await createServer({
@@ -31,7 +33,11 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule } = await server.ssrLoadModule("/app/page.tsx"));
+  ({
+    analyzeMolecule,
+    getSubstituentAliasSelectionKey,
+    localNamerCannotSafelyName,
+  } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => {
@@ -67,7 +73,7 @@ test("keeps representative working name-builder cases stable", () => {
   assert.equal(normalizeChemicalNameForParser("hexa-1,3-dien-5-ino", "es"), "hexa-1,3-dien-5-yne");
   const enyne = moleculeFromSmiles("C=CC=CC#C");
   assert.equal(enyne.ok, true, enyne.ok ? undefined : enyne.error);
-  assert.equal(analyzeMolecule(enyne.molecule).name, "hex-1,3-dien-5-ino");
+  assert.equal(analyzeMolecule(enyne.molecule).name, "hexa-1,3-dien-5-ino");
 });
 
 test("keeps representative functional and heterocyclic graph analyses stable", () => {
@@ -100,6 +106,65 @@ test("recognizes all supported alkyl aliases as the same substituent graph", () 
     assert.match(analyzeMolecule(systematicResult.molecule).name, new RegExp(systematic.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(analyzeMolecule(systematicResult.molecule, [systematic]).name, new RegExp(common.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+});
+
+test("applies each selected alkyl alias to the generated name and restores the systematic form", () => {
+  const isopropyl = build("3-(propan-2-il)-2-metilhexano").molecule;
+  const isopropylSubstituent = analyzeMolecule(isopropyl).substituents.find(
+    (substituent) => substituent.name === "1-metiletil",
+  );
+  assert.ok(isopropylSubstituent);
+  const isopropylKey = getSubstituentAliasSelectionKey(isopropylSubstituent);
+  assert.equal(analyzeMolecule(isopropyl, [isopropylKey]).name, "3-isopropil-2-metilhexano");
+  assert.equal(analyzeMolecule(isopropyl).name, "2-metil-3-(1-metiletil)hexano");
+
+  const tertButyl = build("4-(1,1-dimetiletil)octano").molecule;
+  const tertButylSubstituent = analyzeMolecule(tertButyl).substituents.find(
+    (substituent) => substituent.name === "1,1-dimetiletil",
+  );
+  assert.ok(tertButylSubstituent);
+  const tertButylKey = getSubstituentAliasSelectionKey(tertButylSubstituent);
+  assert.equal(analyzeMolecule(tertButyl, [tertButylKey]).name, "4-tert-butiloctano");
+  assert.equal(analyzeMolecule(tertButyl).name, "4-(1,1-dimetiletil)octano");
+
+});
+
+test("names acyl-substituted benzaldehydes directly from their edited aromatic graphs", () => {
+  const cases = [
+    ["O=Cc1cccc(C(C)=O)c1", "3-acetilbenzaldehído"],
+    ["O=Cc1cccc(C(=O)CC)c1", "3-propionilbenzaldehído"],
+    ["O=Cc1c(C)c(C(C)=O)ccc1", "3-acetil-2-metilbenzaldehído"],
+    ["O=Cc1cc(C(C)=O)c(C)cc1", "3-acetil-4-metilbenzaldehído"],
+    ["O=Cc1c(C)c(C(C)=O)c(C)cc1", "3-acetil-2,4-dimetilbenzaldehído"],
+  ];
+  for (const [smiles, expected] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    const analysis = analyzeMolecule(converted.molecule);
+    assert.equal(localNamerCannotSafelyName(converted.molecule, analysis), false, smiles);
+    assert.equal(analysis.name, expected, smiles);
+  }
+});
+
+test("retains carbon and nitrogen alkyl substituents on morpholine graphs after manual extension", () => {
+  const cases = [
+    ["O1CCNCC1", "morfolina"],
+    ["O1C(C)CNCC1", "2-metilmorfolina"],
+    ["O1C(CC)CNCC1", "2-etilmorfolina"],
+    ["O1CCN(C)CC1", "N-metilmorfolina"],
+    ["O1CCN(CC)CC1", "N-etilmorfolina"],
+  ];
+  for (const [smiles, expected] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    assert.equal(analyzeMolecule(converted.molecule).name, expected, smiles);
+  }
+});
+
+test("keeps the connecting vowel for combined polyene-polyine parents", () => {
+  const converted = moleculeFromSmiles("C=CC=CC#C");
+  assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+  assert.equal(analyzeMolecule(converted.molecule).name, "hexa-1,3-dien-5-ino");
 });
 
 test("normalizes parser vocabulary and localizes chemical output by locale", () => {

@@ -1146,7 +1146,8 @@ function resolveSubstituentNaming(
   enabledAliases: ReadonlySet<string>,
 ) {
   const alias = getSubstituentAlias(substituent.name);
-  if (alias && enabledAliases.has(alias.systematic)) {
+  if (alias && (enabledAliases.has(alias.systematic)
+    || enabledAliases.has(getSubstituentAliasSelectionKey(substituent)))) {
     return {
       name: alias.common,
       sortName: stripForAlphabetizing(alias.common),
@@ -1165,7 +1166,10 @@ function compareSubstituentAlphabeticalLocants(
   right: NamedSubstituent[],
   enabledAliases: readonly string[] = [],
 ) {
-  const enabled = new Set(enabledAliases);
+  // An occurrence-specific alias changes rendering only. It must not change
+  // which equivalent parent path is selected, otherwise the selected branch
+  // can become part of the parent chain before its alias is formatted.
+  const enabled = new Set(enabledAliases.filter((selection) => !selection.includes(":")));
   const orderedLocants = (items: NamedSubstituent[]) => [...items]
     .sort((a, b) => {
       const leftName = resolveSubstituentNaming(a, enabled);
@@ -1186,31 +1190,35 @@ function formatSubstituentGroups(
   enabledAliases: readonly string[] = [],
 ) {
   const enabled = new Set(enabledAliases);
-  const groups = new Map<string, NamedSubstituent[]>();
+  const groups = new Map<string, { items: NamedSubstituent[]; name: string; complex: boolean; sortName: string }>();
   substituents.forEach((substituent) => {
-    const current = groups.get(substituent.name) ?? [];
-    current.push(substituent);
-    groups.set(substituent.name, current);
+    const rendered = resolveSubstituentNaming(substituent, enabled);
+    const key = `${rendered.complex ? "complex" : "simple"}:${rendered.name}`;
+    const current = groups.get(key) ?? {
+      items: [],
+      name: rendered.name,
+      complex: rendered.complex,
+      sortName: rendered.sortName,
+    };
+    current.items.push(substituent);
+    groups.set(key, current);
   });
 
   return [...groups.values()]
     .sort((left, right) => {
-      const leftName = resolveSubstituentNaming(left[0], enabled);
-      const rightName = resolveSubstituentNaming(right[0], enabled);
-      return compareAlphabeticalNames(leftName.sortName, rightName.sortName);
+      return compareAlphabeticalNames(left.sortName, right.sortName);
     })
     .map((group) => {
-      const locants = group.map((item) => item.locant).sort((a, b) => a - b).join(",");
-      const { name, complex } = resolveSubstituentNaming(group[0], enabled);
-      if (group.length === 1) {
-        return complex ? `${locants}-(${name})` : `${locants}-${name}`;
+      const locants = group.items.map((item) => item.locant).sort((a, b) => a - b).join(",");
+      if (group.items.length === 1) {
+        return group.complex ? `${locants}-(${group.name})` : `${locants}-${group.name}`;
       }
-      if (complex) {
-        const prefix = complexPrefixes[group.length] ?? `${group.length}×`;
-        return `${locants}-${prefix}(${name})`;
+      if (group.complex) {
+        const prefix = complexPrefixes[group.items.length] ?? `${group.items.length}×`;
+        return `${locants}-${prefix}(${group.name})`;
       }
-      const prefix = simplePrefixes[group.length] ?? `${group.length}×`;
-      return `${locants}-${prefix}${name}`;
+      const prefix = simplePrefixes[group.items.length] ?? `${group.items.length}×`;
+      return `${locants}-${prefix}${group.name}`;
     });
 }
 
@@ -1306,7 +1314,10 @@ function makeChainName(length: number, doubleLocants: number[], tripleLocants: n
   const alkynePart = tripleLocants.length === 1
     ? `${tripleLocants[0]}-ino`
     : `${tripleLocants.join(",")}-${unsaturationPrefix(tripleLocants.length)}ino`;
-  return `${root}-${alkenePart}-${alkynePart}`;
+  const compoundRoot = doubleLocants.length > 1 || tripleLocants.length > 1
+    ? `${root}a`
+    : root;
+  return `${compoundRoot}-${alkenePart}-${alkynePart}`;
 }
 
 function molecularFormula(molecule: Molecule) {
@@ -1678,6 +1689,15 @@ function carbonSkeleton(molecule: Molecule): Molecule {
   };
 }
 
+/** A graph-stable selection identity lets identical aliases toggle independently. */
+export function getSubstituentAliasSelectionKey(
+  substituent: { name: string; atomIds: readonly number[] },
+) {
+  const alias = getSubstituentAlias(substituent.name);
+  if (!alias) return "";
+  return `${alias.systematic}:${[...substituent.atomIds].sort((a, b) => a - b).join(",")}`;
+}
+
 function heterocycleRing(molecule: Molecule) {
   return molecule.rings?.find((ring) => ring.atomIds.some((atomId) => {
     const atom = getAtom(atomId, molecule);
@@ -1719,30 +1739,112 @@ function heterocycleParentName(molecule: Molecule, ring: RingInfo) {
   return `heterociclo de ${size} miembros`;
 }
 
-function analyzeHeterocycleMolecule(molecule: Molecule, ring: RingInfo): Analysis {
+function heterocycleNumberedPaths(molecule: Molecule, ring: RingInfo) {
+  const priority: Record<ChemicalElement, number> = {
+    O: 0,
+    S: 1,
+    N: 2,
+    C: 3,
+    F: 4,
+    Cl: 4,
+    Br: 4,
+    I: 4,
+  };
+  const preferred = Math.min(...ring.atomIds.map((atomId) => {
+    const atom = getAtom(atomId, molecule);
+    return priority[atom ? getElement(atom) : "C"];
+  }));
+  return orientedRingPaths(ring).filter((path) => {
+    const atom = getAtom(path[0], molecule);
+    return priority[atom ? getElement(atom) : "C"] === preferred;
+  });
+}
+
+function formatHeterocycleNitrogenPrefixes(
+  substituents: NamedSubstituent[],
+  enabledAliases: readonly string[],
+) {
+  const enabled = new Set(enabledAliases);
+  const groups = new Map<string, { count: number; sortName: string }>();
+  substituents.forEach((substituent) => {
+    const rendered = resolveSubstituentNaming(substituent, enabled);
+    const current = groups.get(rendered.name) ?? { count: 0, sortName: rendered.sortName };
+    current.count += 1;
+    groups.set(rendered.name, current);
+  });
+  return [...groups.entries()]
+    .sort(([left], [right]) => compareAlphabeticalNames(left, right))
+    .map(([name, group]) => {
+      const nLocants = Array.from({ length: group.count }, () => "N").join(",");
+      const multiplier = group.count > 1 ? simplePrefixes[group.count] ?? `${group.count}×` : "";
+      return `${nLocants}-${multiplier}${name}`;
+    });
+}
+
+function analyzeHeterocycleMolecule(
+  molecule: Molecule,
+  ring: RingInfo,
+  enabledAliases: readonly string[] = [],
+): Analysis {
+  const adjacency = buildAdjacency(molecule);
+  const ringSet = new Set(ring.atomIds);
   const bondOrders = new Map(
     molecule.bonds.map((bond) => [bondKey(bond[0], bond[1]), getBondOrder(bond)]),
   );
-  const doubleBondLocants: number[] = [];
-  const tripleBondLocants: number[] = [];
-  ring.atomIds.forEach((atomId, index) => {
-    const nextAtomId = ring.atomIds[(index + 1) % ring.atomIds.length];
-    const order = bondOrders.get(bondKey(atomId, nextAtomId)) ?? 1;
-    if (order === 2) doubleBondLocants.push(index + 1);
-    if (order === 3) tripleBondLocants.push(index + 1);
+  const candidates = heterocycleNumberedPaths(molecule, ring).map((path) => {
+    const carbonSubstituents: NamedSubstituent[] = [];
+    const nitrogenSubstituents: NamedSubstituent[] = [];
+    const doubleBondLocants: number[] = [];
+    const tripleBondLocants: number[] = [];
+
+    path.forEach((atomId, index) => {
+      const nextAtomId = path[(index + 1) % path.length];
+      const order = bondOrders.get(bondKey(atomId, nextAtomId)) ?? 1;
+      if (order === 2) doubleBondLocants.push(index + 1);
+      if (order === 3) tripleBondLocants.push(index + 1);
+
+      const parentAtom = getAtom(atomId, molecule);
+      for (const neighbor of adjacency.get(atomId) ?? []) {
+        if (ringSet.has(neighbor)) continue;
+        const neighborAtom = getAtom(neighbor, molecule);
+        if (!neighborAtom || !isCarbonAtom(neighborAtom)) continue;
+        const named = nameSubstituent(neighbor, atomId, adjacency);
+        const substituent = { ...named, locant: index + 1 };
+        if (parentAtom && getElement(parentAtom) === "N") nitrogenSubstituents.push(substituent);
+        else carbonSubstituents.push(substituent);
+      }
+    });
+    return { path, carbonSubstituents, nitrogenSubstituents, doubleBondLocants, tripleBondLocants };
   });
+  candidates.sort((left, right) => {
+    const locants = (candidate: typeof left) => candidate.carbonSubstituents
+      .map((substituent) => substituent.locant)
+      .sort((a, b) => a - b);
+    const locantComparison = compareNumberLists(locants(left), locants(right));
+    if (locantComparison !== 0) return locantComparison;
+    return compareSubstituentAlphabeticalLocants(
+      left.carbonSubstituents,
+      right.carbonSubstituents,
+      enabledAliases,
+    );
+  });
+  const chosen = candidates[0];
   const chainName = heterocycleParentName(molecule, ring);
+  const prefixParts = sortFormattedPrefixParts([
+    ...formatHeterocycleNitrogenPrefixes(chosen.nitrogenSubstituents, enabledAliases),
+    ...formatSubstituentGroups(chosen.carbonSubstituents, enabledAliases),
+  ]);
 
   return {
-    name: chainName,
+    name: combinePrefixAndParent(prefixParts, chainName),
     formula: molecularFormula(molecule),
     family: ring.kind,
-    mainChain: [...ring.atomIds],
+    mainChain: chosen.path,
     chainName,
-    substituents: [],
-    numberedAtoms: new Map(ring.atomIds.map((atomId, index) => [atomId, index + 1])),
-    doubleBondLocants,
-    tripleBondLocants,
+    substituents: [...chosen.carbonSubstituents, ...chosen.nitrogenSubstituents],
+    numberedAtoms: new Map(chosen.path.map((atomId, index) => [atomId, index + 1])),
+    doubleBondLocants: chosen.doubleBondLocants,
+    tripleBondLocants: chosen.tripleBondLocants,
     functionalGroups: [],
   };
 }
@@ -2144,7 +2246,7 @@ function functionalPrefixSubstituents(
     } else if (group.kind === "alcohol") {
       addPrefix("hidroxi");
     } else if (group.kind === "ketone") {
-      addPrefix("oxo");
+      addPrefix((directLocant ? undefined : simpleAcylPrefixName(group, path, skeleton)) ?? "oxo");
     } else if (group.kind === "amine") {
       addPrefix("amino");
     } else if (group.kind === "nitrile") {
@@ -2676,7 +2778,7 @@ function analyzeFunctionalRing(
 
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
   const heterocycle = heterocycleRing(molecule);
-  if (heterocycle) return analyzeHeterocycleMolecule(molecule, heterocycle);
+  if (heterocycle) return analyzeHeterocycleMolecule(molecule, heterocycle, enabledAliases);
 
   const skeleton = carbonSkeleton(molecule);
   const baseAnalysis = analyzeHydrocarbonMolecule(skeleton, enabledAliases);
@@ -2729,6 +2831,32 @@ export function getSingleRingUnsaturationNameOption(analysis: Analysis) {
     };
   }
   return undefined;
+}
+
+/**
+ * Identifies a simple alkanoyl group attached through its carbonyl carbon.
+ * The decision comes entirely from connectivity, so it also applies after a
+ * user edits a ring built by the name parser.
+ */
+function simpleAcylPrefixName(group: FunctionalGroup, path: number[], skeleton: Molecule) {
+  if (group.kind !== "ketone") return undefined;
+  const adjacency = buildAdjacency(skeleton);
+  const carbonylCarbon = group.carbonId;
+  const parentAnchor = path.find((atomId) => (adjacency.get(atomId) ?? []).includes(carbonylCarbon));
+  if (!parentAnchor) return undefined;
+  const sideCarbons = (adjacency.get(carbonylCarbon) ?? []).filter((atomId) => atomId !== parentAnchor);
+  if (sideCarbons.length !== 1) return undefined;
+  const side = nameSubstituent(sideCarbons[0], carbonylCarbon, adjacency);
+  if (side.complex) return undefined;
+
+  const acylCarbonCount = side.atomIds.length + 1;
+  const retained = new Map<number, string>([
+    [2, "acetil"],
+    [3, "propionil"],
+    [4, "butiril"],
+  ]);
+  return retained.get(acylCarbonCount)
+    ?? (alkaneRoots[acylCarbonCount] ? `${alkaneRoots[acylCarbonCount]}anoil` : undefined);
 }
 
 function joinSpanishList(items: string[]) {
@@ -3345,6 +3473,7 @@ const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysis) {
   const parentAtoms = new Set(analysis.mainChain);
   if (!parentAtoms.size) return false;
+  const skeleton = carbonSkeleton(molecule);
 
   // The local namer is reliable when a secondary functional group is directly
   // on the chosen parent skeleton. Once that group lives inside a carbon
@@ -3367,6 +3496,10 @@ export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysi
         || group.kind === "nitrile"
         || group.kind === "aldehyde");
     if (supportedExocyclicRingSuffix) return false;
+
+    // A simple acyl group is a complete, supported substituent grammar
+    // (acetil, propionil, butiril, ...), rather than an unnamed oxo branch.
+    if (simpleAcylPrefixName(group, analysis.mainChain, skeleton)) return false;
 
     return true;
   });
@@ -4507,12 +4640,13 @@ export default function Home() {
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
   const availableSubstituentAliases = useMemo(() => {
-    const found = new Map<string, ReturnType<typeof getSubstituentAlias>>();
+    const found = new Map<string, { alias: NonNullable<ReturnType<typeof getSubstituentAlias>>; selectionKey: string }>();
     calculatedAnalysis.substituents.forEach((substituent) => {
       const alias = getSubstituentAlias(substituent.name);
-      if (alias) found.set(alias.systematic, alias);
+      const selectionKey = getSubstituentAliasSelectionKey(substituent);
+      if (alias && selectionKey) found.set(selectionKey, { alias, selectionKey });
     });
-    return [...found.values()].filter((alias): alias is NonNullable<typeof alias> => Boolean(alias));
+    return [...found.values()];
   }, [calculatedAnalysis.substituents]);
   const suggestionPreviewIupacName = useMemo(
     () => nameSuggestionPreview
@@ -4963,11 +5097,21 @@ export default function Home() {
       }
 
       const generatedAnalysis = analyzeMolecule(next, enabledAliases);
+      const selectedAliasOccurrences = generatedAnalysis.substituents.flatMap((substituent) => {
+        const alias = getSubstituentAlias(substituent.name);
+        return alias && enabledAliases.includes(alias.systematic)
+          ? [getSubstituentAliasSelectionKey(substituent)]
+          : [];
+      });
+      const hasGraphRenderableAlias = generatedAnalysis.substituents.some((substituent) =>
+        Boolean(getSubstituentAlias(substituent.name)),
+      );
       const preserveTrustedSourceName = preserveSourceName
         || moleculeContainsHeterocycle(next)
         || (advancedNameResolved
         && localNamerCannotSafelyName(next, generatedAnalysis));
-      const resultName = preserveTrustedSourceName ? submittedName : generatedAnalysis.name;
+      const preserveGraphSourceName = preserveTrustedSourceName && !hasGraphRenderableAlias;
+      const resultName = preserveGraphSourceName ? submittedName : generatedAnalysis.name;
       const commonName = generatedAnalysis.commonName
         ? `; también se conoce como ${generatedAnalysis.commonName}`
         : "";
@@ -4988,9 +5132,9 @@ export default function Home() {
       // If OPSIN/OpenChemLib successfully parsed a structure whose nested
       // functional groups exceed the local naming grammar, keep the validated
       // source name rather than replacing it with an incomplete suggestion.
-      setSourceNameOverride(preserveTrustedSourceName ? submittedName : null);
+      setSourceNameOverride(preserveGraphSourceName ? submittedName : null);
       setSelectedId(next.atoms[0].id);
-      setCommonAlkylNameSelections(enabledAliases);
+      setCommonAlkylNameSelections(selectedAliasOccurrences);
       setShowIupacName(true);
       setRingInsertMode("replace");
       setShowAlkylPalette(false);
@@ -6463,13 +6607,14 @@ export default function Home() {
     }, 3600);
   };
 
-  const toggleSubstituentAlias = (systematic: string) => {
+  const toggleSubstituentAlias = (selectionKey: string, systematic: string) => {
     const alias = getSubstituentAlias(systematic);
     if (!alias) return;
-    const active = commonAlkylNameSelections.includes(systematic);
+    const active = commonAlkylNameSelections.includes(systematic)
+      || commonAlkylNameSelections.includes(selectionKey);
     setCommonAlkylNameSelections((current) => active
-      ? current.filter((item) => item !== systematic)
-      : [...current, systematic]);
+      ? current.filter((item) => item !== systematic && item !== selectionKey)
+      : [...current, selectionKey]);
     setNotice(active
       ? `${alias.common} volvió a mostrarse como (${alias.systematic}) y se recalculó el orden alfabético.`
       : `(${alias.systematic}) ahora se muestra como ${alias.common}; el nombre completo se reordenó alfabéticamente.`);
@@ -8565,14 +8710,15 @@ export default function Home() {
               )}
               {showIupacName && !simplifiedModeEnabled && availableSubstituentAliases.length > 0 && (
                 <div className="nomenclature-aliases" aria-label={t("Nombres alternativos de sustituyentes")}>
-                  {availableSubstituentAliases.map((alias) => {
-                    const active = commonAlkylNameSelections.includes(alias.systematic);
+                  {availableSubstituentAliases.map(({ alias, selectionKey }) => {
+                    const active = commonAlkylNameSelections.includes(alias.systematic)
+                      || commonAlkylNameSelections.includes(selectionKey);
                     return (
                       <button
                         type="button"
-                        key={alias.systematic}
+                        key={selectionKey}
                         aria-pressed={active}
-                        onClick={() => toggleSubstituentAlias(alias.systematic)}
+                        onClick={() => toggleSubstituentAlias(selectionKey, alias.systematic)}
                         title={t("Cambiar el nombre de este sustituyente")}
                       >
                         {active ? localizedCommonAlkylName(alias.common) : localizedIupac(alias.systematic)}
