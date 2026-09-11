@@ -78,7 +78,8 @@ import {
 } from "./functional-group-layout";
 import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
-import { moleculeToSmiles } from "./openchemlib-adapter";
+import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
+import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
 import {
   compoundIdentityKey,
   createCompoundContextResolver,
@@ -233,8 +234,10 @@ type AlkylTemplate = {
 type RingTemplate = {
   id: string;
   label: string;
+  labelEn?: string;
   formula: string;
   detail: string;
+  detailEn?: string;
   size: number;
   kind: RingKind;
   molecule: Molecule;
@@ -498,11 +501,12 @@ function ringContainingAtom(molecule: Molecule, atomId: number) {
 function attachRingToMolecule(
   molecule: Molecule,
   selectedId: number,
-  size: number,
-  kind: RingKind,
+  template: RingTemplate,
 ): { molecule: Molecule; attachmentId: number } | null {
   const selectedAtom = molecule.atoms.find((atom) => atom.id === selectedId);
-  if (!selectedAtom || getValenceUsed(selectedId, molecule) >= 4) return null;
+  if (!selectedAtom || getAtomValenceViolation(molecule, selectedId, 1)) return null;
+  const templateRing = template.molecule.rings?.[0];
+  if (!templateRing || templateRing.atomIds.length !== template.size) return null;
 
   const selectedScreen = { x: selectedAtom.x * 130, y: selectedAtom.y * 106 };
   const sourceRing = ringContainingAtom(molecule, selectedId);
@@ -548,8 +552,8 @@ function attachRingToMolecule(
       y: selectedScreen.y + direction.y * centerDistance,
     };
     const facingAngle = Math.atan2(-direction.y, -direction.x);
-    const candidate = Array.from({ length: size }, (_, index) => {
-      const angle = facingAngle + (index * Math.PI * 2) / size;
+    const candidate = Array.from({ length: templateRing.atomIds.length }, (_, index) => {
+      const angle = facingAngle + (index * Math.PI * 2) / templateRing.atomIds.length;
       return {
         x: center.x + Math.cos(angle) * radius,
         y: center.y + Math.sin(angle) * radius,
@@ -567,23 +571,33 @@ function attachRingToMolecule(
   if (!placement) return null;
 
   const firstId = Math.max(...molecule.atoms.map((atom) => atom.id)) + 1;
+  const sourceAtoms = templateRing.atomIds.map((id) => getAtom(id, template.molecule));
+  if (sourceAtoms.some((atom) => !atom)) return null;
   const atomIds = placement.map((_, index) => firstId + index);
-  const atoms = placement.map((point, index) => ({
-    id: atomIds[index],
-    x: point.x / 130,
-    y: point.y / 106,
-  }));
-  const ringBonds = atomIds.map((atomId, index) => {
-    const nextId = atomIds[(index + 1) % atomIds.length];
-    const order: BondOrder = kind === "aromatic" && index % 2 === 0 ? 2 : 1;
-    return [atomId, nextId, order] as Bond;
+  const idMap = new Map(templateRing.atomIds.map((sourceId, index) => [sourceId, atomIds[index]]));
+  const atoms = placement.map((point, index) => {
+    const source = sourceAtoms[index]!;
+    return {
+      id: atomIds[index],
+      x: point.x / 130,
+      y: point.y / 106,
+      ...(source.element ? { element: source.element } : {}),
+      ...(source.charge ? { charge: source.charge } : {}),
+    };
+  });
+  const sourceRingAtomIds = new Set(templateRing.atomIds);
+  const ringBonds = template.molecule.bonds.flatMap(([left, right, order = 1]) => {
+    if (!sourceRingAtomIds.has(left) || !sourceRingAtomIds.has(right)) return [];
+    const mappedLeft = idMap.get(left);
+    const mappedRight = idMap.get(right);
+    return mappedLeft && mappedRight ? [[mappedLeft, mappedRight, order] as Bond] : [];
   });
   const ringId = Math.max(0, ...(molecule.rings ?? []).map((ring) => ring.id)) + 1;
   const next: Molecule = {
     ...molecule,
     atoms: [...molecule.atoms, ...atoms],
     bonds: [...molecule.bonds, ...ringBonds, [selectedId, atomIds[0], 1]],
-    rings: [...(molecule.rings ?? []), { id: ringId, kind, atomIds }],
+    rings: [...(molecule.rings ?? []), { id: ringId, kind: template.kind, atomIds }],
   };
   return { molecule: next, attachmentId: atomIds[0] };
 }
@@ -591,7 +605,16 @@ function attachRingToMolecule(
 function makeLinkedRings(firstKind: RingKind, secondKind: RingKind) {
   const first = makeRing(6, firstKind);
   const rightmost = [...first.atoms].sort((left, right) => right.x - left.x)[0];
-  return attachRingToMolecule(first, rightmost.id, 6, secondKind)?.molecule ?? first;
+  const second: RingTemplate = {
+    id: "linked-ring",
+    label: "Anillo",
+    formula: "",
+    detail: "",
+    size: 6,
+    kind: secondKind,
+    molecule: makeRing(6, secondKind),
+  };
+  return attachRingToMolecule(first, rightmost.id, second)?.molecule ?? first;
 }
 
 function makeIsopropylOctane(): Molecule {
@@ -680,6 +703,29 @@ const AROMATIC_TEMPLATES: RingTemplate[] = [
     ]),
   },
 ];
+
+/**
+ * The palette never draws a separate heterocycle graph. It materializes the
+ * same registry SMILES that the name resolver returns through OpenChemLib,
+ * preserving atom elements, bond orders, aromaticity and RingInfo metadata.
+ */
+const HETEROCYCLE_RING_TEMPLATES: RingTemplate[] = HETEROCYCLE_DEFINITIONS.map((definition) => {
+  const converted = moleculeFromSmiles(definition.smiles);
+  if (!converted.ok) {
+    throw new Error(`La plantilla de ${definition.name.es} no pudo convertirse en una estructura editable.`);
+  }
+  return {
+    id: definition.id,
+    label: definition.name.es,
+    labelEn: definition.name.en,
+    formula: definition.formula,
+    detail: definition.detail.es,
+    detailEn: definition.detail.en,
+    size: definition.size,
+    kind: definition.kind,
+    molecule: converted.molecule,
+  };
+});
 
 const functionalGroupLabels: Record<FunctionalGroupKind, string> = {
   halogen: "Halogenuro",
@@ -4472,6 +4518,10 @@ export default function Home() {
     if (substituentMatch) return `one ${localizedIupac(substituentMatch[1])} substituent`;
     return t(value) !== value ? t(value) : localizedIupac(value);
   };
+  const localizedRingTemplateName = (template: RingTemplate) =>
+    language === "en" && template.labelEn ? template.labelEn : localizedIupac(template.label);
+  const localizedRingTemplateDetail = (template: RingTemplate) =>
+    language === "en" && template.detailEn ? template.detailEn : localizedDetail(template.detail);
   const [molecule, setMolecule] = useState<Molecule>(() =>
     cloneMolecule(PRESETS.find((preset) => preset.label === "2-metilpropano")!.molecule),
   );
@@ -6398,8 +6448,7 @@ export default function Home() {
       const attached = attachRingToMolecule(
         molecule,
         selectedAtom.id,
-        template.size,
-        template.kind,
+        template,
       );
       if (!attached) {
         setNotice(
@@ -8567,6 +8616,74 @@ export default function Home() {
                         <span className="ring-option-copy">
                           <strong>{localizedIupac(template.label)}</strong>
                           <small>{template.formula} · {localizedDetail(template.detail)}</small>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="ring-section heterocycle-section">
+                <div className="ring-section-heading">
+                  <strong>{t("Heterociclos aromáticos")}</strong>
+                  <span>{t("Anillos con N, O o S")}</span>
+                </div>
+                <div className="ring-grid aromatic-ring-grid">
+                  {HETEROCYCLE_RING_TEMPLATES.filter((template) => template.kind === "aromatic").map((template) => {
+                    const heteroElements = [...new Set(template.molecule.atoms
+                      .filter((atom) => !isCarbonAtom(atom))
+                      .map((atom) => getElement(atom)))].join("/");
+                    return (
+                      <button
+                        key={template.id}
+                        className="ring-option aromatic-option"
+                        onClick={() => loadRingTemplate(template)}
+                        disabled={ringInsertMode === "attach" && !hasActiveSelection}
+                        title={`${ringInsertMode === "attach" ? t("Unir") : t("Cargar")} ${localizedRingTemplateName(template).toLowerCase()}`}
+                      >
+                        <span className="ring-preview aromatic-preview heterocycle-preview" aria-hidden="true">
+                          <svg viewBox="0 0 48 48">
+                            <polygon points={ringIconPoints(template.size)} />
+                            <text x="24" y="28" textAnchor="middle">{heteroElements}</text>
+                          </svg>
+                        </span>
+                        <span className="ring-option-copy">
+                          <strong>{localizedRingTemplateName(template)}</strong>
+                          <small>{template.formula} · {localizedRingTemplateDetail(template)}</small>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="ring-section heterocycle-section">
+                <div className="ring-section-heading">
+                  <strong>{t("Heterociclos saturados")}</strong>
+                  <span>{t("Anillos con N u O")}</span>
+                </div>
+                <div className="ring-grid cycle-ring-grid">
+                  {HETEROCYCLE_RING_TEMPLATES.filter((template) => template.kind === "cycloalkane").map((template) => {
+                    const heteroElements = [...new Set(template.molecule.atoms
+                      .filter((atom) => !isCarbonAtom(atom))
+                      .map((atom) => getElement(atom)))].join("/");
+                    return (
+                      <button
+                        key={template.id}
+                        className="ring-option"
+                        onClick={() => loadRingTemplate(template)}
+                        disabled={ringInsertMode === "attach" && !hasActiveSelection}
+                        title={`${ringInsertMode === "attach" ? t("Unir") : t("Cargar")} ${localizedRingTemplateName(template).toLowerCase()}`}
+                      >
+                        <span className="ring-preview heterocycle-preview" aria-hidden="true">
+                          <svg viewBox="0 0 48 48">
+                            <polygon points={ringIconPoints(template.size)} />
+                            <text x="24" y="28" textAnchor="middle">{heteroElements}</text>
+                          </svg>
+                        </span>
+                        <span className="ring-option-copy">
+                          <strong>{localizedRingTemplateName(template)}</strong>
+                          <small>{template.formula} · {localizedRingTemplateDetail(template)}</small>
                         </span>
                       </button>
                     );

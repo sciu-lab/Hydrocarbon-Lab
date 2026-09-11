@@ -1,4 +1,5 @@
 import { getOpsinNameCandidates } from "./iupac-name-normalization.ts";
+import { getHeterocycleDefinitionForName } from "./heterocycle-registry.ts";
 
 const OPSIN_ENDPOINT = "https://www.ebi.ac.uk/opsin/ws";
 
@@ -66,27 +67,12 @@ const embeddedSmilesFallback: Record<string, string> = {
   "phenol": "Oc1ccccc1",
   "propan-2-ol": "CC(O)C",
   "propan-2-one": "CC(=O)C",
-  pyrrole: "c1cc[nH]c1",
-  furan: "o1cccc1",
-  thiophene: "s1cccc1",
-  pyridine: "n1ccccc1",
   "2-methylpyridine": "Cc1ccccn1",
   "3-methylpyridine": "Cc1cccnc1",
   "4-methylpyridine": "Cc1ccncc1",
   "2-chloropyridine": "Clc1ccccn1",
   "3-chloropyridine": "Clc1cccnc1",
   "4-chloropyridine": "Clc1ccncc1",
-  pyrrolidine: "N1CCCC1",
-  piperidine: "N1CCCCC1",
-  tetrahydrofuran: "O1CCCC1",
-  tetrahydropyran: "O1CCCCC1",
-  oxirane: "O1CC1",
-  aziridine: "N1CC1",
-  oxetane: "O1CCC1",
-  azetidine: "N1CCC1",
-  "1,3-dioxolane": "O1COCC1",
-  "1,4-dioxane": "O1CCOCC1",
-  morpholine: "O1CCNCC1",
 };
 
 function embeddedFallback(candidate: string, originalName: string): NameStructureResolution | null {
@@ -119,6 +105,24 @@ export async function resolveNameWithOpsin(
 ): Promise<NameStructureResolutionResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const candidates = getOpsinNameCandidates(originalName);
+  // Base heterocycles are deliberately resolved before making a network call.
+  // The Rings palette uses the exact same registry SMILES, so either entry
+  // point reaches the same editable graph and ring metadata.
+  const knownHeterocycle = candidates
+    .map((candidate) => ({ candidate, definition: getHeterocycleDefinitionForName(candidate) }))
+    .find((entry) => entry.definition);
+  if (knownHeterocycle?.definition) {
+    return {
+      ok: true,
+      value: {
+        interpretedName: knownHeterocycle.candidate,
+        originalName,
+        smiles: knownHeterocycle.definition.smiles,
+        source: "integrated-fallback",
+        warnings: [],
+      },
+    };
+  }
   const impossibleCarbonylSubstitution = candidates.find((candidate) => {
     const normalizedCandidate = candidate.toLocaleLowerCase("en");
     const ketoneLocant = normalizedCandidate.match(/-(\d+)-one$/)?.[1];

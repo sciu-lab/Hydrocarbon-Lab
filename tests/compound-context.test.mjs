@@ -21,10 +21,6 @@ function missingWikipediaPage() {
   return json({ query: { pages: { "-1": { missing: true } } } });
 }
 
-function emptyWikipediaSearch() {
-  return json({ query: { search: [] } });
-}
-
 function knownPubChemResponse(url) {
   if (url.includes("/cids/JSON")) return json({ IdentifierList: { CID: [702] } });
   if (url.includes("/description/JSON")) {
@@ -37,8 +33,18 @@ function knownPubChemResponse(url) {
       },
     });
   }
-  if (url.includes("/property/IUPACName/JSON")) {
-    return json({ PropertyTable: { Properties: [{ IUPACName: "ethanol" }] } });
+  if (url.includes("/property/")) {
+    return json({
+      PropertyTable: {
+        Properties: [{
+          IUPACName: "ethanol",
+          IsomericSMILES: "CCO",
+          InChIKey: "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+          MolecularFormula: "C2H6O",
+          MolecularWeight: 46.07,
+        }],
+      },
+    });
   }
   return undefined;
 }
@@ -73,7 +79,7 @@ function createKnownFetch({ wikipedia = "es" } = {}) {
         }
         return missingWikipediaPage();
       }
-      return emptyWikipediaSearch();
+      throw new Error(`Wikipedia search is not permitted: ${url}`);
     }
     throw new Error(`Unexpected request: ${url}`);
   };
@@ -86,7 +92,7 @@ const ethanolIdentity = {
 };
 
 test("returns compact PubChem and Spanish Wikipedia context from mocked APIs", async () => {
-  const { fetchImpl } = createKnownFetch();
+  const { calls, fetchImpl } = createKnownFetch();
   const resolver = createCompoundContextResolver({ fetchImpl });
 
   const context = await resolver.resolve(ethanolIdentity, "es");
@@ -96,6 +102,7 @@ test("returns compact PubChem and Spanish Wikipedia context from mocked APIs", a
   assert.equal(context.pubchem?.url, "https://pubchem.ncbi.nlm.nih.gov/compound/702");
   assert.equal(context.wikipedia?.language, "es");
   assert.match(context.wikipedia?.summary ?? "", /alcohol de dos carbonos/i);
+  assert.ok(!calls.some((url) => url.includes("list=search")));
 });
 
 test("keeps a PubChem CID link when Wikipedia has no matching article", async () => {
@@ -123,7 +130,7 @@ test("falls back to Wikipedia when PubChem cannot resolve a structure", async ()
         },
       });
     }
-    return emptyWikipediaSearch();
+    throw new Error(`Unexpected request: ${url}`);
   };
 
   const context = await createCompoundContextResolver({ fetchImpl }).resolve({
@@ -141,7 +148,7 @@ test("returns no source when neither API has context or responds with HTTP error
   });
   const missing = createCompoundContextResolver({
     fetchImpl: async (input) => String(input).includes("pubchem") ? notFound() : (
-      String(input).includes("titles=") ? missingWikipediaPage() : emptyWikipediaSearch()
+      String(input).includes("titles=") ? missingWikipediaPage() : notFound()
     ),
   });
 
@@ -159,6 +166,54 @@ test("uses English Wikipedia as the Spanish-interface fallback and labels its la
 
   assert.equal(context.wikipedia?.language, "en");
   assert.match(context.wikipedia?.summary ?? "", /^Ethanol is/i);
+});
+
+test("uses only the approved methane page and never searches for Mr. Methane", async () => {
+  const calls = [];
+  const resolver = createCompoundContextResolver({
+    fetchImpl: async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("/cids/JSON")) return json({ IdentifierList: { CID: [297] } });
+      if (url.includes("/property/")) {
+        return json({ PropertyTable: { Properties: [{ IUPACName: "methane", IsomericSMILES: "C" }] } });
+      }
+      if (url.includes("/description/JSON")) {
+        return json({ InformationList: { Information: [{ Title: "Methane", Description: "Methane is the simplest alkane." }] } });
+      }
+      if (url.includes("wikipedia.org") && url.includes("titles=Metano")) {
+        return json({ query: { pages: { 1: {
+          title: "Metano",
+          extract: "El metano es el alcano más sencillo.",
+          fullurl: "https://es.wikipedia.org/wiki/Metano",
+        } } } });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  const context = await resolver.resolve({ canonicalSmiles: "C", names: ["metano"] }, "es");
+
+  assert.equal(context.wikipedia?.title, "Metano");
+  assert.ok(calls.some((url) => url.includes("titles=Metano")));
+  assert.ok(!calls.some((url) => url.includes("list=search") || /Mr\.?(?:%20|\+)Methane/i.test(url)));
+});
+
+test("rejects a PubChem CID whose returned structure differs from the canvas", async () => {
+  const resolver = createCompoundContextResolver({
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.includes("/cids/JSON")) return json({ IdentifierList: { CID: [297] } });
+      if (url.includes("/property/")) {
+        return json({ PropertyTable: { Properties: [{ IUPACName: "methane", IsomericSMILES: "C" }] } });
+      }
+      if (url.includes("wikipedia.org") && url.includes("titles=Etanol")) return missingWikipediaPage();
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  const context = await resolver.resolve(ethanolIdentity, "es");
+  assert.equal(context.pubchem, undefined);
 });
 
 test("aborts an obsolete lookup instead of allowing it to race a newer molecule", async () => {

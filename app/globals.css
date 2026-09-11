@@ -3451,6 +3451,13 @@ button {
   outline: 0;
 }
 
+.heterocycle-preview text {
+  fill: currentColor;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .selection-icon.selection-none {
   border-color: #cedbd7;
   background: #f2f5f4;

@@ -1,4 +1,6 @@
 import type { AppLanguage } from "./i18n";
+import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter.ts";
+import { findApprovedWikipediaChemistryPage } from "./wikipedia-chemistry.ts";
 
 export type CompoundIdentity = {
   /** A PubChem compound identifier retained when it is already known. */
@@ -7,7 +9,7 @@ export type CompoundIdentity = {
   inchiKey?: string;
   /** Isomeric/canonical SMILES generated from the editable molecular graph. */
   canonicalSmiles?: string;
-  /** Human-readable names used only as a Wikipedia fallback. */
+  /** App-generated names used only for the curated Wikipedia registry. */
   names?: readonly string[];
 };
 
@@ -18,6 +20,9 @@ export type PubChemCompoundContext = {
   description?: string;
   /** Only use-oriented sentences from the PubChem description. */
   usage?: string;
+  molecularFormula?: string;
+  molecularWeight?: number;
+  inchiKey?: string;
   names: string[];
 };
 
@@ -58,10 +63,19 @@ type PubChemCidPayload = {
   IdentifierList?: { CID?: number[] };
 };
 
+type PubChemProperties = {
+  IUPACName?: string;
+  InChIKey?: string;
+  IsomericSMILES?: string;
+  CanonicalSMILES?: string;
+  ConnectivitySMILES?: string;
+  SMILES?: string;
+  MolecularFormula?: string;
+  MolecularWeight?: number;
+};
+
 type PubChemPropertiesPayload = {
-  PropertyTable?: {
-    Properties?: Array<{ IUPACName?: string }>;
-  };
+  PropertyTable?: { Properties?: PubChemProperties[] };
 };
 
 type WikipediaPage = {
@@ -74,13 +88,11 @@ type WikipediaPage = {
 type WikipediaQueryPayload = {
   query?: {
     pages?: Record<string, WikipediaPage>;
-    search?: Array<{ title?: string }>;
   };
 };
 
 const PUBCHEM_BASE_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound";
 const MAX_CONTEXT_CHARACTERS = 420;
-const MAX_WIKIPEDIA_CANDIDATES = 4;
 
 function cleanText(value: string | undefined) {
   return value?.replace(/\s+/g, " ").trim() ?? "";
@@ -188,51 +200,32 @@ async function fetchWikipediaPage(
   return { language, title: resolvedTitle, summary, url } satisfies WikipediaCompoundContext;
 }
 
-async function searchWikipediaTitle(
-  fetchImpl: FetchLike,
-  language: "es" | "en",
-  name: string,
-  signal?: AbortSignal,
-) {
-  const payload = await fetchJson<WikipediaQueryPayload>(
-    fetchImpl,
-    wikipediaApiUrl(language, {
-      list: "search",
-      srnamespace: "0",
-      srlimit: "1",
-      srsearch: name,
-    }),
-    signal,
-  );
-  return cleanText(payload?.query?.search?.[0]?.title);
-}
-
 async function resolveWikipedia(
   fetchImpl: FetchLike,
   language: AppLanguage,
-  names: readonly string[],
+  input: { cid?: number; names?: readonly string[] },
   signal?: AbortSignal,
 ) {
-  const candidates = uniqueNames(names).slice(0, MAX_WIKIPEDIA_CANDIDATES);
+  const approved = findApprovedWikipediaChemistryPage(input);
+  if (!approved) return undefined;
   for (const wikiLanguage of getWikipediaLanguages(language)) {
-    for (const candidate of candidates) {
-      const exact = await fetchWikipediaPage(fetchImpl, wikiLanguage, candidate, signal);
-      if (exact) return exact;
-      const searchTitle = await searchWikipediaTitle(fetchImpl, wikiLanguage, candidate, signal);
-      if (!searchTitle) continue;
-      const searched = await fetchWikipediaPage(fetchImpl, wikiLanguage, searchTitle, signal);
-      if (searched) return searched;
-    }
+    const exact = await fetchWikipediaPage(
+      fetchImpl,
+      wikiLanguage,
+      approved.wikipedia[wikiLanguage],
+      signal,
+    );
+    if (exact) return exact;
   }
   return undefined;
 }
 
-async function resolvePubChemCid(
+async function resolvePubChemCids(
   fetchImpl: FetchLike,
   identity: CompoundIdentity,
   signal?: AbortSignal,
 ) {
-  if (Number.isInteger(identity.cid) && (identity.cid ?? 0) > 0) return identity.cid!;
+  if (Number.isInteger(identity.cid) && (identity.cid ?? 0) > 0) return [identity.cid!];
   const inchiKey = cleanText(identity.inchiKey);
   const smiles = cleanText(identity.canonicalSmiles);
   const path = inchiKey
@@ -240,9 +233,47 @@ async function resolvePubChemCid(
     : smiles
       ? `smiles/${encodeURIComponent(smiles)}/cids/JSON`
       : undefined;
-  if (!path) return undefined;
+  if (!path) return [];
   const payload = await fetchJson<PubChemCidPayload>(fetchImpl, `${PUBCHEM_BASE_URL}/${path}`, signal);
-  return payload?.IdentifierList?.CID?.find((cid) => Number.isInteger(cid) && cid > 0);
+  return (payload?.IdentifierList?.CID ?? []).filter((cid) => Number.isInteger(cid) && cid > 0);
+}
+
+function canonicalSmiles(value: string | undefined) {
+  const source = cleanText(value);
+  if (!source) return undefined;
+  const parsed = moleculeFromSmiles(source);
+  if (!parsed.ok) return undefined;
+  const exported = moleculeToSmiles(parsed.molecule);
+  return exported.ok ? exported.smiles : undefined;
+}
+
+function propertySmiles(properties: PubChemProperties | undefined) {
+  return properties?.IsomericSMILES
+    ?? properties?.SMILES
+    ?? properties?.CanonicalSMILES
+    ?? properties?.ConnectivitySMILES;
+}
+
+/**
+ * A CID obtained from PUG's structural endpoint is still checked against the
+ * returned InChIKey/SMILES before it is presented. This prevents a text-like
+ * match from ever becoming a visible compound association.
+ */
+function pubChemPropertiesMatchIdentity(
+  identity: CompoundIdentity,
+  properties: PubChemProperties | undefined,
+) {
+  const expectedInchiKey = cleanText(identity.inchiKey).toLocaleUpperCase("en");
+  const actualInchiKey = cleanText(properties?.InChIKey).toLocaleUpperCase("en");
+  if (expectedInchiKey && actualInchiKey) return expectedInchiKey === actualInchiKey;
+
+  const expectedSmiles = canonicalSmiles(identity.canonicalSmiles);
+  const actualSmiles = canonicalSmiles(propertySmiles(properties));
+  if (expectedSmiles && actualSmiles) return expectedSmiles === actualSmiles;
+
+  // A caller that supplies a CID without a second identifier explicitly
+  // retains a known external identifier; otherwise do not guess.
+  return Boolean(identity.cid && !identity.canonicalSmiles && !identity.inchiKey);
 }
 
 async function resolvePubChem(
@@ -250,29 +281,34 @@ async function resolvePubChem(
   identity: CompoundIdentity,
   signal?: AbortSignal,
 ) {
-  const cid = await resolvePubChemCid(fetchImpl, identity, signal);
-  if (!cid) return undefined;
-  const [descriptionPayload, propertiesPayload] = await Promise.all([
-    fetchJson<PubChemDescriptionPayload>(
+  const cids = await resolvePubChemCids(fetchImpl, identity, signal);
+  for (const cid of cids) {
+    const propertiesPayload = await fetchJson<PubChemPropertiesPayload>(
+      fetchImpl,
+      `${PUBCHEM_BASE_URL}/cid/${cid}/property/IUPACName,InChIKey,IsomericSMILES,CanonicalSMILES,MolecularFormula,MolecularWeight/JSON`,
+      signal,
+    );
+    const properties = propertiesPayload?.PropertyTable?.Properties?.[0];
+    if (!pubChemPropertiesMatchIdentity(identity, properties)) continue;
+
+    const descriptionPayload = await fetchJson<PubChemDescriptionPayload>(
       fetchImpl,
       `${PUBCHEM_BASE_URL}/cid/${cid}/description/JSON`,
       signal,
-    ),
-    fetchJson<PubChemPropertiesPayload>(
-      fetchImpl,
-      `${PUBCHEM_BASE_URL}/cid/${cid}/property/IUPACName/JSON`,
-      signal,
-    ),
-  ]);
-  const descriptionInformation = descriptionPayload?.InformationList?.Information?.[0];
-  const description = shortSentences(descriptionInformation?.Description, 2);
-  const properties = propertiesPayload?.PropertyTable?.Properties?.[0];
-  return {
-    cid,
-    url: `https://pubchem.ncbi.nlm.nih.gov/compound/${cid}`,
-    ...(description ? { description, usage: usageSummary(description) } : {}),
-    names: uniqueNames([descriptionInformation?.Title, properties?.IUPACName, ...(identity.names ?? [])]),
-  } satisfies PubChemCompoundContext;
+    );
+    const descriptionInformation = descriptionPayload?.InformationList?.Information?.[0];
+    const description = shortSentences(descriptionInformation?.Description, 2);
+    return {
+      cid,
+      url: `https://pubchem.ncbi.nlm.nih.gov/compound/${cid}`,
+      ...(description ? { description, usage: usageSummary(description) } : {}),
+      ...(cleanText(properties?.MolecularFormula) ? { molecularFormula: cleanText(properties?.MolecularFormula) } : {}),
+      ...(Number.isFinite(properties?.MolecularWeight) ? { molecularWeight: properties?.MolecularWeight } : {}),
+      ...(cleanText(properties?.InChIKey) ? { inchiKey: cleanText(properties?.InChIKey) } : {}),
+      names: uniqueNames([descriptionInformation?.Title, properties?.IUPACName, ...(identity.names ?? [])]),
+    } satisfies PubChemCompoundContext;
+  }
+  return undefined;
 }
 
 /**
@@ -308,7 +344,10 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
           wikipedia = (await resolveWikipedia(
             fetchImpl,
             language,
-            uniqueNames([...(pubchem?.names ?? []), ...(identity.names ?? [])]),
+            {
+              ...(pubchem?.cid ? { cid: pubchem.cid } : {}),
+              names: uniqueNames([...(identity.names ?? []), ...(pubchem?.names ?? [])]),
+            },
             signal,
           )) ?? null;
           wikipediaCache.set(wikipediaKey, wikipedia);
