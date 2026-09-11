@@ -78,6 +78,12 @@ import {
 } from "./functional-group-layout";
 import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
+import { moleculeToSmiles } from "./openchemlib-adapter";
+import {
+  compoundIdentityKey,
+  createCompoundContextResolver,
+  type CompoundContext,
+} from "./compound-context";
 import {
   type FormulaIsomer,
   type FormulaIsomerGeneration,
@@ -118,6 +124,7 @@ const DEFAULT_STRUCTURE_COLORS = {
 
 const MIN_EXPORT_PIXELS = 200;
 const MAX_EXPORT_PIXELS = 8000;
+const compoundContextResolver = createCompoundContextResolver();
 
 type Bond = [number, number, BondOrder?];
 
@@ -4510,6 +4517,8 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [showIupacName, setShowIupacName] = useState(true);
+  const [compoundContext, setCompoundContext] = useState<CompoundContext | null>(null);
+  const [compoundContextLoadingKey, setCompoundContextLoadingKey] = useState("");
   const [nomenclatureConvention, setNomenclatureConvention] = useState<NomenclatureConvention>("current");
   const [showStereochemistry, setShowStereochemistry] = useState(false);
   const [advancedScreenReaderEnabled, setAdvancedScreenReaderEnabled] = useState(false);
@@ -4556,6 +4565,7 @@ export default function Home() {
   const valenceAlertTimer = useRef<number | null>(null);
   const nomenclatureHintTimer = useRef<number | null>(null);
   const moleculeSvgRef = useRef<SVGSVGElement | null>(null);
+  const compoundLookupNamesRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (!canvasExpanded && !pngExportOpen) return undefined;
@@ -4632,7 +4642,7 @@ export default function Home() {
       convention,
       label: nomenclatureConventionLabel(convention, language),
       name: convention === "traditional" && language === "es"
-        ? structuralTraditionalName
+        ? localizedIupac(structuralTraditionalName)
         : applyNomenclatureConvention(localizedName, convention, language),
     }));
   }, [language, nameWithSelectedStereochemistry, structuralTraditionalName]);
@@ -4656,6 +4666,51 @@ export default function Home() {
   );
   const canonicalIupacName = nameWithSelectedStereochemistry;
   const localizedCanonicalIupacName = localizedIupac(nameWithSelectedStereochemistry);
+  const compoundIdentity = useMemo(() => {
+    const exported = moleculeToSmiles(molecule);
+    if (!exported.ok) return null;
+    return {
+      canonicalSmiles: exported.smiles,
+    };
+  }, [molecule]);
+  const compoundContextKey = compoundIdentity ? compoundIdentityKey(compoundIdentity) : "";
+  const currentCompoundContext = compoundContext?.identityKey === compoundContextKey
+    ? compoundContext
+    : null;
+  const compoundContextLoading = compoundContextLoadingKey === compoundContextKey;
+
+  useEffect(() => {
+    compoundLookupNamesRef.current = [canonicalIupacName];
+  }, [canonicalIupacName]);
+
+  useEffect(() => {
+    if (!showIupacName || !compoundContextKey || !compoundIdentity) return undefined;
+
+    const controller = new AbortController();
+    const debounceTimer = window.setTimeout(() => {
+      setCompoundContextLoadingKey(compoundContextKey);
+      void compoundContextResolver.resolve({
+        ...compoundIdentity,
+        names: compoundLookupNamesRef.current,
+      }, language, controller.signal)
+        .then((context) => {
+          if (!controller.signal.aborted) setCompoundContext(context);
+        })
+        .catch(() => {
+          // External context is optional; a failed lookup never affects editing.
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setCompoundContextLoadingKey((currentKey) => currentKey === compoundContextKey ? "" : currentKey);
+          }
+        });
+    }, 550);
+
+    return () => {
+      window.clearTimeout(debounceTimer);
+      controller.abort();
+    };
+  }, [compoundContextKey, compoundIdentity, language, showIupacName]);
   const reasoningSteps = useMemo(
     () => buildIupacReasoningSteps(
       molecule,
@@ -8772,6 +8827,38 @@ export default function Home() {
               <strong>{analysis.primaryFunctionalLabel ? t(analysis.primaryFunctionalLabel) : analysis.functionalGroups[0]?.label ? t(analysis.functionalGroups[0].label) : t("Hidrocarburo")}</strong>
             </div>
           </div>
+
+          {showIupacName && (compoundContextLoading || currentCompoundContext?.pubchem || currentCompoundContext?.wikipedia) && (
+            <section className="real-world-context" aria-live="polite">
+              <h3>{t("En el mundo real")}</h3>
+              {compoundContextLoading && !currentCompoundContext?.pubchem && !currentCompoundContext?.wikipedia && (
+                <p className="real-world-loading">{t("Buscando contexto…")}</p>
+              )}
+              {currentCompoundContext?.pubchem?.usage && (
+                <p><strong>{t("Uso")}:</strong> {currentCompoundContext.pubchem.usage}</p>
+              )}
+              {currentCompoundContext?.wikipedia && (
+                <p lang={currentCompoundContext.wikipedia.language === "en" ? "en" : undefined}>
+                  <strong>{currentCompoundContext.wikipedia.language === "en" && language === "es" ? "Wikipedia (en)" : "Wikipedia"}:</strong>{" "}
+                  {currentCompoundContext.wikipedia.summary}
+                </p>
+              )}
+              {(currentCompoundContext?.pubchem || currentCompoundContext?.wikipedia) && (
+                <div className="real-world-links">
+                  {currentCompoundContext.pubchem && (
+                    <a href={currentCompoundContext.pubchem.url} target="_blank" rel="noopener noreferrer">
+                      {t("Saber más en PubChem")} <span aria-hidden="true">↗</span>
+                    </a>
+                  )}
+                  {currentCompoundContext.wikipedia && (
+                    <a href={currentCompoundContext.wikipedia.url} target="_blank" rel="noopener noreferrer">
+                      {currentCompoundContext.wikipedia.language === "en" && language === "es" ? "Wikipedia (en)" : "Wikipedia"} <span aria-hidden="true">↗</span>
+                    </a>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           <div className={`reasoning-section ${showReasoningHelp ? "expanded" : "collapsed"}`}>
             <div className="reasoning-heading">

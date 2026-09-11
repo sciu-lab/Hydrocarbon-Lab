@@ -6804,6 +6804,112 @@ html[data-theme="dark"] .smiles-feedback.error > span {
   }
 }
 
+/* Optional, source-attributed context. It deliberately remains quieter than
+   the name result and never reserves space once both sources are unavailable. */
+.real-world-context {
+  margin: 14px 20px 0;
+  padding: 12px 14px;
+  border: 1px solid #dfe9e5;
+  border-radius: 13px;
+  background: #fbfcfc;
+}
+
+.real-world-context h3 {
+  margin: 0 0 7px;
+  color: #43554f;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.real-world-context p {
+  margin: 0;
+  color: #63736e;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.real-world-context p + p {
+  margin-top: 6px;
+}
+
+.real-world-context p strong {
+  color: #3e5850;
+  font-weight: 800;
+}
+
+.real-world-loading {
+  color: #81918c !important;
+  font-style: italic;
+}
+
+.real-world-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 13px;
+  margin-top: 9px;
+}
+
+.real-world-links a {
+  color: #2a7664;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.real-world-links a:hover {
+  color: #174f43;
+  text-decoration: underline;
+}
+
+.real-world-links a:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid rgba(42, 118, 100, 0.35);
+  outline-offset: 3px;
+}
+
+html[data-theme="dark"] .real-world-context {
+  border-color: #344b44;
+  background: #172521;
+}
+
+html[data-theme="dark"] .real-world-context h3,
+html[data-theme="dark"] .real-world-context p strong {
+  color: #d0e0da;
+}
+
+html[data-theme="dark"] .real-world-context p {
+  color: #a1b3ac;
+}
+
+html[data-theme="dark"] .real-world-loading {
+  color: #839992 !important;
+}
+
+html[data-theme="dark"] .real-world-links a {
+  color: #8ed4be;
+}
+
+html[data-theme="dark"] .real-world-links a:hover {
+  color: #c1f0df;
+}
+
+@media (max-width: 1120px) {
+  .real-world-context {
+    grid-column: 1;
+  }
+
+  .reasoning-section {
+    grid-row: 1 / span 5;
+  }
+}
+
+@media (max-width: 760px) {
+  .real-world-context {
+    margin: 18px 16px 0;
+  }
+}
+
 /* Molecular-formula constructor */
 .formula-builder-panel {
   margin: 0 18px 16px;

@@ -10,7 +10,10 @@ import {
   formatStereochemicalName,
   getMainChainStereoDescriptors,
 } from "../app/double-bond-stereochemistry.ts";
-import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
+import {
+  localizeChemicalNameForDisplay,
+  translateSpanishIupacToOpsin,
+} from "../app/iupac-name-normalization.ts";
 
 function makeAromaticRing() {
   return {
@@ -204,5 +207,13 @@ test("keeps E/Z available for a valid acyclic alkene", () => {
   assert.equal(
     formatStereochemicalName(molecule, [1, 2, 3, 4, 5, 6], "hex-3-eno"),
     "(3E)-hex-3-eno",
+  );
+});
+
+test("localizes structural traditional heterocycle names through the display boundary", () => {
+  const structuralTraditionalName = "2-metilpyridine";
+  assert.equal(
+    localizeChemicalNameForDisplay(structuralTraditionalName, "es"),
+    "2-metilpiridina",
   );
 });
