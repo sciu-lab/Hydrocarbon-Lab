@@ -16,13 +16,20 @@ export type CompoundIdentity = {
 export type PubChemCompoundContext = {
   cid: number;
   url: string;
+  /** Preferred title returned by PubChem's structured property endpoint. */
+  title: string;
   /** A short description exactly derived from PubChem data. */
   description?: string;
   /** Only use-oriented sentences from the PubChem description. */
   usage?: string;
   molecularFormula?: string;
   molecularWeight?: number;
+  smiles?: string;
   inchiKey?: string;
+  xlogp?: number;
+  hBondDonorCount?: number;
+  hBondAcceptorCount?: number;
+  rotatableBondCount?: number;
   names: string[];
 };
 
@@ -72,6 +79,10 @@ type PubChemProperties = {
   SMILES?: string;
   MolecularFormula?: string;
   MolecularWeight?: number;
+  XLogP?: number;
+  HBondDonorCount?: number;
+  HBondAcceptorCount?: number;
+  RotatableBondCount?: number;
 };
 
 type PubChemPropertiesPayload = {
@@ -139,10 +150,33 @@ function isAbortError(error: unknown) {
 }
 
 async function fetchJson<T>(fetchImpl: FetchLike, url: string, signal?: AbortSignal) {
-  const response = await fetchImpl(url, { signal });
-  if (response.status === 404) return undefined;
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json() as Promise<T>;
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= 2; attempt += 1) {
+    try {
+      const response = await fetchImpl(url, {
+        signal,
+        headers: { accept: "application/json" },
+      });
+      if (response.status === 404) return undefined;
+      if (response.ok) return response.json() as Promise<T>;
+      lastError = new Error(`HTTP ${response.status}`);
+      if (response.status !== 429 && response.status !== 503) throw lastError;
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      lastError = error;
+    }
+
+    if (attempt < 2) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 500 * (2 ** attempt));
+        signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(new DOMException("The request was cancelled.", "AbortError"));
+        }, { once: true });
+      });
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("No se pudo consultar la fuente externa.");
 }
 
 export function compoundIdentityKey(identity: CompoundIdentity) {
@@ -285,7 +319,7 @@ async function resolvePubChem(
   for (const cid of cids) {
     const propertiesPayload = await fetchJson<PubChemPropertiesPayload>(
       fetchImpl,
-      `${PUBCHEM_BASE_URL}/cid/${cid}/property/IUPACName,InChIKey,IsomericSMILES,CanonicalSMILES,MolecularFormula,MolecularWeight/JSON`,
+      `${PUBCHEM_BASE_URL}/cid/${cid}/property/IUPACName,InChIKey,IsomericSMILES,CanonicalSMILES,MolecularFormula,MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,RotatableBondCount/JSON`,
       signal,
     );
     const properties = propertiesPayload?.PropertyTable?.Properties?.[0];
@@ -301,10 +335,16 @@ async function resolvePubChem(
     return {
       cid,
       url: `https://pubchem.ncbi.nlm.nih.gov/compound/${cid}`,
+      title: cleanText(properties?.IUPACName) || cleanText(descriptionInformation?.Title) || identity.names?.[0] || `CID ${cid}`,
       ...(description ? { description, usage: usageSummary(description) } : {}),
       ...(cleanText(properties?.MolecularFormula) ? { molecularFormula: cleanText(properties?.MolecularFormula) } : {}),
       ...(Number.isFinite(properties?.MolecularWeight) ? { molecularWeight: properties?.MolecularWeight } : {}),
+      ...(cleanText(propertySmiles(properties)) ? { smiles: cleanText(propertySmiles(properties)) } : {}),
       ...(cleanText(properties?.InChIKey) ? { inchiKey: cleanText(properties?.InChIKey) } : {}),
+      ...(Number.isFinite(properties?.XLogP) ? { xlogp: properties?.XLogP } : {}),
+      ...(Number.isFinite(properties?.HBondDonorCount) ? { hBondDonorCount: properties?.HBondDonorCount } : {}),
+      ...(Number.isFinite(properties?.HBondAcceptorCount) ? { hBondAcceptorCount: properties?.HBondAcceptorCount } : {}),
+      ...(Number.isFinite(properties?.RotatableBondCount) ? { rotatableBondCount: properties?.RotatableBondCount } : {}),
       names: uniqueNames([descriptionInformation?.Title, properties?.IUPACName, ...(identity.names ?? [])]),
     } satisfies PubChemCompoundContext;
   }

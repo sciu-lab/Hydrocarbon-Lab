@@ -42,6 +42,10 @@ function knownPubChemResponse(url) {
           InChIKey: "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
           MolecularFormula: "C2H6O",
           MolecularWeight: 46.07,
+          XLogP: -0.3,
+          HBondDonorCount: 1,
+          HBondAcceptorCount: 1,
+          RotatableBondCount: 0,
         }],
       },
     });
@@ -98,6 +102,11 @@ test("returns compact PubChem and Spanish Wikipedia context from mocked APIs", a
   const context = await resolver.resolve(ethanolIdentity, "es");
 
   assert.equal(context.pubchem?.cid, 702);
+  assert.equal(context.pubchem?.title, "ethanol");
+  assert.equal(context.pubchem?.molecularFormula, "C2H6O");
+  assert.equal(context.pubchem?.smiles, "CCO");
+  assert.equal(context.pubchem?.hBondDonorCount, 1);
+  assert.equal(context.pubchem?.rotatableBondCount, 0);
   assert.match(context.pubchem?.usage ?? "", /used as a solvent/i);
   assert.equal(context.pubchem?.url, "https://pubchem.ncbi.nlm.nih.gov/compound/702");
   assert.equal(context.wikipedia?.language, "es");

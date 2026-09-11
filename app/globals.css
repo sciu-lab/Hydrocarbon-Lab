@@ -1924,6 +1924,79 @@ button {
   align-items: stretch;
 }
 
+/* Panels keep their grid slots; only their visual layer is translated. */
+.movable-panel {
+  --panel-x: 0px;
+  --panel-y: 0px;
+
+  position: relative;
+  transform: translate3d(var(--panel-x), var(--panel-y), 0);
+  transition: box-shadow 0.15s ease;
+  will-change: transform;
+}
+
+.movable-panel.is-raised {
+  z-index: 1000;
+}
+
+.movable-panel.is-dragging {
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+}
+
+.panel-drag-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.movable-panel.is-dragging .panel-drag-handle {
+  cursor: grabbing;
+}
+
+.panel-heading-end {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.panel-drag-handle button,
+.panel-drag-handle a,
+.panel-drag-handle input,
+.panel-drag-handle select,
+.panel-drag-handle textarea {
+  cursor: pointer;
+}
+
+.drag-indicator {
+  flex: 0 0 auto;
+  padding-top: 6px;
+  color: var(--muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  opacity: 0.45;
+}
+
+.panel-drag-handle:hover .drag-indicator {
+  opacity: 0.85;
+}
+
+@media (max-width: 800px) {
+  .movable-panel {
+    --panel-x: 0px !important;
+    --panel-y: 0px !important;
+  }
+
+  .panel-drag-handle {
+    cursor: default;
+    touch-action: auto;
+  }
+
+  .drag-indicator {
+    display: none;
+  }
+}
+
 .builder-card,
 .analysis-card,
 .examples-card {
@@ -6811,8 +6884,8 @@ html[data-theme="dark"] .smiles-feedback.error > span {
   }
 }
 
-/* Optional, source-attributed context. It deliberately remains quieter than
-   the name result and never reserves space once both sources are unavailable. */
+/* Optional, source-attributed context. It is intentionally quieter than the
+   IUPAC answer and presents one reliable source at a time. */
 .real-world-context {
   margin: 14px 20px 0;
   padding: 12px 14px;
@@ -6821,12 +6894,81 @@ html[data-theme="dark"] .smiles-feedback.error > span {
   background: #fbfcfc;
 }
 
+.external-info-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.external-info-header > div:first-child {
+  min-width: 0;
+}
+
+.info-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: #5c7770;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .real-world-context h3 {
-  margin: 0 0 7px;
+  margin: 0;
   color: #43554f;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 14px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.external-info-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-toggle,
+.info-visibility {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.source-toggle {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #e7f1ed;
+  color: #2c6b5b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.source-toggle:hover {
+  background: #d8ebe4;
+}
+
+.info-visibility {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+  color: #537068;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.info-visibility:hover {
+  background: #edf3f0;
+}
+
+.external-info-content {
+  margin-top: 9px;
 }
 
 .real-world-context p {
@@ -6836,41 +6978,65 @@ html[data-theme="dark"] .smiles-feedback.error > span {
   line-height: 1.45;
 }
 
-.real-world-context p + p {
-  margin-top: 6px;
-}
-
-.real-world-context p strong {
-  color: #3e5850;
-  font-weight: 800;
+.external-info-empty,
+.real-world-loading {
+  color: #81918c !important;
 }
 
 .real-world-loading {
-  color: #81918c !important;
   font-style: italic;
 }
 
-.real-world-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px 13px;
-  margin-top: 9px;
+.external-info-card.is-collapsed .external-info-content,
+.external-info-card.is-collapsed .external-info-link {
+  display: none;
 }
 
-.real-world-links a {
+.pubchem-formula {
+  margin-bottom: 8px;
+  color: #344e47;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.pubchem-grid {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.pubchem-label {
+  color: #80918b;
+  font-weight: 700;
+}
+
+.pubchem-value {
+  min-width: 0;
+  color: #48635b;
+  overflow-wrap: anywhere;
+}
+
+.external-info-link {
+  display: inline-block;
+  margin-top: 9px;
   color: #2a7664;
   font-size: 11px;
   font-weight: 800;
   text-decoration: none;
 }
 
-.real-world-links a:hover {
+.external-info-link:hover {
   color: #174f43;
   text-decoration: underline;
 }
 
-.real-world-links a:focus-visible {
-  border-radius: 3px;
+.source-toggle:focus-visible,
+.info-visibility:focus-visible,
+.external-info-link:focus-visible {
+  border-radius: 4px;
   outline: 2px solid rgba(42, 118, 100, 0.35);
   outline-offset: 3px;
 }
@@ -6881,23 +7047,41 @@ html[data-theme="dark"] .real-world-context {
 }
 
 html[data-theme="dark"] .real-world-context h3,
-html[data-theme="dark"] .real-world-context p strong {
+html[data-theme="dark"] .pubchem-formula {
   color: #d0e0da;
 }
 
-html[data-theme="dark"] .real-world-context p {
+html[data-theme="dark"] .real-world-context p,
+html[data-theme="dark"] .pubchem-value {
   color: #a1b3ac;
 }
 
+html[data-theme="dark"] .info-eyebrow,
+html[data-theme="dark"] .pubchem-label,
+html[data-theme="dark"] .external-info-empty,
 html[data-theme="dark"] .real-world-loading {
   color: #839992 !important;
 }
 
-html[data-theme="dark"] .real-world-links a {
+html[data-theme="dark"] .source-toggle {
+  background: #29483e;
+  color: #a8e0cd;
+}
+
+html[data-theme="dark"] .source-toggle:hover,
+html[data-theme="dark"] .info-visibility:hover {
+  background: #365c50;
+}
+
+html[data-theme="dark"] .info-visibility {
+  color: #b2d1c5;
+}
+
+html[data-theme="dark"] .external-info-link {
   color: #8ed4be;
 }
 
-html[data-theme="dark"] .real-world-links a:hover {
+html[data-theme="dark"] .external-info-link:hover {
   color: #c1f0df;
 }
 

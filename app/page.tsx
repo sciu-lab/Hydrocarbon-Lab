@@ -4,6 +4,7 @@ import {
   type ChangeEvent,
   type CSSProperties,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
@@ -126,6 +127,51 @@ const DEFAULT_STRUCTURE_COLORS = {
 const MIN_EXPORT_PIXELS = 200;
 const MAX_EXPORT_PIXELS = 8000;
 const compoundContextResolver = createCompoundContextResolver();
+const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
+
+type MovablePanelId = "structure-panel" | "analysis-panel";
+type PanelPosition = { x: number; y: number };
+type PanelPositions = Record<MovablePanelId, PanelPosition>;
+type ActivePanelDrag = {
+  panelId: MovablePanelId;
+  pointerId: number;
+  startPointerX: number;
+  startPointerY: number;
+  startPosition: PanelPosition;
+};
+
+const DEFAULT_PANEL_POSITIONS: PanelPositions = {
+  "structure-panel": { x: 0, y: 0 },
+  "analysis-panel": { x: 0, y: 0 },
+};
+
+function readPanelPositions(): PanelPositions {
+  if (typeof window === "undefined") return DEFAULT_PANEL_POSITIONS;
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(PANEL_STORAGE_KEY) ?? "{}");
+    const stored = parsed && typeof parsed === "object" ? parsed as Partial<PanelPositions> : {};
+    return (Object.keys(DEFAULT_PANEL_POSITIONS) as MovablePanelId[]).reduce((positions, panelId) => {
+      const candidate = stored[panelId];
+      const x = Number(candidate?.x);
+      const y = Number(candidate?.y);
+      positions[panelId] = {
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0,
+      };
+      return positions;
+    }, {} as PanelPositions);
+  } catch {
+    return DEFAULT_PANEL_POSITIONS;
+  }
+}
+
+function persistPanelPositions(positions: PanelPositions) {
+  try {
+    window.localStorage.setItem(PANEL_STORAGE_KEY, JSON.stringify(positions));
+  } catch {
+    // Layout personalization is optional and never blocks the editor.
+  }
+}
 
 type Bond = [number, number, BondOrder?];
 
@@ -297,6 +343,9 @@ const toSubscript = (value: number) =>
     .split("")
     .map((digit) => subscriptDigits[digit])
     .join("");
+
+const formatPubChemFormula = (value: string | undefined) =>
+  value?.replace(/\d/g, (digit) => subscriptDigits[digit] ?? digit) ?? "";
 
 const getBondOrder = (bond: Bond): BondOrder => bond[2] ?? 1;
 
@@ -4567,8 +4616,15 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [showIupacName, setShowIupacName] = useState(true);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(DEFAULT_PANEL_POSITIONS);
+  const [draggingPanelId, setDraggingPanelId] = useState<MovablePanelId | null>(null);
+  const [raisedPanelId, setRaisedPanelId] = useState<MovablePanelId | null>(null);
+  const panelPositionsRef = useRef<PanelPositions>(DEFAULT_PANEL_POSITIONS);
+  const activePanelDragRef = useRef<ActivePanelDrag | null>(null);
   const [compoundContext, setCompoundContext] = useState<CompoundContext | null>(null);
   const [compoundContextLoadingKey, setCompoundContextLoadingKey] = useState("");
+  const [externalInfoSource, setExternalInfoSource] = useState<"wikipedia" | "pubchem">("wikipedia");
+  const [externalInfoCollapsed, setExternalInfoCollapsed] = useState(false);
   const [nomenclatureConvention, setNomenclatureConvention] = useState<NomenclatureConvention>("current");
   const [showStereochemistry, setShowStereochemistry] = useState(false);
   const [advancedScreenReaderEnabled, setAdvancedScreenReaderEnabled] = useState(false);
@@ -4734,6 +4790,15 @@ export default function Home() {
   }, [canonicalIupacName]);
 
   useEffect(() => {
+    const restore = window.setTimeout(() => {
+      const restored = readPanelPositions();
+      panelPositionsRef.current = restored;
+      setPanelPositions(restored);
+    }, 0);
+    return () => window.clearTimeout(restore);
+  }, []);
+
+  useEffect(() => {
     if (!showIupacName || !compoundContextKey || !compoundIdentity) return undefined;
 
     const controller = new AbortController();
@@ -4761,6 +4826,115 @@ export default function Home() {
       controller.abort();
     };
   }, [compoundContextKey, compoundIdentity, language, showIupacName]);
+
+  useEffect(() => {
+    const reset = window.setTimeout(() => setExternalInfoSource("wikipedia"), 0);
+    return () => window.clearTimeout(reset);
+  }, [compoundContextKey]);
+
+  useEffect(() => {
+    // Wikipedia is the preferred initial view whenever an approved page is
+    // available. For the PubChem-only fallback, avoid opening on an empty
+    // Wikipedia state just to make the user toggle once.
+    if (currentCompoundContext?.wikipedia || !currentCompoundContext?.pubchem) return undefined;
+    const preferPubChem = window.setTimeout(() => setExternalInfoSource("pubchem"), 0);
+    return () => window.clearTimeout(preferPubChem);
+  }, [currentCompoundContext]);
+
+  const panelStyle = (panelId: MovablePanelId) => ({
+    "--panel-x": `${panelPositions[panelId].x}px`,
+    "--panel-y": `${panelPositions[panelId].y}px`,
+  } as CSSProperties);
+
+  const renderPanelPosition = (panelId: MovablePanelId, position: PanelPosition) => {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.style.setProperty("--panel-x", `${position.x}px`);
+    panel.style.setProperty("--panel-y", `${position.y}px`);
+  };
+
+  const commitPanelPosition = (panelId: MovablePanelId, position: PanelPosition) => {
+    const next = { ...panelPositionsRef.current, [panelId]: position };
+    panelPositionsRef.current = next;
+    setPanelPositions(next);
+    persistPanelPositions(next);
+  };
+
+  const clampPanelToViewport = (
+    panel: HTMLElement,
+    current: PanelPosition,
+    requested: PanelPosition,
+  ): PanelPosition => {
+    const rect = panel.getBoundingClientRect();
+    const deltaX = requested.x - current.x;
+    const deltaY = requested.y - current.y;
+    const margin = 12;
+    let nextX = requested.x;
+    let nextY = requested.y;
+    const left = rect.left + deltaX;
+    const right = rect.right + deltaX;
+    const top = rect.top + deltaY;
+    const bottom = rect.bottom + deltaY;
+
+    if (left < margin) nextX += margin - left;
+    if (right > window.innerWidth - margin) nextX -= right - (window.innerWidth - margin);
+    if (top < margin) nextY += margin - top;
+    if (bottom > window.innerHeight - margin && rect.height < window.innerHeight - margin * 2) {
+      nextY -= bottom - (window.innerHeight - margin);
+    }
+    return { x: nextX, y: nextY };
+  };
+
+  const isPanelInteractiveTarget = (target: EventTarget | null) =>
+    target instanceof Element && Boolean(target.closest("button, a, input, select, textarea, label"));
+
+  const beginPanelDrag = (panelId: MovablePanelId, event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || window.innerWidth <= 800 || isPanelInteractiveTarget(event.target)) return;
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    const position = panelPositionsRef.current[panelId];
+    activePanelDragRef.current = {
+      panelId,
+      pointerId: event.pointerId,
+      startPointerX: event.clientX,
+      startPointerY: event.clientY,
+      startPosition: position,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setRaisedPanelId(panelId);
+    setDraggingPanelId(panelId);
+    event.preventDefault();
+  };
+
+  const movePanelDrag = (panelId: MovablePanelId, event: ReactPointerEvent<HTMLDivElement>) => {
+    const active = activePanelDragRef.current;
+    if (!active || active.panelId !== panelId || active.pointerId !== event.pointerId) return;
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    const requested = {
+      x: active.startPosition.x + event.clientX - active.startPointerX,
+      y: active.startPosition.y + event.clientY - active.startPointerY,
+    };
+    const next = clampPanelToViewport(panel, panelPositionsRef.current[panelId], requested);
+    panelPositionsRef.current = { ...panelPositionsRef.current, [panelId]: next };
+    renderPanelPosition(panelId, next);
+  };
+
+  const endPanelDrag = (panelId: MovablePanelId, event: ReactPointerEvent<HTMLDivElement>) => {
+    const active = activePanelDragRef.current;
+    if (!active || active.panelId !== panelId || active.pointerId !== event.pointerId) return;
+    activePanelDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDraggingPanelId(null);
+    commitPanelPosition(panelId, panelPositionsRef.current[panelId]);
+  };
+
+  const resetPanelPosition = (panelId: MovablePanelId, event: { target: EventTarget | null }) => {
+    if (window.innerWidth <= 800 || isPanelInteractiveTarget(event.target)) return;
+    const reset = { x: 0, y: 0 };
+    renderPanelPosition(panelId, reset);
+    commitPanelPosition(panelId, reset);
+  };
   const reasoningSteps = useMemo(
     () => buildIupacReasoningSteps(
       molecule,
@@ -7538,13 +7712,25 @@ export default function Home() {
       </section>
 
       <div className="workspace-grid">
-        <section className="builder-card">
-          <div className="card-heading">
+        <section
+          id="structure-panel"
+          className={`builder-card movable-panel ${raisedPanelId === "structure-panel" ? "is-raised" : ""} ${draggingPanelId === "structure-panel" ? "is-dragging" : ""}`}
+          style={panelStyle("structure-panel")}
+        >
+          <div
+            className="card-heading panel-drag-handle"
+            onPointerDown={(event) => beginPanelDrag("structure-panel", event)}
+            onPointerMove={(event) => movePanelDrag("structure-panel", event)}
+            onPointerUp={(event) => endPanelDrag("structure-panel", event)}
+            onPointerCancel={(event) => endPanelDrag("structure-panel", event)}
+            onDoubleClick={(event) => resetPanelPosition("structure-panel", event)}
+          >
             <div>
               <p className="eyebrow">{t("Estructura molecular")}</p>
               <h2>{t("Construye la estructura orgánica")}</h2>
             </div>
-            <div className="heading-actions">
+            <div className="panel-heading-end">
+              <div className="heading-actions">
               <button
                 className={`name-builder-toggle ${nameBuilderOpen ? "active" : ""}`}
                 onClick={() => {
@@ -7638,6 +7824,8 @@ export default function Home() {
                 <button onClick={redo} disabled={!future.length} title={t("Rehacer")}>↷</button>
                 <button className="new-button" onClick={newMolecule}>{t("Nueva")}</button>
               </div>
+              </div>
+              <span className="drag-indicator" title={t("Arrastrar panel")} aria-hidden="true">⠿</span>
             </div>
           </div>
 
@@ -8798,13 +8986,25 @@ export default function Home() {
           </div>
         </section>
 
-        <aside className="analysis-card">
-          <div className="analysis-heading">
+        <aside
+          id="analysis-panel"
+          className={`analysis-card movable-panel ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
+          style={panelStyle("analysis-panel")}
+        >
+          <div
+            className="analysis-heading panel-drag-handle"
+            onPointerDown={(event) => beginPanelDrag("analysis-panel", event)}
+            onPointerMove={(event) => movePanelDrag("analysis-panel", event)}
+            onPointerUp={(event) => endPanelDrag("analysis-panel", event)}
+            onPointerCancel={(event) => endPanelDrag("analysis-panel", event)}
+            onDoubleClick={(event) => resetPanelPosition("analysis-panel", event)}
+          >
             <div>
               <p className="eyebrow">{t("Análisis en tiempo real")}</p>
               <h2>{t("Nombre IUPAC sugerido")}</h2>
             </div>
-            <div className="analysis-status">
+            <div className="panel-heading-end">
+              <div className="analysis-status">
               <span className="valid-badge">{t("Estructura válida")}</span>
               {!simplifiedModeEnabled && (
                 <button
@@ -8836,6 +9036,8 @@ export default function Home() {
               >
                 {showIupacName ? t("Ocultar") : t("Mostrar")}
               </button>
+              </div>
+              <span className="drag-indicator" title={t("Arrastrar panel")} aria-hidden="true">⠿</span>
             </div>
           </div>
 
@@ -8946,33 +9148,134 @@ export default function Home() {
           </div>
 
           {showIupacName && (compoundContextLoading || currentCompoundContext?.pubchem || currentCompoundContext?.wikipedia) && (
-            <section className="real-world-context" aria-live="polite">
-              <h3>{t("En el mundo real")}</h3>
-              {compoundContextLoading && !currentCompoundContext?.pubchem && !currentCompoundContext?.wikipedia && (
-                <p className="real-world-loading">{t("Buscando contexto…")}</p>
-              )}
-              {currentCompoundContext?.pubchem?.usage && (
-                <p><strong>{t("Uso")}:</strong> {currentCompoundContext.pubchem.usage}</p>
-              )}
-              {currentCompoundContext?.wikipedia && (
-                <p lang={currentCompoundContext.wikipedia.language === "en" ? "en" : undefined}>
-                  <strong>{currentCompoundContext.wikipedia.language === "en" && language === "es" ? "Wikipedia (en)" : "Wikipedia"}:</strong>{" "}
-                  {currentCompoundContext.wikipedia.summary}
-                </p>
-              )}
-              {(currentCompoundContext?.pubchem || currentCompoundContext?.wikipedia) && (
-                <div className="real-world-links">
-                  {currentCompoundContext.pubchem && (
-                    <a href={currentCompoundContext.pubchem.url} target="_blank" rel="noopener noreferrer">
-                      {t("Saber más en PubChem")} <span aria-hidden="true">↗</span>
-                    </a>
-                  )}
-                  {currentCompoundContext.wikipedia && (
-                    <a href={currentCompoundContext.wikipedia.url} target="_blank" rel="noopener noreferrer">
-                      {currentCompoundContext.wikipedia.language === "en" && language === "es" ? "Wikipedia (en)" : "Wikipedia"} <span aria-hidden="true">↗</span>
-                    </a>
-                  )}
+            <section
+              id="external-info-card"
+              className={`real-world-context external-info-card ${externalInfoCollapsed ? "is-collapsed" : ""}`}
+              aria-live="polite"
+            >
+              <div className="external-info-header">
+                <div>
+                  <span className="info-eyebrow">
+                    {externalInfoSource === "wikipedia" ? `🌍 ${t("En el mundo real")}` : `⚗ ${t("Datos químicos")}`}
+                  </span>
+                  <h3>
+                    {externalInfoSource === "wikipedia"
+                      ? currentCompoundContext?.wikipedia?.title ?? localizedCanonicalIupacName
+                      : currentCompoundContext?.pubchem?.title ?? localizedCanonicalIupacName}
+                  </h3>
                 </div>
+                <div className="external-info-actions">
+                  <button
+                    className="source-toggle"
+                    type="button"
+                    onClick={() => setExternalInfoSource((source) => source === "wikipedia" ? "pubchem" : "wikipedia")}
+                    title={t("Cambiar fuente")}
+                    aria-label={t("Cambiar fuente")}
+                  >
+                    {externalInfoSource === "wikipedia" ? "Wikipedia ↔" : "PubChem ↔"}
+                  </button>
+                  <button
+                    className="info-visibility"
+                    type="button"
+                    onClick={() => setExternalInfoCollapsed((collapsed) => !collapsed)}
+                    title={externalInfoCollapsed ? t("Mostrar información externa") : t("Ocultar información externa")}
+                    aria-label={externalInfoCollapsed ? t("Mostrar información externa") : t("Ocultar información externa")}
+                    aria-expanded={!externalInfoCollapsed}
+                  >
+                    {externalInfoCollapsed ? "+" : "−"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="external-info-content">
+                {externalInfoSource === "wikipedia" ? (
+                  currentCompoundContext?.wikipedia ? (
+                    <p lang={currentCompoundContext.wikipedia.language === "en" ? "en" : undefined}>
+                      {currentCompoundContext.wikipedia.summary}
+                    </p>
+                  ) : compoundContextLoading ? (
+                    <p className="real-world-loading">{t("Buscando contexto…")}</p>
+                  ) : (
+                    <p className="external-info-empty">{t("No hay información de Wikipedia aprobada para este compuesto.")}</p>
+                  )
+                ) : currentCompoundContext?.pubchem ? (
+                  <>
+                    {currentCompoundContext.pubchem.molecularFormula && (
+                      <div className="pubchem-formula">
+                        {formatPubChemFormula(currentCompoundContext.pubchem.molecularFormula)}
+                      </div>
+                    )}
+                    <div className="pubchem-grid">
+                      <span className="pubchem-label">CID</span>
+                      <span className="pubchem-value">{currentCompoundContext.pubchem.cid}</span>
+                      {currentCompoundContext.pubchem.molecularWeight !== undefined && (
+                        <>
+                          <span className="pubchem-label">{t("Masa molar")}</span>
+                          <span className="pubchem-value">
+                            {new Intl.NumberFormat(language === "es" ? "es-ES" : "en-US", { maximumFractionDigits: 3 }).format(currentCompoundContext.pubchem.molecularWeight)} g/mol
+                          </span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.title && (
+                        <>
+                          <span className="pubchem-label">{t("Nombre IUPAC")}</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.title}</span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.smiles && (
+                        <>
+                          <span className="pubchem-label">SMILES</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.smiles}</span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.inchiKey && (
+                        <>
+                          <span className="pubchem-label">InChIKey</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.inchiKey}</span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.xlogp !== undefined && (
+                        <>
+                          <span className="pubchem-label">XLogP</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.xlogp}</span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.hBondDonorCount !== undefined && (
+                        <>
+                          <span className="pubchem-label">{t("Donadores H")}</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.hBondDonorCount}</span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.hBondAcceptorCount !== undefined && (
+                        <>
+                          <span className="pubchem-label">{t("Aceptores H")}</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.hBondAcceptorCount}</span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.rotatableBondCount !== undefined && (
+                        <>
+                          <span className="pubchem-label">{t("Enlaces rotables")}</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.rotatableBondCount}</span>
+                        </>
+                      )}
+                    </div>
+                  </>
+                ) : compoundContextLoading ? (
+                  <p className="real-world-loading">{t("Cargando datos de PubChem…")}</p>
+                ) : (
+                  <p className="external-info-empty">{t("No hay datos estructurados validados de PubChem para esta estructura.")}</p>
+                )}
+              </div>
+
+              {!externalInfoCollapsed && externalInfoSource === "wikipedia" && currentCompoundContext?.wikipedia && (
+                <a className="external-info-link" href={currentCompoundContext.wikipedia.url} target="_blank" rel="noopener noreferrer">
+                  {currentCompoundContext.wikipedia.language === "en" && language === "es" ? "Wikipedia (en) · " : ""}{t("Saber más")} <span aria-hidden="true">↗</span>
+                </a>
+              )}
+              {!externalInfoCollapsed && externalInfoSource === "pubchem" && currentCompoundContext?.pubchem && (
+                <a className="external-info-link" href={currentCompoundContext.pubchem.url} target="_blank" rel="noopener noreferrer">
+                  {t("Ver ficha en PubChem")} <span aria-hidden="true">↗</span>
+                </a>
               )}
             </section>
           )}
