@@ -128,7 +128,7 @@ const MIN_EXPORT_PIXELS = 200;
 const MAX_EXPORT_PIXELS = 8000;
 const compoundContextResolver = createCompoundContextResolver();
 const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
-const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v1";
+const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v2";
 
 type MovablePanelId = "structure-panel" | "analysis-panel";
 type PanelPosition = { x: number; y: number };
@@ -4620,7 +4620,7 @@ export default function Home() {
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const [draggingPanelId, setDraggingPanelId] = useState<MovablePanelId | null>(null);
   const [raisedPanelId, setRaisedPanelId] = useState<MovablePanelId | null>(null);
-  const [panelDraggingEnabled, setPanelDraggingEnabled] = useState(true);
+  const [panelDraggingEnabled, setPanelDraggingEnabled] = useState(false);
   const [panelDragPreferenceReady, setPanelDragPreferenceReady] = useState(false);
   const panelPositionsRef = useRef<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const activePanelDragRef = useRef<ActivePanelDrag | null>(null);
@@ -4802,9 +4802,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    let enabled = true;
+    let enabled = false;
     try {
-      enabled = window.localStorage.getItem(PANEL_DRAG_ENABLED_STORAGE_KEY) !== "off";
+      enabled = window.localStorage.getItem(PANEL_DRAG_ENABLED_STORAGE_KEY) === "on";
     } catch {
       // Keep dragging available for the current session when storage is unavailable.
     }

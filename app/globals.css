@@ -1990,7 +1990,7 @@ button {
 }
 
 .builder-card .panel-heading-end {
-  flex: 1 1 590px;
+  flex: 0 1 390px;
   justify-content: flex-end;
 }
 
@@ -2005,13 +2005,30 @@ button {
   }
 
   .builder-card .heading-actions {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-areas:
+      "name smiles"
+      "formula view"
+      "history history";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: flex-start;
   }
 
+  .builder-card .heading-actions > .name-builder-toggle {
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .builder-card .heading-actions > .view-mode-switch {
+    justify-self: stretch;
+  }
+
+  .builder-card .heading-actions > .view-mode-switch button {
+    flex: 1;
+  }
+
   .builder-card .heading-actions > .history-controls {
-    justify-self: auto;
+    justify-self: start;
   }
 }
 
@@ -2107,9 +2124,10 @@ button {
 .heading-actions {
   display: grid;
   grid-template-areas:
-    "name smiles formula view"
-    "history history history history";
-  grid-template-columns: max-content max-content max-content max-content;
+    "name smiles"
+    "formula view"
+    "history history";
+  grid-template-columns: max-content max-content;
   align-items: center;
   justify-content: end;
   gap: 8px 10px;
@@ -7592,10 +7610,10 @@ html[data-theme="dark"] .isomers-grid span {
 @media (max-width: 720px) {
   .heading-actions {
     grid-template-areas:
-      "name smiles formula"
-      "view view view"
-      "history history history";
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+      "name smiles"
+      "formula view"
+      "history history";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .heading-actions > .name-builder-toggle {
