@@ -128,6 +128,7 @@ const MIN_EXPORT_PIXELS = 200;
 const MAX_EXPORT_PIXELS = 8000;
 const compoundContextResolver = createCompoundContextResolver();
 const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
+const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v1";
 
 type MovablePanelId = "structure-panel" | "analysis-panel";
 type PanelPosition = { x: number; y: number };
@@ -4619,6 +4620,8 @@ export default function Home() {
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const [draggingPanelId, setDraggingPanelId] = useState<MovablePanelId | null>(null);
   const [raisedPanelId, setRaisedPanelId] = useState<MovablePanelId | null>(null);
+  const [panelDraggingEnabled, setPanelDraggingEnabled] = useState(true);
+  const [panelDragPreferenceReady, setPanelDragPreferenceReady] = useState(false);
   const panelPositionsRef = useRef<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const activePanelDragRef = useRef<ActivePanelDrag | null>(null);
   const [compoundContext, setCompoundContext] = useState<CompoundContext | null>(null);
@@ -4799,6 +4802,29 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    let enabled = true;
+    try {
+      enabled = window.localStorage.getItem(PANEL_DRAG_ENABLED_STORAGE_KEY) !== "off";
+    } catch {
+      // Keep dragging available for the current session when storage is unavailable.
+    }
+    const restore = window.setTimeout(() => {
+      setPanelDraggingEnabled(enabled);
+      setPanelDragPreferenceReady(true);
+    }, 0);
+    return () => window.clearTimeout(restore);
+  }, []);
+
+  useEffect(() => {
+    if (!panelDragPreferenceReady) return;
+    try {
+      window.localStorage.setItem(PANEL_DRAG_ENABLED_STORAGE_KEY, panelDraggingEnabled ? "on" : "off");
+    } catch {
+      // The preference remains usable for the current session without storage.
+    }
+  }, [panelDragPreferenceReady, panelDraggingEnabled]);
+
+  useEffect(() => {
     if (!showIupacName || !compoundContextKey || !compoundIdentity) return undefined;
 
     const controller = new AbortController();
@@ -4889,7 +4915,7 @@ export default function Home() {
     target instanceof Element && Boolean(target.closest("button, a, input, select, textarea, label"));
 
   const beginPanelDrag = (panelId: MovablePanelId, event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || window.innerWidth <= 800 || isPanelInteractiveTarget(event.target)) return;
+    if (!panelDraggingEnabled || event.button !== 0 || window.innerWidth <= 800 || isPanelInteractiveTarget(event.target)) return;
     const panel = document.getElementById(panelId);
     if (!panel) return;
     const position = panelPositionsRef.current[panelId];
@@ -4934,6 +4960,21 @@ export default function Home() {
     const reset = { x: 0, y: 0 };
     renderPanelPosition(panelId, reset);
     commitPanelPosition(panelId, reset);
+  };
+
+  const resetAllPanelPositions = () => {
+    const resetPositions: PanelPositions = {
+      "structure-panel": { x: 0, y: 0 },
+      "analysis-panel": { x: 0, y: 0 },
+    };
+    activePanelDragRef.current = null;
+    setDraggingPanelId(null);
+    setRaisedPanelId(null);
+    panelPositionsRef.current = resetPositions;
+    renderPanelPosition("structure-panel", resetPositions["structure-panel"]);
+    renderPanelPosition("analysis-panel", resetPositions["analysis-panel"]);
+    setPanelPositions(resetPositions);
+    persistPanelPositions(resetPositions);
   };
   const reasoningSteps = useMemo(
     () => buildIupacReasoningSteps(
@@ -7327,6 +7368,22 @@ export default function Home() {
                 />
                 <i aria-hidden="true" />
               </label>
+              <label className="settings-toggle">
+                <span>{t("Mover paneles libremente")}</span>
+                <input
+                  type="checkbox"
+                  checked={panelDraggingEnabled}
+                  onChange={(event) => setPanelDraggingEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <button
+                className="settings-panel-reset"
+                type="button"
+                onClick={resetAllPanelPositions}
+              >
+                {t("Restablecer posición de paneles")}
+              </button>
             </section>
 
             <section className="settings-section settings-accessibility" aria-labelledby="settings-accessibility-title">
@@ -7714,7 +7771,7 @@ export default function Home() {
       <div className="workspace-grid">
         <section
           id="structure-panel"
-          className={`builder-card movable-panel ${raisedPanelId === "structure-panel" ? "is-raised" : ""} ${draggingPanelId === "structure-panel" ? "is-dragging" : ""}`}
+          className={`builder-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "structure-panel" ? "is-raised" : ""} ${draggingPanelId === "structure-panel" ? "is-dragging" : ""}`}
           style={panelStyle("structure-panel")}
         >
           <div
@@ -8988,7 +9045,7 @@ export default function Home() {
 
         <aside
           id="analysis-panel"
-          className={`analysis-card movable-panel ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
+          className={`analysis-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
           style={panelStyle("analysis-panel")}
         >
           <div

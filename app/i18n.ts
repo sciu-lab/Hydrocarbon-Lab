@@ -266,6 +266,8 @@ const ENGLISH_UI: Record<string, string> = {
   "Datos químicos": "Chemical data",
   "Cambiar fuente": "Change source",
   "Arrastrar panel": "Drag panel",
+  "Mover paneles libremente": "Move panels freely",
+  "Restablecer posición de paneles": "Reset panel positions",
   "Ocultar información externa": "Hide external information",
   "Mostrar información externa": "Show external information",
   "Cargando datos de PubChem…": "Loading PubChem data…",
