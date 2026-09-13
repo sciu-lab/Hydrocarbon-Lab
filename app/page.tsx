@@ -71,7 +71,7 @@ import {
   SKELETAL_NUMBER_BADGE_CLEARANCE,
   SKELETAL_NUMBER_BADGE_OFFSET,
 } from "./skeletal-bond-geometry";
-import { buildOpenChainSkeletalPositions } from "./skeletal-layout";
+import { calculateMolecule2DLayout } from "./molecule-2d-layout";
 import { getAutoPlacedCarbonPosition } from "./manual-layout";
 import {
   hasCarbonylAttachment,
@@ -123,6 +123,12 @@ const DEFAULT_STRUCTURE_COLORS = {
   branch: "#d5a254",
   functional: "#8a6ca0",
 } as const;
+
+// Keep this in sync with the condensed SVG node below. Coordinates come from
+// the shared molecular layout; this value only controls where a stroke meets
+// that visual node.
+const CONDENSED_NODE_RADIUS = 28;
+const CONDENSED_BOND_NODE_PADDING = 3;
 
 const MIN_EXPORT_PIXELS = 200;
 const MAX_EXPORT_PIXELS = 8000;
@@ -3475,20 +3481,41 @@ const ALKYL_TEMPLATES: AlkylTemplate[] = [
   },
 ];
 
-function getDisplayPosition(atom: CarbonAtom, viewMode: ViewMode, preserveGeometry = false) {
-  // Open skeletal chains are laid out from graph connectivity by
-  // buildOpenChainSkeletalPositions(). This direct projection is retained for
-  // condensed mode and ring structures, whose imported geometry is preserved.
-  void viewMode;
-  void preserveGeometry;
-  return { x: atom.x * 130, y: atom.y * 106 };
-}
-
 export function canvasCoordinateScaleForCarbonCount(carbonCount: number) {
   if (carbonCount <= 10) return 1;
   if (carbonCount <= 20) return 0.78;
   if (carbonCount <= 50) return 0.5;
   return 0.36;
+}
+
+type BondSegment = {
+  x: number;
+  y: number;
+  x2: number;
+  y2: number;
+  role: string | null;
+};
+
+function clipCondensedBondSegments(
+  segments: readonly BondSegment[],
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  const clearance = CONDENSED_NODE_RADIUS + CONDENSED_BOND_NODE_PADDING;
+  if (length < clearance * 2 + 1e-6) return segments;
+
+  const ux = dx / length;
+  const uy = dy / length;
+  return segments.map((segment) => ({
+    ...segment,
+    x: segment.x + ux * clearance,
+    y: segment.y + uy * clearance,
+    x2: segment.x2 - ux * clearance,
+    y2: segment.y2 - uy * clearance,
+  }));
 }
 
 function ringIconPoints(size: number) {
@@ -6823,11 +6850,9 @@ export default function Home() {
   ]);
 
   const carbonCount = molecule.atoms.filter(isCarbonAtom).length;
-  const rawDisplayPositions = viewMode === "skeletal" && !molecule.rings?.length
-    ? buildOpenChainSkeletalPositions(molecule, analysis.mainChain)
-    : new Map(
-        molecule.atoms.map((atom) => [atom.id, getDisplayPosition(atom, viewMode, Boolean(molecule.rings?.length))]),
-      );
+  // Both visual representations consume this exact same molecular layout.
+  // Switching views changes only the drawing treatment, never atom geometry.
+  const rawDisplayPositions = calculateMolecule2DLayout(molecule, analysis.mainChain);
   const coordinateScale = canvasCoordinateScaleForCarbonCount(carbonCount);
   const displayPositions = new Map(
     [...rawDisplayPositions].map(([atomId, point]) => [atomId, {
@@ -8259,13 +8284,14 @@ export default function Home() {
                     )
                   : null;
                 const offsets = order === 1 ? [0] : order === 2 ? [-5, 5] : [-8, 0, 8];
-                const rawBondSegments = ringDoubleBondSegments ?? offsets.map((offset) => ({
+                const parallelBondSegments = offsets.map((offset) => ({
                   x: positionA.x + normalX * offset,
                   y: positionA.y + normalY * offset,
                   x2: positionB.x + normalX * offset,
                   y2: positionB.y + normalY * offset,
                   role: null,
                 }));
+                const rawBondSegments = ringDoubleBondSegments ?? parallelBondSegments;
                 const startNumberObstacle = effectiveShowNumbering
                   && carbonCount > 1
                   && isCarbonAtom(atomA)
@@ -8306,21 +8332,23 @@ export default function Home() {
                   startObstacle: startNumberObstacle ?? startHeteroObstacle,
                   endObstacle: endNumberObstacle ?? endHeteroObstacle,
                 };
-                const visibleBondSegments = viewMode === "skeletal" && order > 1
-                  ? ringDoubleBondSegments
-                    ? clipSkeletalRingDoubleBondSegments(
-                        ringDoubleBondSegments,
-                        positionA,
-                        positionB,
-                        bondClipOptions,
-                      )
-                    : clipSkeletalParallelBondSegments(
-                        rawBondSegments,
-                        positionA,
-                        positionB,
-                        bondClipOptions,
-                      )
-                  : rawBondSegments;
+                const visibleBondSegments = viewMode === "skeletal"
+                  ? order > 1
+                    ? ringDoubleBondSegments
+                      ? clipSkeletalRingDoubleBondSegments(
+                          ringDoubleBondSegments,
+                          positionA,
+                          positionB,
+                          bondClipOptions,
+                        )
+                      : clipSkeletalParallelBondSegments(
+                          parallelBondSegments,
+                          positionA,
+                          positionB,
+                          bondClipOptions,
+                        )
+                    : rawBondSegments
+                  : clipCondensedBondSegments(rawBondSegments, positionA, positionB);
                 const lockedBond = isFunctionalBond
                   || containingRing?.kind === "aromatic"
                   || Boolean(molecule.rings?.length && !containingRing);
@@ -8541,7 +8569,7 @@ export default function Home() {
                     ) : (
                       <>
                         {isSelected && <circle className="selection-ring" r="39" />}
-                        <circle className="atom-circle" r="28" />
+                        <circle className="atom-circle" r={CONDENSED_NODE_RADIUS} />
                         <text className="atom-label" textAnchor="middle" dominantBaseline="central">
                           <tspan>{atomLabel}</tspan>
                           {hydrogenSubscript && (
