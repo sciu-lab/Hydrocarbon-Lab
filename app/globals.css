@@ -7682,3 +7682,51 @@ html[data-theme="dark"] .isomers-grid span {
     margin-top: 126px;
   }
 }
+
+/* Construction feedback stays local to the molecule canvas. */
+.molecule-stage.is-placing,
+.molecule-stage.is-placing .carbon-node { cursor: crosshair; }
+.molecule-stage.is-placing .carbon-node[data-placement-valid="false"] { cursor: not-allowed; }
+.construction-tool-badge {
+  position: absolute;
+  z-index: 12;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.builder-click-ripple {
+  position: absolute;
+  z-index: 11;
+  width: 12px;
+  height: 12px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: #648b8a;
+  pointer-events: none;
+  animation: builder-click 250ms ease-out forwards;
+}
+@keyframes builder-click {
+  from { transform: translate(-50%, -50%) scale(.5); opacity: .55; }
+  to { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
+}
+.ring-quick-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.ring-quick-options button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.ring-quick-options button:focus-visible { outline: 2px solid #648b8a; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .builder-click-ripple { animation-duration: 1ms; visibility: hidden; }
+}

@@ -5,6 +5,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -4671,6 +4672,18 @@ export default function Home() {
   const [showReasoningHelp, setShowReasoningHelp] = useState(true);
   const [showAlkylPalette, setShowAlkylPalette] = useState(false);
   const [showRingPalette, setShowRingPalette] = useState(false);
+  const [placementTool, setPlacementTool] = useState<
+    { kind: "ring"; template: RingTemplate; mode: RingInsertMode }
+    | { kind: "alkyl"; template: AlkylTemplate }
+    | null
+  >(null);
+  const [toolPointer, setToolPointer] = useState<{ x: number; y: number } | null>(null);
+  const [clickRipples, setClickRipples] = useState<{ id: number; x: number; y: number }[]>([]);
+  const rippleSequence = useRef(0);
+  const lastToolPointer = useRef<{ x: number; y: number } | null>(null);
+  const focusRingPicker = useCallback((element: HTMLDivElement | null) => {
+    element?.querySelector<HTMLButtonElement>(".ring-quick-options button")?.focus();
+  }, []);
   const [showFunctionalPalette, setShowFunctionalPalette] = useState(false);
   const [ringInsertMode, setRingInsertMode] = useState<RingInsertMode>("replace");
   const [commonAlkylNameSelections, setCommonAlkylNameSelections] = useState<string[]>([]);
@@ -5361,6 +5374,7 @@ export default function Home() {
       );
       return false;
     }
+    setPlacementTool(null);
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
     setFuture([]);
     setMolecule(next);
@@ -5679,7 +5693,7 @@ export default function Home() {
     setSelectedId(nextId);
   };
 
-  const cycleBondOrder = (a: number, b: number) => {
+  const cycleBondOrder = (a: number, b: number, requestedOrder?: BondOrder) => {
     const atomA = getAtom(a, molecule);
     const atomB = getAtom(b, molecule);
     if ((atomA && !isCarbonAtom(atomA)) || (atomB && !isCarbonAtom(atomB))) {
@@ -5707,7 +5721,7 @@ export default function Home() {
     if (bondIndex < 0) return;
 
     const currentOrder = getBondOrder(molecule.bonds[bondIndex]);
-    if (currentOrder === 2 && !containingRing) {
+    if (requestedOrder === undefined && currentOrder === 2 && !containingRing) {
       const ezToggleAvailable = isDoubleBondEZToggleAvailable(molecule, a, b);
       if (ezToggleAvailable && !canToggleBondStereochemistry(stereochemistryEnabled, ezToggleAvailable)) {
         setNotice("Activa Estereoquímica para alternar la configuración E/Z de este doble enlace.");
@@ -5733,7 +5747,8 @@ export default function Home() {
       }
     }
 
-    const nextOrder = (currentOrder === 3 ? 1 : currentOrder + 1) as BondOrder;
+    const nextOrder = requestedOrder ?? (currentOrder === 3 ? 1 : currentOrder + 1) as BondOrder;
+    if (nextOrder === currentOrder) return;
     const extraValence = nextOrder - currentOrder;
     const violation = extraValence > 0
       ? findBondValenceViolation(molecule, a, b, nextOrder, currentOrder)
@@ -5752,8 +5767,10 @@ export default function Home() {
     );
   };
 
-  const addAlkylGroup = (template: AlkylTemplate) => {
-    if (!hasActiveSelection || !isCarbonAtom(selectedAtom)) {
+  const addAlkylGroup = (template: AlkylTemplate, anchorId = selectedId) => {
+    const selectedAtom = molecule.atoms.find((atom) => atom.id === anchorId);
+    const hasActiveSelection = Boolean(selectedAtom);
+    if (!hasActiveSelection || !selectedAtom || !isCarbonAtom(selectedAtom)) {
       setNotice("Selecciona un carbono para añadir un grupo alquilo.");
       return;
     }
@@ -5820,7 +5837,8 @@ export default function Home() {
       bonds: [...molecule.bonds, ...addedBonds],
     };
 
-    commit(next, `${template.label} añadido. La cadena principal y el nombre se recalcularon.`);
+    if (!commit(next, `${template.label} añadido. La cadena principal y el nombre se recalcularon.`)) return;
+    setPlacementTool(null);
     previousSelectedId.current = selectedAtom.id;
     setSelectedId(idMap[0]);
   };
@@ -6037,6 +6055,7 @@ export default function Home() {
   };
 
   const undo = () => {
+    setPlacementTool(null);
     const previous = undoStack.at(-1);
     if (!previous) return;
     setFuture((items) => [cloneMolecule(molecule), ...items]);
@@ -6049,6 +6068,7 @@ export default function Home() {
   };
 
   const redo = () => {
+    setPlacementTool(null);
     const next = future[0];
     if (!next) return;
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
@@ -6670,9 +6690,10 @@ export default function Home() {
     setShowFunctionalPalette(false);
   };
 
-  const loadRingTemplate = (template: RingTemplate) => {
-    if (ringInsertMode === "attach") {
-      if (!hasActiveSelection || !isCarbonAtom(selectedAtom)) {
+  const loadRingTemplate = (template: RingTemplate, mode = ringInsertMode, anchorId = selectedId) => {
+    const selectedAtom = molecule.atoms.find((atom) => atom.id === anchorId);
+    if (mode === "attach") {
+      if (!selectedAtom || !isCarbonAtom(selectedAtom)) {
         setNotice("Selecciona un carbono antes de unir un anillo.");
         return;
       }
@@ -6694,7 +6715,7 @@ export default function Home() {
       );
       if (!attached) {
         setNotice(
-          selectedValence >= 4
+          getValenceUsed(selectedAtom.id, molecule) >= 4
             ? "Ese carbono ya tiene valencia 4. Selecciona otro carbono antes de unir el anillo."
             : "No hay espacio suficiente alrededor del carbono seleccionado para colocar ese anillo.",
         );
@@ -6706,6 +6727,7 @@ export default function Home() {
         `${template.label} unido mediante un enlace simple. La estructura ahora contiene ${ringCount} anillos.`,
       );
       if (!committed) return;
+      setPlacementTool(null);
       previousSelectedId.current = selectedAtom.id;
       setSelectedId(attached.attachmentId);
       setShowRingPalette(false);
@@ -6718,6 +6740,7 @@ export default function Home() {
       cloneMolecule(template.molecule),
       `${template.label} cargado. Selecciona un carbono y vuelve a Anillos para unir otro.`,
     );
+    setPlacementTool(null);
     setSelectedId(template.molecule.rings?.[0].atomIds[0] ?? template.molecule.atoms[0].id);
     setRingInsertMode("attach");
     setShowRingPalette(false);
@@ -6756,10 +6779,18 @@ export default function Home() {
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const isEditable = Boolean(target?.matches("input, textarea, select") || target?.isContentEditable);
+      const isEditable = Boolean(target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='textbox'], [role='searchbox']") || target?.isContentEditable);
+      if (event.defaultPrevented || event.isComposing || event.key === "Process" || event.repeat) return;
+      if (isEditable) return;
 
       if (event.key === "Escape") {
-        if (pngExportOpen) {
+        if (placementTool || showRingPalette || showAlkylPalette || showFunctionalPalette) {
+          event.preventDefault();
+          setPlacementTool(null);
+          setShowRingPalette(false);
+          setShowAlkylPalette(false);
+          setShowFunctionalPalette(false);
+        } else if (pngExportOpen) {
           event.preventDefault();
           setPngExportOpen(false);
         } else if (canvasExpanded) {
@@ -6778,11 +6809,53 @@ export default function Home() {
 
       if (isEditable) return;
 
-      const commandPressed = (event.ctrlKey || event.metaKey) && !event.altKey;
+      if (event.altKey || historyOpen || settingsOpen || pngExportOpen) return;
+      const commandPressed = event.ctrlKey || event.metaKey;
       if (!commandPressed) {
-        if (event.key === "Delete" && selectedId !== null) {
+        if (event.shiftKey) return;
+        const key = event.key.toLowerCase();
+        if (event.key === "Delete" || event.key === "Backspace") {
           event.preventDefault();
-          removeSelectedWithKeyboard();
+          if (selectedId !== null && !target?.closest("[data-bond-a]")) removeSelectedWithKeyboard();
+        } else if (key === "r") {
+          event.preventDefault();
+          setPlacementTool(null);
+          setShowRingPalette(!showRingPalette);
+          setShowAlkylPalette(false);
+          setShowFunctionalPalette(false);
+          setRingInsertMode(molecule.rings?.length ? "attach" : "replace");
+        } else if (key === "b") {
+          event.preventDefault();
+          setShowRingPalette(false);
+          setShowAlkylPalette(false);
+          setShowFunctionalPalette(false);
+          setToolPointer(lastToolPointer.current);
+          setPlacementTool({ kind: "ring", template: AROMATIC_TEMPLATES[0], mode: molecule.rings?.length ? "attach" : "replace" });
+        } else if (showRingPalette && /^[3-8]$/.test(key)) {
+          event.preventDefault();
+          const template = CYCLE_TEMPLATES.find((item) => item.size === Number(key));
+          if (template) loadRingTemplate(template);
+        } else if (!placementTool && /^[1-3]$/.test(key) && target?.closest("[data-bond-a]")) {
+          const bond = target.closest<SVGGElement>("[data-bond-a]");
+          if (bond) {
+            event.preventDefault();
+            cycleBondOrder(Number(bond.dataset.bondA), Number(bond.dataset.bondB), Number(key) as BondOrder);
+          }
+        } else if (key === "m" || key === "e" || key === "p") {
+          event.preventDefault();
+          const id = key === "m" ? "methyl" : key === "e" ? "ethyl" : "propyl";
+          const template = ALKYL_TEMPLATES.find((item) => item.id === id);
+          setShowRingPalette(false);
+          setShowAlkylPalette(false);
+          setShowFunctionalPalette(false);
+          setPlacementTool(null);
+          if (template) {
+            if (selectedId !== null) addAlkylGroup(template);
+            else {
+              setToolPointer(lastToolPointer.current);
+              setPlacementTool({ kind: "alkyl", template });
+            }
+          }
         }
         return;
       }
@@ -6794,9 +6867,6 @@ export default function Home() {
       } else if (key === "y") {
         event.preventDefault();
         redo();
-      } else if (key === "r") {
-        event.preventDefault();
-        redrawMolecule();
       } else if (key === "s") {
         event.preventDefault();
         if (event.shiftKey) void exportCurrentSmiles();
@@ -6838,7 +6908,8 @@ export default function Home() {
     removeSelectedWithKeyboard,
     undo,
     redo,
-    redrawMolecule,
+    placementTool, showRingPalette, showAlkylPalette, showFunctionalPalette,
+    molecule, loadRingTemplate, addAlkylGroup, cycleBondOrder,
     exportCurrentSmiles,
     saveCurrentStructure,
     newMolecule,
@@ -6976,7 +7047,10 @@ export default function Home() {
         simplifiedModeEnabled && "a11y-simplified-mode",
         highlightInteractivesEnabled && "a11y-highlight-interactives",
       ].filter(Boolean).join(" ")}
-      onPointerDownCapture={dismissValenceAlert}
+      onPointerDownCapture={(event) => {
+        dismissValenceAlert();
+        if (!(event.target as Element).closest("#ring-palette, .ring-button")) setShowRingPalette(false);
+      }}
     >
       <header className="site-header">
         <div className="brand-mark">
@@ -7489,10 +7563,12 @@ export default function Home() {
 
             <section className="settings-section settings-shortcuts" aria-labelledby="settings-shortcuts-title">
               <h3 id="settings-shortcuts-title">{t("Atajos de teclado")}</h3>
-              {[
+              {([
                 [["Ctrl", "Z"], "Deshacer"],
                 [["Ctrl", "Y"], "Rehacer"],
-                [["Ctrl", "R"], "Redibujar"],
+                [["B"], "Benzene"],
+                [["R"], "Ring"],
+                [["M / E / P"], "Methyl / Ethyl / Propyl"],
                 [["Ctrl", "S"], "Guardar"],
                 [["Ctrl", "Shift", "S"], "Exportar"],
                 [["Ctrl", "I"], "Importar"],
@@ -7503,7 +7579,7 @@ export default function Home() {
                 [["Ctrl", "2"], "SMILES"],
                 [["Ctrl", "3"], "Semides."],
                 [["Ctrl", "4"], "Esquelética"],
-              ].map(([keys, label]) => (
+              ] satisfies [string[], string][]).map(([keys, label]) => (
                 <div className="settings-shortcut" key={`${keys.join("-")}-${label}`}>
                   <span className="shortcut-keys">
                     {keys.map((key, index) => (
@@ -8188,13 +8264,35 @@ export default function Home() {
           )}
 
           <div
-            className={`molecule-stage ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasExpanded ? "is-expanded" : ""} ${canvasScaleClass}`}
+            className={`molecule-stage ${placementTool ? "is-placing" : ""} ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasExpanded ? "is-expanded" : ""} ${canvasScaleClass}`}
             style={structureColorStyle}
             tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
             role={advancedScreenReaderEnabled ? "group" : undefined}
             aria-label={advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
+            onPointerMove={(event) => {
+              if (event.pointerType === "touch") return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              lastToolPointer.current = { x: Math.max(8, Math.min(event.clientX - bounds.left + 18, bounds.width - 155)), y: Math.max(8, Math.min(event.clientY - bounds.top + 20, bounds.height - 36)) };
+              if (placementTool) setToolPointer(lastToolPointer.current);
+            }}
+            onPointerLeave={() => { lastToolPointer.current = null; setToolPointer(null); }}
+            onPointerDownCapture={(event) => {
+              if (event.button !== 0) return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              const id = ++rippleSequence.current;
+              setClickRipples((items) => [...items.slice(-5), { id, x: event.clientX - bounds.left, y: event.clientY - bounds.top }]);
+            }}
+            onClick={(event) => {
+              if (placementTool?.kind === "ring" && placementTool.mode === "replace" && !(event.target as Element).closest("button")) {
+                loadRingTemplate(placementTool.template, "replace");
+              }
+            }}
             onPointerDown={(event) => event.currentTarget.focus({ preventScroll: true })}
           >
+            {placementTool && toolPointer && <span className="construction-tool-badge" style={{ left: toolPointer.x, top: toolPointer.y }}>
+              {placementTool.kind === "alkyl" ? ({ methyl: "Methyl", ethyl: "Ethyl", propyl: "Propyl" }[placementTool.template.id] ?? "Alkyl") : placementTool.template.id === "benzene" ? "Benzene" : `${placementTool.template.size}-membered ring`}
+            </span>}
+            {clickRipples.map((ripple) => <span key={ripple.id} className="builder-click-ripple" style={{ left: ripple.x, top: ripple.y }} onAnimationEnd={() => setClickRipples((items) => items.filter((item) => item.id !== ripple.id))} />)}
             <div className="canvas-toolbar-left" role="group" aria-label={t("Acciones del canvas")}>
               <button
                 type="button"
@@ -8220,10 +8318,12 @@ export default function Home() {
               <button
                 type="button"
                 className="canvas-deselect-button"
-                disabled={selectedId === null}
+                disabled={selectedId === null && !placementTool}
+                title="Cancel tool / clear selection — Shortcut: Esc"
                 aria-label={t("Quitar la selección del canvas")}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={() => {
+                  setPlacementTool(null);
                   previousSelectedId.current = selectedId;
                   setSelectedId(null);
                   setNotice("Selección retirada. La molécula no cambió.");
@@ -8378,16 +8478,23 @@ export default function Home() {
                   <g
                     key={`${a}-${b}`}
                     className={`bond-control bond-order-${order} ${lockedBond ? "locked-bond" : ""} ${stereoInteractionEnabled ? "stereo-bond-control" : ""}`}
-                    onClick={() => cycleBondOrder(a, b)}
+                    data-bond-a={a}
+                    data-bond-b={b}
+                    onClick={(event) => {
+                      if (!placementTool) {
+                        event.currentTarget.focus({ preventScroll: true });
+                        cycleBondOrder(a, b);
+                      }
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         cycleBondOrder(a, b);
                       }
                     }}
-                    role={advancedScreenReaderEnabled ? "button" : undefined}
-                    tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
-                    aria-label={advancedScreenReaderEnabled ? (lockedBond
+                    role="button"
+                    tabIndex={0}
+                    aria-label={(lockedBond
                       ? language === "en"
                         ? `${t(getBondOrderLabel(order))} bond locked to preserve ${isFunctionalBond ? "the functional group" : "the ring structure"}`
                         : `Enlace ${getBondOrderLabel(order)} fijado para conservar ${isFunctionalBond ? "el grupo funcional" : "la estructura cíclica"}`
@@ -8399,8 +8506,9 @@ export default function Home() {
                           ? t("Activa Estereoquímica para alternar la configuración E/Z de este doble enlace")
                         : language === "en"
                           ? `${t(getBondOrderLabel(order))} bond. Activate to change to ${t(getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder))}`
-                          : `Enlace ${getBondOrderLabel(order)}. Activar para cambiar a ${getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder)}`) : undefined}
+                          : `Enlace ${getBondOrderLabel(order)}. Activar para cambiar a ${getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder)}`)}
                   >
+                    <title>Click to edit bond. Shortcuts: 1 single, 2 double, 3 triple while focused.</title>
                     <line
                       className="bond-hit-target"
                       x1={positionA.x}
@@ -8466,7 +8574,14 @@ export default function Home() {
                     key={atom.id}
                     className={`carbon-node ${carbonAtom ? "carbon-element" : `hetero-node element-${element.toLowerCase()}`} ${viewMode === "skeletal" ? (carbonAtom ? "skeletal-node" : "skeletal-hetero-node") : "condensed-node"} ${isSelected ? "selected" : ""} ${mainChainSet.has(atom.id) ? "on-main-chain" : "on-branch"}`}
                     transform={`translate(${position.x} ${position.y})`}
-                    onClick={() => {
+                    data-placement-valid={placementTool?.kind === "ring" && placementTool.mode === "replace" || carbonAtom && getValenceUsed(atom.id, molecule) < 4}
+                    onClick={(event) => {
+                      if (placementTool) {
+                        event.stopPropagation();
+                        if (placementTool.kind === "alkyl") addAlkylGroup(placementTool.template, atom.id);
+                        else loadRingTemplate(placementTool.template, placementTool.mode, atom.id);
+                        return;
+                      }
                       previousSelectedId.current = selectedId;
                       setSelectedId(atom.id);
                       setNotice(`${elementNames[element][0].toUpperCase()}${elementNames[element].slice(1)} ${chainNumber ?? "del grupo funcional"} seleccionado.`);
@@ -8644,7 +8759,7 @@ export default function Home() {
             </div>
           )}
 
-          <div className="builder-toolbar">
+          <div className="builder-toolbar" onClickCapture={() => setPlacementTool(null)}>
             <div className="selection-summary">
               {hasActiveSelection ? (
                 <>
@@ -8733,6 +8848,7 @@ export default function Home() {
                   }
                 }}
                 aria-expanded={showRingPalette}
+                title="Add ring — Shortcut: R"
                 aria-controls="ring-palette"
               >
                 <span aria-hidden="true">⬡</span>
@@ -8762,7 +8878,7 @@ export default function Home() {
           </div>
 
           {showAlkylPalette && (
-            <div className="alkyl-palette" id="alkyl-palette">
+            <div className="alkyl-palette" id="alkyl-palette" onClickCapture={() => setPlacementTool(null)}>
               <div className="alkyl-palette-heading">
                 <div>
                   <strong>{t("Añadir al carbono seleccionado")}</strong>
@@ -8777,7 +8893,7 @@ export default function Home() {
                     className="alkyl-option"
                     onClick={() => addAlkylGroup(template)}
                     disabled={!hasActiveSelection}
-                    title={language === "en" ? `Add ${localizedCommonAlkylName(template.label).toLowerCase()}: ${localizedIupac(template.systematic)}` : `Añadir ${template.label.toLowerCase()}: ${template.systematic}`}
+                    title={`Add ${localizedCommonAlkylName(template.label)}${({ methyl: " — Shortcut: M", ethyl: " — Shortcut: E", propyl: " — Shortcut: P" }[template.id] ?? "")}`}
                   >
                     <span className="alkyl-formula">{template.formula}</span>
                     <span className="alkyl-copy">
@@ -8792,7 +8908,11 @@ export default function Home() {
           )}
 
           {showRingPalette && (
-            <div className="alkyl-palette ring-palette" id="ring-palette">
+            <div className="alkyl-palette ring-palette" id="ring-palette" ref={focusRingPicker}>
+              <div className="ring-quick-options" role="group" aria-label="Ring quick picker">
+                {CYCLE_TEMPLATES.map((template) => <button key={template.id} onClick={() => loadRingTemplate(template)} title={`Add ${template.size}-membered ring — Shortcut: ${template.size}`}>{template.size}</button>)}
+                <button onClick={() => loadRingTemplate(AROMATIC_TEMPLATES[0])} title="Add benzene — Shortcut: B">Benzene</button>
+              </div>
               <div className="alkyl-palette-heading">
                 <div>
                   <strong>{t("Biblioteca de anillos")}</strong>
@@ -8969,7 +9089,7 @@ export default function Home() {
           )}
 
           {showFunctionalPalette && (
-            <div className="alkyl-palette functional-palette" id="functional-palette">
+            <div className="alkyl-palette functional-palette" id="functional-palette" onClickCapture={() => setPlacementTool(null)}>
               <div className="alkyl-palette-heading">
                 <div>
                   <strong>{t("Biblioteca de grupos funcionales")}</strong>
