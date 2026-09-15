@@ -147,6 +147,7 @@ const MAX_EXPORT_PIXELS = 8000;
 const compoundContextResolver = createCompoundContextResolver();
 const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
 const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v2";
+const KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY = "hydrocarbonLab.keepIupacNameVisible.v1";
 
 type MovablePanelId = "structure-panel" | "analysis-panel";
 type PanelPosition = { x: number; y: number };
@@ -4559,35 +4560,51 @@ function MoleculeHistoryPreview({
   molecule,
   width: previewWidth = 120,
   height: previewHeight = 64,
+  ariaLabel,
 }: {
   molecule: Molecule;
   width?: number;
   height?: number;
+  ariaLabel?: string;
 }) {
-  const minX = Math.min(...molecule.atoms.map((atom) => atom.x));
-  const maxX = Math.max(...molecule.atoms.map((atom) => atom.x));
-  const minY = Math.min(...molecule.atoms.map((atom) => atom.y));
-  const maxY = Math.max(...molecule.atoms.map((atom) => atom.y));
-  const width = Math.max(maxX - minX, 1);
-  const height = Math.max(maxY - minY, 1);
-  const scale = Math.min((previewWidth - 26) / width, (previewHeight - 16) / height, 25);
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  const positions = new Map(
-    molecule.atoms.map((atom) => [
-      atom.id,
-      {
-        x: previewWidth / 2 + (atom.x - centerX) * scale,
-        y: previewHeight / 2 + (atom.y - centerY) * scale,
-      },
-    ]),
-  );
+  const positions = useMemo(() => {
+    // This is the same display-coordinate source used by the main skeletal
+    // canvas. It only produces a compact, non-interactive SVG projection.
+    const displayPositions = calculateMolecule2DLayout(
+      molecule,
+      analyzeMolecule(molecule).mainChain,
+    );
+    const points = molecule.atoms.map((atom) => displayPositions.get(atom.id) ?? atom);
+    const minX = Math.min(...points.map((point) => point.x));
+    const maxX = Math.max(...points.map((point) => point.x));
+    const minY = Math.min(...points.map((point) => point.y));
+    const maxY = Math.max(...points.map((point) => point.y));
+    const width = Math.max(maxX - minX, 1);
+    const height = Math.max(maxY - minY, 1);
+    const scale = Math.min((previewWidth - 26) / width, (previewHeight - 16) / height, 25);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    return new Map(
+      molecule.atoms.map((atom) => {
+        const point = displayPositions.get(atom.id) ?? atom;
+        return [
+          atom.id,
+          {
+            x: previewWidth / 2 + (point.x - centerX) * scale,
+            y: previewHeight / 2 + (point.y - centerY) * scale,
+          },
+        ];
+      }),
+    );
+  }, [molecule, previewHeight, previewWidth]);
 
   return (
     <svg
       className="history-molecule-preview"
       viewBox={`0 0 ${previewWidth} ${previewHeight}`}
-      aria-hidden="true"
+      role={ariaLabel ? "img" : undefined}
+      aria-label={ariaLabel}
+      aria-hidden={ariaLabel ? undefined : true}
     >
       {molecule.bonds.flatMap((bond) => {
         const start = positions.get(bond[0]);
@@ -4831,13 +4848,17 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [showIupacName, setShowIupacName] = useState(true);
+  const [keepIupacNameVisible, setKeepIupacNameVisible] = useState(true);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const [draggingPanelId, setDraggingPanelId] = useState<MovablePanelId | null>(null);
   const [raisedPanelId, setRaisedPanelId] = useState<MovablePanelId | null>(null);
   const [panelDraggingEnabled, setPanelDraggingEnabled] = useState(false);
   const [panelDragPreferenceReady, setPanelDragPreferenceReady] = useState(false);
+  const [keepIupacNameVisiblePreferenceReady, setKeepIupacNameVisiblePreferenceReady] = useState(false);
+  const [isNameResultVisible, setIsNameResultVisible] = useState(true);
   const panelPositionsRef = useRef<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const activePanelDragRef = useRef<ActivePanelDrag | null>(null);
+  const nameResultRef = useRef<HTMLDivElement | null>(null);
   const [compoundContext, setCompoundContext] = useState<CompoundContext | null>(null);
   const [compoundContextLoadingKey, setCompoundContextLoadingKey] = useState("");
   const [externalInfoSource, setExternalInfoSource] = useState<"wikipedia" | "pubchem">("wikipedia");
@@ -5024,6 +5045,16 @@ export default function Home() {
     ? compoundContext
     : null;
   const compoundContextLoading = compoundContextLoadingKey === compoundContextKey;
+  const formulaIsomerMolecules = useMemo(() => {
+    const molecules = new Map<string, Molecule>();
+    if (!formulaResult?.ok) return molecules;
+    formulaResult.isomers.forEach((isomer) => {
+      const converted = moleculeFromSmiles(isomer.smiles);
+      if (converted.ok) molecules.set(isomer.id, converted.molecule);
+    });
+    return molecules;
+  }, [formulaResult]);
+  const showStickyIupacName = keepIupacNameVisible && showIupacName && !isNameResultVisible;
 
   useEffect(() => {
     compoundLookupNamesRef.current = [canonicalIupacName];
@@ -5060,6 +5091,42 @@ export default function Home() {
       // The preference remains usable for the current session without storage.
     }
   }, [panelDragPreferenceReady, panelDraggingEnabled]);
+
+  useEffect(() => {
+    let enabled = true;
+    try {
+      enabled = window.localStorage.getItem(KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY) !== "off";
+    } catch {
+      // The default remains on when browser storage is unavailable.
+    }
+    const restore = window.setTimeout(() => {
+      setKeepIupacNameVisible(enabled);
+      setKeepIupacNameVisiblePreferenceReady(true);
+    }, 0);
+    return () => window.clearTimeout(restore);
+  }, []);
+
+  useEffect(() => {
+    if (!keepIupacNameVisiblePreferenceReady) return;
+    try {
+      window.localStorage.setItem(
+        KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY,
+        keepIupacNameVisible ? "on" : "off",
+      );
+    } catch {
+      // The preference remains usable for the current session without storage.
+    }
+  }, [keepIupacNameVisible, keepIupacNameVisiblePreferenceReady]);
+
+  useEffect(() => {
+    const nameResult = nameResultRef.current;
+    if (!nameResult || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsNameResultVisible(entry.isIntersecting);
+    }, { threshold: 0.01 });
+    observer.observe(nameResult);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!showIupacName || !compoundContextKey || !compoundIdentity) return undefined;
@@ -7681,6 +7748,18 @@ export default function Home() {
                 />
                 <i aria-hidden="true" />
               </label>
+              <label className="settings-toggle settings-toggle-with-description">
+                <span>
+                  <strong>{t("Mantener nombre IUPAC visible al desplazarse")}</strong>
+                  <small>{t("Muestra una versión compacta del nombre IUPAC mientras trabajas más abajo en el canvas.")}</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={keepIupacNameVisible}
+                  onChange={(event) => setKeepIupacNameVisible(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
               <label className="settings-toggle">
                 <span>{t("Mover paneles libremente")}</span>
                 <input
@@ -8415,6 +8494,8 @@ export default function Home() {
                   <div className="isomers-grid">
                     {formulaResult.isomers.map((isomer) => {
                       const isSelected = selectedFormulaIsomer === isomer.id;
+                      const isomerName = language === "en" ? isomer.nameEn : isomer.nameEs;
+                      const previewMolecule = formulaIsomerMolecules.get(isomer.id);
                       return (
                         <button
                           type="button"
@@ -8427,9 +8508,17 @@ export default function Home() {
                             <span className="isomer-type">{language === "en" ? isomer.familyEn : isomer.familyEs}</span>
                             {isSelected && <span className="isomer-selected-mark" aria-label={t("Seleccionado")}>✓</span>}
                           </span>
-                          <strong>{language === "en" ? isomer.nameEn : isomer.nameEs}</strong>
+                          <strong>{isomerName}</strong>
+                          {previewMolecule && (
+                            <MoleculeHistoryPreview
+                              molecule={previewMolecule}
+                              width={170}
+                              height={78}
+                              ariaLabel={`${t("Estructura de")} ${isomerName}`}
+                            />
+                          )}
                           <small>{formulaResult.formula}</small>
-                          <span className="isomer-load-label">{t("Dibujar en el canvas")} →</span>
+                          <span className="isomer-load-label">{t("Cargar en el canvas")} →</span>
                         </button>
                       );
                     })}
@@ -9475,6 +9564,7 @@ export default function Home() {
           </div>
 
           <div
+            ref={nameResultRef}
             className={`name-result ${showIupacName ? "" : "concealed"}`}
             aria-live={advancedScreenReaderEnabled ? "polite" : undefined}
           >
@@ -9551,6 +9641,15 @@ export default function Home() {
             >
               ⧉
             </button>
+          </div>
+
+          <div
+            className={`sticky-iupac-name ${showStickyIupacName ? "is-visible" : ""}`}
+            aria-hidden={!showStickyIupacName}
+          >
+            <span>IUPAC</span>
+            <strong>{displayedIupacName}</strong>
+            <small><b aria-hidden="true">✓</b> {t("Estructura válida")}</small>
           </div>
 
           {analysis.functionalGroups.length > 0 && (

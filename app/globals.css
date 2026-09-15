@@ -957,6 +957,23 @@ button {
   opacity: 0.48;
 }
 
+.settings-toggle-with-description > span {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-toggle-with-description strong {
+  font: inherit;
+}
+
+.settings-toggle-with-description small {
+  max-width: 29rem;
+  color: #71847e;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .settings-shortcuts {
   padding-bottom: 7px;
 }
@@ -3561,6 +3578,68 @@ button {
   border: 1px solid #bcd8cf;
   border-radius: 14px;
   background: linear-gradient(135deg, #eff9f5, #f9fcfb);
+}
+
+.sticky-iupac-name {
+  position: sticky;
+  top: max(10px, env(safe-area-inset-top));
+  z-index: 12;
+  display: none;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 20px 0;
+  padding: 9px 11px;
+  border: 1px solid #9fcbbd;
+  border-radius: 11px;
+  background: rgba(245, 252, 249, 0.96);
+  box-shadow: 0 7px 18px rgba(35, 82, 70, 0.14);
+  color: #31675a;
+  backdrop-filter: blur(8px);
+  animation: sticky-iupac-enter 180ms ease-out;
+}
+
+.sticky-iupac-name.is-visible {
+  display: flex;
+}
+
+.sticky-iupac-name > span {
+  flex: 0 0 auto;
+  color: #4b7d70;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.sticky-iupac-name strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #155f50;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 14px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-iupac-name small {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  color: #347764;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sticky-iupac-name small b {
+  font-size: 11px;
+}
+
+@keyframes sticky-iupac-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .name-result p {
@@ -7482,8 +7561,8 @@ html[data-theme="dark"] .external-info-link:hover {
 .isomers-grid > button {
   display: grid;
   min-width: 0;
-  min-height: 78px;
-  align-content: center;
+  min-height: 158px;
+  align-content: start;
   gap: 5px;
   padding: 11px;
   border: 1px solid #d0e0e6;
@@ -7507,6 +7586,32 @@ html[data-theme="dark"] .external-info-link:hover {
   overflow-wrap: anywhere;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 12px;
+}
+
+.isomer-card .history-molecule-preview {
+  width: 100%;
+  height: 78px;
+  margin: 2px 0;
+  border-color: #c9dfe5;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle, #d0e0e4 1px, transparent 1px),
+    rgba(247, 252, 253, 0.9);
+  background-size: 11px 11px;
+  transition: transform 150ms ease;
+}
+
+.isomer-card:hover .history-molecule-preview {
+  transform: scale(1.018);
+}
+
+.isomer-card .history-molecule-preview line {
+  stroke: #347a91;
+  stroke-width: 2.55;
+}
+
+.isomer-card .history-molecule-preview .history-carbon {
+  fill: #296d83;
 }
 
 .isomer-card-topline {
@@ -7649,6 +7754,40 @@ html[data-theme="dark"] .isomers-grid span {
   color: #90a7b0;
 }
 
+html[data-theme="dark"] .isomer-card .history-molecule-preview {
+  border-color: #3d5c68;
+  background:
+    radial-gradient(circle, #3a5560 1px, transparent 1px),
+    rgba(18, 34, 40, 0.94);
+  background-size: 11px 11px;
+}
+
+html[data-theme="dark"] .isomer-card .history-molecule-preview line {
+  stroke: #7bbfd6;
+}
+
+html[data-theme="dark"] .isomer-card .history-molecule-preview .history-carbon {
+  fill: #83cbe1;
+}
+
+html[data-theme="dark"] .sticky-iupac-name {
+  border-color: #3d685b;
+  background: rgba(22, 43, 37, 0.96);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.24);
+}
+
+html[data-theme="dark"] .sticky-iupac-name > span {
+  color: #9bcab9;
+}
+
+html[data-theme="dark"] .sticky-iupac-name strong {
+  color: #c1ecdd;
+}
+
+html[data-theme="dark"] .sticky-iupac-name small {
+  color: #8fd2bb;
+}
+
 @media (max-width: 720px) {
   .heading-actions {
     grid-template-areas:
@@ -7708,6 +7847,10 @@ html[data-theme="dark"] .isomers-grid span {
     grid-template-columns: 1fr;
   }
 
+  .isomer-card .history-molecule-preview {
+    height: 82px;
+  }
+
   .canvas-toolbar-left {
     right: 8px;
     flex-wrap: wrap;
@@ -7722,6 +7865,37 @@ html[data-theme="dark"] .isomers-grid span {
   .molecule-stage svg {
     height: calc(100% - 126px);
     margin-top: 126px;
+  }
+}
+
+@media (max-width: 760px) {
+  .sticky-iupac-name {
+    top: max(8px, env(safe-area-inset-top));
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+}
+
+@media (max-width: 460px) {
+  .sticky-iupac-name {
+    gap: 6px;
+    padding: 8px 9px;
+  }
+
+  .sticky-iupac-name strong {
+    font-size: 13px;
+  }
+
+  .sticky-iupac-name small {
+    font-size: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-iupac-name,
+  .isomer-card .history-molecule-preview {
+    animation: none;
+    transition: none;
   }
 }
 
