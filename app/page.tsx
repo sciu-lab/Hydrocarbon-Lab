@@ -2659,9 +2659,9 @@ function makeFunctionalParentName(
   if (kind === "aldehyde") {
     return count > 1
       ? `${hydrocarbonName}${suffixMultiplier(count, "al")}al`
-      : length <= 3 && !doubleLocants.length && !tripleLocants.length
+      : sortedLocants[0] === 1
         ? `${stem}al`
-        : `${stem}-1-al`;
+        : `${stem}-${locantText}-al`;
   }
 
   if (sortedLocants.length > 1) {

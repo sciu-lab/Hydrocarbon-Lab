@@ -132,6 +132,33 @@ test("analyzes common heterocycle parents without reducing them to carbon rings"
   }
 });
 
+test("omite el locante 1 solo del sufijo al de aldehídos acíclicos principales", () => {
+  const cases = [
+    ["C=O", "metanal"],
+    ["CC=O", "etanal"],
+    ["CCC=O", "propanal"],
+    ["CCCC=O", "butanal"],
+    ["CCCCC=O", "pentanal"],
+    ["CC(C)C=O", "2-metilpropanal"],
+    ["CC(C)CC=O", "3-metilbutanal"],
+    ["O=CCC(C)=O", "3-oxobutanal"],
+  ];
+  const forbidden = new Set([
+    "butan-1-al",
+    "pentan-1-al",
+    "3-metilbutan-1-al",
+    "3-oxobutan-1-al",
+  ]);
+
+  for (const [smiles, expectedName] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    const name = analyzeMolecule(converted.molecule).name;
+    assert.equal(name, expectedName, smiles);
+    assert.equal(forbidden.has(name), false, smiles);
+  }
+});
+
 function makeLinearAlkane(length) {
   return {
     atoms: Array.from({ length }, (_, index) => ({ id: index + 1, x: index, y: index % 2 })),
@@ -223,13 +250,13 @@ test("interpreta y nombra los padres oxigenados sin localizador escrito", () => 
     ["metanal", "metanal"],
     ["etanal", "etanal"],
     ["propanal", "propanal"],
-    ["butanal", "butan-1-al"],
-    ["pentanal", "pentan-1-al"],
-    ["hexanal", "hexan-1-al"],
-    ["heptanal", "heptan-1-al"],
-    ["octanal", "octan-1-al"],
-    ["nonanal", "nonan-1-al"],
-    ["decanal", "decan-1-al"],
+    ["butanal", "butanal"],
+    ["pentanal", "pentanal"],
+    ["hexanal", "hexanal"],
+    ["heptanal", "heptanal"],
+    ["octanal", "octanal"],
+    ["nonanal", "nonanal"],
+    ["decanal", "decanal"],
     ["propanona", "propan-2-ona"],
     ["butanona", "butan-2-ona"],
     ["pentanona", "pentan-2-ona"],
