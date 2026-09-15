@@ -96,6 +96,8 @@ const ENGLISH_UI: Record<string, string> = {
   "Constructor por fórmula molecular": "Molecular formula builder",
   "Calcula el IDH y muestra isómeros constitucionales verificables que puedes cargar en el canvas.": "Calculates the DoU and shows verifiable constitutional isomers that you can load onto the canvas.",
   "Ej.: C6H12O o C₄H₁₀O": "E.g., C6H12O or C₄H₁₀O",
+  "Fórmula con formato químico": "Chemically formatted formula",
+  "Vista química:": "Chemical display:",
   "Generar isómeros": "Generate isomers",
   "Ejemplos de fórmulas compatibles": "Examples of supported formulas",
   "Isómeros encontrados": "Isomers found",

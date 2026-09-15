@@ -7271,6 +7271,42 @@ html[data-theme="dark"] .external-info-link:hover {
   gap: 7px;
 }
 
+.formula-builder-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.formula-builder-preview {
+  display: flex;
+  min-height: 20px;
+  align-items: baseline;
+  gap: 7px;
+  padding: 1px 3px;
+  color: #56717c;
+  font-size: 11px;
+}
+
+.formula-builder-preview > span {
+  color: #71858d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.formula-builder-preview strong {
+  color: #203f4d;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.03em;
+}
+
+.formula-builder-preview sub {
+  font-size: 0.7em;
+  line-height: 0;
+}
+
 .formula-builder-input-group input {
   min-width: 0;
   height: 42px;
@@ -7551,8 +7587,14 @@ html[data-theme="dark"] .formula-results-header h3 {
 
 html[data-theme="dark"] .formula-builder-intro small,
 html[data-theme="dark"] .formula-builder-form > label,
-html[data-theme="dark"] .formula-builder-examples > span {
+html[data-theme="dark"] .formula-builder-examples > span,
+html[data-theme="dark"] .formula-builder-preview,
+html[data-theme="dark"] .formula-builder-preview > span {
   color: #8fa5ad;
+}
+
+html[data-theme="dark"] .formula-builder-preview strong {
+  color: #dae9ee;
 }
 
 html[data-theme="dark"] .formula-builder-scope,

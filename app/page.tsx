@@ -355,6 +355,35 @@ const toSubscript = (value: number) =>
 const formatPubChemFormula = (value: string | undefined) =>
   value?.replace(/\d/g, (digit) => subscriptDigits[digit] ?? digit) ?? "";
 
+const subscriptToAsciiDigits: Record<string, string> = Object.fromEntries(
+  Object.entries(subscriptDigits).map(([digit, subscript]) => [subscript, digit]),
+);
+
+/** Keeps the formula model keyboard- and parser-friendly, including pasted subscripts. */
+export const normalizeFormulaBuilderInput = (value: string) =>
+  value.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => subscriptToAsciiDigits[digit] ?? digit);
+
+export type FormulaDisplayToken = { text: string; subscript: boolean };
+
+/**
+ * Marks atom/group quantities for display without putting Unicode subscripts in
+ * the editable formula value. A leading numeric run is a stoichiometric coefficient.
+ */
+export function getFormulaDisplayTokens(value: string): FormulaDisplayToken[] {
+  const formula = normalizeFormulaBuilderInput(value);
+  const tokens: FormulaDisplayToken[] = [];
+  let cursor = 0;
+
+  for (const match of formula.matchAll(/\d+/g)) {
+    const index = match.index ?? 0;
+    if (index > cursor) tokens.push({ text: formula.slice(cursor, index), subscript: false });
+    tokens.push({ text: match[0], subscript: index !== 0 });
+    cursor = index + match[0].length;
+  }
+  if (cursor < formula.length) tokens.push({ text: formula.slice(cursor), subscript: false });
+  return tokens;
+}
+
 const getBondOrder = (bond: Bond): BondOrder => bond[2] ?? 1;
 
 const getBondOrderLabel = (order: BondOrder) =>
@@ -440,6 +469,25 @@ export function findBondValenceViolation(
   if (addedValence <= 0) return null;
   return getAtomValenceViolation(molecule, a, addedValence)
     ?? getAtomValenceViolation(molecule, b, addedValence);
+}
+
+/** Returns the first valence-valid order while walking 1 → 2 → 3 → 1 once. */
+export function findNextValidBondOrder(
+  molecule: Molecule,
+  a: number,
+  b: number,
+  currentOrder: BondOrder,
+  firstCandidate: BondOrder = (currentOrder === 3 ? 1 : currentOrder + 1) as BondOrder,
+): BondOrder {
+  const cycle: BondOrder[] = [1, 2, 3];
+  const start = cycle.indexOf(firstCandidate);
+  for (let offset = 0; offset < cycle.length; offset += 1) {
+    const candidate = cycle[(start + offset) % cycle.length];
+    if (!findBondValenceViolation(molecule, a, b, candidate, currentOrder)) return candidate;
+  }
+  // The current order is necessarily safe in a validated molecule. This fallback
+  // also makes the helper total for malformed imported structures.
+  return currentOrder;
 }
 
 export function findMoleculeValenceViolation(molecule: Molecule): ValenceViolation | null {
@@ -4712,6 +4760,9 @@ export default function Home() {
   const lastPersistedSignature = useRef("");
   const previousSelectedId = useRef<number | null>(null);
   const valenceAlertTimer = useRef<number | null>(null);
+  // After rejecting an order, the next activation continues from the next valid
+  // state instead of repeatedly trying the same impossible transition.
+  const skippedBondOrder = useRef(new Map<string, BondOrder>());
   const nomenclatureHintTimer = useRef<number | null>(null);
   const moleculeSvgRef = useRef<SVGSVGElement | null>(null);
   const compoundLookupNamesRef = useRef<string[]>([]);
@@ -5349,7 +5400,7 @@ export default function Home() {
     setValenceAlert(null);
   };
 
-  const showValenceError = (message: string) => {
+  const showValenceError = (message: string, duration = 3600) => {
     if (valenceAlertTimer.current !== null) {
       window.clearTimeout(valenceAlertTimer.current);
     }
@@ -5357,7 +5408,7 @@ export default function Home() {
     valenceAlertTimer.current = window.setTimeout(() => {
       setValenceAlert(null);
       valenceAlertTimer.current = null;
-    }, 3600);
+    }, duration);
   };
 
   useEffect(() => () => {
@@ -5747,16 +5798,33 @@ export default function Home() {
       }
     }
 
-    const nextOrder = requestedOrder ?? (currentOrder === 3 ? 1 : currentOrder + 1) as BondOrder;
-    if (nextOrder === currentOrder) return;
+    const key = bondKey(a, b);
+    const nextOrder = requestedOrder
+      ?? skippedBondOrder.current.get(key)
+      ?? (currentOrder === 3 ? 1 : currentOrder + 1) as BondOrder;
+    if (nextOrder === currentOrder) {
+      skippedBondOrder.current.delete(key);
+      return;
+    }
     const extraValence = nextOrder - currentOrder;
     const violation = extraValence > 0
       ? findBondValenceViolation(molecule, a, b, nextOrder, currentOrder)
       : null;
     if (violation) {
-      showValenceError(formatBondValenceError(nextOrder, violation));
+      const followingOrder = findNextValidBondOrder(molecule, a, b, currentOrder, (nextOrder === 3 ? 1 : nextOrder + 1) as BondOrder);
+      skippedBondOrder.current.set(key, followingOrder);
+      showValenceError(
+        nextOrder === 3
+          ? language === "en"
+            ? "Triple bond not allowed: carbon tetravalence would be exceeded."
+            : "Enlace triple no permitido: se excedería la tetravalencia del carbono."
+          : formatBondValenceError(nextOrder, violation),
+        2800,
+      );
       return;
     }
+
+    skippedBondOrder.current.delete(key);
 
     const nextBonds = molecule.bonds.map((bond, index) =>
       index === bondIndex ? [bond[0], bond[1], nextOrder] as Bond : [...bond] as Bond,
@@ -8119,25 +8187,39 @@ export default function Home() {
 
               <form className="formula-builder-form" onSubmit={generateIsomersFromFormula}>
                 <label htmlFor="molecular-formula-input">{t("Fórmula molecular")}</label>
-                <div className="formula-builder-input-group">
-                  <input
-                    id="molecular-formula-input"
-                    type="text"
-                    value={formulaInput}
-                    onChange={(event) => {
-                      setFormulaInput(event.target.value);
-                      setFormulaFeedback(null);
-                      setFormulaResult(null);
-                      setSelectedFormulaIsomer(null);
-                    }}
-                    placeholder={t("Ej.: C6H12O o C₄H₁₀O")}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <button type="submit">
-                    <span aria-hidden="true">⌬</span>
-                    {t("Generar isómeros")}
-                  </button>
+                <div className="formula-builder-field">
+                  <div className="formula-builder-input-group">
+                    <input
+                      id="molecular-formula-input"
+                      type="text"
+                      value={formulaInput}
+                      onChange={(event) => {
+                        setFormulaInput(normalizeFormulaBuilderInput(event.target.value));
+                        setFormulaFeedback(null);
+                        setFormulaResult(null);
+                        setSelectedFormulaIsomer(null);
+                      }}
+                      placeholder={t("Ej.: C6H12O o C₄H₁₀O")}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button type="submit">
+                      <span aria-hidden="true">⌬</span>
+                      {t("Generar isómeros")}
+                    </button>
+                  </div>
+                  {formulaInput && (
+                    <output className="formula-builder-preview" aria-label={t("Fórmula con formato químico")}>
+                      <span>{t("Vista química:")}</span>
+                      <strong>
+                        {getFormulaDisplayTokens(formulaInput).map((token, index) =>
+                          token.subscript
+                            ? <sub key={`${token.text}-${index}`}>{token.text}</sub>
+                            : <span key={`${token.text}-${index}`}>{token.text}</span>,
+                        )}
+                      </strong>
+                    </output>
+                  )}
                 </div>
               </form>
 

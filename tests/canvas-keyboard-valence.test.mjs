@@ -9,8 +9,11 @@ let server;
 let findBondValenceViolation;
 let findDirectionalNeighborId;
 let findMoleculeValenceViolation;
+let findNextValidBondOrder;
 let formatBondValenceError;
+let getFormulaDisplayTokens;
 let getAtomValenceViolation;
+let normalizeFormulaBuilderInput;
 
 before(async () => {
   server = await createServer({
@@ -25,8 +28,11 @@ before(async () => {
     findBondValenceViolation,
     findDirectionalNeighborId,
     findMoleculeValenceViolation,
+    findNextValidBondOrder,
     formatBondValenceError,
+    getFormulaDisplayTokens,
     getAtomValenceViolation,
+    normalizeFormulaBuilderInput,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
@@ -81,6 +87,41 @@ test("allows lowering a bond order and detects invalid imported structures", () 
   const violation = findMoleculeValenceViolation(molecule);
   assert.equal(violation?.atomId, 1);
   assert.equal(violation?.attempted, 5);
+});
+
+test("finds the next valid bond order without ever selecting an invalid triple bond", () => {
+  const allOrdersValid = {
+    atoms: [{ id: 1, x: 0, y: 0 }, { id: 2, x: 1, y: 0 }],
+    bonds: [[1, 2, 1]],
+  };
+  assert.equal(findNextValidBondOrder(allOrdersValid, 1, 2, 1), 2);
+  allOrdersValid.bonds[0][2] = 2;
+  assert.equal(findNextValidBondOrder(allOrdersValid, 1, 2, 2), 3);
+  allOrdersValid.bonds[0][2] = 3;
+  assert.equal(findNextValidBondOrder(allOrdersValid, 1, 2, 3), 1);
+
+  const tripleIsInvalid = {
+    atoms: [
+      { id: 1, x: 0, y: 0 }, { id: 2, x: 1, y: 0 },
+      { id: 3, x: 0, y: 1 }, { id: 4, x: 0, y: -1 },
+    ],
+    bonds: [[1, 2, 2], [1, 3, 1], [1, 4, 1]],
+  };
+  assert.equal(findNextValidBondOrder(tripleIsInvalid, 1, 2, 2), 1);
+});
+
+test("formats formula quantities while preserving leading coefficients", () => {
+  const formatted = (formula) => getFormulaDisplayTokens(formula)
+    .map((token) => token.subscript ? `_${token.text}` : token.text)
+    .join("");
+  assert.equal(formatted("CH4"), "CH_4");
+  assert.equal(formatted("C2H6"), "C_2H_6");
+  assert.equal(formatted("CH3CH2OH"), "CH_3CH_2OH");
+  assert.equal(formatted("CH3(CH2)4CH3"), "CH_3(CH_2)_4CH_3");
+  assert.equal(formatted("(CH3)3COH"), "(CH_3)_3COH");
+  assert.equal(formatted("2(CH3)2O"), "2(CH_3)_2O");
+  assert.equal(formatted("3H2O"), "3H_2O");
+  assert.equal(normalizeFormulaBuilderInput("CH₃CH₂OH"), "CH3CH2OH");
 });
 
 
