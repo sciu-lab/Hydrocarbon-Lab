@@ -211,6 +211,11 @@ function normalizePunctuation(value: string) {
  * This only rearranges presentation; it does not infer a structure.
  */
 export function normalizeTraditionalUnsaturationNotation(value: string) {
+  // Benzene is a retained aromatic parent name. Its terminal "eno" is not an
+  // alkene suffix and must never cause a preceding substituent locant to be
+  // rearranged as a multiple-bond locant.
+  if (/benceno$/i.test(value)) return value;
+
   const substituentPrefix = "(?:(?:\\d+(?:,\\d+)*-(?:fluoro|cloro|bromo|yodo|metil|etil|hidroxi|amino)-)+)";
   const prefixed = value.match(
     new RegExp(`^(${substituentPrefix})(\\d+)-((?:ciclo)?[a-z]+)-?(eno|ino)$`, "i"),
