@@ -132,6 +132,27 @@ test("analyzes common heterocycle parents without reducing them to carbon rings"
   }
 });
 
+test("nombra monociclos importados y conserva la insaturación del sustituyente", () => {
+  const examples = [
+    ["C1CC1", "ciclopropano"],
+    ["C1CCC1", "ciclobutano"],
+    ["C1CCCC1", "ciclopentano"],
+    ["C1CCCCC1", "ciclohexano"],
+    ["C1CCCCCC1", "cicloheptano"],
+    ["C1CCCCCCC1", "ciclooctano"],
+    ["CC1CCCCC1", "metilciclohexano"],
+    ["CCC1CCCCC1", "etilciclohexano"],
+    ["C=CC1CCCCC1", "vinilciclohexano"],
+  ];
+
+  for (const [smiles, expectedName] of examples) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    if (!converted.ok) continue;
+    assert.equal(analyzeMolecule(converted.molecule).name, expectedName, smiles);
+  }
+});
+
 test("omite el locante 1 solo del sufijo al de aldehídos acíclicos principales", () => {
   const cases = [
     ["C=O", "metanal"],

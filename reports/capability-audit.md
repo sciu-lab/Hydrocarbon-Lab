@@ -1,17 +1,17 @@
 # Auditoría de capacidades del constructor molecular
 
-Línea base: 2026-09-15. Esta auditoría no modifica código de producción ni el motor químico.
+Línea base inicial: 2026-09-15. Esta ampliación no modifica código de producción ni el motor químico.
 
 ## Método y alcance
 
-La batería reproducible está en tests/capability-audit.test.mjs. Para cada una de las 114 estructuras:
+La batería reproducible está en tests/capability-audit.test.mjs. Para cada estructura de referencia:
 
 1. Construye un grafo de referencia desde SMILES usando el adaptador OpenChemLib.
 2. Comprueba átomos, elementos, conectividad, órdenes de enlace, valencia, fórmula, grupo funcional y coordenadas 2D.
 3. Construye de forma independiente con el parser local por nombre y compara la topología. La comparación normaliza las dos formas equivalentes de Kekulé de un aromático.
 4. Ejecuta una ida y vuelta SMILES como comprobación adicional del adaptador.
 
-El conteo se deriva de records.length y de la agrupación por status que imprime la prueba. Resultado actual: **114 estructuras; 87 PASS, 27 PARTIAL, 0 FAIL-NAME**. No hubo FAIL-GRAPH, FAIL-VALENCE, FAIL-FORMULA, FAIL-FUNCTIONAL-GROUP ni FAIL-RENDER.
+El conteo se deriva de records.length y los totales de la agrupación por status que imprime la prueba; no se mantienen manualmente en la suite. Resultado actual: **280 estructuras; 213 PASS y 67 PARTIAL**. No hubo FAIL-NAME, FAIL-GRAPH, FAIL-VALENCE, FAIL-FORMULA, FAIL-FUNCTIONAL-GROUP ni FAIL-RENDER. Los tres casos fusionado, espiro y puenteado permanecen fuera de records como OUT-OF-SCOPE.
 
 PARTIAL significa que el modelo interno representa, analiza y renderiza correctamente la molécula, pero el parser local por nombre no la crea. Puede requerir canvas manual, plantilla o el resolvedor OPSIN cuando haya red.
 
@@ -56,6 +56,18 @@ PARTIAL significa que el modelo interno representa, analiza y renderiza correcta
 | Halogenados | clorometano — ~; 1-cloropropano, 2-cloropropano, 1-bromo-2-metilpropano, 1,2-dicloroetano — ✓ |
 | Estrés | C20 lineal, carbonos cuaternarios múltiples, enlaces triples múltiples — ✓ |
 
+## Ampliación de cobertura
+
+La línea base de 114 casos se extendió con **166** estructuras no duplicadas. La suite ahora cubre C5–C12 y ramificación densa en alcanos; posiciones terminales/internas, conjugadas y aisladas de dobles enlaces; triples, diinos y eninos; ciclos C3–C8 con sustitución e insaturación; y patrones aromáticos orto/meta/para, 1,2,3, 1,2,4 y 1,3,5.
+
+También amplía alcoholes C1–C10 (primarios, secundarios, terciarios, polioles, insaturados y cicloalcoholes), fenoles sustituidos, aldehídos C1–C10/ramificados/insaturados, cetonas en distintas posiciones y dicarbonilos, ácidos lineales/ramificados/insaturados, y los grafos de referencia de éteres, ésteres, aminas, amidas y halogenados con F, Cl, Br e I. Se añadieron casos de cadena larga, alta ramificación, múltiples insaturaciones y valencias límite válidas y rechazadas.
+
+| Comparación | Casos | PASS | PARTIAL | FAIL-NAME | Otros FAIL |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Línea base | 114 | 87 | 27 | 0 | 0 |
+| Auditoría ampliada antes de la corrección de ciclos | 280 | 212 | 66 | 2 | 0 |
+| Auditoría ampliada actual | 280 | 213 | 67 | 0 | 0 |
+
 ## Hallazgos
 
 | Estructura | Estado | Esperado / observado | Subsistema probable | Severidad |
@@ -69,8 +81,10 @@ PARTIAL significa que el modelo interno representa, analiza y renderiza correcta
 | Los 4 ésteres | PARTIAL | Grafo, fórmula y ester correctos; parser local falla. | Parser local. | P1 |
 | Las 6 aminas y 3 amidas | PARTIAL | Grafo, fórmula y grupo correspondiente correctos; parser local falla. | Parser local. | P1 |
 | Clorometano | PARTIAL | C1H3Cl y halogen correctos; falla como caso borde de una C. | Parser local. | P1 |
+| ciclooctano | PASS | El adaptador importaba el ciclo C8 sin metadato de anillo; la inferencia estructural de un monociclo carbonado recupera el padre `ciclooctano`. | Corregido en `carbonSkeleton`. | — |
+| vinilciclohexano | PARTIAL | El nombre sugerido ahora conserva C=C como `vinilciclohexano`; el parser local por nombre aún no lo reconstruye, por lo que mantiene la limitación ya clasificada como PARTIAL. | Corregido en `nameSubstituent`; parser local fuera de alcance. | P1 |
 
-No se detectó corrupción de grafo, aceptación de una valencia imposible, fórmula incorrecta, grupo funcional incorrecto ni render 2D inutilizable dentro de los 114 grafos de referencia. Esta conclusión es una línea base, no una prueba universal.
+No se detectó corrupción de grafo, aceptación de una valencia imposible, fórmula incorrecta, grupo funcional incorrecto ni render 2D inutilizable dentro de los 280 grafos de referencia. Esta conclusión es una línea base, no una prueba universal.
 
 ## Estrés de valencia y límites
 
@@ -88,14 +102,15 @@ No se detectó corrupción de grafo, aceptación de una valencia imposible, fór
 
 ### Soportado de forma confiable
 
-- Alcanos lineales/ramificados, insaturaciones y C20.
-- Ciclos simples, anillos aromáticos sustituidos y polioles/fenoles.
-- Aldehídos acíclicos, cetonas y ácidos acíclicos.
+- Alcanos lineales/ramificados, insaturaciones y cadenas C20.
+- Ciclos simples hasta C8 del nombre sugerido, anillos aromáticos sustituidos y polioles/fenoles.
+- Aldehídos acíclicos, cetonas y ácidos acíclicos de la matriz, incluidos múltiples carbonilos representados por el grafo.
 - Halogenados de dos o más carbonos del examen.
 
 ### Soportado con limitaciones
 
 - Éteres, ésteres, aminas, amidas, carbaldehídos de anillo, ácido ciclohexanocarboxílico y dos anillos no fusionados: el grafo es válido, pero no hay cobertura garantizada en el parser local offline.
+- vinilciclohexano: el nombre sugerido es correcto; la reconstrucción mediante parser local sigue fuera de su alcance (PARTIAL).
 - Puede haber construcción manual o resolución OPSIN con red; no se usó la red como evidencia.
 
 ### No soportado
@@ -107,4 +122,4 @@ No se detectó corrupción de grafo, aceptación de una valencia imposible, fór
 
 Ejecutar: node --test tests/capability-audit.test.mjs
 
-Última ejecución: 2 pruebas aprobadas de 2. No se efectuaron cambios de producción.
+Última ejecución: 2 pruebas aprobadas de 2; el resumen emitido fue 280 casos, 213 PASS, 67 PARTIAL y 0 FAIL. La corrección de nomenclatura se limitó a `app/page.tsx`.

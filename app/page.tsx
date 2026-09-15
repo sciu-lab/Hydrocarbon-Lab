@@ -1451,7 +1451,12 @@ function collectSubtree(root: number, blocked: Set<number>, adjacency: Map<numbe
   return result;
 }
 
-function nameSubstituent(root: number, parent: number, adjacency: Map<number, number[]>): Omit<NamedSubstituent, "locant"> {
+function nameSubstituent(
+  root: number,
+  parent: number,
+  adjacency: Map<number, number[]>,
+  bondOrders?: ReadonlyMap<string, BondOrder>,
+): Omit<NamedSubstituent, "locant"> {
   const component = collectSubtree(root, new Set([parent]), adjacency);
   const componentSet = new Set(component);
   const rootPaths: number[][] = [];
@@ -1477,7 +1482,7 @@ function nameSubstituent(root: number, parent: number, adjacency: Map<number, nu
       path.forEach((atomId, index) => {
         for (const neighbor of adjacency.get(atomId) ?? []) {
           if (!componentSet.has(neighbor) || pathSet.has(neighbor)) continue;
-          const named = nameSubstituent(neighbor, atomId, adjacency);
+          const named = nameSubstituent(neighbor, atomId, adjacency, bondOrders);
           branches.push({ ...named, locant: index + 1 });
         }
       });
@@ -1492,7 +1497,12 @@ function nameSubstituent(root: number, parent: number, adjacency: Map<number, nu
     });
 
   const chosen = candidates[0];
-  const parentName = alkylNames[chosen.path.length] ?? `alquilo de ${chosen.path.length} carbonos`;
+  const internalBondOrder = chosen.path.length === 2
+    ? bondOrders?.get(bondKey(chosen.path[0], chosen.path[1]))
+    : undefined;
+  const parentName = chosen.path.length === 2 && internalBondOrder === 2
+    ? "vinil"
+    : alkylNames[chosen.path.length] ?? `alquilo de ${chosen.path.length} carbonos`;
   const branchParts = formatSubstituentGroups(chosen.branches);
   const name = branchParts.length ? `${branchParts.join("-")}${parentName}` : parentName;
 
@@ -1672,7 +1682,7 @@ function ringCandidates(
               complex: true,
               atomIds: component,
             }
-          : nameSubstituent(neighbor, atomId, adjacency);
+          : nameSubstituent(neighbor, atomId, adjacency, bondOrders);
         substituents.push({ ...named, locant: index + 1 });
       }
     });
@@ -1844,13 +1854,49 @@ function carbonSkeleton(molecule: Molecule): Molecule {
   const carbonIds = new Set(
     molecule.atoms.filter(isCarbonAtom).map((atom) => atom.id),
   );
-  return {
+  const skeleton = {
     atoms: molecule.atoms.filter(isCarbonAtom).map((atom) => ({ ...atom, element: "C" })),
     bonds: molecule.bonds
       .filter(([a, b]) => carbonIds.has(a) && carbonIds.has(b))
       .map((bond) => [...bond] as Bond),
     rings: molecule.rings?.map((ring) => ({ ...ring, atomIds: [...ring.atomIds] })),
   };
+  if (skeleton.rings?.length) return skeleton;
+
+  // Some imported large monocyles arrive without ring metadata. Recover only a
+  // single, non-fused carbon cycle from its graph; complex polycycles remain out
+  // of this naming path.
+  const adjacency = buildAdjacency(skeleton);
+  if (skeleton.bonds.length - skeleton.atoms.length + 1 !== 1) return skeleton;
+  const degrees = new Map(skeleton.atoms.map((atom) => [atom.id, adjacency.get(atom.id)?.length ?? 0]));
+  const pending = [...degrees.entries()].filter(([, degree]) => degree <= 1).map(([atomId]) => atomId);
+  const core = new Set(skeleton.atoms.map((atom) => atom.id));
+  while (pending.length) {
+    const atomId = pending.pop()!;
+    if (!core.delete(atomId)) continue;
+    for (const neighbor of adjacency.get(atomId) ?? []) {
+      if (!core.has(neighbor)) continue;
+      const nextDegree = (degrees.get(neighbor) ?? 0) - 1;
+      degrees.set(neighbor, nextDegree);
+      if (nextDegree === 1) pending.push(neighbor);
+    }
+  }
+  if (core.size < 3 || [...core].some((atomId) =>
+    (adjacency.get(atomId) ?? []).filter((neighbor) => core.has(neighbor)).length !== 2,
+  )) return skeleton;
+
+  const atomIds = [...core];
+  const orderedRing = [atomIds[0]];
+  let previous: number | undefined;
+  while (orderedRing.length < core.size) {
+    const current = orderedRing[orderedRing.length - 1];
+    const next = (adjacency.get(current) ?? []).find((neighbor) => core.has(neighbor) && neighbor !== previous);
+    if (next === undefined) return skeleton;
+    previous = current;
+    orderedRing.push(next);
+  }
+  if (!(adjacency.get(orderedRing[orderedRing.length - 1]) ?? []).includes(orderedRing[0])) return skeleton;
+  return { ...skeleton, rings: [{ id: 1, kind: "cycloalkane", atomIds: orderedRing }] };
 }
 
 /** A graph-stable selection identity lets identical aliases toggle independently. */
