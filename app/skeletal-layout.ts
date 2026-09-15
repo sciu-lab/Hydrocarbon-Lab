@@ -49,6 +49,40 @@ function pointFromAngle(origin: SkeletalPoint, angle: number): SkeletalPoint {
   };
 }
 
+function branchPointClearance(
+  origin: SkeletalPoint,
+  candidate: SkeletalPoint,
+  positions: ReadonlyMap<number, SkeletalPoint>,
+  adjacency: ReadonlyMap<number, readonly number[]>,
+) {
+  const pointClearance = Math.min(
+    SKELETAL_BOND_LENGTH * 2,
+    ...[...positions.values()]
+      .filter((point) => point !== origin)
+      .map((point) => Math.hypot(candidate.x - point.x, candidate.y - point.y)),
+  );
+  const segmentClearance = Math.min(
+    SKELETAL_BOND_LENGTH,
+    ...[...adjacency].flatMap(([leftId, neighborIds]) => neighborIds.flatMap((rightId) => {
+      if (leftId >= rightId) return [];
+      const start = positions.get(leftId);
+      const end = positions.get(rightId);
+      if (!start || !end || start === origin || end === origin) return [];
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const lengthSquared = dx * dx + dy * dy || 1;
+      const projection = Math.max(0, Math.min(1,
+        ((candidate.x - start.x) * dx + (candidate.y - start.y) * dy) / lengthSquared,
+      ));
+      return [Math.hypot(
+        candidate.x - (start.x + projection * dx),
+        candidate.y - (start.y + projection * dy),
+      )];
+    })),
+  );
+  return Math.min(pointClearance, segmentClearance * 1.35);
+}
+
 function chooseBranchAngle(
   parentId: number,
   childId: number,
@@ -72,7 +106,17 @@ function chooseBranchAngle(
     const incoming = positionedNeighborAngles[0];
     const candidates = [incoming + (120 * DEG), incoming - (120 * DEG)];
     return candidates.sort(
-      (left, right) => angularDistance(left, preferred) - angularDistance(right, preferred),
+      (left, right) => {
+        const leftClearance = branchPointClearance(
+          origin, pointFromAngle(origin, left), positions, adjacency,
+        );
+        const rightClearance = branchPointClearance(
+          origin, pointFromAngle(origin, right), positions, adjacency,
+        );
+        return rightClearance - leftClearance
+          || angularDistance(left, preferred) - angularDistance(right, preferred)
+          || left - right;
+      },
     )[0];
   }
 
@@ -80,6 +124,13 @@ function chooseBranchAngle(
   // its angular separation from the bonds already present. On the 30/90/...°
   // lattice this naturally yields 120° around a classic skeletal vertex.
   return [...CANDIDATE_ANGLES].sort((left, right) => {
+    const leftSpace = branchPointClearance(
+      origin, pointFromAngle(origin, left), positions, adjacency,
+    );
+    const rightSpace = branchPointClearance(
+      origin, pointFromAngle(origin, right), positions, adjacency,
+    );
+    if (Math.abs(leftSpace - rightSpace) > 1e-8) return rightSpace - leftSpace;
     const leftClearance = positionedNeighborAngles.length
       ? Math.min(...positionedNeighborAngles.map((angle) => angularDistance(left, angle)))
       : Math.PI;
@@ -114,6 +165,7 @@ export function buildOpenChainSkeletalPositions(
     adjacency.get(left)?.push(right);
     adjacency.get(right)?.push(left);
   });
+  adjacency.forEach((neighbors) => neighbors.sort((left, right) => left - right));
 
   positions.set(backbone[0], { x: 0, y: 0 });
   for (let index = 1; index < backbone.length; index += 1) {
