@@ -92,6 +92,17 @@ import {
   type FormulaIsomerGeneration,
   generateFormulaIsomers,
 } from "./formula-isomers";
+import {
+  compareParentCandidates,
+  FUNCTIONAL_GROUP_FORMS,
+  generateLegacyEnglishName,
+  IUPAC_1979_LEGACY_ENGLISH_PROFILE,
+  numberParent,
+  selectParent,
+  type LegacyEnglishNameModel,
+  type NumberingCriteria,
+  type ParentCandidateCriteria,
+} from "./legacy-english-nomenclature";
 
 type CarbonAtom = {
   id: number;
@@ -846,20 +857,6 @@ const functionalGroupLabels: Record<FunctionalGroupKind, string> = {
   nitro: "Nitro",
 };
 
-const functionalGroupPriority: Record<FunctionalGroupKind, number> = {
-  carboxylicAcid: 10,
-  ester: 9,
-  amide: 8,
-  nitrile: 7,
-  aldehyde: 6,
-  ketone: 5,
-  alcohol: 4,
-  amine: 3,
-  nitro: 1,
-  ether: 1,
-  halogen: 1,
-};
-
 const FUNCTIONAL_GROUP_TEMPLATES: FunctionalGroupTemplate[] = [
   {
     id: "hydroxyl",
@@ -1278,6 +1275,65 @@ function compareNumberLists(a: number[], b: number[]) {
   return 0;
 }
 
+type AuditableChainCandidate = {
+  path: number[];
+  substituents: NamedSubstituent[];
+  doubleBondLocants: number[];
+  tripleBondLocants: number[];
+  primaryLocants?: number[];
+  prefixCount?: number;
+};
+
+function candidateAlphabeticalTieBreak(candidate: AuditableChainCandidate) {
+  return [...candidate.substituents]
+    .sort((left, right) => compareAlphabeticalNames(left.sortName, right.sortName))
+    .map((substituent) => `${stripForAlphabetizing(substituent.sortName)}:${substituent.locant}`)
+    .join("|");
+}
+
+function numberingCriteria(candidate: AuditableChainCandidate): NumberingCriteria {
+  return {
+    principalGroupLocants: [...(candidate.primaryLocants ?? [])].sort((a, b) => a - b),
+    multipleBondLocants: [...candidate.doubleBondLocants, ...candidate.tripleBondLocants].sort((a, b) => a - b),
+    doubleBondLocants: [...candidate.doubleBondLocants].sort((a, b) => a - b),
+    prefixLocants: candidate.substituents.map((item) => item.locant).sort((a, b) => a - b),
+    alphabeticalTieBreak: candidateAlphabeticalTieBreak(candidate),
+  };
+}
+
+function parentCriteria(candidate: AuditableChainCandidate): ParentCandidateCriteria {
+  const numbering = numberingCriteria(candidate);
+  return {
+    principalGroupCount: candidate.primaryLocants?.length ?? 0,
+    multipleBondCount: candidate.doubleBondLocants.length + candidate.tripleBondLocants.length,
+    carbonCount: candidate.path.length,
+    doubleBondCount: candidate.doubleBondLocants.length,
+    principalGroupLocants: numbering.principalGroupLocants,
+    multipleBondLocants: numbering.multipleBondLocants,
+    doubleBondLocants: numbering.doubleBondLocants,
+    prefixCount: candidate.prefixCount ?? candidate.substituents.length,
+    prefixLocants: numbering.prefixLocants,
+    alphabeticalTieBreak: numbering.alphabeticalTieBreak,
+  };
+}
+
+/** Selects numbering for each framework first, then compares parent frameworks. */
+function selectLegacyParentCandidate<T extends AuditableChainCandidate>(candidates: T[]) {
+  const frameworks = new Map<string, T[]>();
+  candidates.forEach((candidate) => {
+    const forward = candidate.path.join(",");
+    const reverse = [...candidate.path].reverse().join(",");
+    const key = forward < reverse ? forward : reverse;
+    const variants = frameworks.get(key) ?? [];
+    variants.push(candidate);
+    frameworks.set(key, variants);
+  });
+  const numbered = [...frameworks.values()].map((variants) =>
+    numberParent(variants, numberingCriteria),
+  );
+  return selectParent(numbered, parentCriteria);
+}
+
 function stripForAlphabetizing(name: string) {
   return name
     .normalize("NFD")
@@ -1564,7 +1620,7 @@ function orientedRingPaths(ring: RingInfo) {
 function ringCandidates(
   molecule: Molecule,
   ring: RingInfo,
-  enabledAliases: readonly string[] = [],
+  _enabledAliases: readonly string[] = [],
 ) {
   const adjacency = buildAdjacency(molecule);
   const bondOrders = new Map(
@@ -1622,32 +1678,6 @@ function ringCandidates(
     return { path, substituents, doubleBondLocants, tripleBondLocants };
   });
 
-  candidates.sort((left, right) => {
-    const leftMultipleLocants = [...left.doubleBondLocants, ...left.tripleBondLocants]
-      .sort((a, b) => a - b);
-    const rightMultipleLocants = [...right.doubleBondLocants, ...right.tripleBondLocants]
-      .sort((a, b) => a - b);
-    const multipleComparison = compareNumberLists(leftMultipleLocants, rightMultipleLocants);
-    if (multipleComparison !== 0) return multipleComparison;
-
-    const doubleComparison = compareNumberLists(
-      [...left.doubleBondLocants].sort((a, b) => a - b),
-      [...right.doubleBondLocants].sort((a, b) => a - b),
-    );
-    if (doubleComparison !== 0) return doubleComparison;
-
-    const leftLocants = left.substituents.map((item) => item.locant).sort((a, b) => a - b);
-    const rightLocants = right.substituents.map((item) => item.locant).sort((a, b) => a - b);
-    const locantComparison = compareNumberLists(leftLocants, rightLocants);
-    if (locantComparison !== 0) return locantComparison;
-
-    return compareSubstituentAlphabeticalLocants(
-      left.substituents,
-      right.substituents,
-      enabledAliases,
-    );
-  });
-
   return candidates;
 }
 
@@ -1657,7 +1687,7 @@ function buildRingAnalysis(
   family: RingKind | "polycyclic",
   enabledAliases: readonly string[] = [],
 ): Analysis {
-  const chosen = ringCandidates(molecule, ring, enabledAliases)[0];
+  const chosen = numberParent(ringCandidates(molecule, ring, enabledAliases), numberingCriteria);
   const chainName = unsaturatedRingBaseName(
     ring,
     chosen.doubleBondLocants,
@@ -1734,6 +1764,7 @@ function analyzeMultiRingMolecule(molecule: Molecule, enabledAliases: readonly s
 function analyzeHydrocarbonMolecule(
   molecule: Molecule,
   enabledAliases: readonly string[] = [],
+  externalSubstituents: readonly { anchorId: number; substituent: Omit<NamedSubstituent, "locant"> }[] = [],
 ): Analysis {
   if ((molecule.rings?.length ?? 0) > 1) return analyzeMultiRingMolecule(molecule, enabledAliases);
   if (molecule.rings?.length === 1) return analyzeRingMolecule(molecule, enabledAliases);
@@ -1770,6 +1801,9 @@ function analyzeHydrocarbonMolecule(
         const named = nameSubstituent(neighbor, atomId, adjacency);
         substituents.push({ ...named, locant: index + 1 });
       }
+      externalSubstituents
+        .filter((external) => external.anchorId === atomId)
+        .forEach((external) => substituents.push({ ...external.substituent, locant: index + 1 }));
     });
 
     return {
@@ -1781,36 +1815,7 @@ function analyzeHydrocarbonMolecule(
     };
   });
 
-  candidates.sort((left, right) => {
-    if (left.multipleBondCount !== right.multipleBondCount) {
-      return right.multipleBondCount - left.multipleBondCount;
-    }
-    if (left.path.length !== right.path.length) return right.path.length - left.path.length;
-
-    const leftMultipleLocants = [...left.doubleBondLocants, ...left.tripleBondLocants].sort((a, b) => a - b);
-    const rightMultipleLocants = [...right.doubleBondLocants, ...right.tripleBondLocants].sort((a, b) => a - b);
-    const multipleComparison = compareNumberLists(leftMultipleLocants, rightMultipleLocants);
-    if (multipleComparison !== 0) return multipleComparison;
-
-    const doubleComparison = compareNumberLists(left.doubleBondLocants, right.doubleBondLocants);
-    if (doubleComparison !== 0) return doubleComparison;
-
-    if (left.substituents.length !== right.substituents.length) {
-      return right.substituents.length - left.substituents.length;
-    }
-    const leftLocants = left.substituents.map((item) => item.locant).sort((a, b) => a - b);
-    const rightLocants = right.substituents.map((item) => item.locant).sort((a, b) => a - b);
-    const locantComparison = compareNumberLists(leftLocants, rightLocants);
-    if (locantComparison !== 0) return locantComparison;
-
-    return compareSubstituentAlphabeticalLocants(
-      left.substituents,
-      right.substituents,
-      enabledAliases,
-    );
-  });
-
-  const chosen = candidates[0];
+  const chosen = selectLegacyParentCandidate(candidates);
   const chainName = makeChainName(
     chosen.path.length,
     chosen.doubleBondLocants,
@@ -2221,7 +2226,7 @@ const suffixFunctionalGroups = new Set<FunctionalGroupKind>([
 function selectPrimaryFunctionalGroup(groups: FunctionalGroup[]) {
   return [...groups]
     .filter((group) => suffixFunctionalGroups.has(group.kind))
-    .sort((left, right) => functionalGroupPriority[right.kind] - functionalGroupPriority[left.kind])[0]?.kind;
+    .sort((left, right) => FUNCTIONAL_GROUP_FORMS[right.kind].priority - FUNCTIONAL_GROUP_FORMS[left.kind].priority)[0]?.kind;
 }
 
 function carbonComponent(startId: number, skeleton: Molecule) {
@@ -2351,6 +2356,169 @@ export function buildTraditionalMoleculeStructure(
     hasBranches,
     stereochemicalPrefix: traditionalStereochemicalPrefix(displayedSourceName),
     prefixes: nitrogenSubstituentPrefixes(primaryGroup, analysis.mainChain, molecule, skeleton),
+  };
+}
+
+function carbonSubgraph(skeleton: Molecule, atomIds: readonly number[]): Molecule {
+  const included = new Set(atomIds);
+  return {
+    atoms: skeleton.atoms.filter((atom) => included.has(atom.id)).map((atom) => ({ ...atom })),
+    bonds: skeleton.bonds
+      .filter(([a, b]) => included.has(a) && included.has(b))
+      .map((bond) => [...bond] as Bond),
+  };
+}
+
+function connectedCarbonComponents(skeleton: Molecule, atomIds: readonly number[]) {
+  const included = new Set(atomIds);
+  const adjacency = buildAdjacency(skeleton);
+  const unseen = new Set(atomIds);
+  const components: number[][] = [];
+  while (unseen.size) {
+    const start = unseen.values().next().value as number;
+    const component: number[] = [];
+    const stack = [start];
+    while (stack.length) {
+      const current = stack.pop()!;
+      if (!unseen.delete(current)) continue;
+      component.push(current);
+      for (const neighbor of adjacency.get(current) ?? []) {
+        if (included.has(neighbor) && unseen.has(neighbor)) stack.push(neighbor);
+      }
+    }
+    components.push(component);
+  }
+  return components;
+}
+
+function longestPathLength(atomIds: readonly number[], skeleton: Molecule) {
+  if (!atomIds.length) return 0;
+  const adjacency = buildAdjacency(skeleton);
+  let longest = 1;
+  atomIds.forEach((start, index) => {
+    atomIds.slice(index + 1).forEach((end) => {
+      longest = Math.max(longest, pathBetween(start, end, adjacency).length);
+    });
+  });
+  return longest;
+}
+
+/**
+ * Legacy ring/chain tie-break used by the simulator: a principal-group chain
+ * of at least two carbons wins; without one, an acyclic chain wins only when
+ * it is longer than the monocycle. Equal sizes retain the ring as parent.
+ */
+function selectChainAgainstMonocycle(
+  skeleton: Molecule,
+  groups: FunctionalGroup[],
+  primaryKind: FunctionalGroupKind | undefined,
+) {
+  const ring = skeleton.rings?.length === 1 ? skeleton.rings[0] : undefined;
+  if (!ring) return undefined;
+  const ringIds = new Set(ring.atomIds);
+  const components = connectedCarbonComponents(
+    skeleton,
+    skeleton.atoms.map((atom) => atom.id).filter((atomId) => !ringIds.has(atomId)),
+  );
+  if (!components.length) return undefined;
+  const ranked = components.map((atomIds) => {
+    const subgraph = carbonSubgraph(skeleton, atomIds);
+    const principalGroupCount = primaryKind
+      ? groups.filter((group) => group.kind === primaryKind && group.carbonIds.some((id) => atomIds.includes(id))).length
+      : 0;
+    const multipleBondCount = subgraph.bonds.filter((bond) => getBondOrder(bond) > 1).length;
+    const doubleBondCount = subgraph.bonds.filter((bond) => getBondOrder(bond) === 2).length;
+    return {
+      atomIds,
+      subgraph,
+      principalGroupCount,
+      multipleBondCount,
+      doubleBondCount,
+      carbonCount: longestPathLength(atomIds, subgraph),
+    };
+  }).sort((left, right) => compareParentCandidates({
+    principalGroupCount: left.principalGroupCount,
+    multipleBondCount: left.multipleBondCount,
+    carbonCount: left.carbonCount,
+    doubleBondCount: left.doubleBondCount,
+    principalGroupLocants: [], multipleBondLocants: [], doubleBondLocants: [],
+    prefixCount: 0, prefixLocants: [], alphabeticalTieBreak: left.atomIds.join(","),
+  }, {
+    principalGroupCount: right.principalGroupCount,
+    multipleBondCount: right.multipleBondCount,
+    carbonCount: right.carbonCount,
+    doubleBondCount: right.doubleBondCount,
+    principalGroupLocants: [], multipleBondLocants: [], doubleBondLocants: [],
+    prefixCount: 0, prefixLocants: [], alphabeticalTieBreak: right.atomIds.join(","),
+  }));
+  const chosen = ranked[0];
+  const principalOnRing = Boolean(primaryKind && groups.some(
+    (group) => group.kind === primaryKind && group.carbonIds.some((id) => ringIds.has(id)),
+  ));
+  const useChain = primaryKind
+    ? !principalOnRing && chosen.principalGroupCount > 0 && chosen.carbonCount > 1
+    : chosen.carbonCount > ring.atomIds.length;
+  if (!useChain) return undefined;
+
+  const attachment = skeleton.bonds.find(([a, b]) =>
+    (chosen.atomIds.includes(a) && ringIds.has(b)) || (chosen.atomIds.includes(b) && ringIds.has(a)),
+  );
+  const anchorId = attachment
+    ? chosen.atomIds.includes(attachment[0]) ? attachment[0] : attachment[1]
+    : undefined;
+  const ringName = ringSubstituentName(ring);
+  const externalSubstituents = anchorId === undefined ? [] : [{
+    anchorId,
+    substituent: {
+      name: ringName,
+      sortName: stripForAlphabetizing(ringName),
+      complex: false,
+      atomIds: [...ring.atomIds],
+    },
+  }];
+  return { skeleton: chosen.subgraph, externalSubstituents };
+}
+
+/** Adapts graph analysis to the profile-neutral semantic input of the English formatter. */
+export function buildLegacyEnglishNameModel(
+  molecule: Molecule,
+  analysis: Analysis,
+  displayedSourceName = analysis.name,
+): LegacyEnglishNameModel {
+  const skeleton = carbonSkeleton(molecule);
+  const parentKind: LegacyEnglishNameModel["parent"]["kind"] = analysis.family === "acyclic"
+    ? "chain"
+    : analysis.family === "cycloalkane"
+      ? "ring"
+      : analysis.family;
+  return {
+    profile: IUPAC_1979_LEGACY_ENGLISH_PROFILE,
+    parent: {
+      kind: parentKind,
+      carbonCount: analysis.mainChain.length,
+      atomIds: [...analysis.mainChain],
+      fallbackName: translateSpanishIupacToOpsin(stripStereochemicalDescriptors(displayedSourceName)),
+    },
+    doubleBondLocants: [...analysis.doubleBondLocants],
+    tripleBondLocants: [...analysis.tripleBondLocants],
+    functionalGroups: analysis.functionalGroups.map((group) => ({
+      kind: group.kind,
+      locant: locantForGroup(group, analysis.mainChain)
+        ?? anchorLocantForGroup(group, analysis.mainChain, skeleton)
+        ?? 1,
+      carbonIncludedInParent: analysis.mainChain.includes(group.carbonId),
+      attachedAlkylName: group.kind === "ester"
+        ? group.alkylCarbonId
+          ? alkylNames[simpleAlkylLength(group.alkylCarbonId, skeleton)] ?? "alquil"
+          : "alquil"
+        : undefined,
+    })),
+    substituents: analysis.substituents.map((substituent) => ({
+      locant: substituent.locant,
+      systematicName: substituent.name,
+      complex: substituent.complex,
+    })),
+    stereochemicalPrefix: traditionalStereochemicalPrefix(displayedSourceName),
   };
 }
 
@@ -2556,6 +2724,7 @@ function analyzeFunctionalAcyclic(
   groups: FunctionalGroup[],
   primaryKind: FunctionalGroupKind | undefined,
   enabledAliases: readonly string[] = [],
+  externalSubstituents: readonly { anchorId: number; substituent: Omit<NamedSubstituent, "locant"> }[] = [],
 ): Analysis {
   const adjacency = buildAdjacency(skeleton);
   const bondOrders = new Map(
@@ -2586,6 +2755,9 @@ function analyzeFunctionalAcyclic(
         const named = nameSubstituent(neighbor, atomId, adjacency);
         carbonSubstituents.push({ ...named, locant: index + 1 });
       }
+      externalSubstituents
+        .filter((external) => external.anchorId === atomId)
+        .forEach((external) => carbonSubstituents.push({ ...external.substituent, locant: index + 1 }));
     });
     const primaryLocants = primaryKind
       ? groups
@@ -2594,14 +2766,6 @@ function analyzeFunctionalAcyclic(
           .filter((locant): locant is number => Boolean(locant))
           .sort((a, b) => a - b)
       : [];
-    // When two equally long parent paths both contain the principal group,
-    // retain the one that also contains the greatest number of other
-    // characteristic groups. Otherwise CH2OH can be mistaken for a
-    // hydroxy-methyl branch merely because that branch gives duplicate
-    // substituent locants.
-    const characteristicGroupCoverage = groups.filter((group) =>
-      group.carbonIds.some((carbonId) => path.includes(carbonId)),
-    ).length;
     const functionalPrefixes = functionalPrefixSubstituents(
       groups,
       path,
@@ -2618,41 +2782,16 @@ function analyzeFunctionalAcyclic(
       tripleBondLocants,
       multipleBondCount: doubleBondLocants.length + tripleBondLocants.length,
       primaryLocants,
-      characteristicGroupCoverage,
+      // At criterion 8, prefer the framework that expresses more detected
+      // characteristic groups directly as prefixes rather than hiding them
+      // inside a carbon branch.
+      prefixCount: groups.filter((group) =>
+        group.carbonIds.some((carbonId) => path.includes(carbonId)),
+      ).length,
     };
   });
 
-  candidates.sort((left, right) => {
-    if (left.primaryLocants.length !== right.primaryLocants.length) {
-      return right.primaryLocants.length - left.primaryLocants.length;
-    }
-    if (left.characteristicGroupCoverage !== right.characteristicGroupCoverage) {
-      return right.characteristicGroupCoverage - left.characteristicGroupCoverage;
-    }
-    if (left.multipleBondCount !== right.multipleBondCount) {
-      return right.multipleBondCount - left.multipleBondCount;
-    }
-    if (left.path.length !== right.path.length) return right.path.length - left.path.length;
-    const primaryComparison = compareNumberLists(left.primaryLocants, right.primaryLocants);
-    if (primaryComparison !== 0) return primaryComparison;
-    const multipleComparison = compareNumberLists(
-      [...left.doubleBondLocants, ...left.tripleBondLocants].sort((a, b) => a - b),
-      [...right.doubleBondLocants, ...right.tripleBondLocants].sort((a, b) => a - b),
-    );
-    if (multipleComparison !== 0) return multipleComparison;
-    const doubleComparison = compareNumberLists(left.doubleBondLocants, right.doubleBondLocants);
-    if (doubleComparison !== 0) return doubleComparison;
-    const leftLocants = left.substituents.map((item) => item.locant).sort((a, b) => a - b);
-    const rightLocants = right.substituents.map((item) => item.locant).sort((a, b) => a - b);
-    const locantComparison = compareNumberLists(leftLocants, rightLocants);
-    return locantComparison || compareSubstituentAlphabeticalLocants(
-      left.substituents,
-      right.substituents,
-      enabledAliases,
-    );
-  });
-
-  const chosen = candidates[0];
+  const chosen = selectLegacyParentCandidate(candidates);
   const baseHydrocarbonName = makeChainName(
     chosen.path.length,
     chosen.doubleBondLocants,
@@ -2859,28 +2998,7 @@ function analyzeFunctionalRing(
       substituents: [...carbonSubstituents, ...functionalPrefixes],
     };
   });
-  candidates.sort((left, right) => {
-    if (left.primaryLocants.length !== right.primaryLocants.length) {
-      return right.primaryLocants.length - left.primaryLocants.length;
-    }
-    const primaryComparison = compareNumberLists(left.primaryLocants, right.primaryLocants);
-    if (primaryComparison !== 0) return primaryComparison;
-    const multipleComparison = compareNumberLists(
-      [...left.doubleBondLocants, ...left.tripleBondLocants].sort((a, b) => a - b),
-      [...right.doubleBondLocants, ...right.tripleBondLocants].sort((a, b) => a - b),
-    );
-    if (multipleComparison !== 0) return multipleComparison;
-    const locantComparison = compareNumberLists(
-      left.substituents.map((item) => item.locant).sort((a, b) => a - b),
-      right.substituents.map((item) => item.locant).sort((a, b) => a - b),
-    );
-    return locantComparison || compareSubstituentAlphabeticalLocants(
-      left.substituents,
-      right.substituents,
-      enabledAliases,
-    );
-  });
-  const chosen = candidates[0];
+  const chosen = numberParent(candidates, numberingCriteria);
   const primaryGroups = primaryKind
     ? groups.filter((group) => group.kind === primaryKind)
     : [];
@@ -2939,12 +3057,32 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
   if (heterocycle) return analyzeHeterocycleMolecule(molecule, heterocycle, enabledAliases);
 
   const skeleton = carbonSkeleton(molecule);
-  const baseAnalysis = analyzeHydrocarbonMolecule(skeleton, enabledAliases);
   const groups = detectFunctionalGroups(molecule);
+  const primaryKind = selectPrimaryFunctionalGroup(groups);
+  const chainAgainstRing = selectChainAgainstMonocycle(skeleton, groups, primaryKind);
+  if (chainAgainstRing) {
+    if (groups.length) {
+      return analyzeFunctionalAcyclic(
+        molecule,
+        chainAgainstRing.skeleton,
+        groups,
+        primaryKind,
+        enabledAliases,
+        chainAgainstRing.externalSubstituents,
+      );
+    }
+    const chainAnalysis = analyzeHydrocarbonMolecule(
+      chainAgainstRing.skeleton,
+      enabledAliases,
+      chainAgainstRing.externalSubstituents,
+    );
+    return { ...chainAnalysis, formula: molecularFormula(molecule) };
+  }
+
+  const baseAnalysis = analyzeHydrocarbonMolecule(skeleton, enabledAliases);
   if (!groups.length) {
     return { ...baseAnalysis, formula: molecularFormula(molecule), functionalGroups: [] };
   }
-  const primaryKind = selectPrimaryFunctionalGroup(groups);
   if (skeleton.rings?.length) {
     return analyzeFunctionalRing(
       molecule,
@@ -4833,6 +4971,12 @@ export default function Home() {
     () => generarNombreTradicional(traditionalStructure),
     [traditionalStructure],
   );
+  const legacyEnglishResult = useMemo(
+    () => generateLegacyEnglishName(
+      buildLegacyEnglishNameModel(molecule, analysis, nameWithSelectedStereochemistry),
+    ),
+    [analysis, molecule, nameWithSelectedStereochemistry],
+  );
   const activeNomenclatureConvention = simplifiedModeEnabled
     ? "current"
     : nomenclatureConvention;
@@ -4841,11 +4985,13 @@ export default function Home() {
     return (["current", "traditional"] as const).map((convention) => ({
       convention,
       label: nomenclatureConventionLabel(convention, language),
-      name: convention === "traditional" && language === "es"
-        ? localizedIupac(structuralTraditionalName)
+      name: convention === "traditional"
+        ? language === "es"
+          ? localizedIupac(structuralTraditionalName)
+          : legacyEnglishResult.name
         : applyNomenclatureConvention(localizedName, convention, language),
     }));
-  }, [language, nameWithSelectedStereochemistry, structuralTraditionalName]);
+  }, [language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);

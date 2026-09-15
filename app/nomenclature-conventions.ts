@@ -267,7 +267,7 @@ export function nomenclatureConventionLabel(
   language: AppLanguage,
 ) {
   if (language === "en") {
-    return convention === "traditional" ? "Traditional" : "IUPAC Preferred";
+    return convention === "traditional" ? "IUPAC 1979 Legacy English" : "IUPAC Preferred";
   }
   return convention === "traditional" ? "Tradicional" : "IUPAC Preferido";
 }
