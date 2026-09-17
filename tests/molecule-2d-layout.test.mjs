@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
+import { getAutoPlacedCarbonPosition } from "../app/manual-layout.ts";
 import { buildOpenChainSkeletalPositions } from "../app/skeletal-layout.ts";
 
 const distance = (left, right) => Math.hypot(right.x - left.x, right.y - left.y);
@@ -201,4 +202,42 @@ test("multiple ring substituents use deterministic, non-overlapping layouts", ()
       );
     }
   }
+});
+
+test("the final rendered layout preserves ArrowRight growth from cyclohexane", () => {
+  const ringAtoms = Array.from({ length: 6 }, (_, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI / 3;
+    return { id: index + 1, x: Math.cos(angle) * 1.35, y: Math.sin(angle) * 1.65 };
+  });
+  const molecule = {
+    atoms: [...ringAtoms],
+    bonds: ringAtoms.map((atom, index) => [atom.id, ringAtoms[(index + 1) % 6].id, 1]),
+    rings: [{ atomIds: ringAtoms.map((atom) => atom.id) }],
+  };
+  const selectedId = 2;
+  let currentId = selectedId;
+  for (let index = 0; index < 6; index += 1) {
+    const point = getAutoPlacedCarbonPosition(molecule, currentId, { x: 1, y: 0 });
+    const nextId = molecule.atoms.length + 1;
+    molecule.atoms.push({ id: nextId, ...point });
+    molecule.bonds.push([currentId, nextId, 1]);
+    currentId = nextId;
+  }
+
+  const positions = calculateMolecule2DLayout(molecule, ringAtoms.map((atom) => atom.id));
+  const start = positions.get(selectedId);
+  const chain = molecule.atoms.slice(6).map((atom) => positions.get(atom.id));
+  const end = chain.at(-1);
+  const totalDx = end.x - start.x;
+  const totalDy = end.y - start.y;
+  const yValues = new Set(chain.map((point) => Math.round(point.y * 1e6)));
+
+  assert.ok(totalDx > 0);
+  assert.ok(Math.abs(totalDx) > Math.abs(totalDy));
+  assert.ok(yValues.size > 1, "the rendered chain remains a zigzag");
+  assert.ok(chain.every((point) => point.x > start.x), "the substituent does not cross the ring");
+  const renderedChain = [start, ...chain];
+  renderedChain.slice(1).forEach((point, index) => {
+    assert.ok(Math.abs(distance(renderedChain[index], point) - 130) < 1e-8);
+  });
 });

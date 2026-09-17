@@ -8,10 +8,10 @@ const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf
 test("the heterocycle translator is exported to the browser global scope", async () => {
   globalThis.window = {};
   try {
-    const module = await import("../app/iupac-name-normalization.ts");
+    const importedModule = await import("../app/iupac-name-normalization.ts");
     assert.equal(typeof window.translateHeterocycles, "function");
     assert.equal(window.translateHeterocycles("pirrol"), "pyrrole");
-    assert.equal(window.translateHeterocycles, module.translateHeterocycles);
+    assert.equal(window.translateHeterocycles, importedModule.translateHeterocycles);
   } finally {
     delete globalThis.window;
   }
@@ -59,7 +59,8 @@ test("the canvas toolbar exposes expand and PNG/SVG export actions on the left",
   assert.match(page, /"\[class\*='hit-target'\]"/);
   assert.match(page, /"\[class\*='selection-overlay'\]"/);
   assert.match(page, /const createFittedExportSvg/);
-  assert.match(page, /cleanSvgForExport\(clonedSvg\);\s*const bounds = fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
+  assert.match(page, /cleanSvgForExport\(clonedSvg\);\s*const fittedBounds = fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
+  assert.match(page, /getMoleculeExportFrame\(/);
   assert.match(page, /createFittedExportSvg\([\s\S]*applySvgColorMode\(clonedSvg, pngColorMode\)/);
   assert.match(page, /function fitViewBoxToContent/);
   assert.match(page, /const SVG_EXPORT_VIEWBOX_PADDING = 0\.065/);
@@ -72,7 +73,8 @@ test("the canvas toolbar exposes expand and PNG/SVG export actions on the left",
   assert.match(page, /aria-modal=\{canvasExpanded \|\| undefined\}/);
   assert.match(page, /const closeExpandedCanvas/);
   assert.match(page, /window\.requestAnimationFrame\(\(\) => canvasExpandButtonRef\.current\?\.focus/);
-  assert.match(css, /object-fit:\s*contain/);
+  assert.match(css, /\.png-live-preview > div\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.png-live-preview svg\s*\{[^}]*max-width:\s*100%;[^}]*max-height:\s*100%;/s);
 
   const toolbarRule = css.match(/\.canvas-toolbar-left\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(toolbarRule, /left:\s*12px/);

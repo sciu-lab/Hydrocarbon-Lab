@@ -16,9 +16,10 @@ function harness(overrides = {}) {
     AROMATIC_TEMPLATES: [{ id: "benzene" }], CYCLE_TEMPLATES: [3,4,5,6,7,8].map(size => ({ size })),
     ALKYL_TEMPLATES: ["methyl", "ethyl", "propyl"].map(id => ({ id })),
   };
-  for (const name of ["setToolPointer", "setPlacementTool", "setSelectedId", "setShowRingPalette", "setShowAlkylPalette", "setShowFunctionalPalette", "setRingInsertMode", "setPngExportOpen", "setCanvasExpanded", "setSettingsOpen", "removeSelectedWithKeyboard", "loadRingTemplate", "addAlkylGroup", "cycleBondOrder", "undo", "redo"]) {
+  for (const name of ["setToolPointer", "setPlacementTool", "setSelectedId", "setShowRingPalette", "setShowAlkylPalette", "setShowFunctionalPalette", "setRingInsertMode", "setPngExportOpen", "setCanvasExpanded", "setSettingsOpen", "removeSelectedWithKeyboard", "loadRingTemplate", "addAlkylGroup", "addCarbon", "cycleBondOrder", "undo", "redo"]) {
     context[name] = (...args) => calls.push([name, ...args]);
   }
+  context.addCarbonFromArrow = (...args) => calls.push(["addCarbon", ...args]);
   Object.assign(context, overrides);
   const listener = new Function("context", `with (context) { ${compiled}; return handleGlobalShortcut; }`)(context);
   const press = (key, options = {}) => {
@@ -38,6 +39,19 @@ test("construction keys route to the existing templates and actions", () => {
   assert.deepEqual(h.calls.at(-1), ["setPlacementTool", { kind: "ring", template: { id: "benzene" }, mode: "replace" }]);
   const empty = harness({ selectedId: null }); empty.press("m");
   assert.deepEqual(empty.calls.at(-1), ["setPlacementTool", { kind: "alkyl", template: { id: "methyl" } }]);
+});
+
+test("arrow keys route through the shared carbon-placement action", () => {
+  for (const [key, direction] of [
+    ["ArrowRight", [1, 0]],
+    ["ArrowLeft", [-1, 0]],
+    ["ArrowUp", [0, -1]],
+    ["ArrowDown", [0, 1]],
+  ]) {
+    const h = harness();
+    assert.equal(h.press(key), true);
+    assert.deepEqual(h.calls.at(-1), ["addCarbon", ...direction]);
+  }
 });
 
 test("typing, composition, modifiers, repeats and dialogs never trigger construction", () => {

@@ -487,8 +487,8 @@ test("nombra haloalquenos y halometanos sin locantes redundantes", () => {
 });
 
 test("detects every functional group in a ring with a nested oxo substituent", async () => {
-  const module = await server.ssrLoadModule("/app/page.tsx");
-  const { localNamerCannotSafelyName } = module;
+  const importedModule = await server.ssrLoadModule("/app/page.tsx");
+  const { localNamerCannotSafelyName } = importedModule;
   const molecule = {
     atoms: [
       { id: 1, x: 1, y: 0 },

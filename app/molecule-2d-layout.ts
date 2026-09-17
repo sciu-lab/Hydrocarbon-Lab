@@ -167,6 +167,11 @@ function buildRingAwarePositions(
       const rawAngle = rawChild && rawAtom
         ? Math.atan2((rawChild.y - rawAtom.y) * Y_SCALE, (rawChild.x - rawAtom.x) * X_SCALE)
         : incomingAngle;
+      const rawTurn = Math.abs(Math.atan2(
+        Math.sin(rawAngle - incomingAngle),
+        Math.cos(rawAngle - incomingAngle),
+      ));
+      const hasExplicitRawTurn = rawTurn > Math.PI / 12;
       const alternatingTurn = childIndex === 0 ? preferredTurn : (preferredTurn * -1) as 1 | -1;
       const candidates = [
         incomingAngle + alternatingTurn * TURN_ANGLE,
@@ -183,12 +188,20 @@ function buildRingAwarePositions(
           clearance: candidateClearance(point, origin, positions, segments),
           rawDifference: Math.abs(Math.atan2(Math.sin(angle - rawAngle), Math.cos(angle - rawAngle))),
         };
-      }).sort((left, right) =>
-        right.clearance - left.clearance
-        || left.index - right.index
-        || left.rawDifference - right.rawDifference
-        || childId - parentId,
-      );
+      }).sort((left, right) => {
+        if (hasExplicitRawTurn) {
+          const leftSafe = left.clearance >= BOND_LENGTH * 0.55;
+          const rightSafe = right.clearance >= BOND_LENGTH * 0.55;
+          if (leftSafe !== rightSafe) return leftSafe ? -1 : 1;
+          if (leftSafe && Math.abs(left.rawDifference - right.rawDifference) > 1e-8) {
+            return left.rawDifference - right.rawDifference;
+          }
+        }
+        return right.clearance - left.clearance
+          || left.rawDifference - right.rawDifference
+          || left.index - right.index
+          || childId - parentId;
+      });
       const chosen = ranked[0];
       positions.set(childId, chosen.point);
       visited.add(childId);
@@ -202,7 +215,9 @@ function buildRingAwarePositions(
     });
   };
 
-  // Start each acyclic substituent radially. Its second bond begins the zigzag.
+  // Start each acyclic substituent in its stored direction when that direction
+  // already exits the ring (manual arrows depend on it). Imported inward
+  // coordinates still fall back to the safe radial direction.
   for (const ringAtomId of [...ringAtomIds].sort((left, right) => left - right)) {
     const ringPoint = positions.get(ringAtomId);
     const center = ringCenters.get(ringAtomId);
@@ -210,11 +225,21 @@ function buildRingAwarePositions(
     const outwardAngle = Math.atan2(ringPoint.y - center.y, ringPoint.x - center.x);
     for (const childId of adjacency.get(ringAtomId) ?? []) {
       if (visited.has(childId)) continue;
-      const childPoint = pointAt(ringPoint, outwardAngle);
+      const rawRingAtom = atomsById.get(ringAtomId);
+      const rawChild = atomsById.get(childId);
+      const rawAngle = rawRingAtom && rawChild
+        ? Math.atan2(
+            (rawChild.y - rawRingAtom.y) * Y_SCALE,
+            (rawChild.x - rawRingAtom.x) * X_SCALE,
+          )
+        : outwardAngle;
+      const exitsRing = Math.cos(rawAngle - outwardAngle) > 0.05;
+      const attachmentAngle = exitsRing ? rawAngle : outwardAngle;
+      const childPoint = pointAt(ringPoint, attachmentAngle);
       positions.set(childId, childPoint);
       visited.add(childId);
       segments.push([ringPoint, childPoint]);
-      placeDescendants(ringAtomId, childId, outwardAngle, childId % 2 === 0 ? 1 : -1);
+      placeDescendants(ringAtomId, childId, attachmentAngle, childId % 2 === 0 ? 1 : -1);
     }
   }
 

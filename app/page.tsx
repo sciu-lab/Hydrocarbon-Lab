@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -67,14 +68,19 @@ import {
 import {
   clipSkeletalParallelBondSegments,
   clipSkeletalRingDoubleBondSegments,
+  DEFAULT_NUMBERING_SCALE,
+  getSkeletalNumberBadgeGeometry,
   getSkeletalRingNumberBadgeOffset,
   getSkeletalRingDoubleBondSegments,
-  SKELETAL_NUMBER_BADGE_CLEARANCE,
-  SKELETAL_NUMBER_BADGE_OFFSET,
+  MAX_NUMBERING_SCALE,
+  MIN_NUMBERING_SCALE,
+  normalizeNumberingScale,
+  NUMBERING_SCALE_STEP,
 } from "./skeletal-bond-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
 import {
   getMoleculeExportDimensions,
+  getMoleculeExportFrame,
   getMoleculeVisualBounds,
 } from "./molecule-visual-bounds";
 import { findOrderedSimpleMonocycle } from "./simple-cycle";
@@ -153,6 +159,7 @@ const compoundContextResolver = createCompoundContextResolver();
 const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
 const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v2";
 const KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY = "hydrocarbonLab.keepIupacNameVisible.v1";
+const NUMBERING_SCALE_STORAGE_KEY = "hydrocarbonLab.numberingScale.v1";
 
 type MovablePanelId = "structure-panel" | "analysis-panel";
 type PanelPosition = { x: number; y: number };
@@ -4078,14 +4085,20 @@ type SvgViewBoxPadding = number | {
 };
 
 const SVG_EXPORT_VIEWBOX_PADDING = 0.065;
+const SVG_EXPORT_SELECTION_SELECTOR = [
+  ".selection-ring",
+  ".skeletal-selection-ring",
+  ".skeletal-hetero-selection-ring",
+  "[class*='selection-overlay']",
+  "[class*='selectionOverlay']",
+  "[class*='selection-ring']",
+  "[class*='selectionRing']",
+].join(", ");
 const SVG_EXPORT_INTERFACE_SELECTOR = [
   ".bond-hit-target",
   ".skeletal-hit-target",
   ".skeletal-hetero-hit-target",
   ".skeletal-anchor",
-  ".selection-ring",
-  ".skeletal-selection-ring",
-  ".skeletal-hetero-selection-ring",
   "[class~='handle']",
   "[class*='-handle']",
   "[class*='handle-']",
@@ -4093,10 +4106,6 @@ const SVG_EXPORT_INTERFACE_SELECTOR = [
   "[class*='controlPoint']",
   "[class*='hit-target']",
   "[class*='hitTarget']",
-  "[class*='selection-overlay']",
-  "[class*='selectionOverlay']",
-  "[class*='selection-ring']",
-  "[class*='selectionRing']",
   "[data-editor-only='true']",
   "[data-export='false']",
 ].join(", ");
@@ -4338,6 +4347,7 @@ function fitViewBoxToContent(
       y: contentBounds.y - verticalPadding,
       width: contentBounds.width + horizontalPadding * 2,
       height: contentBounds.height + verticalPadding * 2,
+      padding: Math.max(horizontalPadding, verticalPadding),
     };
     const formatNumber = (value: number) => String(Math.round(value * 1_000) / 1_000);
     svgElement.setAttribute("viewBox", [
@@ -4376,7 +4386,7 @@ function inlineSvgStyles(source: SVGSVGElement, clone: SVGSVGElement) {
 }
 
 function removeSelectionFromSvg(svg: SVGSVGElement) {
-  svg.querySelectorAll(".selection-ring, .skeletal-selection-ring").forEach((element) => element.remove());
+  svg.querySelectorAll(SVG_EXPORT_SELECTION_SELECTOR).forEach((element) => element.remove());
   svg.querySelectorAll<SVGElement>(".carbon-node.selected").forEach((element) => {
     element.classList.remove("selected");
     element.querySelectorAll<SVGElement>(".skeletal-anchor").forEach((anchor) => {
@@ -4847,6 +4857,8 @@ export default function Home() {
   const [historyTransferNotice, setHistoryTransferNotice] = useState<HistoryTransferNotice | null>(null);
   const [showHydrogens, setShowHydrogens] = useState(true);
   const [showNumbering, setShowNumbering] = useState(true);
+  const [numberingScale, setNumberingScale] = useState(DEFAULT_NUMBERING_SCALE);
+  const [numberingScalePreferenceReady, setNumberingScalePreferenceReady] = useState(false);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
@@ -5369,13 +5381,16 @@ export default function Home() {
   }, [language]);
 
   useEffect(() => {
-    try {
-      setShowStereochemistry(window.localStorage.getItem(STEREOCHEMISTRY_STORAGE_KEY) === "on");
-    } catch {
-      // The default remains off when browser storage is unavailable.
-    } finally {
-      setStereochemistryPreferenceReady(true);
-    }
+    const restorePreference = window.setTimeout(() => {
+      try {
+        setShowStereochemistry(window.localStorage.getItem(STEREOCHEMISTRY_STORAGE_KEY) === "on");
+      } catch {
+        // The default remains off when browser storage is unavailable.
+      } finally {
+        setStereochemistryPreferenceReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(restorePreference);
   }, []);
 
   useEffect(() => {
@@ -5389,6 +5404,31 @@ export default function Home() {
       // The control remains usable for the current session without storage.
     }
   }, [showStereochemistry, stereochemistryPreferenceReady]);
+
+  useEffect(() => {
+    const restorePreference = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(NUMBERING_SCALE_STORAGE_KEY);
+        setNumberingScale(stored === null
+          ? DEFAULT_NUMBERING_SCALE
+          : normalizeNumberingScale(stored));
+      } catch {
+        setNumberingScale(DEFAULT_NUMBERING_SCALE);
+      } finally {
+        setNumberingScalePreferenceReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(restorePreference);
+  }, []);
+
+  useEffect(() => {
+    if (!numberingScalePreferenceReady) return;
+    try {
+      window.localStorage.setItem(NUMBERING_SCALE_STORAGE_KEY, String(numberingScale));
+    } catch {
+      // The current session still keeps the chosen scale when storage is unavailable.
+    }
+  }, [numberingScale, numberingScalePreferenceReady]);
 
   useEffect(() => () => {
     if (nomenclatureHintTimer.current !== null) {
@@ -5933,6 +5973,11 @@ export default function Home() {
     );
   };
 
+  const updateNumberingScale = (value: number) => {
+    const clamped = Math.min(MAX_NUMBERING_SCALE, Math.max(MIN_NUMBERING_SCALE, value));
+    setNumberingScale(normalizeNumberingScale(clamped));
+  };
+
   const addCarbon = (dx: number, dy: number) => {
     if (!hasActiveSelection) {
       setNotice("Selecciona un átomo antes de añadir un carbono.");
@@ -5972,6 +6017,7 @@ export default function Home() {
     previousSelectedId.current = selectedAtom.id;
     setSelectedId(nextId);
   };
+  const addCarbonFromArrow = useEffectEvent(addCarbon);
 
   const cycleBondOrder = (a: number, b: number, requestedOrder?: BondOrder) => {
     const atomA = getAtom(a, molecule);
@@ -6540,9 +6586,9 @@ export default function Home() {
     return clonedSvg;
   };
 
-  // PNG, SVG and the dialog preview all start from this one fitted SVG. The
-  // browser-measured bounds include every rendered stroke and label, rather
-  // than relying on the interactive canvas viewport.
+  // PNG, SVG and the dialog preview all start from this one fitted SVG and
+  // export frame. Browser-measured bounds include every rendered stroke and
+  // label, while the pure frame helper owns the viewBox and output ratio.
   const createFittedExportSvg = (
     sourceSvg: SVGSVGElement,
     backgroundMode: PngBackgroundMode,
@@ -6558,11 +6604,25 @@ export default function Home() {
       palette,
     );
     cleanSvgForExport(clonedSvg);
-    const bounds = fitViewBoxToContent(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING);
+    const fittedBounds = fitViewBoxToContent(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING);
+    const baseDimensions = getSvgBaseDimensions(sourceSvg);
+    const sourceViewBox = sourceSvg.viewBox.baseVal;
+    const bounds = fittedBounds ?? {
+      x: sourceViewBox.x,
+      y: sourceViewBox.y,
+      width: Math.max(1, sourceViewBox.width),
+      height: Math.max(1, sourceViewBox.height),
+      padding: 0,
+    };
+    const frame = getMoleculeExportFrame(
+      bounds,
+      Math.max(baseDimensions.width, baseDimensions.height),
+    );
+    clonedSvg.setAttribute("viewBox", frame.viewBox);
     if (backgroundMode === "canvas") {
       addSvgCanvasBackground(clonedSvg, resolveCanvasBackgroundColor(sourceSvg));
     }
-    return { clonedSvg, bounds };
+    return { clonedSvg, frame };
   };
 
   const exportCanvasAsPNG = () => {
@@ -6573,15 +6633,14 @@ export default function Home() {
     }
 
     try {
-      const baseDimensions = getSvgBaseDimensions(sourceSvg);
-      const { clonedSvg } = createFittedExportSvg(
+      const { clonedSvg, frame } = createFittedExportSvg(
         sourceSvg,
         pngBackgroundMode,
         pngColorMode,
         pngIncludeSelection,
       );
-      const width = normalizeExportPixels(Number(pngExportWidth), baseDimensions.width * pngExportScale);
-      const height = normalizeExportPixels(Number(pngExportHeight), baseDimensions.height * pngExportScale);
+      const width = normalizeExportPixels(Number(pngExportWidth), frame.width * pngExportScale);
+      const height = normalizeExportPixels(Number(pngExportHeight), frame.height * pngExportScale);
       clonedSvg.setAttribute("width", String(width));
       clonedSvg.setAttribute("height", String(height));
 
@@ -6639,26 +6698,14 @@ export default function Home() {
     }
 
     try {
-      const { clonedSvg, bounds: fittedBounds } = createFittedExportSvg(
+      const { clonedSvg, frame } = createFittedExportSvg(
         sourceSvg,
         pngBackgroundMode,
         pngColorMode,
         pngIncludeSelection,
       );
-      const baseDimensions = getSvgBaseDimensions(sourceSvg);
-      const sourceViewBox = sourceSvg.viewBox.baseVal;
-      const outputScale = Math.min(
-        baseDimensions.width / Math.max(1, sourceViewBox.width),
-        baseDimensions.height / Math.max(1, sourceViewBox.height),
-      );
-      const dimensions = fittedBounds
-        ? {
-            width: fittedBounds.width * outputScale,
-            height: fittedBounds.height * outputScale,
-          }
-        : baseDimensions;
-      clonedSvg.setAttribute("width", String(dimensions.width));
-      clonedSvg.setAttribute("height", String(dimensions.height));
+      clonedSvg.setAttribute("width", String(frame.width));
+      clonedSvg.setAttribute("height", String(frame.height));
       applySvgColorMode(clonedSvg, pngColorMode);
       const serializedSvg = new XMLSerializer().serializeToString(clonedSvg);
       const currentName = molecule.atoms.length ? localizedCanonicalIupacName : "molecula";
@@ -6687,7 +6734,7 @@ export default function Home() {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) return;
     try {
-      const { clonedSvg } = createFittedExportSvg(
+      const { clonedSvg, frame } = createFittedExportSvg(
         sourceSvg,
         backgroundMode,
         colorMode,
@@ -6700,6 +6747,16 @@ export default function Home() {
       clonedSvg.setAttribute("aria-hidden", "true");
       clonedSvg.setAttribute("focusable", "false");
       setPngPreviewMarkup(clonedSvg.outerHTML);
+      setPngExportAspectRatio(frame.bounds.width / frame.bounds.height);
+      if (!pngUsingCustomSize) {
+        const dimensions = getSvgBaseDimensions(sourceSvg);
+        const exportDimensions = getMoleculeExportDimensions(
+          frame.bounds,
+          Math.max(dimensions.width, dimensions.height) * pngExportScale,
+        );
+        setPngExportWidth(String(exportDimensions.width));
+        setPngExportHeight(String(exportDimensions.height));
+      }
     } catch {
       setPngPreviewMarkup("");
     }
@@ -6709,10 +6766,21 @@ export default function Home() {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) return;
     const dimensions = getSvgBaseDimensions(sourceSvg);
+    const { frame } = createFittedExportSvg(
+      sourceSvg,
+      pngBackgroundMode,
+      pngColorMode,
+      pngIncludeSelection,
+    );
+    const exportDimensions = getMoleculeExportDimensions(
+      frame.bounds,
+      Math.max(dimensions.width, dimensions.height) * scale,
+    );
     setPngExportScale(scale);
     setPngUsingCustomSize(false);
-    setPngExportWidth(String(Math.round(dimensions.width * scale)));
-    setPngExportHeight(String(Math.round(dimensions.height * scale)));
+    setPngExportAspectRatio(frame.bounds.width / frame.bounds.height);
+    setPngExportWidth(String(exportDimensions.width));
+    setPngExportHeight(String(exportDimensions.height));
   };
 
   const updateManualPngDimension = (axis: "width" | "height", value: string) => {
@@ -6755,21 +6823,16 @@ export default function Home() {
     setPngIncludeSelection(includeSelection);
     if (sourceSvg) {
       const dimensions = getSvgBaseDimensions(sourceSvg);
-      const { bounds } = createFittedExportSvg(
+      const { frame } = createFittedExportSvg(
         sourceSvg,
         pngBackgroundMode,
         pngColorMode,
         includeSelection,
       );
-      const exportDimensions = bounds
-        ? getMoleculeExportDimensions(
-            bounds,
-            Math.max(dimensions.width, dimensions.height) * pngExportScale,
-          )
-        : {
-            width: Math.round(dimensions.width * pngExportScale),
-            height: Math.round(dimensions.height * pngExportScale),
-          };
+      const exportDimensions = getMoleculeExportDimensions(
+        frame.bounds,
+        Math.max(dimensions.width, dimensions.height) * pngExportScale,
+      );
       const aspectRatio = exportDimensions.width / exportDimensions.height;
       setPngUsingCustomSize(false);
       setPngExportAspectRatio(aspectRatio);
@@ -7158,7 +7221,16 @@ export default function Home() {
       if (!commandPressed) {
         if (event.shiftKey) return;
         const key = event.key.toLowerCase();
-        if (event.key === "Delete" || event.key === "Backspace") {
+        const arrowDirection = {
+          arrowleft: { x: -1, y: 0 },
+          arrowright: { x: 1, y: 0 },
+          arrowup: { x: 0, y: -1 },
+          arrowdown: { x: 0, y: 1 },
+        }[key];
+        if (arrowDirection) {
+          event.preventDefault();
+          addCarbonFromArrow(arrowDirection.x, arrowDirection.y);
+        } else if (event.key === "Delete" || event.key === "Backspace") {
           event.preventDefault();
           if (selectedId !== null && !target?.closest("[data-bond-a]")) removeSelectedWithKeyboard();
         } else if (key === "r") {
@@ -7276,22 +7348,45 @@ export default function Home() {
       y: point.y * coordinateScale,
     }]),
   );
+  const numberingGeometry = getSkeletalNumberBadgeGeometry(numberingScale);
   const skeletalNumberBadgeOffsets = new Map(
     molecule.atoms.map((atom) => {
       const containingRing = molecule.rings?.find((ring) => ring.atomIds.includes(atom.id));
       const position = displayPositions.get(atom.id)!;
       const offset = containingRing
-        ? getSkeletalRingNumberBadgeOffset(
-            position,
-            containingRing.atomIds.map((atomId) => displayPositions.get(atomId)!),
-          )
-        : molecule.isMirrored
-          ? { x: -SKELETAL_NUMBER_BADGE_OFFSET.x, y: SKELETAL_NUMBER_BADGE_OFFSET.y }
-          : SKELETAL_NUMBER_BADGE_OFFSET;
+          ? getSkeletalRingNumberBadgeOffset(
+              position,
+              containingRing.atomIds.map((atomId) => displayPositions.get(atomId)!),
+              numberingScale,
+            )
+          : molecule.isMirrored
+          ? { x: -numberingGeometry.offset.x, y: numberingGeometry.offset.y }
+          : numberingGeometry.offset;
       return [atom.id, offset];
     }),
   );
-  const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values());
+  const numberingBadgeExtents = effectiveShowNumbering
+    ? molecule.atoms.flatMap((atom) => {
+        if (!analysis.numberedAtoms.has(atom.id) || carbonCount <= 1) return [];
+        const position = displayPositions.get(atom.id)!;
+        const offset = viewMode === "skeletal"
+          ? skeletalNumberBadgeOffsets.get(atom.id)!
+          : {
+              x: (molecule.isMirrored ? -25 : 25) * numberingScale,
+              y: -27 * numberingScale,
+            };
+        const paintedRadius = numberingGeometry.radius + numberingGeometry.strokeWidth / 2;
+        return [{
+          x: position.x + offset.x - paintedRadius,
+          y: position.y + offset.y - paintedRadius,
+          width: paintedRadius * 2,
+          height: paintedRadius * 2,
+        }];
+      })
+    : [];
+  const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values(), {
+    additionalExtents: numberingBadgeExtents,
+  });
   const viewWidth = Math.max(720, moleculeVisualBounds.width);
   const viewHeight = Math.max(390, moleculeVisualBounds.height);
   const viewCenterX = moleculeVisualBounds.x + moleculeVisualBounds.width / 2;
@@ -8780,7 +8875,7 @@ export default function Home() {
                         x: positionA.x + skeletalNumberBadgeOffsets.get(a)!.x,
                         y: positionA.y + skeletalNumberBadgeOffsets.get(a)!.y,
                       },
-                      radius: SKELETAL_NUMBER_BADGE_CLEARANCE,
+                      radius: numberingGeometry.clearance,
                     }
                   : undefined;
                 const endNumberObstacle = effectiveShowNumbering
@@ -8792,7 +8887,7 @@ export default function Home() {
                         x: positionB.x + skeletalNumberBadgeOffsets.get(b)!.x,
                         y: positionB.y + skeletalNumberBadgeOffsets.get(b)!.y,
                       },
-                      radius: SKELETAL_NUMBER_BADGE_CLEARANCE,
+                      radius: numberingGeometry.clearance,
                     }
                   : undefined;
                 const startHeteroObstacle = viewMode === "skeletal" && !isCarbonAtom(atomA)
@@ -8931,7 +9026,7 @@ export default function Home() {
                 const chainNumber = analysis.numberedAtoms.get(atom.id);
                 const position = displayPositions.get(atom.id)!;
                 const numberBadgeOffset = skeletalNumberBadgeOffsets.get(atom.id)
-                  ?? SKELETAL_NUMBER_BADGE_OFFSET;
+                  ?? numberingGeometry.offset;
                 const showHydrogenOnLabel = showHydrogens;
                 const atomLabel = carbonAtom
                   ? showHydrogenOnLabel
@@ -9005,8 +9100,17 @@ export default function Home() {
                               className="skeletal-number"
                               transform={`translate(${numberBadgeOffset.x} ${numberBadgeOffset.y})`}
                             >
-                              <circle className="number-circle" r="12" />
-                              <text className="number-label" textAnchor="middle" dominantBaseline="central">{chainNumber}</text>
+                              <circle
+                                className="number-circle"
+                                r={numberingGeometry.radius}
+                                style={{ strokeWidth: numberingGeometry.strokeWidth }}
+                              />
+                              <text
+                                className="number-label"
+                                style={{ fontSize: numberingGeometry.fontSize }}
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                              >{chainNumber}</text>
                             </g>
                           )}
                         </>
@@ -9054,8 +9158,17 @@ export default function Home() {
                               className="skeletal-number"
                               transform={`translate(${numberBadgeOffset.x} ${numberBadgeOffset.y})`}
                             >
-                              <circle className="number-circle" r="12" />
-                              <text className="number-label" textAnchor="middle" dominantBaseline="central">{chainNumber}</text>
+                              <circle
+                                className="number-circle"
+                                r={numberingGeometry.radius}
+                                style={{ strokeWidth: numberingGeometry.strokeWidth }}
+                              />
+                              <text
+                                className="number-label"
+                                style={{ fontSize: numberingGeometry.fontSize }}
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                              >{chainNumber}</text>
                             </g>
                           )}
                         </>
@@ -9076,9 +9189,18 @@ export default function Home() {
                           )}
                         </text>
                         {effectiveShowNumbering && chainNumber && (
-                          <g transform={`translate(${molecule.isMirrored ? -25 : 25} -27)`}>
-                            <circle className="number-circle" r="12" />
-                            <text className="number-label" textAnchor="middle" dominantBaseline="central">{chainNumber}</text>
+                          <g transform={`translate(${(molecule.isMirrored ? -25 : 25) * numberingScale} ${-27 * numberingScale})`}>
+                            <circle
+                              className="number-circle"
+                              r={numberingGeometry.radius}
+                              style={{ strokeWidth: numberingGeometry.strokeWidth }}
+                            />
+                            <text
+                              className="number-label"
+                              style={{ fontSize: numberingGeometry.fontSize }}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                            >{chainNumber}</text>
                           </g>
                         )}
                       </>
@@ -9551,6 +9673,36 @@ export default function Home() {
                 ? `${t("Numerar")} ${isRingStructure ? t("anillo") : t("cadena principal")}`
                 : t("Numeración N- conservada en el nombre")}
             </label>
+            <div
+              className={`numbering-size-control ${!automaticNumberingAvailable ? "option-disabled" : ""}`}
+              role="group"
+              aria-label={t("Tamaño de numeración")}
+            >
+              <span className="numbering-size-label">{t("Tamaño de numeración")}</span>
+              <button
+                type="button"
+                disabled={!automaticNumberingAvailable || numberingScale <= MIN_NUMBERING_SCALE}
+                onClick={() => updateNumberingScale(numberingScale - NUMBERING_SCALE_STEP)}
+                aria-label={t("Reducir tamaño de numeración")}
+              >−</button>
+              <input
+                type="range"
+                min={MIN_NUMBERING_SCALE}
+                max={MAX_NUMBERING_SCALE}
+                step={NUMBERING_SCALE_STEP}
+                value={numberingScale}
+                disabled={!automaticNumberingAvailable}
+                onChange={(event) => updateNumberingScale(Number(event.target.value))}
+                aria-label={t("Tamaño de numeración")}
+              />
+              <button
+                type="button"
+                disabled={!automaticNumberingAvailable || numberingScale >= MAX_NUMBERING_SCALE}
+                onClick={() => updateNumberingScale(numberingScale + NUMBERING_SCALE_STEP)}
+                aria-label={t("Aumentar tamaño de numeración")}
+              >+</button>
+              <output aria-live="polite">{Math.round(numberingScale * 100)} %</output>
+            </div>
             <label>
               <input
                 type="checkbox"

@@ -19,7 +19,12 @@ test("implicit-H toggle remains enabled in skeletal view", () => {
 
 test("numbering and substituent-highlight controls remain present", () => {
   assert.match(page, /setShowNumbering\(event\.target\.checked\)/);
+  assert.match(page, /hydrocarbonLab\.numberingScale\.v1/);
+  assert.match(page, /type="range"[\s\S]*MIN_NUMBERING_SCALE[\s\S]*MAX_NUMBERING_SCALE/);
+  assert.match(page, /normalizeNumberingScale\(stored\)/);
+  assert.match(page, /aria-label=\{t\("Tamaño de numeración"\)\}/);
   assert.match(page, /setHighlightSubstituents\(enabled\)/);
+  assert.match(css, /\.numbering-size-control/);
 });
 
 test("the settings drawer keeps its controls, shortcuts, and dismiss actions", () => {

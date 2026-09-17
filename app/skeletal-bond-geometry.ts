@@ -19,6 +19,37 @@ export const SKELETAL_NUMBER_BADGE_CLEARANCE = SKELETAL_NUMBER_BADGE_RADIUS
   + SKELETAL_NUMBER_BADGE_STROKE_WIDTH / 2
   + SKELETAL_BOND_END_BUFFER;
 export const SKELETAL_RING_NUMBER_BADGE_DISTANCE = 30;
+export const DEFAULT_NUMBERING_SCALE = 1;
+export const MIN_NUMBERING_SCALE = 0.6;
+export const MAX_NUMBERING_SCALE = 2;
+export const NUMBERING_SCALE_STEP = 0.1;
+export const SKELETAL_NUMBER_FONT_SIZE = 10;
+
+export function normalizeNumberingScale(value: unknown) {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numericValue)) return DEFAULT_NUMBERING_SCALE;
+  const stepped = Math.round(numericValue / NUMBERING_SCALE_STEP) * NUMBERING_SCALE_STEP;
+  if (stepped < MIN_NUMBERING_SCALE || stepped > MAX_NUMBERING_SCALE) {
+    return DEFAULT_NUMBERING_SCALE;
+  }
+  return Math.round(stepped * 10) / 10;
+}
+
+export function getSkeletalNumberBadgeGeometry(numberingScale: number) {
+  const scale = normalizeNumberingScale(numberingScale);
+  return {
+    scale,
+    radius: SKELETAL_NUMBER_BADGE_RADIUS * scale,
+    strokeWidth: SKELETAL_NUMBER_BADGE_STROKE_WIDTH * scale,
+    fontSize: SKELETAL_NUMBER_FONT_SIZE * scale,
+    clearance: SKELETAL_NUMBER_BADGE_CLEARANCE * scale,
+    offset: {
+      x: SKELETAL_NUMBER_BADGE_OFFSET.x * scale,
+      y: SKELETAL_NUMBER_BADGE_OFFSET.y * scale,
+    },
+    ringDistance: SKELETAL_RING_NUMBER_BADGE_DISTANCE * scale,
+  };
+}
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
@@ -26,7 +57,9 @@ const clamp = (value: number, minimum: number, maximum: number) =>
 export function getSkeletalRingNumberBadgeOffset(
   vertex: SkeletalPoint,
   ringPoints: readonly SkeletalPoint[],
+  numberingScale = DEFAULT_NUMBERING_SCALE,
 ): SkeletalPoint {
+  const geometry = getSkeletalNumberBadgeGeometry(numberingScale);
   const ringCenter = ringPoints.reduce(
     (center, point) => ({
       x: center.x + point.x / Math.max(ringPoints.length, 1),
@@ -38,11 +71,11 @@ export function getSkeletalRingNumberBadgeOffset(
   const outwardY = vertex.y - ringCenter.y;
   const outwardLength = Math.hypot(outwardX, outwardY);
 
-  if (outwardLength === 0) return { ...SKELETAL_NUMBER_BADGE_OFFSET };
+  if (outwardLength === 0) return { ...geometry.offset };
 
   return {
-    x: outwardX / outwardLength * SKELETAL_RING_NUMBER_BADGE_DISTANCE,
-    y: outwardY / outwardLength * SKELETAL_RING_NUMBER_BADGE_DISTANCE,
+    x: outwardX / outwardLength * geometry.ringDistance,
+    y: outwardY / outwardLength * geometry.ringDistance,
   };
 }
 

@@ -5,12 +5,14 @@ import {
   clipSkeletalBondSegment,
   clipSkeletalParallelBondSegments,
   clipSkeletalRingDoubleBondSegments,
+  getSkeletalNumberBadgeGeometry,
   getSkeletalRingNumberBadgeOffset,
   getSkeletalRingDoubleBondSegments,
   SKELETAL_BOND_END_CLEARANCE,
   SKELETAL_NUMBER_BADGE_CLEARANCE,
   SKELETAL_NUMBER_BADGE_OFFSET,
   SKELETAL_RING_NUMBER_BADGE_DISTANCE,
+  normalizeNumberingScale,
 } from "../app/skeletal-bond-geometry.ts";
 
 const hexagon = Array.from({ length: 6 }, (_, index) => {
@@ -100,6 +102,28 @@ test("places every cyclic number badge radially outside the ring", () => {
       ) >= SKELETAL_NUMBER_BADGE_CLEARANCE,
     );
   }
+});
+
+test("numbering scale is the single source for badge paint, offsets and clearance", () => {
+  for (const scale of [0.6, 1, 1.5, 2]) {
+    const geometry = getSkeletalNumberBadgeGeometry(scale);
+    assert.equal(geometry.scale, scale);
+    assert.equal(geometry.radius, 12 * scale);
+    assert.equal(geometry.fontSize, 10 * scale);
+    assert.equal(geometry.clearance, SKELETAL_NUMBER_BADGE_CLEARANCE * scale);
+    assert.equal(geometry.offset.x, SKELETAL_NUMBER_BADGE_OFFSET.x * scale);
+    assert.equal(geometry.offset.y, SKELETAL_NUMBER_BADGE_OFFSET.y * scale);
+
+    const offset = getSkeletalRingNumberBadgeOffset(hexagon[0], hexagon, scale);
+    assert.ok(Math.abs(Math.hypot(offset.x, offset.y) - SKELETAL_RING_NUMBER_BADGE_DISTANCE * scale) < 1e-9);
+  }
+});
+
+test("invalid persisted numbering scales fall back to 100 percent", () => {
+  for (const value of ["corrupt", "", 0.5, 2.1, Infinity, null]) {
+    assert.equal(normalizeNumberingScale(value), 1);
+  }
+  assert.equal(normalizeNumberingScale("1.49"), 1.5);
 });
 
 const projectedEndpointClearance = (segment, start, end) => {
@@ -213,6 +237,35 @@ test("keeps parallel open-chain strokes clear of the offset number badge", () =>
   const secondClearance = projectedEndpointClearance(clipped[1], start, end);
   assert.ok(Math.abs(firstClearance.start - secondClearance.start) < 1e-9);
   assert.ok(Math.abs(firstClearance.end - secondClearance.end) < 1e-9);
+});
+
+test("scaled number obstacles keep multiple bonds clear at 60, 100, 150 and 200 percent", () => {
+  const start = { x: 0, y: 0 };
+  const end = { x: 130, y: 0 };
+  const rawSegments = [-5, 5].map((offset) => ({
+    x: start.x,
+    y: start.y + offset,
+    x2: end.x,
+    y2: end.y + offset,
+    role: null,
+  }));
+
+  for (const scale of [0.6, 1, 1.5, 2]) {
+    const geometry = getSkeletalNumberBadgeGeometry(scale);
+    const badge = {
+      x: start.x + geometry.offset.x,
+      y: start.y + geometry.offset.y,
+    };
+    const clipped = clipSkeletalParallelBondSegments(rawSegments, start, end, {
+      startObstacle: { center: badge, radius: geometry.clearance },
+    });
+    for (const segment of clipped) {
+      assert.ok(
+        distanceFromPointToSegment(badge, segment) >= geometry.clearance - 1e-9,
+        `${scale * 100}% badge remains clear`,
+      );
+    }
+  }
 });
 
 test("keeps both ring strokes clear of the numbered carbon circles", () => {

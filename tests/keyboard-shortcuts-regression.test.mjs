@@ -4,17 +4,20 @@ import test from "node:test";
 
 const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-test("the canvas has no listener for the retired drawing shortcuts", () => {
+test("the canvas keeps the retired per-element listener removed", () => {
   assert.doesNotMatch(page, /handleCanvasKeyDown/);
   assert.doesNotMatch(page, /onKeyDown=\{handleCanvasKeyDown\}/);
-  assert.doesNotMatch(page, /\["arrowleft",\s*"arrowright",\s*"arrowup",\s*"arrowdown"/);
   assert.doesNotMatch(page, /Atajo de dibujo:/);
 });
 
-test("the global listener retains only the requested keyboard actions", () => {
+test("the global listener retains construction, editing and directional actions", () => {
   ["z", "y", "r", "s", "i", "n", "1", "2", "3", "4"].forEach((key) => {
     assert.match(page, new RegExp(`key === "${key}"`));
   });
   assert.match(page, /event\.key === "Delete"/);
   assert.match(page, /event\.key === "Escape"/);
+  ["arrowleft", "arrowright", "arrowup", "arrowdown"].forEach((key) => {
+    assert.match(page, new RegExp(`${key}:`));
+  });
+  assert.match(page, /addCarbonFromArrow\(arrowDirection\.x, arrowDirection\.y\)/);
 });

@@ -13,17 +13,51 @@ export type ManualLayoutMolecule = {
 
 type Point = { x: number; y: number };
 
-const radians = (degrees: number) => degrees * Math.PI / 180;
-
-const rotate = (vector: Point, angle: number): Point => ({
-  x: vector.x * Math.cos(angle) - vector.y * Math.sin(angle),
-  y: vector.x * Math.sin(angle) + vector.y * Math.cos(angle),
-});
-
 const normalized = (vector: Point): Point => {
   const length = Math.hypot(vector.x, vector.y) || 1;
   return { x: vector.x / length, y: vector.y / length };
 };
+
+const dot = (left: Point, right: Point) => left.x * right.x + left.y * right.y;
+
+function axisZigzagCandidates(direction: Point) {
+  const perpendicular = { x: -direction.y, y: direction.x };
+  const longitudinal = Math.cos(Math.PI / 3);
+  const alternating = Math.sin(Math.PI / 3);
+  return [1, -1].map((sign) => ({
+    x: direction.x * longitudinal + perpendicular.x * alternating * sign,
+    y: direction.y * longitudinal + perpendicular.y * alternating * sign,
+  }));
+}
+
+function ringOutwardDirection(
+  molecule: ManualLayoutMolecule,
+  selectedId: number,
+  requestedDirection: Point,
+) {
+  const ring = molecule.rings?.find((candidate) => candidate.atomIds.includes(selectedId));
+  if (!ring) return requestedDirection;
+  const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
+  const vertices = ring.atomIds.map((atomId) => atomsById.get(atomId)).filter(Boolean) as ManualLayoutAtom[];
+  const selected = atomsById.get(selectedId);
+  if (!selected || !vertices.length) return requestedDirection;
+  const center = vertices.reduce(
+    (sum, atom) => ({ x: sum.x + atom.x / vertices.length, y: sum.y + atom.y / vertices.length }),
+    { x: 0, y: 0 },
+  );
+  const outward = normalized({ x: selected.x - center.x, y: selected.y - center.y });
+  const desired = normalized(requestedDirection);
+  if (dot(desired, outward) > 0.05) return requestedDirection;
+
+  // An inward arrow still exits the ring before the following presses settle
+  // around the requested global axis.
+  const blended = normalized({
+    x: desired.x * 0.35 + outward.x,
+    y: desired.y * 0.35 + outward.y,
+  });
+  const length = Math.hypot(requestedDirection.x, requestedDirection.y) || 1;
+  return { x: blended.x * length, y: blended.y * length };
+}
 
 function carbonNeighbors(molecule: ManualLayoutMolecule, atomId: number) {
   const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
@@ -35,9 +69,9 @@ function carbonNeighbors(molecule: ManualLayoutMolecule, atomId: number) {
 }
 
 /**
- * Chooses the conventional 120 degree continuation for a new manually-added
- * carbon. This changes only automatically proposed coordinates; dragging a
- * node remains unrestricted.
+ * Chooses a conventional zigzag around the global axis requested by the
+ * arrow. Keeping both candidates on opposite sides of that axis prevents a
+ * sequence of locally-good turns from accumulating perpendicular drift.
  */
 export function getAutoPlacedCarbonPosition(
   molecule: ManualLayoutMolecule,
@@ -47,7 +81,8 @@ export function getAutoPlacedCarbonPosition(
   const selected = molecule.atoms.find((atom) => atom.id === selectedId);
   if (!selected) return requestedDirection;
   if (molecule.rings?.some((ring) => ring.atomIds.includes(selectedId))) {
-    return { x: selected.x + requestedDirection.x, y: selected.y + requestedDirection.y };
+    const outward = ringOutwardDirection(molecule, selectedId, requestedDirection);
+    return { x: selected.x + outward.x, y: selected.y + outward.y };
   }
 
   const neighbors = carbonNeighbors(molecule, selectedId);
@@ -57,21 +92,17 @@ export function getAutoPlacedCarbonPosition(
 
   const parent = neighbors[0];
   const desired = normalized(requestedDirection);
+  const perpendicular = { x: -desired.y, y: desired.x };
   const incoming = normalized({ x: selected.x - parent.x, y: selected.y - parent.y });
-  const candidates = [rotate(incoming, radians(60)), rotate(incoming, radians(-60))];
-  const scores = candidates.map((candidate) => candidate.x * desired.x + candidate.y * desired.y);
-  let choice = scores[0] > scores[1] + 1e-9 ? 0 : scores[1] > scores[0] + 1e-9 ? 1 : 0;
+  const candidates = axisZigzagCandidates(desired);
+  const incomingSide = dot(incoming, perpendicular);
+  let choice = incomingSide > 1e-9 ? 1 : incomingSide < -1e-9 ? 0 : 0;
 
-  // If both conventional directions fit the requested arrow equally well,
-  // alternate the next turn relative to the preceding chain segment.
-  const grandparents = carbonNeighbors(molecule, parent.id).filter((atom) => atom.id !== selectedId);
-  if (Math.abs(scores[0] - scores[1]) <= 1e-9 && grandparents.length === 1) {
-    const previous = normalized({ x: parent.x - grandparents[0].x, y: parent.y - grandparents[0].y });
-    const previousTurn = previous.x * incoming.y - previous.y * incoming.x;
-    if (Math.abs(previousTurn) > 1e-9) {
-      const turns = candidates.map((candidate) => incoming.x * candidate.y - incoming.y * candidate.x);
-      choice = turns[0] * previousTurn < turns[1] * previousTurn ? 0 : 1;
-    }
+  // When entering from an unrelated angle (for example after selecting a
+  // branch), prefer the candidate closest to a 120° internal bond angle.
+  if (Math.abs(dot(incoming, desired)) < 0.45) {
+    const angleScores = candidates.map((candidate) => Math.abs(dot(incoming, candidate) - 0.5));
+    choice = angleScores[0] <= angleScores[1] ? 0 : 1;
   }
 
   const length = Math.hypot(requestedDirection.x, requestedDirection.y) || 1;

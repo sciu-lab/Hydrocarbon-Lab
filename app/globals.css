@@ -374,7 +374,17 @@ button {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+}
+
+.png-live-preview > div {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.png-live-preview svg {
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .png-live-preview.color-grayscale svg {
@@ -3413,6 +3423,8 @@ button {
 
 .display-options {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 22px;
   padding: 13px 24px 20px;
 }
@@ -3468,6 +3480,69 @@ button {
 }
 
 .display-options input:focus-visible + span {
+  outline: 2px solid #225f72;
+  outline-offset: 2px;
+}
+
+.numbering-size-control {
+  display: flex;
+  min-width: min(100%, 260px);
+  align-items: center;
+  gap: 6px;
+  color: #60746e;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.numbering-size-control.option-disabled {
+  opacity: 0.45;
+}
+
+.numbering-size-label {
+  white-space: nowrap;
+}
+
+.numbering-size-control button {
+  display: grid;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid #bfd4cd;
+  border-radius: 8px;
+  background: #f6faf8;
+  color: #2c7764;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.numbering-size-control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.display-options .numbering-size-control input[type="range"] {
+  position: static;
+  width: clamp(74px, 10vw, 112px);
+  height: 26px;
+  margin: 0;
+  opacity: 1;
+  pointer-events: auto;
+  accent-color: #398a74;
+}
+
+.numbering-size-control output {
+  min-width: 42px;
+  color: #39685c;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.numbering-size-control button:focus-visible,
+.numbering-size-control input:focus-visible {
   outline: 2px solid #225f72;
   outline-offset: 2px;
 }
@@ -6069,6 +6144,20 @@ html[data-theme="dark"] .display-options label > span {
 
 html[data-theme="dark"] .display-options label > span::after {
   background: #dce9e5;
+}
+
+html[data-theme="dark"] .numbering-size-control {
+  color: #9cada7;
+}
+
+html[data-theme="dark"] .numbering-size-control button {
+  border-color: #466159;
+  background: #20342e;
+  color: #9bd7c5;
+}
+
+html[data-theme="dark"] .numbering-size-control output {
+  color: #a8d8ca;
 }
 
 html[data-theme="dark"] .name-result {
