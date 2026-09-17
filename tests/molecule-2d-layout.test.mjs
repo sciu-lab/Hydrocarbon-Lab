@@ -231,9 +231,14 @@ test("the final rendered layout preserves ArrowRight growth from cyclohexane", (
   const totalDx = end.x - start.x;
   const totalDy = end.y - start.y;
   const yValues = new Set(chain.map((point) => Math.round(point.y * 1e6)));
+  const firstStep = { x: chain[0].x - start.x, y: chain[0].y - start.y };
+  const secondStep = { x: chain[1].x - chain[0].x, y: chain[1].y - chain[0].y };
 
   assert.ok(totalDx > 0);
   assert.ok(Math.abs(totalDx) > Math.abs(totalDy));
+  assert.ok(firstStep.x > 0);
+  assert.ok(Math.abs(firstStep.y) > 1e-8, "the final layout keeps the first diagonal bond");
+  assert.ok(firstStep.y * secondStep.y < 0, "the final layout keeps the opposite second phase");
   assert.ok(yValues.size > 1, "the rendered chain remains a zigzag");
   assert.ok(chain.every((point) => point.x > start.x), "the substituent does not cross the ring");
   const renderedChain = [start, ...chain];

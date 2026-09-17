@@ -91,8 +91,50 @@ test("ArrowRight exits the right side of cyclohexane and remains globally horizo
     rings: [{ atomIds: atoms.map((atom) => atom.id) }],
   };
   const { added } = extendWithArrow(ring, 1, { x: 1, y: 0 }, 6);
+  const chain = [ring.atoms[0], ...added];
+  const steps = chain.slice(1).map((point, index) => ({
+    x: point.x - chain[index].x,
+    y: point.y - chain[index].y,
+  }));
 
   assertArrowGrowth(ring, 1, { x: 1, y: 0 });
+  assert.ok(steps[0].x > 0, "the first ring substituent bond advances right");
+  assert.ok(Math.abs(steps[0].y) > 1e-9, "the first ring substituent bond starts the zigzag");
+  steps.slice(1).forEach((step, index) => {
+    assert.ok(step.y * steps[index].y < 0, "the zigzag phase alternates from the first bond");
+  });
   assert.ok(added.every((atom) => atom.x > ring.atoms[0].x), "the substituent stays outside the ring");
   assert.ok(new Set(added.map((atom) => Math.round(atom.y * 1e6))).size > 1, "the chain is not straight");
+});
+
+test("ring substituents start the zigzag for every arrow direction", () => {
+  const ring = {
+    atoms: [
+      { id: 1, x: 2, y: 0 },
+      { id: 2, x: 0, y: 2 },
+      { id: 3, x: -2, y: 0 },
+      { id: 4, x: 0, y: -2 },
+    ],
+    bonds: [[1, 2, 1], [2, 3, 1], [3, 4, 1], [4, 1, 1]],
+    rings: [{ atomIds: [1, 2, 3, 4] }],
+  };
+  for (const [selectedId, direction] of [
+    [1, { x: 1, y: 0 }],
+    [3, { x: -1, y: 0 }],
+    [4, { x: 0, y: -1 }],
+    [2, { x: 0, y: 1 }],
+  ]) {
+    const start = ring.atoms.find((atom) => atom.id === selectedId);
+    const { added } = extendWithArrow(ring, selectedId, direction, 2);
+    const perpendicular = { x: -direction.y, y: direction.x };
+    const first = { x: added[0].x - start.x, y: added[0].y - start.y };
+    const second = { x: added[1].x - added[0].x, y: added[1].y - added[0].y };
+    const firstMain = first.x * direction.x + first.y * direction.y;
+    const firstSide = first.x * perpendicular.x + first.y * perpendicular.y;
+    const secondSide = second.x * perpendicular.x + second.y * perpendicular.y;
+
+    assert.ok(firstMain > 0);
+    assert.ok(Math.abs(firstSide) > 1e-9);
+    assert.ok(firstSide * secondSide < 0);
+  }
 });

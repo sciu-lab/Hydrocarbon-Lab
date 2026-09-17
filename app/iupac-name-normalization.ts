@@ -1,4 +1,19 @@
 import { translateSubstituentAliasesForOpsin } from "./substituent-aliases.ts";
+import { englishIupacRoot, IUPAC_ROOTS } from "./iupac-prefixes.ts";
+
+const alkylRootPattern = IUPAC_ROOTS
+  .filter(Boolean)
+  .sort((left, right) => right.length - left.length)
+  .join("|");
+const spanishAlkylNoun = new RegExp(`(${alkylRootPattern})ilo(?=$|[\\s,.)-])`, "g");
+const spanishAlkylSubstituent = new RegExp(`(${alkylRootPattern})il(?=[a-z]|$|[\\s,.)-])`, "g");
+
+function translateSpanishAlkylMorphemes(value: string) {
+  const translate = (_match: string, root: string) => `${englishIupacRoot(root)}yl`;
+  return value
+    .replace(spanishAlkylNoun, translate)
+    .replace(spanishAlkylSubstituent, translate);
+}
 
 const commonSpanishNames: Record<string, string> = {
   acetaldehido: "ethanal",
@@ -244,7 +259,13 @@ export function normalizeHalogenatedNameForOpsin(value: string) {
 }
 
 function translateCore(value: string) {
-  let translated = translateSubstituentAliasesForOpsin(value)
+  const aliasesAndAcylGroups = translateSubstituentAliasesForOpsin(value)
+    // Translate these complete lexical units before the systematic alkyl-root
+    // pass so the embedded "etil" in "acetil" is never treated as ethyl.
+    .replace(/(^|[-(])acetil(?=[a-z-]|$)/g, "$1acetyl")
+    .replace(/(^|[-(])propionil(?=[a-z-]|$)/g, "$1propionyl")
+    .replace(/(^|[-(])butiril(?=[a-z-]|$)/g, "$1butyryl");
+  let translated = translateSpanishAlkylMorphemes(aliasesAndAcylGroups)
     // Retained and systematic nitrogen parent names need to be translated
     // before the generic suffix rules. This also covers substituted parents
     // such as 4-nitroanilina and N-metilanilina.
@@ -261,11 +282,6 @@ function translateCore(value: string) {
     .replace(/amino/g, "__amino_prefix__")
     .replace(/carbamoil/g, "carbamoyl")
     .replace(/ciano/g, "cyano")
-    // Acyl fragments are lexical chemical units, not molecule-specific
-    // exceptions. Keeping them here lets any substituted parent reach OPSIN.
-    .replace(/(^|[-(])acetil(?=[a-z-]|$)/g, "$1acetyl")
-    .replace(/(^|[-(])propionil(?=[a-z-]|$)/g, "$1propionyl")
-    .replace(/(^|[-(])butiril(?=[a-z-]|$)/g, "$1butyryl")
     .replace(/benceno/g, "benzene")
     .replace(/fenol/g, "phenol")
     .replace(/fenoxi/g, "phenoxy")
@@ -283,14 +299,6 @@ function translateCore(value: string) {
     .replace(/ciclo/g, "cyclo")
     .replace(/tetrahidro/g, "tetrahydro")
     .replace(/pirano/g, "pyran")
-    .replace(/metilo/g, "methyl")
-    .replace(/etilo/g, "ethyl")
-    .replace(/propilo/g, "propyl")
-    .replace(/butilo/g, "butyl")
-    .replace(/metil/g, "methyl")
-    .replace(/etil/g, "ethyl")
-    .replace(/propil/g, "propyl")
-    .replace(/butil/g, "butyl")
     .replace(/oxyet(?=an|en|in)/g, "oxyeth")
     // When a Spanish halo-methane is written as one word, there is no word
     // boundary before metano for the generic met -> meth bridge below.

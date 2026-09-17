@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 
-import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
+import {
+  getOpsinNameCandidates,
+  translateSpanishIupacToOpsin,
+} from "../app/iupac-name-normalization.ts";
+import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
@@ -76,3 +80,30 @@ for (const [label, substituents, expectedSpanish, expectedEnglish] of cases) {
     assert.equal(translateSpanishIupacToOpsin(analysis.name), expectedEnglish);
   });
 }
+
+test("linear alkyl cyclohexanes stay Spanish locally and become fully English for display and OPSIN", () => {
+  const names = [
+    ["metilciclohexano", "methylcyclohexane", 1],
+    ["etilciclohexano", "ethylcyclohexane", 2],
+    ["pentilciclohexano", "pentylcyclohexane", 5],
+    ["hexilciclohexano", "hexylcyclohexane", 6],
+    ["heptilciclohexano", "heptylcyclohexane", 7],
+    ["octilciclohexano", "octylcyclohexane", 8],
+  ];
+
+  for (const [spanish, english, chainLength] of names) {
+    const built = buildHydrocarbonFromIupacName(spanish);
+    assert.equal(built.ok, true, spanish);
+    assert.equal(built.molecule.atoms.length, 6 + chainLength, spanish);
+    assert.equal(built.molecule.rings?.[0].atomIds.length, 6, spanish);
+    assert.equal(translateSpanishIupacToOpsin(spanish), english, spanish);
+    assert.equal(getOpsinNameCandidates(english)[0], english, english);
+  }
+
+  const hexyl = buildHydrocarbonFromIupacName("hexilciclohexano");
+  assert.equal(hexyl.ok, true);
+  const analysis = analyzeMolecule(hexyl.molecule);
+  assert.equal(analysis.name, "hexilciclohexano");
+  assert.equal(translateSpanishIupacToOpsin(analysis.name), "hexylcyclohexane");
+  assert.notEqual(translateSpanishIupacToOpsin(analysis.name), "hexilcyclohexane");
+});

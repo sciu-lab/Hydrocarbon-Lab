@@ -30,7 +30,7 @@ function axisZigzagCandidates(direction: Point) {
   }));
 }
 
-function ringOutwardDirection(
+function ringZigzagDirection(
   molecule: ManualLayoutMolecule,
   selectedId: number,
   requestedDirection: Point,
@@ -46,17 +46,30 @@ function ringOutwardDirection(
     { x: 0, y: 0 },
   );
   const outward = normalized({ x: selected.x - center.x, y: selected.y - center.y });
-  const desired = normalized(requestedDirection);
-  if (dot(desired, outward) > 0.05) return requestedDirection;
-
-  // An inward arrow still exits the ring before the following presses settle
-  // around the requested global axis.
-  const blended = normalized({
-    x: desired.x * 0.35 + outward.x,
-    y: desired.y * 0.35 + outward.y,
-  });
   const length = Math.hypot(requestedDirection.x, requestedDirection.y) || 1;
-  return { x: blended.x * length, y: blended.y * length };
+  const candidates = axisZigzagCandidates(normalized(requestedDirection)).map((candidate) => ({
+    x: candidate.x * length,
+    y: candidate.y * length,
+  }));
+  return candidates
+    .map((candidate, index) => {
+      const point = { x: selected.x + candidate.x, y: selected.y + candidate.y };
+      const clearance = Math.min(...molecule.atoms
+        .filter((atom) => atom.id !== selectedId)
+        .map((atom) => Math.hypot(point.x - atom.x, point.y - atom.y)));
+      return {
+        candidate,
+        index,
+        outwardProgress: dot(normalized(candidate), outward),
+        clearance,
+      };
+    })
+    .sort((left, right) =>
+      Number(right.outwardProgress > 0.05) - Number(left.outwardProgress > 0.05)
+      || right.outwardProgress - left.outwardProgress
+      || right.clearance - left.clearance
+      || left.index - right.index,
+    )[0].candidate;
 }
 
 function carbonNeighbors(molecule: ManualLayoutMolecule, atomId: number) {
@@ -81,8 +94,8 @@ export function getAutoPlacedCarbonPosition(
   const selected = molecule.atoms.find((atom) => atom.id === selectedId);
   if (!selected) return requestedDirection;
   if (molecule.rings?.some((ring) => ring.atomIds.includes(selectedId))) {
-    const outward = ringOutwardDirection(molecule, selectedId, requestedDirection);
-    return { x: selected.x + outward.x, y: selected.y + outward.y };
+    const firstZigzagStep = ringZigzagDirection(molecule, selectedId, requestedDirection);
+    return { x: selected.x + firstZigzagStep.x, y: selected.y + firstZigzagStep.y };
   }
 
   const neighbors = carbonNeighbors(molecule, selectedId);

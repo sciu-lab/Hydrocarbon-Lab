@@ -220,6 +220,25 @@ test("the resolver sends the translated heterocycle to OPSIN first", async () =>
   assert.equal(result.value.originalName, "2-metilpiridina");
 });
 
+test("the resolver sends long Spanish and English alkyl substituents to OPSIN in English", async () => {
+  for (const name of ["hexilciclohexano", "hexylcyclohexane", "hexilcyclohexane"]) {
+    const requestedUrls = [];
+    const result = await resolveNameWithOpsin(name, {
+      fetchImpl: async (url) => {
+        requestedUrls.push(String(url));
+        return Response.json({ status: "SUCCESS", smiles: "CCCCCCC1CCCCC1", warnings: [] });
+      },
+    });
+
+    assert.equal(result.ok, true, name);
+    assert.match(requestedUrls[0], /hexylcyclohexane\.json$/);
+    const converted = moleculeFromSmiles(result.value.smiles);
+    assert.equal(converted.ok, true, name);
+    assert.equal(converted.molecule.atoms.length, 12, name);
+    assert.equal(converted.molecule.rings?.[0].atomIds.length, 6, name);
+  }
+});
+
 test("common heterocycles retain editable offline fallbacks", async () => {
   const names = ["pirrol", "furano", "tiofeno", "piridina", "piperidina", "morfolina"];
 
