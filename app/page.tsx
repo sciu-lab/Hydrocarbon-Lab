@@ -73,6 +73,11 @@ import {
   SKELETAL_NUMBER_BADGE_OFFSET,
 } from "./skeletal-bond-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
+import {
+  getMoleculeExportDimensions,
+  getMoleculeVisualBounds,
+} from "./molecule-visual-bounds";
+import { findOrderedSimpleMonocycle } from "./simple-cycle";
 import { getAutoPlacedCarbonPosition } from "./manual-layout";
 import {
   hasCarbonylAttachment,
@@ -1854,8 +1859,8 @@ function carbonSkeleton(molecule: Molecule): Molecule {
   const carbonIds = new Set(
     molecule.atoms.filter(isCarbonAtom).map((atom) => atom.id),
   );
-  const skeleton = {
-    atoms: molecule.atoms.filter(isCarbonAtom).map((atom) => ({ ...atom, element: "C" })),
+  const skeleton: Molecule = {
+    atoms: molecule.atoms.filter(isCarbonAtom).map((atom) => ({ ...atom, element: "C" as const })),
     bonds: molecule.bonds
       .filter(([a, b]) => carbonIds.has(a) && carbonIds.has(b))
       .map((bond) => [...bond] as Bond),
@@ -1863,39 +1868,11 @@ function carbonSkeleton(molecule: Molecule): Molecule {
   };
   if (skeleton.rings?.length) return skeleton;
 
-  // Some imported large monocyles arrive without ring metadata. Recover only a
-  // single, non-fused carbon cycle from its graph; complex polycycles remain out
-  // of this naming path.
-  const adjacency = buildAdjacency(skeleton);
-  if (skeleton.bonds.length - skeleton.atoms.length + 1 !== 1) return skeleton;
-  const degrees = new Map(skeleton.atoms.map((atom) => [atom.id, adjacency.get(atom.id)?.length ?? 0]));
-  const pending = [...degrees.entries()].filter(([, degree]) => degree <= 1).map(([atomId]) => atomId);
-  const core = new Set(skeleton.atoms.map((atom) => atom.id));
-  while (pending.length) {
-    const atomId = pending.pop()!;
-    if (!core.delete(atomId)) continue;
-    for (const neighbor of adjacency.get(atomId) ?? []) {
-      if (!core.has(neighbor)) continue;
-      const nextDegree = (degrees.get(neighbor) ?? 0) - 1;
-      degrees.set(neighbor, nextDegree);
-      if (nextDegree === 1) pending.push(neighbor);
-    }
-  }
-  if (core.size < 3 || [...core].some((atomId) =>
-    (adjacency.get(atomId) ?? []).filter((neighbor) => core.has(neighbor)).length !== 2,
-  )) return skeleton;
-
-  const atomIds = [...core];
-  const orderedRing = [atomIds[0]];
-  let previous: number | undefined;
-  while (orderedRing.length < core.size) {
-    const current = orderedRing[orderedRing.length - 1];
-    const next = (adjacency.get(current) ?? []).find((neighbor) => core.has(neighbor) && neighbor !== previous);
-    if (next === undefined) return skeleton;
-    previous = current;
-    orderedRing.push(next);
-  }
-  if (!(adjacency.get(orderedRing[orderedRing.length - 1]) ?? []).includes(orderedRing[0])) return skeleton;
+  // Imported monocyles sometimes omit `rings`. The same graph utility is also
+  // consumed by the 2D layout, so naming and rendering agree on what a simple
+  // ring is without maintaining two detectors.
+  const orderedRing = findOrderedSimpleMonocycle(skeleton);
+  if (!orderedRing) return skeleton;
   return { ...skeleton, rings: [{ id: 1, kind: "cycloalkane", atomIds: orderedRing }] };
 }
 
@@ -4507,26 +4484,6 @@ function applySvgColorMode(svg: SVGSVGElement, colorMode: PngColorMode) {
   svg.appendChild(filteredGroup);
 }
 
-function buildPngPreviewMarkup(
-  source: SVGSVGElement,
-  includeSelection: boolean,
-  backgroundMode: PngBackgroundMode,
-  colorMode: PngColorMode,
-  palette: ExportColorPalette,
-) {
-  const clone = source.cloneNode(true) as SVGSVGElement;
-  if (!includeSelection) removeSelectionFromSvg(clone);
-  if (backgroundMode === "transparent") {
-    clone.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
-  }
-  if (colorMode === "color") applyExportColorPalette(clone, palette);
-  clone.removeAttribute("width");
-  clone.removeAttribute("height");
-  clone.setAttribute("aria-hidden", "true");
-  clone.setAttribute("focusable", "false");
-  return clone.outerHTML;
-}
-
 function safePngFileName(value: string) {
   const normalized = value
     .normalize("NFD")
@@ -4970,7 +4927,20 @@ export default function Home() {
   const skippedBondOrder = useRef(new Map<string, BondOrder>());
   const nomenclatureHintTimer = useRef<number | null>(null);
   const moleculeSvgRef = useRef<SVGSVGElement | null>(null);
+  const canvasExpandButtonRef = useRef<HTMLButtonElement | null>(null);
   const compoundLookupNamesRef = useRef<string[]>([]);
+
+  const closeExpandedCanvas = useCallback(() => {
+    setCanvasExpanded(false);
+    window.requestAnimationFrame(() => canvasExpandButtonRef.current?.focus({ preventScroll: true }));
+  }, []);
+
+  const openExpandedCanvas = useCallback(() => {
+    setCanvasExpanded(true);
+    // The trigger becomes the close button in the expanded dialog, so it is a
+    // useful, predictable initial focus target without copying the molecule.
+    window.requestAnimationFrame(() => canvasExpandButtonRef.current?.focus({ preventScroll: true }));
+  }, []);
 
   useEffect(() => {
     if (!canvasExpanded && !pngExportOpen) return undefined;
@@ -6556,6 +6526,7 @@ export default function Home() {
     backgroundMode: PngBackgroundMode,
     colorMode: PngColorMode,
     includeSelection: boolean,
+    palette = exportColors,
   ) => {
     const clonedSvg = sourceSvg.cloneNode(true) as SVGSVGElement;
     inlineSvgStyles(sourceSvg, clonedSvg);
@@ -6563,10 +6534,35 @@ export default function Home() {
     if (backgroundMode === "transparent") {
       clonedSvg.querySelectorAll(".canvas-background-layer").forEach((element) => element.remove());
     }
-    if (colorMode === "color") applyExportColorPalette(clonedSvg, exportColors);
+    if (colorMode === "color") applyExportColorPalette(clonedSvg, palette);
     clonedSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     clonedSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     return clonedSvg;
+  };
+
+  // PNG, SVG and the dialog preview all start from this one fitted SVG. The
+  // browser-measured bounds include every rendered stroke and label, rather
+  // than relying on the interactive canvas viewport.
+  const createFittedExportSvg = (
+    sourceSvg: SVGSVGElement,
+    backgroundMode: PngBackgroundMode,
+    colorMode: PngColorMode,
+    includeSelection: boolean,
+    palette = exportColors,
+  ) => {
+    const clonedSvg = prepareSvgForExport(
+      sourceSvg,
+      backgroundMode,
+      colorMode,
+      includeSelection,
+      palette,
+    );
+    cleanSvgForExport(clonedSvg);
+    const bounds = fitViewBoxToContent(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING);
+    if (backgroundMode === "canvas") {
+      addSvgCanvasBackground(clonedSvg, resolveCanvasBackgroundColor(sourceSvg));
+    }
+    return { clonedSvg, bounds };
   };
 
   const exportCanvasAsPNG = () => {
@@ -6578,14 +6574,14 @@ export default function Home() {
 
     try {
       const baseDimensions = getSvgBaseDimensions(sourceSvg);
-      const width = normalizeExportPixels(Number(pngExportWidth), baseDimensions.width * pngExportScale);
-      const height = normalizeExportPixels(Number(pngExportHeight), baseDimensions.height * pngExportScale);
-      const clonedSvg = prepareSvgForExport(
+      const { clonedSvg } = createFittedExportSvg(
         sourceSvg,
         pngBackgroundMode,
         pngColorMode,
         pngIncludeSelection,
       );
+      const width = normalizeExportPixels(Number(pngExportWidth), baseDimensions.width * pngExportScale);
+      const height = normalizeExportPixels(Number(pngExportHeight), baseDimensions.height * pngExportScale);
       clonedSvg.setAttribute("width", String(width));
       clonedSvg.setAttribute("height", String(height));
 
@@ -6643,14 +6639,12 @@ export default function Home() {
     }
 
     try {
-      const clonedSvg = prepareSvgForExport(
+      const { clonedSvg, bounds: fittedBounds } = createFittedExportSvg(
         sourceSvg,
         pngBackgroundMode,
         pngColorMode,
         pngIncludeSelection,
       );
-      cleanSvgForExport(clonedSvg);
-      const fittedBounds = fitViewBoxToContent(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING);
       const baseDimensions = getSvgBaseDimensions(sourceSvg);
       const sourceViewBox = sourceSvg.viewBox.baseVal;
       const outputScale = Math.min(
@@ -6665,9 +6659,6 @@ export default function Home() {
         : baseDimensions;
       clonedSvg.setAttribute("width", String(dimensions.width));
       clonedSvg.setAttribute("height", String(dimensions.height));
-      if (pngBackgroundMode === "canvas") {
-        addSvgCanvasBackground(clonedSvg, resolveCanvasBackgroundColor(sourceSvg));
-      }
       applySvgColorMode(clonedSvg, pngColorMode);
       const serializedSvg = new XMLSerializer().serializeToString(clonedSvg);
       const currentName = molecule.atoms.length ? localizedCanonicalIupacName : "molecula";
@@ -6695,13 +6686,23 @@ export default function Home() {
   ) => {
     const sourceSvg = moleculeSvgRef.current;
     if (!sourceSvg) return;
-    setPngPreviewMarkup(buildPngPreviewMarkup(
-      sourceSvg,
-      includeSelection,
-      backgroundMode,
-      colorMode,
-      palette,
-    ));
+    try {
+      const { clonedSvg } = createFittedExportSvg(
+        sourceSvg,
+        backgroundMode,
+        colorMode,
+        includeSelection,
+        palette,
+      );
+      if (colorMode !== "color") applySvgColorMode(clonedSvg, colorMode);
+      clonedSvg.removeAttribute("width");
+      clonedSvg.removeAttribute("height");
+      clonedSvg.setAttribute("aria-hidden", "true");
+      clonedSvg.setAttribute("focusable", "false");
+      setPngPreviewMarkup(clonedSvg.outerHTML);
+    } catch {
+      setPngPreviewMarkup("");
+    }
   };
 
   const applyPngResolutionPreset = (scale: PngExportScale) => {
@@ -6754,10 +6755,26 @@ export default function Home() {
     setPngIncludeSelection(includeSelection);
     if (sourceSvg) {
       const dimensions = getSvgBaseDimensions(sourceSvg);
+      const { bounds } = createFittedExportSvg(
+        sourceSvg,
+        pngBackgroundMode,
+        pngColorMode,
+        includeSelection,
+      );
+      const exportDimensions = bounds
+        ? getMoleculeExportDimensions(
+            bounds,
+            Math.max(dimensions.width, dimensions.height) * pngExportScale,
+          )
+        : {
+            width: Math.round(dimensions.width * pngExportScale),
+            height: Math.round(dimensions.height * pngExportScale),
+          };
+      const aspectRatio = exportDimensions.width / exportDimensions.height;
       setPngUsingCustomSize(false);
-      setPngExportAspectRatio(dimensions.width / dimensions.height);
-      setPngExportWidth(String(Math.round(dimensions.width * pngExportScale)));
-      setPngExportHeight(String(Math.round(dimensions.height * pngExportScale)));
+      setPngExportAspectRatio(aspectRatio);
+      setPngExportWidth(String(exportDimensions.width));
+      setPngExportHeight(String(exportDimensions.height));
     }
     updatePngPreview(includeSelection, pngBackgroundMode, pngColorMode, exportColors);
     setPngExportOpen(true);
@@ -7122,7 +7139,7 @@ export default function Home() {
           setPngExportOpen(false);
         } else if (canvasExpanded) {
           event.preventDefault();
-          setCanvasExpanded(false);
+          closeExpandedCanvas();
         } else if (settingsOpen) {
           event.preventDefault();
           setSettingsOpen(false);
@@ -7242,6 +7259,7 @@ export default function Home() {
     newMolecule,
     changeViewMode,
     canvasExpanded,
+    closeExpandedCanvas,
     pngExportOpen,
     settingsOpen,
     selectedId,
@@ -7273,15 +7291,11 @@ export default function Home() {
       return [atom.id, offset];
     }),
   );
-  const coordinates = [...displayPositions.values()];
-  const minX = Math.min(...coordinates.map((point) => point.x));
-  const maxX = Math.max(...coordinates.map((point) => point.x));
-  const minY = Math.min(...coordinates.map((point) => point.y));
-  const maxY = Math.max(...coordinates.map((point) => point.y));
-  const viewWidth = Math.max(720, maxX - minX + 260);
-  const viewHeight = Math.max(390, maxY - minY + 220);
-  const viewCenterX = (minX + maxX) / 2;
-  const viewCenterY = (minY + maxY) / 2;
+  const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values());
+  const viewWidth = Math.max(720, moleculeVisualBounds.width);
+  const viewHeight = Math.max(390, moleculeVisualBounds.height);
+  const viewCenterX = moleculeVisualBounds.x + moleculeVisualBounds.width / 2;
+  const viewCenterY = moleculeVisualBounds.y + moleculeVisualBounds.height / 2;
   const selectedValence = getValenceUsed(selectedAtom.id, molecule);
   const selectedHydrogens = getImplicitHydrogens(selectedAtom.id, molecule);
   const selectedElement = getElement(selectedAtom);
@@ -8622,16 +8636,17 @@ export default function Home() {
               type="button"
               className="canvas-expand-scrim"
               aria-label={t("Cerrar vista ampliada")}
-              onClick={() => setCanvasExpanded(false)}
+              onClick={closeExpandedCanvas}
             />
           )}
 
           <div
             className={`molecule-stage ${placementTool ? "is-placing" : ""} ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasExpanded ? "is-expanded" : ""} ${canvasScaleClass}`}
             style={structureColorStyle}
-            tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
-            role={advancedScreenReaderEnabled ? "group" : undefined}
-            aria-label={advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
+            tabIndex={canvasExpanded || advancedScreenReaderEnabled ? 0 : undefined}
+            role={canvasExpanded ? "dialog" : advancedScreenReaderEnabled ? "group" : undefined}
+            aria-modal={canvasExpanded || undefined}
+            aria-label={canvasExpanded ? t("Vista ampliada de la molécula") : advancedScreenReaderEnabled ? t("Canvas molecular interactivo") : undefined}
             onPointerMove={(event) => {
               if (event.pointerType === "touch") return;
               const bounds = event.currentTarget.getBoundingClientRect();
@@ -8658,12 +8673,13 @@ export default function Home() {
             {clickRipples.map((ripple) => <span key={ripple.id} className="builder-click-ripple" style={{ left: ripple.x, top: ripple.y }} onAnimationEnd={() => setClickRipples((items) => items.filter((item) => item.id !== ripple.id))} />)}
             <div className="canvas-toolbar-left" role="group" aria-label={t("Acciones del canvas")}>
               <button
+                ref={canvasExpandButtonRef}
                 type="button"
                 className="canvas-expand-button"
                 aria-expanded={canvasExpanded}
                 aria-label={canvasExpanded ? t("Cerrar vista ampliada") : t("Ampliar canvas")}
                 onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => setCanvasExpanded((expanded) => !expanded)}
+                onClick={canvasExpanded ? closeExpandedCanvas : openExpandedCanvas}
               >
                 <span aria-hidden="true">{canvasExpanded ? "×" : "⌕"}</span>
                 {canvasExpanded ? t("Cerrar") : t("Ampliar")}

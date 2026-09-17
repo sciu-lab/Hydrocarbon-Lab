@@ -194,6 +194,7 @@ const ENGLISH_UI: Record<string, string> = {
   "No fue posible exportar el canvas como imagen SVG.": "The canvas could not be exported as an SVG image.",
   "Cerrar": "Close",
   "Cerrar vista ampliada": "Close expanded view",
+  "Vista ampliada de la molécula": "Expanded molecule view",
   "OPSIN interpreta el nombre y OpenChemLib crea el objeto molecular que se dibuja en el canvas.": "OPSIN interprets the name and OpenChemLib creates the molecular object drawn on the canvas.",
   "Motor químico avanzado": "Advanced chemistry engine",
   "Nombre del compuesto": "Compound name",

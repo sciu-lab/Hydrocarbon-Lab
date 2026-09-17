@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
-import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
+import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
 import { generarNombreTradicional } from "../app/traditional-nomenclature.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -151,6 +151,33 @@ test("nombra monociclos importados y conserva la insaturación del sustituyente"
     if (!converted.ok) continue;
     assert.equal(analyzeMolecule(converted.molecule).name, expectedName, smiles);
   }
+});
+
+test("construye vinilciclohexano como un sustituyente C=C, no como etilo", () => {
+  const vinyl = buildHydrocarbonFromIupacName("vinilciclohexano");
+  const ethyl = buildHydrocarbonFromIupacName("etilciclohexano");
+  assert.equal(vinyl.ok, true, vinyl.ok ? undefined : vinyl.error);
+  assert.equal(ethyl.ok, true, ethyl.ok ? undefined : ethyl.error);
+  if (!vinyl.ok || !ethyl.ok) return;
+
+  const reference = moleculeFromSmiles("C=CC1CCCCC1");
+  assert.equal(reference.ok, true, reference.ok ? undefined : reference.error);
+  if (!reference.ok) return;
+  const generatedSmiles = moleculeToSmiles(vinyl.molecule);
+  const referenceSmiles = moleculeToSmiles(reference.molecule);
+  assert.equal(generatedSmiles.ok, true, generatedSmiles.ok ? undefined : generatedSmiles.error);
+  assert.equal(referenceSmiles.ok, true, referenceSmiles.ok ? undefined : referenceSmiles.error);
+  if (!generatedSmiles.ok || !referenceSmiles.ok) return;
+  assert.equal(generatedSmiles.smiles, referenceSmiles.smiles, "vinyl graph is isomorphic to C=CC1CCCCC1");
+
+  const vinylAnalysis = analyzeMolecule(vinyl.molecule);
+  const ethylAnalysis = analyzeMolecule(ethyl.molecule);
+  assert.equal(vinylAnalysis.formula, "C₈H₁₄");
+  assert.equal(vinylAnalysis.name, "vinilciclohexano");
+  assert.equal(vinyl.molecule.bonds.filter(([, , order = 1]) => order === 2).length, 1);
+  assert.equal(ethylAnalysis.formula, "C₈H₁₆");
+  assert.equal(ethylAnalysis.name, "etilciclohexano");
+  assert.equal(ethyl.molecule.bonds.filter(([, , order = 1]) => order === 2).length, 0);
 });
 
 test("omite el locante 1 solo del sufijo al de aldehídos acíclicos principales", () => {

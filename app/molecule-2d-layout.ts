@@ -2,6 +2,7 @@ import {
   buildOpenChainSkeletalPositions,
   type SkeletalPoint,
 } from "./skeletal-layout.ts";
+import { findOrderedSimpleMonocycle } from "./simple-cycle.ts";
 
 type LayoutAtom = {
   id: number;
@@ -91,10 +92,13 @@ function candidateClearance(
   return Math.min(atomClearance, bondClearance * 1.35);
 }
 
-function buildRingAwarePositions(molecule: LayoutMolecule) {
+function buildRingAwarePositions(
+  molecule: LayoutMolecule,
+  rings: readonly { atomIds: readonly number[]; inferred?: boolean }[],
+) {
   const positions = new Map<number, SkeletalPoint>();
   const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
-  const ringAtomIds = new Set(molecule.rings?.flatMap((ring) => ring.atomIds) ?? []);
+  const ringAtomIds = new Set(rings.flatMap((ring) => ring.atomIds));
   const adjacency = new Map<number, number[]>(molecule.atoms.map((atom) => [atom.id, []]));
   molecule.bonds.forEach(([left, right]) => {
     adjacency.get(left)?.push(right);
@@ -102,15 +106,37 @@ function buildRingAwarePositions(molecule: LayoutMolecule) {
   });
   adjacency.forEach((neighbors) => neighbors.sort((left, right) => left - right));
 
-  // Ring vertices retain their established polygon geometry exactly.
+  // Explicit editor/imported polygons retain their geometry. When an importer
+  // omitted ring metadata, generate the same clean regular polygon from the
+  // ordered graph cycle instead of drawing an open zigzag with one long bond.
   for (const atom of molecule.atoms) {
-    if (ringAtomIds.has(atom.id)) {
+    const inferredRing = rings.find((ring) => ring.inferred && ring.atomIds.includes(atom.id));
+    if (ringAtomIds.has(atom.id) && !inferredRing) {
       positions.set(atom.id, { x: atom.x * X_SCALE, y: atom.y * Y_SCALE });
     }
   }
 
+  for (const ring of rings.filter((candidate) => candidate.inferred)) {
+    const sourcePoints = ring.atomIds
+      .map((atomId) => atomsById.get(atomId))
+      .filter((atom): atom is LayoutAtom => Boolean(atom));
+    if (sourcePoints.length !== ring.atomIds.length || ring.atomIds.length < 3) continue;
+    const center = sourcePoints.reduce(
+      (sum, atom) => ({ x: sum.x + atom.x * X_SCALE / sourcePoints.length, y: sum.y + atom.y * Y_SCALE / sourcePoints.length }),
+      { x: 0, y: 0 },
+    );
+    const radius = BOND_LENGTH / (2 * Math.sin(Math.PI / ring.atomIds.length));
+    ring.atomIds.forEach((atomId, index) => {
+      const angle = -Math.PI / 2 + (index * Math.PI * 2) / ring.atomIds.length;
+      positions.set(atomId, {
+        x: center.x + Math.cos(angle) * radius,
+        y: center.y + Math.sin(angle) * radius,
+      });
+    });
+  }
+
   const ringCenters = new Map<number, SkeletalPoint>();
-  for (const ring of molecule.rings ?? []) {
+  for (const ring of rings) {
     const vertices = ring.atomIds.map((atomId) => positions.get(atomId)).filter(Boolean) as SkeletalPoint[];
     if (!vertices.length) continue;
     const center = vertices.reduce(
@@ -213,9 +239,15 @@ export function calculateMolecule2DLayout(
   molecule: LayoutMolecule,
   mainChain: readonly number[],
 ): Map<number, SkeletalPoint> {
-  if (!molecule.rings?.length) {
+  const explicitRings = molecule.rings ?? [];
+  const inferredCycle = explicitRings.length ? null : findOrderedSimpleMonocycle(molecule);
+  const rings = explicitRings.length
+    ? explicitRings
+    : inferredCycle ? [{ atomIds: inferredCycle, inferred: true }]
+      : [];
+  if (!rings.length) {
     return buildOpenChainSkeletalPositions(molecule, mainChain);
   }
 
-  return buildRingAwarePositions(molecule);
+  return buildRingAwarePositions(molecule, rings);
 }

@@ -49,7 +49,7 @@ test("the canvas toolbar exposes expand and PNG/SVG export actions on the left",
   assert.match(page, /"--structure-main": exportColors\.main/);
   assert.match(page, /"--structure-functional": exportColors\.functional/);
   assert.match(page, /"--structure-branch": exportColors\.substituent/);
-  assert.match(page, /applyExportColorPalette\(clonedSvg, exportColors\)/);
+  assert.match(page, /applyExportColorPalette\(clonedSvg, palette\)/);
   assert.match(page, /querySelectorAll\("\.canvas-background-layer"\)/);
   assert.match(page, /function cleanSvgForExport\(svgClone: SVGSVGElement\)/);
   assert.match(page, /const SVG_EXPORT_INTERFACE_SELECTOR = \[/);
@@ -58,8 +58,9 @@ test("the canvas toolbar exposes expand and PNG/SVG export actions on the left",
   assert.match(page, /"\.skeletal-anchor"/);
   assert.match(page, /"\[class\*='hit-target'\]"/);
   assert.match(page, /"\[class\*='selection-overlay'\]"/);
-  assert.match(page, /cleanSvgForExport\(clonedSvg\);\s*const fittedBounds = fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
-  assert.match(page, /cleanSvgForExport\(clonedSvg\);\s*const fittedBounds[\s\S]*applySvgColorMode\(clonedSvg, pngColorMode\)/);
+  assert.match(page, /const createFittedExportSvg/);
+  assert.match(page, /cleanSvgForExport\(clonedSvg\);\s*const bounds = fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
+  assert.match(page, /createFittedExportSvg\([\s\S]*applySvgColorMode\(clonedSvg, pngColorMode\)/);
   assert.match(page, /function fitViewBoxToContent/);
   assert.match(page, /const SVG_EXPORT_VIEWBOX_PADDING = 0\.065/);
   assert.match(page, /fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
@@ -67,6 +68,11 @@ test("the canvas toolbar exposes expand and PNG/SVG export actions on the left",
   assert.match(page, /graphicsElement\.getScreenCTM\(\)/);
   assert.match(page, /downloadBlobFile\(blob, `\$\{safePngFileName\(currentName\)\}\.png`\)/);
   assert.match(page, /`\$\{safePngFileName\(currentName\)\}\.svg`/);
+  assert.match(page, /role=\{canvasExpanded \? "dialog"/);
+  assert.match(page, /aria-modal=\{canvasExpanded \|\| undefined\}/);
+  assert.match(page, /const closeExpandedCanvas/);
+  assert.match(page, /window\.requestAnimationFrame\(\(\) => canvasExpandButtonRef\.current\?\.focus/);
+  assert.match(css, /object-fit:\s*contain/);
 
   const toolbarRule = css.match(/\.canvas-toolbar-left\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(toolbarRule, /left:\s*12px/);

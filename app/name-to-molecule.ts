@@ -35,11 +35,12 @@ type ParentDescription = {
 
 type SubstituentKind =
   | { kind: "linear"; length: number }
+  | { kind: "vinyl" }
   | { kind: "halogen"; element: "F" | "Cl" | "Br" | "I" }
   | {
       kind: "structured";
       atoms: Array<{ x: number; y: number; element?: GeneratedAtom["element"] }>;
-      connections: Array<readonly [number, number]>;
+      connections: Array<readonly [number, number, GeneratedBondOrder?]>;
     }
   | { kind: "isopropyl" }
   | { kind: "isobutyl" }
@@ -100,6 +101,7 @@ const commonSubstituents: Record<
   string,
   { substituent: SubstituentKind; systematicAlias?: string }
 > = {
+  vinil: { substituent: { kind: "vinyl" } },
   isopropil: { substituent: { kind: "isopropyl" }, systematicAlias: "1-metiletil" },
   isobutil: { substituent: { kind: "isobutyl" }, systematicAlias: "2-metilpropil" },
   "sec-butil": { substituent: { kind: "sec-butyl" }, systematicAlias: "1-metilpropil" },
@@ -610,11 +612,22 @@ function setUnsaturations(molecule: GeneratedMolecule, parent: ParentDescription
   });
 }
 
-function branchTemplate(kind: SubstituentKind) {
+type BranchTemplate = {
+  atoms: Array<{ x: number; y: number; element?: GeneratedAtom["element"] }>;
+  connections: Array<readonly [number, number, GeneratedBondOrder?]>;
+};
+
+function branchTemplate(kind: SubstituentKind): BranchTemplate {
   if (kind.kind === "linear") {
     return {
       atoms: Array.from({ length: kind.length }, (_, index) => ({ x: 0, y: index + 1 })),
       connections: Array.from({ length: kind.length }, (_, index) => [index - 1, index] as const),
+    };
+  }
+  if (kind.kind === "vinyl") {
+    return {
+      atoms: [{ x: 0, y: 1 }, { x: 0, y: 2 }],
+      connections: [[-1, 0, 1], [0, 1, 2]] as const,
     };
   }
   if (kind.kind === "halogen") {
@@ -698,11 +711,11 @@ function attachSubstituent(
     ...(point.element ? { element: point.element } : {}),
   }));
   molecule.atoms.push(...atoms);
-  template.connections.forEach(([from, to]) => {
+  template.connections.forEach(([from, to, order = 1]) => {
     molecule.bonds.push([
       from === -1 ? anchor.id : firstId + from,
       firstId + to,
-      1,
+      order,
     ]);
   });
 }

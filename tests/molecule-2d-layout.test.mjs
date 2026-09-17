@@ -35,6 +35,19 @@ function makeSubstitutedBenzene(substitutions) {
   return { atoms, bonds, rings: [{ atomIds: [1, 2, 3, 4, 5, 6] }] };
 }
 
+function makeUnannotatedCycle(size) {
+  return {
+    // These deliberately resemble importer coordinates for an open zigzag,
+    // not an editor polygon. The graph has no `rings` metadata.
+    atoms: Array.from({ length: size }, (_, index) => ({
+      id: index + 1,
+      x: index,
+      y: index % 2 ? 0.55 : -0.55,
+    })),
+    bonds: Array.from({ length: size }, (_, index) => [index + 1, (index + 1) % size + 1]),
+  };
+}
+
 test("the canonical open-chain layout is exactly the skeletal layout", () => {
   const molecule = {
     atoms: [
@@ -71,6 +84,42 @@ test("the canonical ring layout retains the renderer's existing polygon vertices
     [3, { x: 130, y: 53 }], [4, { x: 0, y: 106 }],
     [5, { x: -130, y: 53 }], [6, { x: -130, y: -53 }],
   ]);
+});
+
+test("unannotated C3-C8 monocyles receive ordered, non-crossing ring layouts", () => {
+  for (let size = 3; size <= 8; size += 1) {
+    const molecule = makeUnannotatedCycle(size);
+    const positions = calculateMolecule2DLayout(molecule, molecule.atoms.map((atom) => atom.id));
+    const ringPoints = molecule.atoms.map((atom) => positions.get(atom.id));
+    assert.equal(positions.size, size, `C${size}`);
+    assert.ok(ringPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)), `C${size}`);
+
+    const bounds = {
+      width: Math.max(...ringPoints.map((point) => point.x)) - Math.min(...ringPoints.map((point) => point.x)),
+      height: Math.max(...ringPoints.map((point) => point.y)) - Math.min(...ringPoints.map((point) => point.y)),
+    };
+    assert.ok(bounds.width > 20 && bounds.height > 20, `C${size} has a non-degenerate polygon`);
+
+    const lengths = molecule.bonds.map(([left, right]) => distance(positions.get(left), positions.get(right)));
+    assert.ok(Math.min(...lengths) > 100, `C${size} keeps reasonable atom separation`);
+    assert.ok(Math.max(...lengths) / Math.min(...lengths) < 1.01, `C${size} has no long closing bond`);
+
+    for (let left = 0; left < molecule.bonds.length; left += 1) {
+      const [leftStartId, leftEndId] = molecule.bonds[left];
+      for (let right = left + 1; right < molecule.bonds.length; right += 1) {
+        const [rightStartId, rightEndId] = molecule.bonds[right];
+        if ([leftStartId, leftEndId].some((atomId) => atomId === rightStartId || atomId === rightEndId)) continue;
+        assert.equal(
+          segmentsCross(
+            positions.get(leftStartId), positions.get(leftEndId),
+            positions.get(rightStartId), positions.get(rightEndId),
+          ),
+          false,
+          `C${size} non-adjacent ring bonds do not cross`,
+        );
+      }
+    }
+  }
 });
 
 test("a ring-attached ethyl group leaves radially and bends on its second bond", () => {
