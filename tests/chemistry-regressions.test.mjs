@@ -16,6 +16,7 @@ import {
 } from "../app/openchemlib-adapter.ts";
 import { resolveNameWithOpsin } from "../app/opsin-name-resolver.ts";
 import { getAutoPlacedCarbonPosition } from "../app/manual-layout.ts";
+import { fuseRingOnBond, removeFusedRingAtom } from "../app/fused-ring.ts";
 import { orientCarbonylTemplateOutsideRing } from "../app/functional-group-layout.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -49,6 +50,18 @@ function build(name) {
   assert.equal(result.ok, true, result.ok ? undefined : `${name}: ${result.error}`);
   return result;
 }
+
+test("fused editing reports the naming limit and remains analyzable after opening a ring", () => {
+  const original = build("ciclohexano").molecule;
+  const [a, b] = original.bonds[0];
+  const fused = fuseRingOnBond(original, a, b, 6);
+  const analysis = analyzeMolecule(fused);
+  assert.equal(analysis.formula, "C₁₀H₁₈");
+  assert.equal(analysis.family, "polycyclic");
+  assert.equal(localNamerCannotSafelyName(fused, analysis), true);
+  const opened = removeFusedRingAtom(fused, fused.atoms.at(-2).id);
+  assert.doesNotThrow(() => analyzeMolecule(opened));
+});
 
 function graphSignature(molecule) {
   const element = (atom) => atom.element ?? "C";
@@ -184,7 +197,7 @@ test("routes normalized Spanish names through parsing before reporting topology 
   const cases = [
     ["3-acetilbenzaldehído", "3-acetylbenzaldehyde", "O=Cc1cccc(C(C)=O)c1", true],
     ["naftalen-2-ol", "naphthalen-2-ol", "Oc1ccc2ccccc2c1", false],
-    ["decalina", "decalin", "C1CCC2CCCCC2C1", false],
+    ["decalina", "decalin", "C1CCC2CCCCC2C1", true],
     ["espiro[4.5]decano", "spiro[4.5]decane", "C1CCC2(CC1)CCCC2", false],
     ["biciclo[2.2.1]heptano", "bicyclo[2.2.1]heptane", "C1CC2CCC1C2", false],
     ["indol", "indol", "c1ccc2[nH]ccc2c1", false],

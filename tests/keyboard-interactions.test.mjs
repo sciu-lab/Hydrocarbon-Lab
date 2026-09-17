@@ -12,7 +12,7 @@ function harness(overrides = {}) {
   const context = {
     historyOpen: false, settingsOpen: false, pngExportOpen: false, canvasExpanded: false,
     placementTool: null, showRingPalette: false, showAlkylPalette: false, showFunctionalPalette: false,
-    lastToolPointer: { current: null }, selectedId: 1, molecule: { rings: [] }, previousSelectedId: { current: null },
+    lastToolPointer: { current: null }, selectedId: 1, selectedFusionBond: null, setFusionSelection: () => {}, molecule: { rings: [] }, previousSelectedId: { current: null },
     AROMATIC_TEMPLATES: [{ id: "benzene" }], CYCLE_TEMPLATES: [3,4,5,6,7,8].map(size => ({ size })),
     ALKYL_TEMPLATES: ["methyl", "ethyl", "propyl"].map(id => ({ id })),
   };

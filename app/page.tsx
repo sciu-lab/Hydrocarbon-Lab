@@ -85,6 +85,7 @@ import {
 } from "./molecule-visual-bounds";
 import { findOrderedSimpleMonocycle } from "./simple-cycle";
 import { getAutoPlacedCarbonPosition } from "./manual-layout";
+import { fuseRingOnBond, hasSharedRingAtoms, removeFusedRingAtom, ringFusionError } from "./fused-ring";
 import {
   hasCarbonylAttachment,
   orientCarbonylTemplateOutsideRing,
@@ -3084,6 +3085,14 @@ function analyzeFunctionalRing(
 }
 
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
+  if (hasSharedRingAtoms(molecule)) {
+    return {
+      name: "Nombre no disponible para estructuras complejas",
+      formula: molecularFormula(molecule), family: "polycyclic",
+      mainChain: [], chainName: "", substituents: [], numberedAtoms: new Map(),
+      doubleBondLocants: [], tripleBondLocants: [], functionalGroups: detectFunctionalGroups(molecule),
+    };
+  }
   const heterocycle = heterocycleRing(molecule);
   if (heterocycle) return analyzeHeterocycleMolecule(molecule, heterocycle, enabledAliases);
 
@@ -3819,6 +3828,7 @@ const COMPLEX_NAME_UNAVAILABLE_MESSAGE = "Nombre no disponible para estructuras 
 const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 
 export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysis) {
+  if (hasSharedRingAtoms(molecule)) return true;
   const parentAtoms = new Set(analysis.mainChain);
   if (!parentAtoms.size) return false;
   const skeleton = carbonSkeleton(molecule);
@@ -4862,6 +4872,8 @@ export default function Home() {
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
+  const [fusionSelection, setFusionSelection] = useState<{ molecule: Molecule; a: number; b: number } | null>(null);
+  const selectedFusionBond = fusionSelection?.molecule === molecule ? fusionSelection : null;
   const [showIupacName, setShowIupacName] = useState(true);
   const [keepIupacNameVisible, setKeepIupacNameVisible] = useState(true);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(DEFAULT_PANEL_POSITIONS);
@@ -6320,11 +6332,31 @@ export default function Home() {
     setShowFunctionalPalette(false);
   };
 
+  const fuseSelectedBond = (size: 5 | 6) => {
+    if (!selectedFusionBond) return;
+    try {
+      const next = fuseRingOnBond(molecule, selectedFusionBond.a, selectedFusionBond.b, size);
+      commit(next, language === "en" ? "Fused ring added." : "Anillo fusionado añadido.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo fusionar el anillo.");
+    }
+  };
+
+  const removeSelectedFusedAtom = () => {
+    const next = removeFusedRingAtom(molecule, selectedAtom.id);
+    if (!next) return false;
+    if (commit(next, language === "en" ? "Ring opened; atom removed." : "Anillo abierto; átomo eliminado.")) {
+      setSelectedId(next.atoms[0].id);
+    }
+    return true;
+  };
+
   const removeSelected = () => {
     if (!hasActiveSelection) {
       setNotice("Selecciona un átomo antes de retirarlo.");
       return;
     }
+    if (removeSelectedFusedAtom()) return;
     if (ringContainingAtom(molecule, selectedAtom.id)) {
       setNotice("El carbono seleccionado forma parte del anillo y no puede retirarse. Elige un sustituyente terminal.");
       return;
@@ -6350,6 +6382,7 @@ export default function Home() {
   };
 
   const removeSelectedWithKeyboard = () => {
+    if (removeSelectedFusedAtom()) return;
     if (ringContainingAtom(molecule, selectedAtom.id)) {
       setNotice("No se puede borrar un vértice de un anillo, porque alteraría su cierre y su aromaticidad.");
       return;
@@ -7206,9 +7239,10 @@ export default function Home() {
         } else if (settingsOpen) {
           event.preventDefault();
           setSettingsOpen(false);
-        } else if (!historyOpen && !isEditable && selectedId !== null) {
+        } else if (!historyOpen && !isEditable && (selectedId !== null || selectedFusionBond)) {
           event.preventDefault();
           previousSelectedId.current = null;
+          setFusionSelection(null);
           setSelectedId(null);
         }
         return;
@@ -7335,6 +7369,7 @@ export default function Home() {
     pngExportOpen,
     settingsOpen,
     selectedId,
+    selectedFusionBond,
   ]);
 
   const carbonCount = molecule.atoms.filter(isCarbonAtom).length;
@@ -8792,13 +8827,14 @@ export default function Home() {
               <button
                 type="button"
                 className="canvas-deselect-button"
-                disabled={selectedId === null && !placementTool}
+                disabled={selectedId === null && !placementTool && !selectedFusionBond}
                 title="Cancel tool / clear selection — Shortcut: Esc"
                 aria-label={t("Quitar la selección del canvas")}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={() => {
                   setPlacementTool(null);
                   previousSelectedId.current = selectedId;
+                  setFusionSelection(null);
                   setSelectedId(null);
                   setNotice("Selección retirada. La molécula no cambió.");
                 }}
@@ -8954,21 +8990,26 @@ export default function Home() {
                     className={`bond-control bond-order-${order} ${lockedBond ? "locked-bond" : ""} ${stereoInteractionEnabled ? "stereo-bond-control" : ""}`}
                     data-bond-a={a}
                     data-bond-b={b}
+                    onFocus={() => setFusionSelection({ molecule, a, b })}
                     onClick={(event) => {
                       if (!placementTool) {
                         event.currentTarget.focus({ preventScroll: true });
-                        cycleBondOrder(a, b);
+                        if (containingRing && !event.shiftKey) setFusionSelection({ molecule, a, b });
+                        else cycleBondOrder(a, b);
                       }
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        cycleBondOrder(a, b);
+                        if (containingRing && !event.shiftKey) setFusionSelection({ molecule, a, b });
+                        else cycleBondOrder(a, b);
                       }
                     }}
                     role="button"
                     tabIndex={0}
-                    aria-label={(lockedBond
+                    aria-label={containingRing
+                      ? (language === "en" ? `Select ring bond ${a}–${b}. Shift-click or 1, 2, 3 to edit.` : `Seleccionar enlace del anillo ${a}–${b}. Mayús-clic o 1, 2, 3 para editar.`)
+                      : (lockedBond
                       ? language === "en"
                         ? `${t(getBondOrderLabel(order))} bond locked to preserve ${isFunctionalBond ? "the functional group" : "the ring structure"}`
                         : `Enlace ${getBondOrderLabel(order)} fijado para conservar ${isFunctionalBond ? "el grupo funcional" : "la estructura cíclica"}`
@@ -8982,7 +9023,11 @@ export default function Home() {
                           ? `${t(getBondOrderLabel(order))} bond. Activate to change to ${t(getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder))}`
                           : `Enlace ${getBondOrderLabel(order)}. Activar para cambiar a ${getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder)}`)}
                   >
-                    <title>Click to edit bond. Shortcuts: 1 single, 2 double, 3 triple while focused.</title>
+                    <title>{containingRing ? "Click to select ring bond. Shift-click to edit. Shortcuts: 1 single, 2 double, 3 triple while focused." : "Click to edit bond. Shortcuts: 1 single, 2 double, 3 triple while focused."}</title>
+                    {selectedFusionBond?.a === a && selectedFusionBond.b === b && (
+                      <line data-editor-only="true" x1={positionA.x} y1={positionA.y} x2={positionB.x} y2={positionB.y}
+                        stroke="var(--accent, #d5a254)" strokeWidth={14} opacity={0.3} pointerEvents="none" />
+                    )}
                     <line
                       className="bond-hit-target"
                       x1={positionA.x}
@@ -9057,6 +9102,7 @@ export default function Home() {
                         return;
                       }
                       previousSelectedId.current = selectedId;
+                      setFusionSelection(null);
                       setSelectedId(atom.id);
                       setNotice(`${elementNames[element][0].toUpperCase()}${elementNames[element].slice(1)} ${chainNumber ?? "del grupo funcional"} seleccionado.`);
                     }}
@@ -9070,6 +9116,7 @@ export default function Home() {
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         previousSelectedId.current = selectedId;
+                        setFusionSelection(null);
                         setSelectedId(atom.id);
                       }
                     }}
@@ -9281,6 +9328,20 @@ export default function Home() {
               )}
             </div>
 
+            {selectedFusionBond && (
+              <div className="bond-order-picker" role="group" aria-label={language === "en" ? "Fuse ring" : "Fusionar anillo"}>
+                <span>{language === "en" ? "Fuse ring" : "Fusionar anillo"} · {selectedFusionBond.a}–{selectedFusionBond.b}</span>
+                <div>
+                  {([5, 6] as const).map((size) => {
+                    const error = ringFusionError(molecule, selectedFusionBond.a, selectedFusionBond.b);
+                    return <button key={size} disabled={Boolean(error)} title={error ?? undefined} onClick={() => fuseSelectedBond(size)}>
+                      {size === 5 ? (language === "en" ? "Cyclopentane" : "Ciclopentano") : (language === "en" ? "Cyclohexane" : "Ciclohexano")}
+                    </button>;
+                  })}
+                  <button disabled title={language === "en" ? "Aromatic fusion is not supported yet." : "La fusión aromática aún no está disponible."}>{language === "en" ? "Benzene" : "Benceno"}</button>
+                </div>
+              </div>
+            )}
             <div className="bond-order-picker" role="group" aria-label={t("Orden del próximo enlace")}>
               <span>{t("Próximo enlace")}</span>
               <div>

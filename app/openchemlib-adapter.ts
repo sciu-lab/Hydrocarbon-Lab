@@ -1,4 +1,5 @@
 import { Molecule as OCLMolecule, SmilesParser } from "openchemlib";
+import { ringHasBond } from "./fused-ring.ts";
 import type {
   GeneratedAtom,
   GeneratedBond,
@@ -90,6 +91,11 @@ export function moleculeToSmiles(molecule: GeneratedMolecule): OpenChemLibSmiles
       oclMolecule.setAtomX(atomIndex, atom.x);
       oclMolecule.setAtomY(atomIndex, -atom.y);
       if (atom.charge) oclMolecule.setAtomCharge(atomIndex, atom.charge);
+      // Fusion creates junction stereocenters, but this 2D editor does not
+      // specify their cis/trans configuration. Export them as unspecified.
+      if ((molecule.rings ?? []).filter((ring) => ring.atomIds.includes(atom.id)).length > 1) {
+        oclMolecule.setAtomConfigurationUnknown(atomIndex, true);
+      }
     }
 
     for (const [leftId, rightId, order = 1] of molecule.bonds) {
@@ -292,7 +298,17 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
     cyclomaticNumber,
     sharedAtomCounts,
   });
-  if (topology === "fused" || topology === "bridged" || topology === "spiro") {
+  // Admit the editor's MVP without enabling aromatic, bridged or spiro systems.
+  const editableFusion = topology === "fused"
+    && rings.every((ring) => ring.kind === "cycloalkane"
+      && (ring.atomIds.length === 5 || ring.atomIds.length === 6)
+      && ring.atomIds.every((id) => (atoms[id - 1].element ?? "C") === "C"))
+    && rings.every((ring, index) => rings.slice(index + 1).every((other) => {
+      const shared = ring.atomIds.filter((id) => other.atomIds.includes(id));
+      return shared.length === 0 || (shared.length === 2
+        && ringHasBond(ring, shared[0], shared[1]) && ringHasBond(other, shared[0], shared[1]));
+    }));
+  if ((topology === "fused" && !editableFusion) || topology === "bridged" || topology === "spiro") {
     return { ok: false, error: polycyclicSupportMessage(topology) };
   }
 

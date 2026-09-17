@@ -373,7 +373,7 @@ const CASES = [
 
 const OUT_OF_SCOPE = [
   ["biciclo simple", "C1CC2CCC1C2"],
-  ["dos anillos fusionados", "C1CCC2CCCCC2C1"],
+  ["anillos aromáticos fusionados", "c1ccc2ccccc2c1"],
   ["anillo espiro", "C1CCC2(CC1)CCCC2"],
 ];
 
