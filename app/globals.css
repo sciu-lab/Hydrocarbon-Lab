@@ -2330,31 +2330,92 @@ button {
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: rgba(4, 11, 9, 0.78);
+  background: rgba(4, 11, 9, 0.54);
   cursor: zoom-out;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(8px);
 }
 
-.molecule-stage.is-expanded {
+.molecule-workspace.is-expanded {
   position: fixed;
   z-index: 91;
   top: 50%;
   left: 50%;
-  width: min(92vw, 1320px);
-  height: min(90dvh, 900px);
+  display: flex;
+  width: min(90vw, 1440px);
+  height: min(90dvh, 960px);
   max-height: calc(100dvh - 24px);
-  aspect-ratio: auto;
-  margin: 0;
-  border: 2px solid rgba(100, 200, 255, 0.34);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.72);
+  flex-direction: column;
+  overflow: auto;
+  border: 1px solid rgba(126, 184, 168, 0.48);
+  border-radius: 22px;
+  background: var(--paper);
+  box-shadow: 0 28px 76px rgba(0, 0, 0, 0.5);
   transform: translate(-50%, -50%);
 }
 
+.expanded-workspace-header {
+  display: flex;
+  min-height: 54px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #dbe7e3;
+  background: color-mix(in srgb, var(--paper) 92%, #e6f4ef);
+}
+
+.expanded-workspace-header strong { color: #294a43; font-size: 14px; }
+
+.expanded-workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.expanded-workspace-header button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid #bcd7cf;
+  border-radius: 9px;
+  background: #fff;
+  color: #286b5b;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.expanded-workspace-header button span { font-size: 18px; line-height: 1; }
+
+.expanded-workspace-actions button { min-width: 34px; justify-content: center; }
+
+.molecule-workspace.is-expanded .molecule-stage {
+  height: clamp(470px, 62dvh, 720px);
+  min-height: 470px;
+  flex: 0 0 auto;
+  margin: 14px 18px 0;
+}
+
+.molecule-workspace.is-expanded .builder-toolbar { padding-top: 16px; }
+.molecule-workspace.is-expanded .alkyl-palette { margin-right: 24px; margin-left: 24px; }
+.molecule-workspace.is-expanded .notice { margin-top: 0; }
+
 @media (max-width: 640px) {
-  .molecule-stage.is-expanded {
+  .molecule-workspace.is-expanded {
     width: calc(100vw - max(16px, calc(env(safe-area-inset-left) + env(safe-area-inset-right))));
     height: calc(100dvh - max(16px, calc(env(safe-area-inset-top) + env(safe-area-inset-bottom))));
     max-height: none;
+    border-radius: 16px;
+  }
+
+  .molecule-workspace.is-expanded .molecule-stage {
+    height: min(56dvh, 520px);
+    min-height: 360px;
+    margin: 10px 10px 0;
   }
 }
 
@@ -3283,6 +3344,8 @@ button {
   cursor: not-allowed;
   opacity: 0.42;
 }
+
+.ring-mode-switch button.active:disabled { opacity: 1; }
 
 .ring-mode-switch button span {
   font-size: 14px;
@@ -6189,6 +6252,23 @@ html[data-theme="dark"] .display-options label > span::after {
   background: #dce9e5;
 }
 
+html[data-theme="dark"] .molecule-workspace.is-expanded {
+  border-color: #3a584f;
+  background: #15231f;
+}
+
+html[data-theme="dark"] .expanded-workspace-header {
+  border-color: #30473f;
+  background: #1b2d28;
+}
+
+html[data-theme="dark"] .expanded-workspace-header strong { color: #d3e4de; }
+html[data-theme="dark"] .expanded-workspace-header button {
+  border-color: #466a5f;
+  background: #233a33;
+  color: #aee2d1;
+}
+
 html[data-theme="dark"] .numbering-size-control {
   color: #9cada7;
 }
@@ -8072,18 +8152,6 @@ html[data-theme="dark"] .sticky-iupac-name small {
   from { transform: translate(-50%, -50%) scale(.5); opacity: .55; }
   to { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
 }
-.ring-quick-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.ring-quick-options button {
-  min-width: 36px;
-  min-height: 36px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.ring-quick-options button:focus-visible { outline: 2px solid #648b8a; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .builder-click-ripple { animation-duration: 1ms; visibility: hidden; }
 }

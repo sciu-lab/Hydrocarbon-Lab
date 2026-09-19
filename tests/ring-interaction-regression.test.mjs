@@ -29,12 +29,47 @@ test("ordinary bond activation edits while Shift activation retains explicit fus
   assert.doesNotMatch(page, /containingRing && !event\.shiftKey\) setFusionSelection/);
 });
 
-test("ring drag and drop is the only direct gesture that invokes fused construction", () => {
-  assert.match(page, /draggable=\{template\.size === 5 \|\| template\.size === 6\}/);
+test("ring drag and drop remains available outside explicit fusion mode", () => {
+  assert.match(page, /draggable=\{ringLibraryContext !== "fuse" && \(template\.size === 5 \|\| template\.size === 6\)\}/);
   assert.match(page, /onDragOver=\{\(event\) => previewDraggedRingOnBond\(event, a, b\)\}/);
   assert.match(page, /onDrop=\{\(event\) => dropDraggedRingOnBond\(event, a, b\)\}/);
   assert.match(page, /const fuseDraggedRingOnBond[\s\S]*?fuseRingOnBond\(molecule, a, b, template\.size\)/);
   assert.match(page, /const endRingDrag[\s\S]*?setRingFusionDropTarget\(null\)/);
+});
+
+test("one contextual library replaces the compact fusion picker", () => {
+  assert.match(page, /type RingLibraryContext = RingInsertMode \| "fuse"/);
+  assert.match(page, /const ringLibraryContext: RingLibraryContext = selectedFusionBond/);
+  assert.match(page, /Fusionar con enlace seleccionado/);
+  assert.match(page, /Unir al carbono seleccionado/);
+  assert.match(page, /chooseRingFromLibrary\(template\)/);
+  assert.doesNotMatch(page, /ring-quick-options/);
+  assert.doesNotMatch(page, /aria-label=\{language === "en" \? "Fuse ring"/);
+});
+
+test("carbon and Shift-bond selection open the shared ring library", () => {
+  assert.match(page, /if \(containingRing && event\.shiftKey\) \{\s*setFusionSelection\(\{ molecule, a, b \}\);\s*setShowRingPalette\(true\);/s);
+  assert.match(page, /setSelectedId\(atom\.id\);\s*if \(carbonAtom\) \{\s*setRingInsertMode\("attach"\);\s*setShowRingPalette\(true\);/s);
+  assert.match(page, /if \(!selectedFusionBond\) \{\s*setRingInsertMode\(hasActiveSelection && isCarbonAtom\(selectedAtom\) \? "attach" : "replace"\);/s);
+});
+
+test("explicit fusion clears its temporary selection only after a successful commit", () => {
+  assert.match(page, /const fuseSelectedBond[\s\S]*?const committed = commit\([\s\S]*?if \(!committed\) return false;\s*setFusionSelection\(null\);\s*setShowRingPalette\(false\);/);
+  assert.match(page, /ringFusionOptionError\(template\)/);
+  assert.match(page, /La fusión aromática aún no está disponible/);
+});
+
+test("expanded workspace wraps the live canvas and construction controls", () => {
+  assert.match(page, /className=\{`molecule-workspace \$\{canvasExpanded \? "is-expanded" : ""\}`\}/);
+  assert.match(page, /expanded-workspace-header/);
+  assert.match(page, /ref=\{expandedCanvasCloseButtonRef\}/);
+  assert.match(page, /ref=\{expandedWorkspaceRef\}/);
+  assert.match(page, /window\.requestAnimationFrame\(\(\) => expandedCanvasCloseButtonRef\.current\?\.focus/);
+  assert.match(page, /keepFocusInWorkspace/);
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.molecule-workspace\.is-expanded \{[\s\S]*width: min\(90vw, 1440px\);[\s\S]*height: min\(90dvh, 960px\);/);
+  assert.match(css, /\.molecule-workspace\.is-expanded \.molecule-stage \{[\s\S]*height: clamp\(470px, 62dvh, 720px\);/);
+  assert.doesNotMatch(css, /\.molecule-stage\.is-expanded/);
 });
 
 test("dropping a six-membered ring commits one ten-carbon fused structure", () => {
