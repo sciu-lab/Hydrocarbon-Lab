@@ -255,40 +255,68 @@ export function clipSkeletalRingDoubleBondSegments(
 export function getSkeletalRingDoubleBondSegments(
   start: SkeletalPoint,
   end: SkeletalPoint,
-  ringPoints: readonly SkeletalPoint[],
+  ringPoints: readonly SkeletalPoint[] | readonly (readonly SkeletalPoint[])[],
+  obstaclePoints: readonly SkeletalPoint[] = [],
 ): SkeletalBondSegment[] {
   const deltaX = end.x - start.x;
   const deltaY = end.y - start.y;
   const length = Math.hypot(deltaX, deltaY) || 1;
   const tangentX = deltaX / length;
   const tangentY = deltaY / length;
-  let inwardX = -tangentY;
-  let inwardY = tangentX;
-  const ringCenter = ringPoints.reduce(
-    (center, point) => ({
-      x: center.x + point.x / Math.max(ringPoints.length, 1),
-      y: center.y + point.y / Math.max(ringPoints.length, 1),
-    }),
-    { x: 0, y: 0 },
-  );
+  const ringPointSets = (
+    ringPoints.length > 0 && Array.isArray(ringPoints[0])
+      ? ringPoints
+      : [ringPoints]
+  ) as readonly (readonly SkeletalPoint[])[];
   const midpoint = {
     x: (start.x + end.x) / 2,
     y: (start.y + end.y) / 2,
   };
-  const pointsTowardCenter = inwardX * (ringCenter.x - midpoint.x)
-    + inwardY * (ringCenter.y - midpoint.y);
+  const baseNormal = { x: -tangentY, y: tangentX };
 
-  if (pointsTowardCenter < 0) {
-    inwardX *= -1;
-    inwardY *= -1;
-  }
+  const ringCenters = ringPointSets.map((points) => points.reduce(
+    (center, point) => ({
+      x: center.x + point.x / Math.max(points.length, 1),
+      y: center.y + point.y / Math.max(points.length, 1),
+    }),
+    { x: 0, y: 0 },
+  ));
+
+  // A peripheral edge has one chemically meaningful inward face. A fused
+  // edge can bound two cycles whose centers lie on opposite faces, so blindly
+  // using the first centroid makes the result depend on ring metadata order.
+  // Score both faces by the number of cycle interiors they enter, then use
+  // atom clearance as the deterministic tie-breaker for shared edges.
+  const candidateDirections = [1, -1].map((side) => {
+    const inward = { x: baseNormal.x * side, y: baseNormal.y * side };
+    const interiorCount = ringCenters.filter((center) =>
+      inward.x * (center.x - midpoint.x) + inward.y * (center.y - midpoint.y) > 1e-6
+    ).length;
+    const probe = {
+      x: midpoint.x + inward.x * length * 0.075,
+      y: midpoint.y + inward.y * length * 0.075,
+    };
+    const clearancePoints = obstaclePoints.length
+      ? obstaclePoints
+      : ringPointSets.flat();
+    const clearance = clearancePoints.length
+      ? Math.min(...clearancePoints.map((point) => Math.hypot(point.x - probe.x, point.y - probe.y)))
+      : Number.POSITIVE_INFINITY;
+    return { inward, interiorCount, clearance, side };
+  });
+  candidateDirections.sort((left, right) =>
+    right.interiorCount - left.interiorCount
+    || right.clearance - left.clearance
+    || right.side - left.side
+  );
+  const { x: inwardX, y: inwardY } = candidateDirections[0].inward;
 
   // La línea exterior coincide con el lado geométrico del polígono. La línea
-  // interior se desplaza hacia el centro (≈4,75–5,75 px entre ejes): así
-  // sigue siendo distinguible sin invadir el espacio de los números de anillo
-  // ni competir visualmente con sustituyentes próximos.
-  const innerInset = clamp(length * 0.04, 4.75, 5.75);
-  const endpointTrim = clamp(length * 0.09, 10, 18);
+  // interior conserva el 70 % del lado y se separa aproximadamente un 7,5 %
+  // de su longitud. Ambas magnitudes escalan con el enlace; los topes solo
+  // evitan resultados extremos en estructuras muy grandes o comprimidas.
+  const innerInset = clamp(length * 0.075, 5.5, 10.5);
+  const endpointTrim = length * 0.15;
 
   return [
     {

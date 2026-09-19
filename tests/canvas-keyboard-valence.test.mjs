@@ -13,6 +13,7 @@ let findNextValidBondOrder;
 let formatBondValenceError;
 let getFormulaDisplayTokens;
 let getAtomValenceViolation;
+let getRingsAfterBondOrderEdit;
 let normalizeFormulaBuilderInput;
 
 before(async () => {
@@ -32,6 +33,7 @@ before(async () => {
     formatBondValenceError,
     getFormulaDisplayTokens,
     getAtomValenceViolation,
+    getRingsAfterBondOrderEdit,
     normalizeFormulaBuilderInput,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
@@ -108,6 +110,20 @@ test("finds the next valid bond order without ever selecting an invalid triple b
     bonds: [[1, 2, 2], [1, 3, 1], [1, 4, 1]],
   };
   assert.equal(findNextValidBondOrder(tripleIsInvalid, 1, 2, 2), 1);
+});
+
+test("editing a Kekulé edge de-aromatizes metadata without rewriting other bonds", () => {
+  const molecule = {
+    atoms: Array.from({ length: 6 }, (_, index) => ({ id: index + 1, x: index, y: 0 })),
+    bonds: [[1, 2, 2], [2, 3, 1], [3, 4, 2], [4, 5, 1], [5, 6, 2], [6, 1, 1]],
+    rings: [{ id: 1, kind: "aromatic", atomIds: [1, 2, 3, 4, 5, 6] }],
+  };
+  const originalBonds = structuredClone(molecule.bonds);
+
+  assert.deepEqual(getRingsAfterBondOrderEdit(molecule, 1, 2), [
+    { id: 1, kind: "cycloalkane", atomIds: [1, 2, 3, 4, 5, 6] },
+  ]);
+  assert.deepEqual(molecule.bonds, originalBonds);
 });
 
 test("formats formula quantities while preserving leading coefficients", () => {

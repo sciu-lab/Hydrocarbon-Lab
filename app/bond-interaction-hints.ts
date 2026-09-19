@@ -1,5 +1,4 @@
 import {
-  isAromaticBond,
   isDoubleBondEZToggleAvailable,
   type StereoMolecule,
 } from "./double-bond-stereochemistry.ts";
@@ -23,14 +22,13 @@ function canChangeBondOrder(
 ) {
   return isCarbonAtom(molecule, leftAtomId)
     && isCarbonAtom(molecule, rightAtomId)
-    && !isAromaticBond(molecule, leftAtomId, rightAtomId)
     && !(molecule.rings?.length && !isBondInAnyRing(molecule, leftAtomId, rightAtomId));
 }
 
 /**
  * Lists only the bond actions currently available to the canvas. Aromatic
- * bonds share the chemistry module's aromatic check and are never advertised
- * as E/Z switches.
+ * Kekulé bonds can be edited (which explicitly de-aromatizes their ring), but
+ * they are never advertised as E/Z switches.
  */
 export function getBondInteractionHintActions(
   molecule: StereoMolecule,

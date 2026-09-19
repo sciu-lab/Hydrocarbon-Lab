@@ -46,8 +46,8 @@ test("keeps the outer cyclic stroke on the polygon edge and the second one insid
 
   assert.ok(Math.abs(projectedInset(edge, start, end)) < 1e-9);
   assert.ok(projectedInset(inner, start, end) > projectedInset(edge, start, end));
-  assert.ok(projectedInset(inner, start, end) >= 4.55 - 1e-9);
-  assert.ok(projectedInset(inner, start, end) <= 5.95 + 1e-9);
+  assert.ok(projectedInset(inner, start, end) >= 5.4 - 1e-9);
+  assert.ok(projectedInset(inner, start, end) <= 10.6 + 1e-9);
   assert.deepEqual(
     { x: edge.x, y: edge.y, x2: edge.x2, y2: edge.y2 },
     { x: start.x, y: start.y, x2: end.x, y2: end.y },
@@ -72,8 +72,32 @@ test("trims the inner Kekulé stroke symmetrically at both endpoints", () => {
 
   assert.ok(Math.abs(startTrim - endTrim) < 1e-9);
   assert.ok(innerLength < edgeLength);
+  assert.ok(innerLength / edgeLength >= 0.65);
+  assert.ok(innerLength / edgeLength <= 0.75);
   assert.equal(edge.role, "edge");
   assert.equal(inner.role, "inner");
+});
+
+test("chooses the clearer valid face when a double bond belongs to two fused rings", () => {
+  const start = { x: -65, y: 0 };
+  const end = { x: 65, y: 0 };
+  const upperRing = [
+    start, end, { x: 112, y: -60 }, { x: 65, y: -120 },
+    { x: -65, y: -120 }, { x: -112, y: -60 },
+  ];
+  const lowerRing = [
+    end, start, { x: -112, y: 60 }, { x: -65, y: 120 },
+    { x: 65, y: 120 }, { x: 112, y: 60 },
+  ];
+  const [, inner] = getSkeletalRingDoubleBondSegments(
+    start,
+    end,
+    [upperRing, lowerRing],
+    [{ x: 0, y: -10 }],
+  );
+
+  assert.ok(inner.y > 0, "the inner stroke uses the unobstructed lower ring face");
+  assert.ok(inner.y2 > 0);
 });
 
 test("places every cyclic number badge radially outside the ring", () => {

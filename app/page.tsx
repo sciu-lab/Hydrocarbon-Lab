@@ -3,6 +3,7 @@
 import {
   type ChangeEvent,
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
   useCallback,
@@ -85,7 +86,13 @@ import {
 } from "./molecule-visual-bounds";
 import { findOrderedSimpleMonocycle } from "./simple-cycle";
 import { getAutoPlacedCarbonPosition } from "./manual-layout";
-import { fuseRingOnBond, hasSharedRingAtoms, removeFusedRingAtom, ringFusionError } from "./fused-ring";
+import {
+  fuseRingOnBond,
+  hasSharedRingAtoms,
+  removeFusedRingAtom,
+  ringFusionError,
+  ringHasBond,
+} from "./fused-ring";
 import {
   hasCarbonylAttachment,
   orientCarbonylTemplateOutsideRing,
@@ -322,6 +329,13 @@ type RingTemplate = {
   molecule: Molecule;
 };
 
+type RingFusionDropTarget = {
+  a: number;
+  b: number;
+  error: string | null;
+  preview: Molecule | null;
+};
+
 type NamedSubstituent = {
   locant: number;
   name: string;
@@ -525,6 +539,15 @@ export function findMoleculeValenceViolation(molecule: Molecule): ValenceViolati
     }
   }
   return null;
+}
+
+/** Editing one explicit Kekulé edge removes aromatic metadata without rewriting any bond. */
+export function getRingsAfterBondOrderEdit(molecule: Molecule, a: number, b: number) {
+  return molecule.rings?.map((ring) =>
+    ring.kind === "aromatic" && ringHasBond(ring, a, b)
+      ? { ...ring, kind: "cycloalkane" as const }
+      : ring
+  );
 }
 
 const titleCaseElement = (element: ChemicalElement) => {
@@ -4911,6 +4934,8 @@ export default function Home() {
     | { kind: "alkyl"; template: AlkylTemplate }
     | null
   >(null);
+  const [draggedRingTemplate, setDraggedRingTemplate] = useState<RingTemplate | null>(null);
+  const [ringFusionDropTarget, setRingFusionDropTarget] = useState<RingFusionDropTarget | null>(null);
   const [toolPointer, setToolPointer] = useState<{ x: number; y: number } | null>(null);
   const [clickRipples, setClickRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const rippleSequence = useRef(0);
@@ -4949,6 +4974,8 @@ export default function Home() {
   // After rejecting an order, the next activation continues from the next valid
   // state instead of repeatedly trying the same impossible transition.
   const skippedBondOrder = useRef(new Map<string, BondOrder>());
+  const suppressBondClickAfterDrop = useRef(false);
+  const suppressRingPickerClickAfterDrag = useRef(false);
   const nomenclatureHintTimer = useRef<number | null>(null);
   const moleculeSvgRef = useRef<SVGSVGElement | null>(null);
   const canvasExpandButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -6031,22 +6058,21 @@ export default function Home() {
   };
   const addCarbonFromArrow = useEffectEvent(addCarbon);
 
-  const cycleBondOrder = (a: number, b: number, requestedOrder?: BondOrder) => {
+  const cycleBondOrder = (
+    a: number,
+    b: number,
+    requestedOrder?: BondOrder,
+    toggleStereochemistry = false,
+  ) => {
     const atomA = getAtom(a, molecule);
     const atomB = getAtom(b, molecule);
     if ((atomA && !isCarbonAtom(atomA)) || (atomB && !isCarbonAtom(atomB))) {
       setNotice("Los enlaces de O, N y halógenos quedan fijados para conservar el grupo funcional. Retira el átomo terminal y elige otro grupo si deseas cambiarlo.");
       return;
     }
-    const containingRing = molecule.rings?.find(
-      (ring) => ring.atomIds.includes(a) && ring.atomIds.includes(b),
-    );
-    if (containingRing?.kind === "aromatic") {
-      setNotice(
-        "Los enlaces internos del benceno están fijados para conservar su aromaticidad.",
-      );
-      return;
-    }
+    const containingRings = molecule.rings?.filter((ring) => ringHasBond(ring, a, b)) ?? [];
+    const containingRing = containingRings[0];
+    const deAromatizesRing = containingRings.some((ring) => ring.kind === "aromatic");
     if (molecule.rings?.length && !containingRing) {
       setNotice(
         "Los enlaces que unen un anillo con un sustituyente u otro anillo se mantienen simples; toca un enlace interno del ciclo para cambiarlo.",
@@ -6059,7 +6085,7 @@ export default function Home() {
     if (bondIndex < 0) return;
 
     const currentOrder = getBondOrder(molecule.bonds[bondIndex]);
-    if (requestedOrder === undefined && currentOrder === 2 && !containingRing) {
+    if (toggleStereochemistry && requestedOrder === undefined && currentOrder === 2 && !containingRing) {
       const ezToggleAvailable = isDoubleBondEZToggleAvailable(molecule, a, b);
       if (ezToggleAvailable && !canToggleBondStereochemistry(stereochemistryEnabled, ezToggleAvailable)) {
         setNotice("Activa Estereoquímica para alternar la configuración E/Z de este doble enlace.");
@@ -6117,8 +6143,16 @@ export default function Home() {
       index === bondIndex ? [bond[0], bond[1], nextOrder] as Bond : [...bond] as Bond,
     );
     commit(
-      { ...molecule, bonds: nextBonds },
-      `Enlace actualizado: ${getBondOrderLabel(currentOrder)} → ${getBondOrderLabel(nextOrder)}. Fórmula y nombre recalculados.`,
+      {
+        ...molecule,
+        bonds: nextBonds,
+        rings: deAromatizesRing
+          ? getRingsAfterBondOrderEdit(molecule, a, b)
+          : molecule.rings,
+      },
+      deAromatizesRing
+        ? `Enlace actualizado: ${getBondOrderLabel(currentOrder)} → ${getBondOrderLabel(nextOrder)}. El anillo dejó de marcarse como aromático y se conservaron sus órdenes de enlace explícitos.`
+        : `Enlace actualizado: ${getBondOrderLabel(currentOrder)} → ${getBondOrderLabel(nextOrder)}. Fórmula y nombre recalculados.`,
     );
   };
 
@@ -6330,6 +6364,100 @@ export default function Home() {
     previousSelectedId.current = selectedAtom.id;
     setSelectedId(idMap[0]);
     setShowFunctionalPalette(false);
+  };
+
+  const beginRingDrag = (event: ReactDragEvent<HTMLButtonElement>, template: RingTemplate) => {
+    if (template.kind !== "cycloalkane" || (template.size !== 5 && template.size !== 6)) {
+      event.preventDefault();
+      setNotice("La fusión por arrastre admite ciclos alifáticos de 5 o 6 miembros.");
+      return;
+    }
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-hydrocarbon-ring", String(template.size));
+    suppressRingPickerClickAfterDrag.current = false;
+    setPlacementTool(null);
+    setDraggedRingTemplate(template);
+    setRingFusionDropTarget(null);
+    setNotice("Arrastra el anillo sobre un enlace periférico válido y suéltalo para fusionarlo.");
+  };
+
+  const previewDraggedRingOnBond = (
+    event: ReactDragEvent<SVGGElement>,
+    a: number,
+    b: number,
+  ) => {
+    if (!draggedRingTemplate) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (ringFusionDropTarget?.a === a && ringFusionDropTarget.b === b) {
+      event.dataTransfer.dropEffect = ringFusionDropTarget.error ? "none" : "copy";
+      return;
+    }
+
+    const size = draggedRingTemplate.size as 5 | 6;
+    const error = ringFusionError(molecule, a, b);
+    let preview: Molecule | null = null;
+    if (!error) {
+      try {
+        preview = fuseRingOnBond(molecule, a, b, size);
+      } catch {
+        // ringFusionError and fuseRingOnBond share the same validation. Keep a
+        // rejected target if an unexpected geometry guard still declines it.
+      }
+    }
+    const effectiveError = error ?? (preview ? null : "No se pudo previsualizar la fusión en este enlace.");
+    event.dataTransfer.dropEffect = effectiveError ? "none" : "copy";
+    setRingFusionDropTarget({ a, b, error: effectiveError, preview });
+  };
+
+  const fuseDraggedRingOnBond = (template: RingTemplate, a: number, b: number) => {
+    if (template.kind !== "cycloalkane" || (template.size !== 5 && template.size !== 6)) {
+      setNotice("La fusión por arrastre admite ciclos alifáticos de 5 o 6 miembros.");
+      return false;
+    }
+    const error = ringFusionError(molecule, a, b);
+    if (error) {
+      setNotice(error);
+      return false;
+    }
+    try {
+      const next = fuseRingOnBond(molecule, a, b, template.size);
+      const committed = commit(
+        next,
+        language === "en"
+          ? `${template.size}-membered fused ring added.`
+          : `Anillo fusionado de ${template.size} miembros añadido.`,
+      );
+      if (!committed) return false;
+      setFusionSelection(null);
+      setShowRingPalette(false);
+      return true;
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "No se pudo fusionar el anillo.");
+      return false;
+    }
+  };
+
+  const dropDraggedRingOnBond = (event: ReactDragEvent<SVGGElement>, a: number, b: number) => {
+    if (!draggedRingTemplate) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressBondClickAfterDrop.current = true;
+    fuseDraggedRingOnBond(draggedRingTemplate, a, b);
+    setDraggedRingTemplate(null);
+    setRingFusionDropTarget(null);
+    window.setTimeout(() => {
+      suppressBondClickAfterDrop.current = false;
+    }, 0);
+  };
+
+  const endRingDrag = () => {
+    setDraggedRingTemplate(null);
+    setRingFusionDropTarget(null);
+    suppressRingPickerClickAfterDrag.current = true;
+    window.setTimeout(() => {
+      suppressRingPickerClickAfterDrag.current = false;
+    }, 0);
   };
 
   const fuseSelectedBond = (size: 5 | 6) => {
@@ -7383,6 +7511,16 @@ export default function Home() {
       y: point.y * coordinateScale,
     }]),
   );
+  const ringFusionPreviewMolecule = ringFusionDropTarget?.preview ?? null;
+  const existingAtomIds = new Set(molecule.atoms.map((atom) => atom.id));
+  const ringFusionPreviewPositions = ringFusionPreviewMolecule
+    ? new Map([...calculateMolecule2DLayout(ringFusionPreviewMolecule, []).entries()].map(
+        ([atomId, point]) => [atomId, {
+          x: point.x * coordinateScale,
+          y: point.y * coordinateScale,
+        }],
+      ))
+    : null;
   const numberingGeometry = getSkeletalNumberBadgeGeometry(numberingScale);
   const skeletalNumberBadgeOffsets = new Map(
     molecule.atoms.map((atom) => {
@@ -8771,7 +8909,7 @@ export default function Home() {
           )}
 
           <div
-            className={`molecule-stage ${placementTool ? "is-placing" : ""} ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasExpanded ? "is-expanded" : ""} ${canvasScaleClass}`}
+            className={`molecule-stage ${placementTool ? "is-placing" : ""} ${draggedRingTemplate ? "is-dragging-ring" : ""} ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasExpanded ? "is-expanded" : ""} ${canvasScaleClass}`}
             style={structureColorStyle}
             tabIndex={canvasExpanded || advancedScreenReaderEnabled ? 0 : undefined}
             role={canvasExpanded ? "dialog" : advancedScreenReaderEnabled ? "group" : undefined}
@@ -8881,16 +9019,20 @@ export default function Home() {
                 const bondLength = Math.hypot(deltaX, deltaY) || 1;
                 const normalX = -deltaY / bondLength;
                 const normalY = deltaX / bondLength;
-                const containingRing = molecule.rings?.find(
-                  (ring) => ring.atomIds.includes(a) && ring.atomIds.includes(b),
-                );
+                const containingRings = molecule.rings?.filter((ring) => ringHasBond(ring, a, b)) ?? [];
+                const containingRing = containingRings[0];
                 const ringDoubleBondSegments = viewMode === "skeletal"
                   && order === 2
                   && containingRing
                   ? getSkeletalRingDoubleBondSegments(
                       positionA,
                       positionB,
-                      containingRing.atomIds.map((atomId) => displayPositions.get(atomId)!),
+                      containingRings.map((ring) =>
+                        ring.atomIds.map((atomId) => displayPositions.get(atomId)!),
+                      ),
+                      molecule.atoms
+                        .filter((atom) => atom.id !== a && atom.id !== b)
+                        .map((atom) => displayPositions.get(atom.id)!),
                     )
                   : null;
                 const offsets = order === 1 ? [0] : order === 2 ? [-5, 5] : [-8, 0, 8];
@@ -8960,7 +9102,6 @@ export default function Home() {
                     : rawBondSegments
                   : clipCondensedBondSegments(rawBondSegments, positionA, positionB);
                 const lockedBond = isFunctionalBond
-                  || containingRing?.kind === "aromatic"
                   || Boolean(molecule.rings?.length && !containingRing);
                 const stereoInspection = order === 2 && !lockedBond && !containingRing
                   ? inspectDoubleBondStereochemistry(molecule, a, b)
@@ -8987,43 +9128,62 @@ export default function Home() {
                 return (
                   <g
                     key={`${a}-${b}`}
-                    className={`bond-control bond-order-${order} ${lockedBond ? "locked-bond" : ""} ${stereoInteractionEnabled ? "stereo-bond-control" : ""}`}
+                    className={`bond-control bond-order-${order} ${lockedBond ? "locked-bond" : ""} ${stereoInteractionEnabled ? "stereo-bond-control" : ""} ${ringFusionDropTarget?.a === a && ringFusionDropTarget.b === b ? ringFusionDropTarget.error ? "fusion-drop-invalid" : "fusion-drop-valid" : ""}`}
                     data-bond-a={a}
                     data-bond-b={b}
-                    onFocus={() => setFusionSelection({ molecule, a, b })}
                     onClick={(event) => {
-                      if (!placementTool) {
-                        event.currentTarget.focus({ preventScroll: true });
-                        if (containingRing && !event.shiftKey) setFusionSelection({ molecule, a, b });
-                        else cycleBondOrder(a, b);
+                      if (placementTool || suppressBondClickAfterDrop.current) return;
+                      event.currentTarget.focus({ preventScroll: true });
+                      if (containingRing && event.shiftKey) {
+                        setFusionSelection({ molecule, a, b });
+                        setNotice(language === "en" ? "Ring bond selected for explicit fusion." : "Enlace de anillo seleccionado para fusión explícita.");
+                        return;
                       }
+                      setFusionSelection(null);
+                      cycleBondOrder(a, b, undefined, event.altKey);
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        if (containingRing && !event.shiftKey) setFusionSelection({ molecule, a, b });
-                        else cycleBondOrder(a, b);
+                        if (containingRing && event.shiftKey) {
+                          setFusionSelection({ molecule, a, b });
+                          setNotice(language === "en" ? "Ring bond selected for explicit fusion." : "Enlace de anillo seleccionado para fusión explícita.");
+                        } else {
+                          setFusionSelection(null);
+                          cycleBondOrder(a, b, undefined, event.altKey);
+                        }
                       }
                     }}
+                    onDragOver={(event) => previewDraggedRingOnBond(event, a, b)}
+                    onDragLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        setRingFusionDropTarget((target) =>
+                          target?.a === a && target.b === b ? null : target
+                        );
+                      }
+                    }}
+                    onDrop={(event) => dropDraggedRingOnBond(event, a, b)}
                     role="button"
                     tabIndex={0}
                     aria-label={containingRing
-                      ? (language === "en" ? `Select ring bond ${a}–${b}. Shift-click or 1, 2, 3 to edit.` : `Seleccionar enlace del anillo ${a}–${b}. Mayús-clic o 1, 2, 3 para editar.`)
+                      ? (language === "en" ? `Ring bond ${a}–${b}. Activate to edit; Shift-activate selects it for explicit fusion.` : `Enlace del anillo ${a}–${b}. Activa para editar; Mayús-activar lo selecciona para fusión explícita.`)
                       : (lockedBond
                       ? language === "en"
                         ? `${t(getBondOrderLabel(order))} bond locked to preserve ${isFunctionalBond ? "the functional group" : "the ring structure"}`
                         : `Enlace ${getBondOrderLabel(order)} fijado para conservar ${isFunctionalBond ? "el grupo funcional" : "la estructura cíclica"}`
                       : stereoInteractionEnabled
                         ? language === "en"
-                          ? `Stereogenic double bond ${currentStereoLabel}. Activate to change to ${stereoLocant ?? ""}${nextStereoLabel}`
-                          : `Doble enlace estereogénico ${currentStereoLabel}. Activar para cambiar a ${stereoLocant ?? ""}${nextStereoLabel}`
+                          ? `Stereogenic double bond ${currentStereoLabel}. Activate to edit its order; Alt-activate to change to ${stereoLocant ?? ""}${nextStereoLabel}`
+                          : `Doble enlace estereogénico ${currentStereoLabel}. Activa para editar su orden; Alt-activar cambia a ${stereoLocant ?? ""}${nextStereoLabel}`
                         : stereoToggleAvailable
-                          ? t("Activa Estereoquímica para alternar la configuración E/Z de este doble enlace")
+                          ? language === "en"
+                            ? "Double bond. Activate to edit its order; enable Stereochemistry and Alt-activate to switch E/Z."
+                            : "Doble enlace. Activa para editar su orden; habilita Estereoquímica y usa Alt-activar para alternar E/Z."
                         : language === "en"
                           ? `${t(getBondOrderLabel(order))} bond. Activate to change to ${t(getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder))}`
                           : `Enlace ${getBondOrderLabel(order)}. Activar para cambiar a ${getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder)}`)}
                   >
-                    <title>{containingRing ? "Click to select ring bond. Shift-click to edit. Shortcuts: 1 single, 2 double, 3 triple while focused." : "Click to edit bond. Shortcuts: 1 single, 2 double, 3 triple while focused."}</title>
+                    <title>{containingRing ? "Click to edit bond. Shift-click selects it for explicit ring fusion. Shortcuts: 1 single, 2 double, 3 triple while focused." : "Click to edit bond. Alt-click switches E/Z when available. Shortcuts: 1 single, 2 double, 3 triple while focused."}</title>
                     {selectedFusionBond?.a === a && selectedFusionBond.b === b && (
                       <line data-editor-only="true" x1={positionA.x} y1={positionA.y} x2={positionB.x} y2={positionB.y}
                         stroke="var(--accent, #d5a254)" strokeWidth={14} opacity={0.3} pointerEvents="none" />
@@ -9049,7 +9209,22 @@ export default function Home() {
                       <g
                         className="stereo-bond-marker"
                         transform={`translate(${markerX} ${markerY})`}
-                        aria-hidden="true"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={language === "en"
+                          ? `Switch double-bond configuration to ${stereoLocant ?? ""}${nextStereoLabel}`
+                          : `Cambiar la configuración del doble enlace a ${stereoLocant ?? ""}${nextStereoLabel}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          cycleBondOrder(a, b, undefined, true);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            cycleBondOrder(a, b, undefined, true);
+                          }
+                        }}
                       >
                         <rect x="-16" y="-10" width="32" height="20" rx="10" />
                         <text textAnchor="middle" dominantBaseline="central">
@@ -9061,6 +9236,32 @@ export default function Home() {
                 );
               })}
               </g>
+
+              {ringFusionPreviewMolecule && ringFusionPreviewPositions && (
+                <g className="ring-fusion-preview" data-editor-only="true" aria-hidden="true">
+                  {ringFusionPreviewMolecule.bonds.flatMap(([a, b], index) => {
+                    if (existingAtomIds.has(a) && existingAtomIds.has(b)) return [];
+                    const start = ringFusionPreviewPositions.get(a);
+                    const end = ringFusionPreviewPositions.get(b);
+                    return start && end ? [(
+                      <line
+                        key={`preview-bond-${index}`}
+                        x1={start.x}
+                        y1={start.y}
+                        x2={end.x}
+                        y2={end.y}
+                      />
+                    )] : [];
+                  })}
+                  {ringFusionPreviewMolecule.atoms.flatMap((atom) => {
+                    if (existingAtomIds.has(atom.id)) return [];
+                    const position = ringFusionPreviewPositions.get(atom.id);
+                    return position ? [(
+                      <circle key={`preview-atom-${atom.id}`} cx={position.x} cy={position.y} r="5" />
+                    )] : [];
+                  })}
+                </g>
+              )}
 
               <g className="molecule-nodes-layer">
               {molecule.atoms.map((atom) => {
@@ -9272,9 +9473,11 @@ export default function Home() {
                 <div className="bond-touch-hint-actions">
                   {visibleBondInteractionHintActions.map((action) => (
                     <small key={action}>
-                      {t(action === "change-order"
-                        ? "Toca un enlace · cambiar orden de enlace"
-                        : "Toca un C=C · alternar E ↔ Z")}
+                      {action === "change-order"
+                        ? t("Toca un enlace · cambiar orden de enlace")
+                        : language === "en"
+                          ? "Tap the E/Z marker · switch configuration"
+                          : "Toca el marcador E/Z · alternar configuración"}
                     </small>
                   ))}
                 </div>
@@ -9472,7 +9675,16 @@ export default function Home() {
           {showRingPalette && (
             <div className="alkyl-palette ring-palette" id="ring-palette" ref={focusRingPicker}>
               <div className="ring-quick-options" role="group" aria-label="Ring quick picker">
-                {CYCLE_TEMPLATES.map((template) => <button key={template.id} onClick={() => loadRingTemplate(template)} title={`Add ${template.size}-membered ring — Shortcut: ${template.size}`}>{template.size}</button>)}
+                {CYCLE_TEMPLATES.map((template) => <button
+                  key={template.id}
+                  draggable={template.size === 5 || template.size === 6}
+                  onDragStart={(event) => beginRingDrag(event, template)}
+                  onDragEnd={endRingDrag}
+                  onClick={() => {
+                    if (!suppressRingPickerClickAfterDrag.current) loadRingTemplate(template);
+                  }}
+                  title={`Add ${template.size}-membered ring — Shortcut: ${template.size}${template.size === 5 || template.size === 6 ? ". Drag onto a ring bond to fuse." : ""}`}
+                >{template.size}</button>)}
                 <button onClick={() => loadRingTemplate(AROMATIC_TEMPLATES[0])} title="Add benzene — Shortcut: B">Benzene</button>
               </div>
               <div className="alkyl-palette-heading">
@@ -9525,9 +9737,17 @@ export default function Home() {
                     <button
                       key={template.id}
                       className="ring-option"
-                      onClick={() => loadRingTemplate(template)}
-                      disabled={ringInsertMode === "attach" && !hasActiveSelection}
-                      title={`${ringInsertMode === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}`}
+                      draggable={template.size === 5 || template.size === 6}
+                      onDragStart={(event) => beginRingDrag(event, template)}
+                      onDragEnd={endRingDrag}
+                      onClick={() => {
+                        if (!suppressRingPickerClickAfterDrag.current) loadRingTemplate(template);
+                      }}
+                      disabled={ringInsertMode === "attach"
+                        && !hasActiveSelection
+                        && template.size !== 5
+                        && template.size !== 6}
+                      title={`${ringInsertMode === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}${template.size === 5 || template.size === 6 ? ". Arrastra sobre un enlace de anillo para fusionar." : ""}`}
                     >
                       <span className="ring-preview" aria-hidden="true">
                         <svg viewBox="0 0 48 48">

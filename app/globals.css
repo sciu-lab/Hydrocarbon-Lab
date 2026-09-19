@@ -2530,8 +2530,51 @@ button {
   filter: drop-shadow(0 0 3px rgba(34, 118, 101, 0.4));
 }
 
-.stereo-bond-marker {
+.molecule-stage.is-dragging-ring .bond-hit-target {
+  cursor: copy;
+}
+
+.bond-control.fusion-drop-valid .bond {
+  stroke: #1f9d72;
+  filter: drop-shadow(0 0 5px rgba(31, 157, 114, 0.65));
+}
+
+.bond-control.fusion-drop-invalid .bond {
+  stroke: #bf4f4f;
+  filter: drop-shadow(0 0 4px rgba(191, 79, 79, 0.5));
+}
+
+.bond-control.fusion-drop-invalid .bond-hit-target {
+  cursor: not-allowed;
+}
+
+.ring-fusion-preview {
   pointer-events: none;
+  opacity: 0.68;
+}
+
+.ring-fusion-preview line {
+  stroke: #1f9d72;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-dasharray: 9 6;
+}
+
+.ring-fusion-preview circle {
+  fill: var(--canvas);
+  stroke: #1f9d72;
+  stroke-width: 3;
+}
+
+.stereo-bond-marker {
+  pointer-events: all;
+  cursor: pointer;
+  outline: none;
+}
+
+.stereo-bond-marker:focus-visible rect {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(35, 107, 89, 0.55));
 }
 
 .stereo-bond-marker rect {

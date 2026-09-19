@@ -1,9 +1,14 @@
 # Anillos fusionados: MVP
 
-Seleccionar un enlace de anillo con clic o foco de teclado muestra **Fusionar
-anillo** en el panel existente. Ciclopentano y ciclohexano reutilizan sus dos
-extremos y el enlace; añaden 3 o 4 carbonos y un único registro `RingInfo`.
-Mayús-clic y las teclas 1/2/3 conservan la edición del orden del enlace.
+El clic o la activación con teclado sobre un enlace vuelve a editar su orden.
+Mayús-clic o Mayús-Enter sobre un enlace de anillo conserva el mecanismo
+explícito **Fusionar anillo**. Además, ciclopentano y ciclohexano se pueden
+arrastrar desde el selector: el enlace candidato se valida y resalta, se muestra
+una previsualización y la fusión solo se confirma al soltar sobre él. Soltar fuera
+de un enlace no modifica el grafo.
+
+Ciclopentano y ciclohexano reutilizan sus dos extremos y el enlace; añaden 3 o 4
+carbonos y un único registro `RingInfo`.
 
 `fuseRingOnBond` en `app/fused-ring.ts` es una operación inmutable sobre el mismo
 grafo del editor. La UI pasa el resultado por `commit`, que conserva la validación
