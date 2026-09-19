@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { buildHydrocarbonFromIupacName } from "./name-to-molecule";
 import { IUPAC_ROOTS } from "./iupac-prefixes";
 import {
@@ -178,6 +179,24 @@ const NUMBERING_SCALE_STORAGE_KEY = "hydrocarbonLab.numberingScale.v1";
 type MovablePanelId = "structure-panel" | "analysis-panel";
 type PanelPosition = { x: number; y: number };
 type PanelPositions = Record<MovablePanelId, PanelPosition>;
+
+/**
+ * The workspace normally belongs to the structure card, but an expanded
+ * workspace must escape that card's positioning and stacking contexts. Keep
+ * the same live React subtree while mounting it at the document root only for
+ * the expanded presentation.
+ */
+function ViewportPortal({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
+  if (active && ready) return createPortal(children, document.body);
+  return <>{children}</>;
+}
+
 type ActivePanelDrag = {
   panelId: MovablePanelId;
   pointerId: number;
@@ -5176,16 +5195,21 @@ export default function Home() {
     : nomenclatureConvention;
   const nomenclatureVariants = useMemo(() => {
     const localizedName = localizedIupac(nameWithSelectedStereochemistry);
+    // Recognized fused-ring common names are supplied by the naming engine.
+    // Prefer them over the generic formatter, which has no fused-ring lexicon.
+    const traditionalName = analysis.commonName
+      ? translateCommonName(language, analysis.commonName)
+      : language === "es"
+        ? localizedIupac(structuralTraditionalName)
+        : legacyEnglishResult.name;
     return (["current", "traditional"] as const).map((convention) => ({
       convention,
       label: nomenclatureConventionLabel(convention, language),
       name: convention === "traditional"
-        ? language === "es"
-          ? localizedIupac(structuralTraditionalName)
-          : legacyEnglishResult.name
+        ? traditionalName
         : applyNomenclatureConvention(localizedName, convention, language),
     }));
-  }, [language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
+  }, [analysis.commonName, language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
@@ -9068,16 +9092,17 @@ export default function Home() {
             </section>
           )}
 
-          {canvasExpanded && (
-            <button
-              type="button"
-              className="canvas-expand-scrim"
-              aria-label={t("Cerrar vista ampliada")}
-              onClick={closeExpandedCanvas}
-            />
-          )}
+          <ViewportPortal active={canvasExpanded}>
+            {canvasExpanded && (
+              <button
+                type="button"
+                className="canvas-expand-scrim"
+                aria-label={t("Cerrar vista ampliada")}
+                onClick={closeExpandedCanvas}
+              />
+            )}
 
-          <div
+            <div
             ref={expandedWorkspaceRef}
             className={`molecule-workspace ${canvasExpanded ? "is-expanded" : ""}`}
             role={canvasExpanded ? "dialog" : undefined}
@@ -9510,12 +9535,6 @@ export default function Home() {
                       previousSelectedId.current = selectedId;
                       setFusionSelection(null);
                       setSelectedId(atom.id);
-                      if (carbonAtom) {
-                        setRingInsertMode("attach");
-                        setShowRingPalette(true);
-                        setShowAlkylPalette(false);
-                        setShowFunctionalPalette(false);
-                      }
                       setNotice(`${elementNames[element][0].toUpperCase()}${elementNames[element].slice(1)} ${chainNumber ?? "del grupo funcional"} seleccionado.`);
                     }}
                     role={advancedScreenReaderEnabled ? "button" : undefined}
@@ -9530,12 +9549,6 @@ export default function Home() {
                         previousSelectedId.current = selectedId;
                         setFusionSelection(null);
                         setSelectedId(atom.id);
-                        if (carbonAtom) {
-                          setRingInsertMode("attach");
-                          setShowRingPalette(true);
-                          setShowAlkylPalette(false);
-                          setShowFunctionalPalette(false);
-                        }
                       }
                     }}
                   >
@@ -10217,7 +10230,8 @@ export default function Home() {
               <span /> {t("Resaltar sustituyentes")}
             </label>
           </div>
-          </div>
+            </div>
+          </ViewportPortal>
         </section>
 
         <aside

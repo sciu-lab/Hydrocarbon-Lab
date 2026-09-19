@@ -47,10 +47,11 @@ test("one contextual library replaces the compact fusion picker", () => {
   assert.doesNotMatch(page, /aria-label=\{language === "en" \? "Fuse ring"/);
 });
 
-test("carbon and Shift-bond selection open the shared ring library", () => {
+test("only explicit ring actions open the shared ring library", () => {
   assert.match(page, /if \(containingRing && event\.shiftKey\) \{\s*setFusionSelection\(\{ molecule, a, b \}\);\s*setShowRingPalette\(true\);/s);
-  assert.match(page, /setSelectedId\(atom\.id\);\s*if \(carbonAtom\) \{\s*setRingInsertMode\("attach"\);\s*setShowRingPalette\(true\);/s);
+  assert.doesNotMatch(page, /setSelectedId\(atom\.id\);\s*if \(carbonAtom\) \{\s*setRingInsertMode\("attach"\);\s*setShowRingPalette\(true\);/s);
   assert.match(page, /if \(!selectedFusionBond\) \{\s*setRingInsertMode\(hasActiveSelection && isCarbonAtom\(selectedAtom\) \? "attach" : "replace"\);/s);
+  assert.match(page, /const key = event\.key\.toLowerCase\(\);[\s\S]*?else if \(key === "r"\) \{[\s\S]*?setShowRingPalette\(!showRingPalette\)/);
 });
 
 test("explicit fusion clears its temporary selection only after a successful commit", () => {
@@ -60,6 +61,9 @@ test("explicit fusion clears its temporary selection only after a successful com
 });
 
 test("expanded workspace wraps the live canvas and construction controls", () => {
+  assert.match(page, /import \{ createPortal \} from "react-dom"/);
+  assert.match(page, /function ViewportPortal[\s\S]*?createPortal\(children, document\.body\)/);
+  assert.match(page, /<ViewportPortal active=\{canvasExpanded\}>/);
   assert.match(page, /className=\{`molecule-workspace \$\{canvasExpanded \? "is-expanded" : ""\}`\}/);
   assert.match(page, /expanded-workspace-header/);
   assert.match(page, /ref=\{expandedCanvasCloseButtonRef\}/);
@@ -67,9 +71,16 @@ test("expanded workspace wraps the live canvas and construction controls", () =>
   assert.match(page, /window\.requestAnimationFrame\(\(\) => expandedCanvasCloseButtonRef\.current\?\.focus/);
   assert.match(page, /keepFocusInWorkspace/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.molecule-workspace\.is-expanded \{[\s\S]*width: min\(90vw, 1440px\);[\s\S]*height: min\(90dvh, 960px\);/);
+  assert.match(css, /\.canvas-expand-scrim \{[\s\S]*position: fixed;[\s\S]*inset: 0;/);
+  assert.match(css, /\.molecule-workspace\.is-expanded \{[\s\S]*position: fixed;[\s\S]*width: 90vw;[\s\S]*height: 90dvh;/);
   assert.match(css, /\.molecule-workspace\.is-expanded \.molecule-stage \{[\s\S]*height: clamp\(470px, 62dvh, 720px\);/);
   assert.doesNotMatch(css, /\.molecule-stage\.is-expanded/);
+});
+
+test("the traditional nomenclature card uses the name supplied by fused-ring analysis", () => {
+  assert.match(page, /const traditionalName = analysis\.commonName/);
+  assert.match(page, /translateCommonName\(language, analysis\.commonName\)/);
+  assert.match(page, /name: convention === "traditional"\s*\? traditionalName/s);
 });
 
 test("contextual selection focus preserves the page scroll and expanded SVG uses fitted bounds", () => {

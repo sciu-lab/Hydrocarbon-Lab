@@ -51,14 +51,15 @@ function build(name) {
   return result;
 }
 
-test("fused editing reports the naming limit and remains analyzable after opening a ring", () => {
+test("supported fused bicyclic editing remains analyzable after opening a ring", () => {
   const original = build("ciclohexano").molecule;
   const [a, b] = original.bonds[0];
   const fused = fuseRingOnBond(original, a, b, 6);
   const analysis = analyzeMolecule(fused);
   assert.equal(analysis.formula, "C₁₀H₁₈");
   assert.equal(analysis.family, "polycyclic");
-  assert.equal(localNamerCannotSafelyName(fused, analysis), true);
+  assert.equal(analysis.name, "biciclo[4.4.0]decano");
+  assert.equal(localNamerCannotSafelyName(fused, analysis), false);
   const opened = removeFusedRingAtom(fused, fused.atoms.at(-2).id);
   assert.doesNotThrow(() => analyzeMolecule(opened));
 });

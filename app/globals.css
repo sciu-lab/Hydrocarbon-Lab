@@ -2323,7 +2323,7 @@ button {
 
 .canvas-expand-scrim {
   position: fixed;
-  z-index: 90;
+  z-index: 109;
   inset: 0;
   width: 100%;
   height: 100%;
@@ -2337,20 +2337,20 @@ button {
 
 .molecule-workspace.is-expanded {
   position: fixed;
-  z-index: 91;
-  top: 50%;
-  left: 50%;
+  z-index: 110;
+  top: 5dvh;
+  left: 5vw;
   display: flex;
-  width: min(90vw, 1440px);
-  height: min(90dvh, 960px);
-  max-height: calc(100dvh - 24px);
+  width: 90vw;
+  height: 90dvh;
+  max-height: none;
   flex-direction: column;
   overflow: auto;
   border: 1px solid rgba(126, 184, 168, 0.48);
   border-radius: 22px;
   background: var(--paper);
   box-shadow: 0 28px 76px rgba(0, 0, 0, 0.5);
-  transform: translate(-50%, -50%);
+  transform: none;
 }
 
 .expanded-workspace-header {

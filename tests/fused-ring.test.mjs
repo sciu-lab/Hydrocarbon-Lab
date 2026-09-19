@@ -123,7 +123,7 @@ test("actual commit, fusion, undo and redo preserve exact snapshots as one edit"
   const initial = { ...makeRing(6, "cycloalkane"), isMirrored: true };
   const context = { molecule: initial, undoStack: [], future: [], cloneMolecule, fuseRingOnBond,
     selectedFusionBond: { a: 1, b: 2 }, language: "es",
-    findMoleculeValenceViolation: () => null,
+    findMoleculeValenceViolation: () => null, ringFusionError,
   };
   for (const key of ["molecule", "undoStack", "future"]) {
     context[`set${key[0].toUpperCase()}${key.slice(1)}`] = value => { context[key] = typeof value === "function" ? value(context[key]) : value; };
