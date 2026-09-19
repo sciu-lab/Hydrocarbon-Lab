@@ -2374,6 +2374,12 @@ button {
   margin-left: auto;
 }
 
+.expanded-zoom-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .expanded-workspace-header button {
   display: inline-flex;
   min-height: 34px;
@@ -2392,6 +2398,8 @@ button {
 .expanded-workspace-header button span { font-size: 18px; line-height: 1; }
 
 .expanded-workspace-actions button { min-width: 34px; justify-content: center; }
+.expanded-zoom-actions button { min-width: 34px; justify-content: center; }
+.expanded-zoom-actions button:nth-child(2) { min-width: 62px; }
 
 .molecule-workspace.is-expanded .molecule-stage {
   height: clamp(470px, 62dvh, 720px);
@@ -6688,6 +6696,12 @@ html[data-theme="dark"] .creator-credit strong {
   font-size: 8px;
 }
 
+.ring-system-detection strong {
+  border-color: #b9cadf;
+  background: #eef4fb;
+  color: #3d6389;
+}
+
 .formula-row {
   grid-template-columns: 1fr 0.72fr 1.15fr;
 }
@@ -6868,6 +6882,12 @@ html[data-theme="dark"] .functional-detection strong {
   border-color: #55435f;
   background: #302638;
   color: #c9afd5;
+}
+
+html[data-theme="dark"] .ring-system-detection strong {
+  border-color: #3b536e;
+  background: #243243;
+  color: #b9d2ed;
 }
 
 html[data-theme="dark"] .molecule-stage:focus-visible {

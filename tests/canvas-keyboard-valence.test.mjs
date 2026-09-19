@@ -3,6 +3,7 @@ import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
+import { fuseRingOnBond } from "../app/fused-ring.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
@@ -15,6 +16,7 @@ let getFormulaDisplayTokens;
 let getAtomValenceViolation;
 let getRingsAfterBondOrderEdit;
 let normalizeFormulaBuilderInput;
+let analyzeMolecule;
 
 before(async () => {
   server = await createServer({
@@ -35,6 +37,7 @@ before(async () => {
     getAtomValenceViolation,
     getRingsAfterBondOrderEdit,
     normalizeFormulaBuilderInput,
+    analyzeMolecule,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
@@ -172,4 +175,17 @@ test("chooses the neighbor that matches each horizontal arrow", () => {
   };
   assert.equal(findDirectionalNeighborId(molecule, 2, -1, 0), 1);
   assert.equal(findDirectionalNeighborId(molecule, 2, 1, 0), 3);
+});
+
+test("real-time analysis names a bare fused bicyclic graph without a formula shortcut", () => {
+  const ring = {
+    atoms: Array.from({ length: 6 }, (_, index) => ({ id: index + 1, x: Math.cos(index), y: Math.sin(index) })),
+    bonds: [[1, 2, 1], [2, 3, 1], [3, 4, 1], [4, 5, 1], [5, 6, 1], [6, 1, 1]],
+    rings: [{ id: 1, kind: "cycloalkane", atomIds: [1, 2, 3, 4, 5, 6] }],
+  };
+  const decalin = fuseRingOnBond(ring, 1, 2, 6);
+  const analysis = analyzeMolecule(decalin);
+  assert.equal(analysis.name, "biciclo[4.4.0]decano");
+  assert.equal(analysis.commonName, "decalina");
+  assert.equal(analysis.family, "polycyclic");
 });

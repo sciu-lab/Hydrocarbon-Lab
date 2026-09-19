@@ -83,6 +83,7 @@ import {
   getMoleculeExportDimensions,
   getMoleculeExportFrame,
   getMoleculeVisualBounds,
+  type MoleculeVisualBounds,
 } from "./molecule-visual-bounds";
 import { findOrderedSimpleMonocycle } from "./simple-cycle";
 import { getAutoPlacedCarbonPosition } from "./manual-layout";
@@ -93,6 +94,11 @@ import {
   ringFusionError,
   ringHasBond,
 } from "./fused-ring";
+import {
+  getFusedBicyclicSystem,
+  getSteroidLike6565System,
+  type FusedBicyclicSystem,
+} from "./fused-ring-nomenclature";
 import {
   hasCarbonylAttachment,
   orientCarbonylTemplateOutsideRing,
@@ -359,6 +365,8 @@ type Analysis = {
   functionalGroups: FunctionalGroup[];
   primaryFunctionalGroup?: FunctionalGroupKind;
   primaryFunctionalLabel?: string;
+  fusedBicyclic?: FusedBicyclicSystem;
+  ringSystem?: string;
 };
 
 export type IupacReasoningStep = {
@@ -3108,13 +3116,63 @@ function analyzeFunctionalRing(
   };
 }
 
+function fusedBicyclicNumbering(molecule: Molecule, system: FusedBicyclicSystem) {
+  const [start, end] = system.bridgeheads;
+  const paths = (molecule.rings ?? []).map((ring) => {
+    const startIndex = ring.atomIds.indexOf(start);
+    const endIndex = ring.atomIds.indexOf(end);
+    const forward = [start];
+    for (let index = (startIndex + 1) % ring.atomIds.length; index !== endIndex; index = (index + 1) % ring.atomIds.length) {
+      forward.push(ring.atomIds[index]);
+    }
+    forward.push(end);
+    // The fused edge is the one-step direction. Keep the other direction as
+    // the bridgehead-to-bridgehead route that supplies this descriptor.
+    if (forward.length > 2) return forward;
+    const reverse = [start];
+    for (let index = (startIndex + ring.atomIds.length - 1) % ring.atomIds.length; index !== endIndex; index = (index + ring.atomIds.length - 1) % ring.atomIds.length) {
+      reverse.push(ring.atomIds[index]);
+    }
+    return [...reverse, end];
+  }).sort((left, right) => right.length - left.length);
+  return [start, ...paths[0].slice(1, -1), end, ...paths[1].slice(1, -1)];
+}
+
+function analyzeFusedBicyclicMolecule(molecule: Molecule, system: FusedBicyclicSystem): Analysis {
+  const numberingPath = fusedBicyclicNumbering(molecule, system);
+  return {
+    name: system.systematicName,
+    commonName: system.traditionalName,
+    formula: molecularFormula(molecule),
+    family: "polycyclic",
+    mainChain: numberingPath,
+    chainName: system.systematicName,
+    substituents: [],
+    numberedAtoms: new Map(numberingPath.map((atomId, index) => [atomId, index + 1])),
+    doubleBondLocants: [],
+    tripleBondLocants: [],
+    functionalGroups: [],
+    fusedBicyclic: system,
+    ringSystem: `Sistema bicíclico fusionado [${system.paths.join(".")}]`,
+  };
+}
+
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
+  const fusedBicyclic = getFusedBicyclicSystem(molecule);
+  const fusedBicyclicIsBareHydrocarbon = fusedBicyclic
+    && fusedBicyclic.atomIds.length === molecule.atoms.length
+    && molecule.atoms.every(isCarbonAtom);
+  if (fusedBicyclic && fusedBicyclicIsBareHydrocarbon) {
+    return analyzeFusedBicyclicMolecule(molecule, fusedBicyclic);
+  }
   if (hasSharedRingAtoms(molecule)) {
+    const steroidLike = getSteroidLike6565System(molecule);
     return {
       name: "Nombre no disponible para estructuras complejas",
       formula: molecularFormula(molecule), family: "polycyclic",
       mainChain: [], chainName: "", substituents: [], numberedAtoms: new Map(),
       doubleBondLocants: [], tripleBondLocants: [], functionalGroups: detectFunctionalGroups(molecule),
+      ringSystem: steroidLike ? "Núcleo tetracíclico fusionado 6-6-6-5 reconocido; la nomenclatura de esteroides aún requiere sustituyentes y estereoquímica verificables." : undefined,
     };
   }
   const heterocycle = heterocycleRing(molecule);
@@ -3360,6 +3418,26 @@ export function buildIupacReasoningSteps(
   enabledAliases: readonly string[] = [],
   sourceName?: string | null,
 ): IupacReasoningStep[] {
+  if (analysis.fusedBicyclic) {
+    const [first, second, third] = analysis.fusedBicyclic.paths;
+    return [
+      {
+        number: "01",
+        title: "Sistema de anillos fusionados",
+        explanation: "Los dos ciclos comparten exactamente dos átomos y un enlace; por ello son fusionados y no dos anillos unidos por un enlace externo.",
+      },
+      {
+        number: "02",
+        title: "Cabezas de puente y caminos",
+        explanation: `Entre las dos cabezas de puente existen tres rutas con ${first}, ${second} y ${third} átomos intermedios. Ordenadas de mayor a menor forman el descriptor biciclo[${first}.${second}.${third}].`,
+      },
+      {
+        number: "03",
+        title: "Nombre sistemático",
+        explanation: `Las rutas contienen ${analysis.fusedBicyclic.atomIds.length} carbonos en total; el hidrocarburo base es ${analysis.name}.`,
+      },
+    ];
+  }
   if (sourceName && usesNitrogenLocants(sourceName)) {
     const normalizedSource = sourceName
       .normalize("NFD")
@@ -3852,7 +3930,9 @@ const COMPLEX_NAME_UNAVAILABLE_MESSAGE = "Nombre no disponible para estructuras 
 const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 
 export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysis) {
-  if (hasSharedRingAtoms(molecule)) return true;
+  // A recognised, bare fused bicyclic hydrocarbon has a complete graph-based
+  // descriptor. Other shared-ring topologies remain deliberately unsupported.
+  if (hasSharedRingAtoms(molecule)) return !analysis.fusedBicyclic;
   const parentAtoms = new Set(analysis.mainChain);
   if (!parentAtoms.size) return false;
   const skeleton = carbonSkeleton(molecule);
@@ -4861,6 +4941,8 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [canvasExpanded, setCanvasExpanded] = useState(false);
+  const [expandedViewFrame, setExpandedViewFrame] = useState<MoleculeVisualBounds | null>(null);
+  const [expandedZoom, setExpandedZoom] = useState(1);
   const [pngExportOpen, setPngExportOpen] = useState(false);
   const [imageExportFormat, setImageExportFormat] = useState<ImageExportFormat>("png");
   const [pngExportScale, setPngExportScale] = useState<PngExportScale>(2);
@@ -4942,7 +5024,9 @@ export default function Home() {
   const rippleSequence = useRef(0);
   const lastToolPointer = useRef<{ x: number; y: number } | null>(null);
   const focusRingPicker = useCallback((element: HTMLDivElement | null) => {
-    element?.querySelector<HTMLButtonElement>(".ring-option:not(:disabled)")?.focus();
+    // Opening the contextual library is a consequence of selecting an atom;
+    // it must not move the document away from the canvas.
+    element?.querySelector<HTMLButtonElement>(".ring-option:not(:disabled)")?.focus({ preventScroll: true });
   }, []);
   const [showFunctionalPalette, setShowFunctionalPalette] = useState(false);
   const [ringInsertMode, setRingInsertMode] = useState<RingInsertMode>("replace");
@@ -7595,10 +7679,34 @@ export default function Home() {
   const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values(), {
     additionalExtents: numberingBadgeExtents,
   });
-  const viewWidth = Math.max(720, moleculeVisualBounds.width);
-  const viewHeight = Math.max(390, moleculeVisualBounds.height);
-  const viewCenterX = moleculeVisualBounds.x + moleculeVisualBounds.width / 2;
-  const viewCenterY = moleculeVisualBounds.y + moleculeVisualBounds.height / 2;
+  // The normal canvas keeps a generous classroom workspace. The expanded
+  // editor instead starts from the same content bounds used by export, with a
+  // smaller presentation margin, so its SVG fills the modal without scaling
+  // DOM pixels or changing the molecular coordinates.
+  const expandedFitBounds = getMoleculeVisualBounds(displayPositions.values(), {
+    atomExtent: 58,
+    padding: 36,
+    additionalExtents: numberingBadgeExtents,
+  });
+  const expandedFitBoundsRef = useRef(expandedFitBounds);
+  expandedFitBoundsRef.current = expandedFitBounds;
+  useEffect(() => {
+    if (!canvasExpanded) return;
+    setExpandedViewFrame({ ...expandedFitBoundsRef.current });
+    setExpandedZoom(1);
+  }, [canvasExpanded]);
+  const activeViewBounds = canvasExpanded
+    ? expandedViewFrame ?? expandedFitBounds
+    : moleculeVisualBounds;
+  const activeZoom = canvasExpanded ? expandedZoom : 1;
+  const viewWidth = (canvasExpanded ? activeViewBounds.width : Math.max(720, activeViewBounds.width)) / activeZoom;
+  const viewHeight = (canvasExpanded ? activeViewBounds.height : Math.max(390, activeViewBounds.height)) / activeZoom;
+  const viewCenterX = activeViewBounds.x + activeViewBounds.width / 2;
+  const viewCenterY = activeViewBounds.y + activeViewBounds.height / 2;
+  const fitExpandedMolecule = () => {
+    setExpandedViewFrame({ ...expandedFitBounds });
+    setExpandedZoom(1);
+  };
   const selectedValence = getValenceUsed(selectedAtom.id, molecule);
   const selectedHydrogens = getImplicitHydrogens(selectedAtom.id, molecule);
   const selectedElement = getElement(selectedAtom);
@@ -8984,6 +9092,11 @@ export default function Home() {
                   <button type="button" onClick={redo} disabled={!future.length} title={t("Rehacer")}>↷</button>
                   <button type="button" onClick={newMolecule}>{t("Nueva")}</button>
                 </div>
+                <div className="expanded-zoom-actions" role="group" aria-label={t("Zoom del constructor")}>
+                  <button type="button" onClick={() => setExpandedZoom((zoom) => Math.max(0.6, Number((zoom - 0.15).toFixed(2))))} title={t("Alejar")}>−</button>
+                  <button type="button" onClick={fitExpandedMolecule} title={t("Ajustar molécula a la vista")}>{t("Ajustar")}</button>
+                  <button type="button" onClick={() => setExpandedZoom((zoom) => Math.min(2.4, Number((zoom + 0.15).toFixed(2))))} title={t("Acercar")}>+</button>
+                </div>
                 <button
                   ref={expandedCanvasCloseButtonRef}
                   type="button"
@@ -10259,6 +10372,16 @@ export default function Home() {
                   .map((group) => (
                     <strong key={group.label}>{t(group.label)}</strong>
                   ))}
+              </div>
+            </div>
+          )}
+
+          {analysis.ringSystem && (
+            <div className="functional-detection ring-system-detection" aria-label={t("Sistema de anillos detectado")}>
+              <span>{t("Anillos")}</span>
+              <div>
+                <strong>{analysis.ringSystem}</strong>
+                {analysis.commonName && <strong>{t("Nombre tradicional")}: {analysis.commonName}</strong>}
               </div>
             </div>
           )}

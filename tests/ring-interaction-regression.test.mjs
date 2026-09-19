@@ -72,6 +72,14 @@ test("expanded workspace wraps the live canvas and construction controls", () =>
   assert.doesNotMatch(css, /\.molecule-stage\.is-expanded/);
 });
 
+test("contextual selection focus preserves the page scroll and expanded SVG uses fitted bounds", () => {
+  assert.match(page, /\.ring-option:not\(:disabled\)"\)\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(page, /const expandedFitBounds = getMoleculeVisualBounds\(displayPositions\.values\(\)/);
+  assert.match(page, /const activeViewBounds = canvasExpanded/);
+  assert.match(page, /setExpandedZoom\(1\)/);
+  assert.match(page, /fitExpandedMolecule/);
+});
+
 test("dropping a six-membered ring commits one ten-carbon fused structure", () => {
   const makeRing = action("makeRing");
   const context = {
