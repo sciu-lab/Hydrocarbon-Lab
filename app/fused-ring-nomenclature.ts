@@ -1,4 +1,7 @@
-import { iupacAlkylNameForCarbonCount } from "./iupac-prefixes.ts";
+import {
+  iupacAlkylNameForCarbonCount,
+  iupacRootForCarbonCount,
+} from "./iupac-prefixes.ts";
 
 export type FusedRingBond = readonly [number, number, number?];
 
@@ -21,6 +24,8 @@ export type FusedBicyclicSystem = {
   numbering: number[];
   parentName: string;
   substituents: FusedBicyclicSubstituent[];
+  doubleBondLocants: number[];
+  tripleBondLocants: number[];
   systematicName: string;
   traditionalName?: string;
 };
@@ -44,13 +49,15 @@ function hasRingBond(ring: FusedRing, a: number, b: number) {
   ));
 }
 
-function isSaturatedCarbocycle(molecule: FusedRingMolecule, ring: FusedRing) {
-  const atoms = new Set(ring.atomIds);
+function isSupportedCarbocycle(molecule: FusedRingMolecule, ring: FusedRing) {
   return ring.kind === "cycloalkane"
     && ring.atomIds.every((id) => (molecule.atoms.find((atom) => atom.id === id)?.element ?? "C") === "C")
-    && molecule.bonds
-      .filter(([a, b]) => atoms.has(a) && atoms.has(b))
-      .every(([, , order = 1]) => order === 1);
+    && ring.atomIds.every((id, index) => {
+      const nextId = ring.atomIds[(index + 1) % ring.atomIds.length];
+      return molecule.bonds.some(([left, right, order = 1]) => (
+        (left === id && right === nextId) || (left === nextId && right === id)
+      ) && order >= 1 && order <= 3);
+    });
 }
 
 const alkaneParents: Record<number, string> = {
@@ -58,7 +65,7 @@ const alkaneParents: Record<number, string> = {
   11: "undecano", 12: "dodecano", 13: "tridecano", 14: "tetradecano",
 };
 
-const substituentMultipliers = ["", "", "di", "tri", "tetra", "penta", "hexa"];
+const substituentMultipliers = ["", "", "di", "tri", "tetra", "penta", "hexa", "hepta", "octa"];
 
 function compareNumberLists(left: readonly number[], right: readonly number[]) {
   for (let index = 0; index < Math.max(left.length, right.length); index++) {
@@ -156,7 +163,6 @@ function findSimpleAlkylSubstituents(molecule: FusedRingMolecule, coreAtomIds: r
       || component.some((id) => (atomsById.get(id)?.element ?? "C") !== "C")
       || !isLinear
       || !name
-      || component.length > 2
     ) return null;
     substituents.push({
       anchorId: attachments[0].anchorId,
@@ -165,6 +171,82 @@ function findSimpleAlkylSubstituents(molecule: FusedRingMolecule, coreAtomIds: r
     });
   }
   return substituents;
+}
+
+function multipleBondLocants(
+  molecule: FusedRingMolecule,
+  coreAtomIds: readonly number[],
+  numbering: readonly number[],
+) {
+  const core = new Set(coreAtomIds);
+  const locants = new Map(numbering.map((atomId, index) => [atomId, index + 1]));
+  const doubleBondLocants: number[] = [];
+  const tripleBondLocants: number[] = [];
+  for (const [left, right, order = 1] of molecule.bonds) {
+    if (!core.has(left) || !core.has(right) || order === 1) continue;
+    if (order !== 2 && order !== 3) return null;
+    const leftLocant = locants.get(left);
+    const rightLocant = locants.get(right);
+    if (leftLocant === undefined || rightLocant === undefined || Math.abs(leftLocant - rightLocant) !== 1) {
+      // Compound locants such as 1(6) are deliberately outside phase 2.
+      return null;
+    }
+    const locant = Math.min(leftLocant, rightLocant);
+    (order === 2 ? doubleBondLocants : tripleBondLocants).push(locant);
+  }
+  return {
+    doubleBondLocants: doubleBondLocants.sort((left, right) => left - right),
+    tripleBondLocants: tripleBondLocants.sort((left, right) => left - right),
+  };
+}
+
+function hasValidCarbonValence(molecule: FusedRingMolecule) {
+  const bondOrderTotals = new Map(molecule.atoms.map((atom) => [atom.id, 0]));
+  for (const [left, right, order = 1] of molecule.bonds) {
+    if (order < 1 || order > 3) return false;
+    bondOrderTotals.set(left, (bondOrderTotals.get(left) ?? 0) + order);
+    bondOrderTotals.set(right, (bondOrderTotals.get(right) ?? 0) + order);
+  }
+  return molecule.atoms.every((atom) => (
+    (atom.element ?? "C") !== "C" || (bondOrderTotals.get(atom.id) ?? 0) <= 4
+  ));
+}
+
+function unsaturatedParentName(
+  descriptor: string,
+  carbonCount: number,
+  saturatedParent: string,
+  doubleBondLocants: readonly number[],
+  tripleBondLocants: readonly number[],
+) {
+  if (!doubleBondLocants.length && !tripleBondLocants.length) return `${descriptor}${saturatedParent}`;
+  const root = iupacRootForCarbonCount(carbonCount);
+  if (!root) return null;
+  const multiplier = (count: number) => substituentMultipliers[count];
+  if (doubleBondLocants.length && !tripleBondLocants.length) {
+    if (doubleBondLocants.length === 1) return `${descriptor}${root}-${doubleBondLocants[0]}-eno`;
+    const prefix = multiplier(doubleBondLocants.length);
+    return prefix ? `${descriptor}${root}a-${doubleBondLocants.join(",")}-${prefix}eno` : null;
+  }
+  if (tripleBondLocants.length && !doubleBondLocants.length) {
+    if (tripleBondLocants.length === 1) return `${descriptor}${root}-${tripleBondLocants[0]}-ino`;
+    const prefix = multiplier(tripleBondLocants.length);
+    return prefix ? `${descriptor}${root}a-${tripleBondLocants.join(",")}-${prefix}ino` : null;
+  }
+  const doublePrefix = multiplier(doubleBondLocants.length);
+  const triplePrefix = multiplier(tripleBondLocants.length);
+  if (
+    (doubleBondLocants.length > 1 && !doublePrefix)
+    || (tripleBondLocants.length > 1 && !triplePrefix)
+  ) return null;
+  const alkenePart = doubleBondLocants.length === 1
+    ? `${doubleBondLocants[0]}-en`
+    : `${doubleBondLocants.join(",")}-${doublePrefix}en`;
+  const alkynePart = tripleBondLocants.length === 1
+    ? `${tripleBondLocants[0]}-ino`
+    : `${tripleBondLocants.join(",")}-${triplePrefix}ino`;
+  const stem = doubleBondLocants.length > 1 || tripleBondLocants.length > 1 ? `${root}a` : root;
+  return `${descriptor}${stem}-${alkenePart}-${alkynePart}`;
 }
 
 function formatSubstituentPrefixes(substituents: readonly FusedBicyclicSubstituent[]): string | null {
@@ -189,13 +271,17 @@ function formatSubstituentPrefixes(substituents: readonly FusedBicyclicSubstitue
 }
 
 /**
- * Recognises two saturated carbocycles sharing exactly one complete edge.
+ * Recognises two carbocycles sharing exactly one complete edge.
  * It deliberately rejects external ring-to-ring bonds, spiro systems and
  * bridged graphs: their ring records do not share this single edge.
  */
 export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicyclicSystem | null {
   const rings = molecule.rings ?? [];
-  if (rings.length !== 2 || !rings.every((ring) => isSaturatedCarbocycle(molecule, ring))) return null;
+  if (
+    rings.length !== 2
+    || !rings.every((ring) => isSupportedCarbocycle(molecule, ring))
+    || !hasValidCarbonValence(molecule)
+  ) return null;
   const [left, right] = rings;
   const shared = left.atomIds.filter((id) => right.atomIds.includes(id));
   if (shared.length !== 2 || !hasRingBond(left, shared[0], shared[1]) || !hasRingBond(right, shared[0], shared[1])) return null;
@@ -210,7 +296,9 @@ export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicycl
   const numberedCandidates = bicyclicNumberingCandidates(
     [left, right],
     [shared[0], shared[1]],
-  ).map((numbering) => {
+  ).flatMap((numbering) => {
+    const unsaturation = multipleBondLocants(molecule, atomIds, numbering);
+    if (!unsaturation) return [];
     const locants = new Map(numbering.map((atomId, index) => [atomId, index + 1]));
     const substituents = unnumberedSubstituents.map((substituent) => ({
       ...substituent,
@@ -223,13 +311,28 @@ export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicycl
         .filter((substituent) => substituent.name === name)
         .map((substituent) => substituent.locant)
         .sort((a, b) => a - b));
-    return { numbering, substituents, locantSet, citationLocants };
+    const multipleLocants = [
+      ...unsaturation.doubleBondLocants,
+      ...unsaturation.tripleBondLocants,
+    ].sort((a, b) => a - b);
+    return [{ numbering, substituents, locantSet, citationLocants, multipleLocants, ...unsaturation }];
   }).sort((leftCandidate, rightCandidate) =>
-    compareNumberLists(leftCandidate.locantSet, rightCandidate.locantSet)
+    compareNumberLists(leftCandidate.multipleLocants, rightCandidate.multipleLocants)
+    || compareNumberLists(leftCandidate.doubleBondLocants, rightCandidate.doubleBondLocants)
+    || compareNumberLists(leftCandidate.locantSet, rightCandidate.locantSet)
     || compareNumberLists(leftCandidate.citationLocants, rightCandidate.citationLocants),
   );
   const chosen = numberedCandidates[0];
-  const parentName = `biciclo[${paths[0]}.${paths[1]}.0]${parent}`;
+  if (!chosen) return null;
+  const descriptor = `biciclo[${paths[0]}.${paths[1]}.0]`;
+  const parentName = unsaturatedParentName(
+    descriptor,
+    total,
+    parent,
+    chosen.doubleBondLocants,
+    chosen.tripleBondLocants,
+  );
+  if (!parentName) return null;
   const substituentPrefix = formatSubstituentPrefixes(chosen.substituents);
   if (substituentPrefix === null) return null;
   return {
@@ -239,8 +342,13 @@ export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicycl
     numbering: chosen.numbering,
     parentName,
     substituents: chosen.substituents,
+    doubleBondLocants: chosen.doubleBondLocants,
+    tripleBondLocants: chosen.tripleBondLocants,
     systematicName: substituentPrefix ? `${substituentPrefix}${parentName}` : parentName,
-    traditionalName: !chosen.substituents.length && paths[0] === 4 && paths[1] === 4
+    traditionalName: !chosen.substituents.length
+      && !chosen.doubleBondLocants.length
+      && !chosen.tripleBondLocants.length
+      && paths[0] === 4 && paths[1] === 4
       ? "decalina"
       : undefined,
   };
@@ -253,7 +361,11 @@ export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicycl
  */
 export function getSteroidLike6565System(molecule: FusedRingMolecule): SteroidLikeRingSystem | null {
   const rings = molecule.rings ?? [];
-  if (rings.length !== 4 || !rings.every((ring) => isSaturatedCarbocycle(molecule, ring))) return null;
+  if (
+    rings.length !== 4
+    || !rings.every((ring) => isSupportedCarbocycle(molecule, ring))
+    || molecule.bonds.some(([, , order = 1]) => order !== 1)
+  ) return null;
   const sortedSizes = rings.map((ring) => ring.atomIds.length).sort((a, b) => b - a);
   if (sortedSizes.join(",") !== "6,6,6,5") return null;
 

@@ -294,6 +294,7 @@ const ENGLISH_UI: Record<string, string> = {
   "Nombres alternativos de sustituyentes": "Alternative substituent names",
   "Cambiar el nombre de este sustituyente": "Change this substituent name",
   "Nombre no disponible para estructuras complejas": "Name unavailable for complex structures",
+  "Sin nombre tradicional reconocido": "No recognized common name",
   "Estructura válida": "Valid structure",
   "Respuesta oculta": "Answer hidden",
   "Nombre tradicional:": "Common name:",

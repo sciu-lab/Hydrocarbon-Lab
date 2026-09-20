@@ -409,6 +409,34 @@ export type IupacReasoningStep = {
   explanation: string;
 };
 
+export function splitChemicalNameForWrapping(value: string) {
+  const boundaries = new Set<number>([0, value.length]);
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === "-" || value[index] === " " || value[index] === "]") {
+      boundaries.add(index + 1);
+    }
+  }
+  for (const match of value.matchAll(/(?:bicyclo|biciclo|spiro|espiro)\[/gi)) {
+    const index = match.index ?? 0;
+    if (index > 0) boundaries.add(index);
+  }
+  const ordered = [...boundaries].sort((left, right) => left - right);
+  return ordered.slice(0, -1).map((start, index) => value.slice(start, ordered[index + 1]));
+}
+
+function ChemicalNameText({ name = "" }: { name?: string }) {
+  return (
+    <span className="chemical-name-text">
+      {splitChemicalNameForWrapping(name).map((segment, index) => (
+        <span key={`${index}-${segment}`}>
+          {index > 0 && <wbr />}
+          {segment}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 const alkaneRoots = IUPAC_ROOTS;
 const alkylNames = IUPAC_ROOTS.map((root) => root ? `${root}il` : "");
 
@@ -3167,12 +3195,21 @@ function analyzeFusedBicyclicMolecule(molecule: Molecule, system: FusedBicyclicS
     chainName: system.parentName,
     substituents,
     numberedAtoms: new Map(system.numbering.map((atomId, index) => [atomId, index + 1])),
-    doubleBondLocants: [],
-    tripleBondLocants: [],
+    doubleBondLocants: system.doubleBondLocants,
+    tripleBondLocants: system.tripleBondLocants,
     functionalGroups: [],
     fusedBicyclic: system,
     ringSystem: `Sistema bicíclico fusionado [${system.paths.join(".")}]`,
   };
+}
+
+export function fusedBicyclicTraditionalDisplayName(
+  system: FusedBicyclicSystem,
+  language: AppLanguage,
+) {
+  return system.traditionalName
+    ? translateCommonName(language, system.traditionalName)
+    : uiText(language, "Sin nombre tradicional reconocido");
 }
 
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
@@ -3435,6 +3472,10 @@ export function buildIupacReasoningSteps(
 ): IupacReasoningStep[] {
   if (analysis.fusedBicyclic) {
     const [first, second, third] = analysis.fusedBicyclic.paths;
+    const multipleBondText = [
+      ...analysis.doubleBondLocants.map((locant) => `C${locant}=C${locant + 1}`),
+      ...analysis.tripleBondLocants.map((locant) => `C${locant}≡C${locant + 1}`),
+    ].join(", ");
     const steps: IupacReasoningStep[] = [
       {
         number: "01",
@@ -3449,7 +3490,9 @@ export function buildIupacReasoningSteps(
       {
         number: "03",
         title: "Numeración bicíclica",
-        explanation: "La numeración comienza en una cabeza de puente, recorre primero el camino más largo y elige, entre orientaciones equivalentes, el conjunto más bajo de localizadores para los sustituyentes.",
+        explanation: multipleBondText
+          ? `La numeración comienza en una cabeza de puente y recorre primero el camino más largo. Entre orientaciones equivalentes, los enlaces múltiples reciben primero el conjunto más bajo de localizadores (${multipleBondText}); después se consideran los sustituyentes.`
+          : "La numeración comienza en una cabeza de puente, recorre primero el camino más largo y elige, entre orientaciones equivalentes, el conjunto más bajo de localizadores para los sustituyentes.",
       },
       {
         number: "04",
@@ -3711,15 +3754,19 @@ export function buildEnglishReasoningSteps(
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
   if (analysis.fusedBicyclic) {
     const [first, second, third] = analysis.fusedBicyclic.paths;
+    const multipleBondText = [
+      ...analysis.doubleBondLocants.map((locant) => `C${locant}=C${locant + 1}`),
+      ...analysis.tripleBondLocants.map((locant) => `C${locant}≡C${locant + 1}`),
+    ].join(", ");
     const translatedSubstituents = [...analysis.substituents]
       .sort((left, right) => left.locant - right.locant)
       .map((substituent) => `${translateSpanishIupacToOpsin(substituent.name) || substituent.name} at C${substituent.locant}`)
       .join(", ");
-    return [
+    const fusedSteps: IupacReasoningStep[] = [
       {
         number: "01",
         title: "Fused ring system",
-        explanation: "The two saturated rings share exactly two adjacent carbon atoms and their common bond, so they form one fused bicyclic parent.",
+        explanation: "The two rings share exactly two adjacent carbon atoms and their common bond, so they form one fused bicyclic parent.",
       },
       {
         number: "02",
@@ -3729,21 +3776,24 @@ export function buildEnglishReasoningSteps(
       {
         number: "03",
         title: "Bicyclic numbering",
-        explanation: "Numbering starts at a bridgehead, follows the longest path first, and uses the lowest set of substituent locants when equivalent orientations are available.",
+        explanation: multipleBondText
+          ? `Numbering starts at a bridgehead and follows the longest path first. Among equivalent orientations, multiple bonds receive the lowest locant set first (${multipleBondText}), followed by substituents.`
+          : "Numbering starts at a bridgehead, follows the longest path first, and uses the lowest set of substituent locants when equivalent orientations are available.",
       },
       {
         number: "04",
         title: "Systematic name",
         explanation: `The paths contain ${analysis.fusedBicyclic.atomIds.length} carbon atoms in total; the parent hydrocarbon is ${parentName}.`,
       },
-      ...(translatedSubstituents
-        ? [{
-          number: "05",
-          title: "Substituents and locants",
-          explanation: `The external branches are not part of the bicyclic skeleton: ${translatedSubstituents}. The complete name is ${englishName}.`,
-        }]
-        : []),
     ];
+    if (translatedSubstituents) {
+      fusedSteps.push({
+        number: "05",
+        title: "Substituents and locants",
+        explanation: `The external branches are not part of the bicyclic skeleton: ${translatedSubstituents}. The complete name is ${englishName}.`,
+      });
+    }
+    return fusedSteps;
   }
   const primaryLabel = analysis.primaryFunctionalLabel
     ? uiText("en", analysis.primaryFunctionalLabel)
@@ -5248,11 +5298,13 @@ export default function Home() {
     const localizedName = localizedIupac(nameWithSelectedStereochemistry);
     // Recognized fused-ring common names are supplied by the naming engine.
     // Prefer them over the generic formatter, which has no fused-ring lexicon.
-    const traditionalName = analysis.commonName
-      ? translateCommonName(language, analysis.commonName)
-      : language === "es"
-        ? localizedIupac(structuralTraditionalName)
-        : legacyEnglishResult.name;
+    const traditionalName = analysis.fusedBicyclic
+      ? fusedBicyclicTraditionalDisplayName(analysis.fusedBicyclic, language)
+      : analysis.commonName
+        ? translateCommonName(language, analysis.commonName)
+        : language === "es"
+          ? localizedIupac(structuralTraditionalName)
+          : legacyEnglishResult.name;
     return (["current", "traditional"] as const).map((convention) => ({
       convention,
       label: nomenclatureConventionLabel(convention, language),
@@ -5260,7 +5312,7 @@ export default function Home() {
         ? traditionalName
         : applyNomenclatureConvention(localizedName, convention, language),
     }));
-  }, [analysis.commonName, language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
+  }, [analysis.commonName, analysis.fusedBicyclic, language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
@@ -10442,10 +10494,10 @@ export default function Home() {
                     aria-label={t("Toca el nombre para cambiar la nomenclatura")}
                     title={t("Toca el nombre para cambiar la nomenclatura")}
                   >
-                    {displayedIupacName}
+                    <ChemicalNameText name={displayedIupacName} />
                   </button>
                 ) : showIupacName ? (
-                  <span className="nomenclature-name-static">{displayedIupacName}</span>
+                  <span className="nomenclature-name-static"><ChemicalNameText name={displayedIupacName} /></span>
                 ) : t("Respuesta oculta")}
               </p>
               {showIupacName && !simplifiedModeEnabled && (
@@ -10459,7 +10511,7 @@ export default function Home() {
                       onClick={() => setNomenclatureConvention(variant.convention)}
                     >
                       <span>{variant.label}</span>
-                      <strong>{variant.name}</strong>
+                      <strong><ChemicalNameText name={variant.name} /></strong>
                     </button>
                   ))}
                 </div>
@@ -10512,7 +10564,7 @@ export default function Home() {
             aria-hidden={!showStickyIupacName}
           >
             <span>IUPAC</span>
-            <strong>{displayedIupacName}</strong>
+            <strong><ChemicalNameText name={displayedIupacName} /></strong>
             <small><b aria-hidden="true">✓</b> {t("Estructura válida")}</small>
           </div>
 

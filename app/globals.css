@@ -3785,6 +3785,7 @@ button {
   display: none;
   min-width: 0;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 10px 20px 0;
   padding: 9px 11px;
@@ -3810,14 +3811,16 @@ button {
 }
 
 .sticky-iupac-name strong {
+  flex: 1 1 160px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   color: #155f50;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 14px;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .sticky-iupac-name small {
@@ -3844,6 +3847,7 @@ button {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
+  word-break: normal;
   color: #155f50;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(19px, 2vw, 26px);
@@ -3893,6 +3897,12 @@ button {
   font-weight: inherit;
   letter-spacing: inherit;
   line-height: inherit;
+}
+
+.chemical-name-text {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .nomenclature-variants {
@@ -4034,7 +4044,9 @@ button {
 }
 
 .name-copy {
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 
 .name-copy small {

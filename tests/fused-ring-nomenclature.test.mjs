@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
@@ -15,6 +16,8 @@ let server;
 let analyzeMolecule;
 let buildIupacReasoningSteps;
 let buildEnglishReasoningSteps;
+let fusedBicyclicTraditionalDisplayName;
+let splitChemicalNameForWrapping;
 
 before(async () => {
   server = await createServer({
@@ -25,7 +28,13 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, buildIupacReasoningSteps, buildEnglishReasoningSteps } = await server.ssrLoadModule("/app/page.tsx"));
+  ({
+    analyzeMolecule,
+    buildIupacReasoningSteps,
+    buildEnglishReasoningSteps,
+    fusedBicyclicTraditionalDisplayName,
+    splitChemicalNameForWrapping,
+  } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => {
@@ -45,11 +54,12 @@ function makeRing(size) {
   };
 }
 
-function makeCanonicalDecalin() {
-  const atomIds = Array.from({ length: 10 }, (_, index) => index + 1);
+function makeCanonicalEqualFusedBicycle(ringSize) {
+  const atomCount = ringSize * 2 - 2;
+  const atomIds = Array.from({ length: atomCount }, (_, index) => index + 1);
   const ringAtomIds = [
-    [1, 2, 3, 4, 5, 6],
-    [1, 6, 7, 8, 9, 10],
+    Array.from({ length: ringSize }, (_, index) => index + 1),
+    [1, ringSize, ...Array.from({ length: ringSize - 2 }, (_, index) => ringSize + index + 1)],
   ];
   const edgeKeys = new Set();
   const bonds = [];
@@ -70,6 +80,10 @@ function makeCanonicalDecalin() {
   };
 }
 
+function makeCanonicalDecalin() {
+  return makeCanonicalEqualFusedBicycle(6);
+}
+
 function addLinearAlkyl(molecule, anchorId, length) {
   const next = structuredClone(molecule);
   let previousId = anchorId;
@@ -79,6 +93,16 @@ function addLinearAlkyl(molecule, anchorId, length) {
     next.bonds.push([previousId, id, 1]);
     previousId = id;
   }
+  return next;
+}
+
+function setBondOrder(molecule, leftId, rightId, order) {
+  const next = structuredClone(molecule);
+  const bond = next.bonds.find(([left, right]) => (
+    (left === leftId && right === rightId) || (left === rightId && right === leftId)
+  ));
+  assert.ok(bond, `expected bond ${leftId}-${rightId}`);
+  bond[2] = order;
   return next;
 }
 
@@ -128,6 +152,69 @@ test("names methyl, dimethyl and mixed ethyl-methyl fused bicycles", () => {
   );
 });
 
+test("generalizes linear alkyl substituents from propyl through hexyl", () => {
+  const parent = makeCanonicalDecalin();
+  const cases = [
+    [3, "propil"],
+    [4, "butil"],
+    [5, "pentil"],
+    [6, "hexil"],
+  ];
+  for (const [length, name] of cases) {
+    const system = getFusedBicyclicSystem(addLinearAlkyl(parent, 2, length));
+    assert.equal(system?.systematicName, `2-${name}biciclo[4.4.0]decano`);
+    assert.equal(system?.substituents[0].atomIds.length, length);
+  }
+
+  const mixed = addLinearAlkyl(addLinearAlkyl(parent, 2, 3), 10, 6);
+  assert.equal(
+    getFusedBicyclicSystem(mixed)?.systematicName,
+    "2-hexil-10-propilbiciclo[4.4.0]decano",
+  );
+});
+
+test("names fused bicyclic alkenes, dienes, alkynes and mixed unsaturation", () => {
+  const parent = makeCanonicalDecalin();
+  const alkene = getFusedBicyclicSystem(setBondOrder(parent, 2, 3, 2));
+  assert.equal(alkene?.systematicName, "biciclo[4.4.0]dec-2-eno");
+  assert.deepEqual(alkene?.doubleBondLocants, [2]);
+
+  const dieneMolecule = setBondOrder(setBondOrder(parent, 2, 3, 2), 7, 8, 2);
+  const diene = getFusedBicyclicSystem(dieneMolecule);
+  assert.equal(diene?.systematicName, "biciclo[4.4.0]deca-2,7-dieno");
+  assert.deepEqual(diene?.doubleBondLocants, [2, 7]);
+  assert.equal(
+    translateSpanishIupacToOpsin(diene.systematicName),
+    "bicyclo[4.4.0]deca-2,7-diene",
+  );
+
+  const largerParent = makeCanonicalEqualFusedBicycle(8);
+  const alkyne = getFusedBicyclicSystem(setBondOrder(largerParent, 2, 3, 3));
+  assert.equal(alkyne?.systematicName, "biciclo[6.6.0]tetradec-2-ino");
+  assert.deepEqual(alkyne?.tripleBondLocants, [2]);
+  assert.equal(translateSpanishIupacToOpsin(alkyne.systematicName), "bicyclo[6.6.0]tetradec-2-yne");
+
+  const enyneMolecule = setBondOrder(setBondOrder(largerParent, 2, 3, 3), 9, 10, 2);
+  assert.equal(
+    getFusedBicyclicSystem(enyneMolecule)?.systematicName,
+    "biciclo[6.6.0]tetradec-2-en-9-ino",
+  );
+});
+
+test("gives multiple bonds priority over substituent locants", () => {
+  const unsaturated = setBondOrder(makeCanonicalDecalin(), 2, 3, 2);
+  const substituted = addLinearAlkyl(unsaturated, 10, 6);
+  const system = getFusedBicyclicSystem(substituted);
+  assert.equal(system?.systematicName, "10-hexilbiciclo[4.4.0]dec-2-eno");
+  assert.deepEqual(system?.doubleBondLocants, [2]);
+
+  const tiedUnsaturation = setBondOrder(makeCanonicalDecalin(), 3, 4, 2);
+  assert.equal(
+    getFusedBicyclicSystem(addLinearAlkyl(tiedUnsaturation, 2, 2))?.systematicName,
+    "2-etilbiciclo[4.4.0]dec-3-eno",
+  );
+});
+
 test("integrates substituted fused-bicycle naming, numbering, English and reasoning", () => {
   const molecule = addLinearAlkyl(makeCanonicalDecalin(), 2, 1);
   const analysis = analyzeMolecule(molecule);
@@ -147,8 +234,32 @@ test("integrates substituted fused-bicycle naming, numbering, English and reason
   assert.ok(englishReasoning.some((step) => step.explanation.includes("2-methylbicyclo[4.4.0]decane")));
 });
 
+test("integrates unsaturated fused bicycles in Spanish and English", () => {
+  const molecule = addLinearAlkyl(
+    setBondOrder(makeCanonicalDecalin(), 3, 4, 2),
+    2,
+    6,
+  );
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.name, "2-hexilbiciclo[4.4.0]dec-3-eno");
+  assert.deepEqual(analysis.doubleBondLocants, [3]);
+  assert.equal(
+    translateSpanishIupacToOpsin(analysis.name),
+    "2-hexylbicyclo[4.4.0]dec-3-ene",
+  );
+  const reasoning = buildIupacReasoningSteps(molecule, analysis);
+  assert.ok(reasoning.some((step) => step.explanation.includes("C3=C4")));
+  const englishReasoning = buildEnglishReasoningSteps(reasoning, molecule, analysis);
+  assert.ok(englishReasoning.some((step) => step.explanation.includes("multiple bonds receive the lowest locant set")));
+});
+
 test("numbering is invariant under atom IDs, construction order and ring orientation", () => {
-  const source = addLinearAlkyl(addLinearAlkyl(makeCanonicalDecalin(), 2, 1), 10, 2);
+  const source = setBondOrder(
+    addLinearAlkyl(addLinearAlkyl(makeCanonicalDecalin(), 2, 3), 10, 6),
+    3,
+    4,
+    2,
+  );
   const expected = getFusedBicyclicSystem(source)?.systematicName;
   const idMap = new Map(source.atoms.map((atom, index) => [atom.id, 101 + ((index * 7) % source.atoms.length)]));
   const remapped = {
@@ -168,18 +279,26 @@ test("numbering is invariant under atom IDs, construction order and ring orienta
   assert.equal(getFusedBicyclicSystem(remapped)?.systematicName, expected);
 });
 
-test("rejects substituents and fused systems outside phase-one coverage", () => {
+test("rejects fused systems outside phase-two coverage without inventing a name", () => {
   const parent = makeCanonicalDecalin();
-  const propyl = addLinearAlkyl(parent, 2, 3);
-  assert.equal(getFusedBicyclicSystem(propyl), null);
-
-  const unsaturated = addLinearAlkyl(parent, 2, 2);
-  unsaturated.bonds.at(-1)[2] = 2;
-  assert.equal(getFusedBicyclicSystem(unsaturated), null);
+  const unsaturatedSubstituent = addLinearAlkyl(parent, 2, 2);
+  unsaturatedSubstituent.bonds.at(-1)[2] = 2;
+  assert.equal(getFusedBicyclicSystem(unsaturatedSubstituent), null);
 
   const hetero = addLinearAlkyl(parent, 2, 1);
   hetero.atoms.at(-1).element = "O";
   assert.equal(getFusedBicyclicSystem(hetero), null);
+
+  const branched = addLinearAlkyl(parent, 2, 2);
+  const branchId = Math.max(...branched.atoms.map((atom) => atom.id)) + 1;
+  branched.atoms.push({ id: branchId });
+  branched.bonds.push([11, branchId, 1]);
+  assert.equal(getFusedBicyclicSystem(branched), null);
+
+  assert.equal(getFusedBicyclicSystem(setBondOrder(parent, 1, 6, 2)), null);
+
+  const overValent = setBondOrder(parent, 1, 6, 3);
+  assert.equal(getFusedBicyclicSystem(overValent), null);
 });
 
 test("does not confuse externally connected rings with fused rings", () => {
@@ -194,6 +313,29 @@ test("does not confuse externally connected rings with fused rings", () => {
     rings: [...left.rings, { ...right.rings[0], id: 2 }],
   };
   assert.equal(getFusedBicyclicSystem(connected), null);
+});
+
+test("keeps long bicyclic names wrap-safe and does not invent traditional synonyms", () => {
+  const longName = "2-hexil-10-propilbiciclo[4.4.0]deca-2,7-dieno";
+  const segments = splitChemicalNameForWrapping(longName);
+  assert.equal(segments.join(""), longName);
+  assert.ok(segments.includes("biciclo[4.4.0]"));
+  assert.ok(segments.includes("deca-"));
+
+  const stylesheet = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(stylesheet, /\.chemical-name-text\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*normal;/s);
+  assert.match(stylesheet, /\.sticky-iupac-name strong\s*\{[^}]*white-space:\s*normal;/s);
+
+  const decalin = getFusedBicyclicSystem(makeCanonicalDecalin());
+  assert.equal(decalin?.traditionalName, "decalina");
+  assert.equal(fusedBicyclicTraditionalDisplayName(decalin, "es"), "decalina");
+
+  const derivative = getFusedBicyclicSystem(addLinearAlkyl(makeCanonicalDecalin(), 2, 1));
+  assert.equal(derivative?.traditionalName, undefined);
+  assert.equal(
+    fusedBicyclicTraditionalDisplayName(derivative, "en"),
+    "No recognized common name",
+  );
 });
 
 test("recognises the connected, linearly fused 6-6-6-5 nucleus", () => {
