@@ -59,6 +59,8 @@ export type FusedBicyclicSubstituent = {
 export type SteroidLikeRingSystem = {
   ringSizes: [6, 6, 6, 5];
   atomIds: number[];
+  isGonaneTopology: boolean;
+  
 
   ringsByLabel: {
     A: number[];
@@ -511,7 +513,7 @@ export function getSteroidLike6565System(molecule: FusedRingMolecule): SteroidLi
   if (
     rings.length !== 4
     || !rings.every((ring) => isSupportedCarbocycle(molecule, ring))
-    || molecule.bonds.some(([, , order = 1]) => order !== 1)
+    || !hasValidCarbonValence(molecule)
   ) return null;
   const sortedSizes = rings.map((ring) => ring.atomIds.length).sort((a, b) => b - a);
   if (sortedSizes.join(",") !== "6,6,6,5") return null;
@@ -618,9 +620,64 @@ if (
   return null;
 }
 
+// Encuentra la posición de un enlace compartido
+// dentro de la secuencia de átomos de un anillo.
+const sharedEdgeIndex = (
+  ring: FusedRing,
+  shared: readonly number[],
+): number => {
+  return ring.atomIds.findIndex((id, index) => {
+    const next = ring.atomIds[
+      (index + 1) % ring.atomIds.length
+    ];
+
+    return (
+      (id === shared[0] && next === shared[1]) ||
+      (id === shared[1] && next === shared[0])
+    );
+  });
+};
+
+// Comprueba la separación entre dos enlaces de fusión
+// dentro de un hexágono.
+const hasAngularJunctions = (
+  ring: FusedRing,
+  first: readonly number[],
+  second: readonly number[],
+): boolean => {
+  const firstIndex = sharedEdgeIndex(ring, first);
+  const secondIndex = sharedEdgeIndex(ring, second);
+
+  if (firstIndex < 0 || secondIndex < 0) {
+    return false;
+  }
+
+  const distance = Math.abs(firstIndex - secondIndex);
+
+  return Math.min(
+    distance,
+    ring.atomIds.length - distance
+  ) === 2;
+};
+
+// En nuestra referencia del gonano, las fusiones
+// de los anillos B y C presentan esta separación.
+const isGonaneTopology =
+  hasAngularJunctions(
+    rings[bIndex],
+    abShared,
+    bcShared
+  ) &&
+  hasAngularJunctions(
+    rings[cIndex],
+    bcShared,
+    cdShared
+  );
+
 return {
   ringSizes: [6, 6, 6, 5],
   atomIds,
+  isGonaneTopology,
 
   ringsByLabel: {
     A: [...rings[aIndex].atomIds],

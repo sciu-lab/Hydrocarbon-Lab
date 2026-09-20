@@ -520,6 +520,8 @@ test("recognises the connected, linearly fused 6-6-6-5 nucleus", () => {
   const thirdRing = nucleus.rings[2];
   nucleus = fuseRingOnBond(nucleus, thirdRing.atomIds[2], thirdRing.atomIds[3], 5);
   const system = getSteroidLike6565System(nucleus);
+  assert.equal(system?.isGonaneTopology, false);
+
   assert.deepEqual(system?.ringSizes, [6, 6, 6, 5]);
   assert.equal(system?.atomIds.length, 17);
   assert.deepEqual(
@@ -654,4 +656,141 @@ test("steroid ring labels are invariant under atom IDs, ring order and orientati
 
   assert.equal(result.atomIds.length, 17);
   assert.deepEqual(result.ringSizes, [6, 6, 6, 5]);
+});
+test("recognises the gonane ring connectivity", () => {
+  // Núcleo de gonano sin especificar estereoquímica.
+  // Anillos en orden A, B, C y D.
+  const ringAtomIds = [
+    [1, 17, 16, 4, 3, 2],
+    [5, 6, 7, 15, 16, 4],
+    [13, 14, 15, 7, 8, 12],
+    [9, 8, 12, 11, 10],
+  ];
+
+  const bonds = [];
+  const edgeKeys = new Set();
+
+  for (const ids of ringAtomIds) {
+    ids.forEach((atomId, index) => {
+      const nextId = ids[(index + 1) % ids.length];
+
+      const key = [atomId, nextId]
+        .sort((a, b) => a - b)
+        .join("-");
+
+      if (!edgeKeys.has(key)) {
+        edgeKeys.add(key);
+        bonds.push([atomId, nextId, 1]);
+      }
+    });
+  }
+
+  const nucleus = {
+    atoms: Array.from({ length: 17 }, (_, index) => ({
+      id: index + 1,
+    })),
+
+    bonds,
+
+    rings: ringAtomIds.map((atomIds, index) => ({
+      id: index + 1,
+      kind: "cycloalkane",
+      atomIds,
+    })),
+  };
+
+const system = getSteroidLike6565System(nucleus);
+
+assert.equal(system?.isGonaneTopology, true);
+
+assert.ok(system);
+assert.equal(system.atomIds.length, 17);
+
+// El núcleo debe seguir reconociéndose si contiene un enlace doble.
+const unsaturated = structuredClone(nucleus);
+
+const doubleBond = unsaturated.bonds.find(
+  ([left, right]) =>
+    (left === 2 && right === 3) ||
+    (left === 3 && right === 2)
+);
+
+assert.ok(doubleBond);
+
+doubleBond[2] = 2;
+
+const unsaturatedSystem = getSteroidLike6565System(unsaturated);
+
+assert.ok(unsaturatedSystem);
+assert.equal(unsaturatedSystem.isGonaneTopology, true);
+// Un carbono de fusión no puede superar cuatro enlaces de valencia.
+const invalid = structuredClone(nucleus);
+
+const junctionBond = invalid.bonds.find(
+  ([left, right]) =>
+    (left === 4 && right === 16) ||
+    (left === 16 && right === 4)
+);
+
+assert.ok(junctionBond);
+
+// Ambos carbonos ya participan en tres enlaces simples.
+// Convertir uno de ellos en triple excedería su valencia.
+junctionBond[2] = 3;
+
+assert.equal(
+  getSteroidLike6565System(invalid),
+  null
+);
+
+  // Debe reconocer los cuatro anillos.
+  for (const [index, label] of ["A", "B", "C", "D"].entries()) {
+    assert.deepEqual(
+      system.ringsByLabel[label],
+      ringAtomIds[index]
+    );
+  }
+
+  // Comprobar los seis carbonos de fusión.
+  const expectedJunctions = {
+    AB: [4, 16],
+    BC: [7, 15],
+    CD: [8, 12],
+  };
+
+  for (const junction of ["AB", "BC", "CD"]) {
+    assert.deepEqual(
+      [...system.junctions[junction]].sort((a, b) => a - b),
+      expectedJunctions[junction].sort((a, b) => a - b)
+    );
+  }
+});
+test("does not confuse partially angular fusion with gonane topology", () => {
+  let nucleus = fuseRingOnBond(makeRing(6), 1, 2, 6);
+
+  const secondRing = nucleus.rings[1];
+
+  // Fusion angular en B.
+  nucleus = fuseRingOnBond(
+    nucleus,
+    secondRing.atomIds[1],
+    secondRing.atomIds[2],
+    6
+  );
+
+  const thirdRing = nucleus.rings[2];
+
+  // Fusion opuesta en C.
+  nucleus = fuseRingOnBond(
+    nucleus,
+    thirdRing.atomIds[2],
+    thirdRing.atomIds[3],
+    5
+  );
+
+  const system = getSteroidLike6565System(nucleus);
+
+  assert.ok(system);
+  assert.equal(system.atomIds.length, 17);
+  assert.equal(system.isGonaneTopology, false);
 });
