@@ -62,6 +62,11 @@ export type SteroidLikeRingSystem = {
   isGonaneTopology: boolean;
   /** Atom IDs in conventional steroid order C1 through C17; only for a matching gonane core. */
   numbering?: number[];
+  /** IDs of the angular methyl carbons, equivalent to C18 at C13 and C19 at C10. */
+  angularMethyls?: { C18: number; C19: number };
+  /** An explicitly constitutional name; does not assign stereochemistry or identify natural testosterone. */
+  constitutionNameEs?: string;
+  constitutionNameEn?: string;
 
   ringsByLabel: {
     A: number[];
@@ -614,10 +619,80 @@ function numberedGonaneAtoms(
   return ambiguous ? null : solution;
 }
 
+/** Finds only terminal single-bonded carbon substituents at the conventional
+ * C13 (C18) and C10 (C19) positions. Other substituents are not interpreted.
+ */
+function gonaneAngularMethyls(
+  molecule: FusedRingMolecule,
+  numbering: readonly number[],
+): { C18: number; C19: number } | null {
+  const core = new Set(numbering);
+  const findAttachedMethyl = (locant: 10 | 13): number | null => {
+    const anchor = numbering[locant - 1];
+    const candidates = molecule.bonds.flatMap(([left, right, order = 1]) => {
+      if (order !== 1 || (left !== anchor && right !== anchor)) return [];
+      const externalId = left === anchor ? right : left;
+      if (core.has(externalId)) return [];
+      const externalAtom = molecule.atoms.find((atom) => atom.id === externalId);
+      if (!externalAtom || (externalAtom.element ?? "C") !== "C") return [];
+      const contacts = molecule.bonds.filter(([a, b]) => a === externalId || b === externalId);
+      return contacts.length === 1 ? [externalId] : [];
+    });
+    return candidates.length === 1 ? candidates[0] : null;
+  };
+  const C18 = findAttachedMethyl(13);
+  const C19 = findAttachedMethyl(10);
+  return C18 !== null && C19 !== null && C18 !== C19 ? { C18, C19 } : null;
+}
+
+/** Only the precisely supported C19H28O2 constitutional profile is named:
+ * C10/C13 angular methyls, C4=C5, C3=O and C17-OH. This intentionally
+ * declines other steroid derivatives rather than guessing their names.
+ */
+function gonaneTestosteroneConstitution(
+  molecule: FusedRingMolecule,
+  numbering: readonly number[],
+  methyls: { C18: number; C19: number },
+): boolean {
+  const core = new Set(numbering);
+  const externalAtoms = molecule.atoms.filter((atom) => !core.has(atom.id));
+  if (externalAtoms.length !== 4 || molecule.atoms.length !== 21) return false;
+  const expectedExternalIds = new Set([methyls.C18, methyls.C19]);
+  const oxygenAtoms = externalAtoms.filter((atom) => atom.element === "O");
+  if (oxygenAtoms.length !== 2 || externalAtoms.some((atom) => (
+    !expectedExternalIds.has(atom.id) && atom.element !== "O"
+  ))) return false;
+
+  const bondMatches = (left: number, right: number, expectedOrder: number) => (
+    molecule.bonds.filter(([a, b, order = 1]) => (
+      ((a === left && b === right) || (a === right && b === left))
+      && order === expectedOrder
+    )).length === 1
+  );
+  const c3 = numbering[2];
+  const c17 = numbering[16];
+  const carbonylOxygens = oxygenAtoms.filter((atom) => bondMatches(c3, atom.id, 2));
+  const hydroxylOxygens = oxygenAtoms.filter((atom) => bondMatches(c17, atom.id, 1));
+  if (carbonylOxygens.length !== 1 || hydroxylOxygens.length !== 1
+    || carbonylOxygens[0].id === hydroxylOxygens[0].id) return false;
+
+  // The only non-single core bond must be C4=C5. All four external atoms
+  // must have precisely their expected attachment and no external crosslinks.
+  const exceptionalCoreBonds = molecule.bonds.filter(([a, b, order = 1]) => (
+    core.has(a) && core.has(b) && order !== 1
+  ));
+  if (exceptionalCoreBonds.length !== 1
+    || !bondMatches(numbering[3], numbering[4], 2)) return false;
+  const externalBonds = molecule.bonds.filter(([a, b]) => !core.has(a) || !core.has(b));
+  return externalBonds.length === 4
+    && bondMatches(numbering[9], methyls.C19, 1)
+    && bondMatches(numbering[12], methyls.C18, 1);
+}
+
 /**
  * Finds the 17-carbon connected 6-6-6-5 nucleus. Only a unique match to
  * the labelled gonane graph receives conventional C1-C17 numbering.
- * No stereochemistry or steroid derivative name is inferred.
+ * Naming, when supported, is constitutional only; stereochemistry is not inferred.
  */
 export function getSteroidLike6565System(molecule: FusedRingMolecule): SteroidLikeRingSystem | null {
   const rings = molecule.rings ?? [];
@@ -792,12 +867,21 @@ const ringsByLabel = {
   D: [...rings[dIndex].atomIds],
 };
 const numbering = isGonaneTopology ? numberedGonaneAtoms(molecule, ringsByLabel) : null;
+const angularMethyls = numbering ? gonaneAngularMethyls(molecule, numbering) : null;
+const hasTestosteroneConstitution = numbering && angularMethyls
+  ? gonaneTestosteroneConstitution(molecule, numbering, angularMethyls)
+  : false;
 
 return {
   ringSizes: [6, 6, 6, 5],
   atomIds,
   isGonaneTopology: numbering !== null,
   ...(numbering ? { numbering } : {}),
+  ...(angularMethyls ? { angularMethyls } : {}),
+  ...(hasTestosteroneConstitution ? {
+    constitutionNameEs: "17-hidroxiandrost-4-en-3-ona",
+    constitutionNameEn: "17-hydroxyandrost-4-en-3-one",
+  } : {}),
 
   ringsByLabel,
 

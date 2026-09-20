@@ -99,6 +99,7 @@ import {
   getFusedBicyclicSystem,
   getSteroidLike6565System,
   type FusedBicyclicSystem,
+  type SteroidLikeRingSystem,
 } from "./fused-ring-nomenclature";
 import {
   hasCarbonylAttachment,
@@ -400,6 +401,7 @@ type Analysis = {
   primaryFunctionalGroup?: FunctionalGroupKind;
   primaryFunctionalLabel?: string;
   fusedBicyclic?: FusedBicyclicSystem;
+  steroidSystem?: SteroidLikeRingSystem;
   ringSystem?: string;
 };
 
@@ -3226,6 +3228,15 @@ export function fusedBicyclicTraditionalDisplayName(
     : uiText(language, "Sin nombre tradicional reconocido");
 }
 
+/** Only names with an exact constitutional match are translated locally. */
+export function localizeSupportedSteroidConstitutionName(
+  name: string,
+  language: AppLanguage,
+): string | null {
+  if (name !== "17-hidroxiandrost-4-en-3-ona") return null;
+  return language === "en" ? "17-hydroxyandrost-4-en-3-one" : name;
+}
+
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
   const groups = detectFunctionalGroups(molecule);
   const fusedBicyclic = getFusedBicyclicSystem(molecule, groups);
@@ -3234,12 +3245,39 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
   }
   if (hasSharedRingAtoms(molecule)) {
     const steroidLike = getSteroidLike6565System(molecule);
+    if (steroidLike?.constitutionNameEs && steroidLike.numbering && steroidLike.angularMethyls) {
+      const numberedAtoms = new Map(steroidLike.numbering.map(
+        (atomId, index) => [atomId, index + 1] as const,
+      ));
+      numberedAtoms.set(steroidLike.angularMethyls.C18, 18);
+      numberedAtoms.set(steroidLike.angularMethyls.C19, 19);
+      return {
+        name: steroidLike.constitutionNameEs,
+        formula: molecularFormula(molecule),
+        family: "polycyclic",
+        mainChain: [...steroidLike.numbering],
+        chainName: "androst-4-en-3-ona",
+        substituents: [], // C18 and C19 belong to the androstane parent.
+        numberedAtoms,
+        doubleBondLocants: [4],
+        tripleBondLocants: [],
+        functionalGroups: groups,
+        primaryFunctionalGroup: "ketone",
+        primaryFunctionalLabel: functionalGroupLabels.ketone,
+        steroidSystem: steroidLike,
+        ringSystem: "Núcleo de androstano reconocido; nombre constitucional sin estereoquímica asignada.",
+      };
+    }
     return {
       name: "Nombre no disponible para estructuras complejas",
       formula: molecularFormula(molecule), family: "polycyclic",
       mainChain: [], chainName: "", substituents: [], numberedAtoms: new Map(),
       doubleBondLocants: [], tripleBondLocants: [], functionalGroups: groups,
-      ringSystem: steroidLike ? "Núcleo tetracíclico fusionado 6-6-6-5 reconocido; la nomenclatura de esteroides aún requiere sustituyentes y estereoquímica verificables." : undefined,
+      ringSystem: steroidLike?.isGonaneTopology
+        ? "Núcleo de gonano reconocido; esta combinación de sustituyentes y grupos funcionales aún no tiene nombre local validado."
+        : steroidLike
+          ? "Sistema tetracíclico 6-6-6-5 reconocido; topología no identificada como gonano."
+          : undefined,
     };
   }
   const heterocycle = heterocycleRing(molecule);
@@ -3484,6 +3522,30 @@ export function buildIupacReasoningSteps(
   enabledAliases: readonly string[] = [],
   sourceName?: string | null,
 ): IupacReasoningStep[] {
+  if (analysis.steroidSystem?.constitutionNameEs) {
+    return [
+      {
+        number: "01", title: "Núcleo esteroideo",
+        explanation: "Cuatro anillos fusionados 6-6-6-5 forman el núcleo de gonano, con 17 carbonos y conectividad esteroidea comprobada.",
+      },
+      {
+        number: "02", title: "Numeración esteroidea",
+        explanation: "La numeración convencional C1–C17 identifica las uniones A/B (C5 y C10), B/C (C8 y C9) y C/D (C13 y C14), sin depender de los IDs del editor.",
+      },
+      {
+        number: "03", title: "Metilos angulares",
+        explanation: "Los metilos unidos a C13 y C10 corresponden a C18 y C19. El esqueleto hidrocarbonado se nombra como androstano.",
+      },
+      {
+        number: "04", title: "Insaturación y funciones",
+        explanation: "Se identifica C4=C5, una cetona en C3 como función principal y un hidroxilo en C17 como prefijo hidroxi-.",
+      },
+      {
+        number: "05", title: "Nombre constitucional",
+        explanation: `El nombre es ${analysis.name}. No se han asignado configuraciones α/β ni R/S, por lo que no se identifica inequívocamente un estereoisómero concreto.`,
+      },
+    ];
+  }
   if (analysis.fusedBicyclic) {
     const [first, second, third] = analysis.fusedBicyclic.paths;
     const multipleBondText = [
@@ -3777,6 +3839,30 @@ export function buildEnglishReasoningSteps(
 ): IupacReasoningStep[] {
   const englishName = translateSpanishIupacToOpsin(analysis.name) || analysis.name;
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
+  if (analysis.steroidSystem?.constitutionNameEs) {
+    return [
+      {
+        number: "01", title: "Steroid nucleus",
+        explanation: "Four fused 6-6-6-5 rings form the gonane nucleus with 17 carbons and validated steroid connectivity.",
+      },
+      {
+        number: "02", title: "Steroid numbering",
+        explanation: "Conventional C1–C17 numbering locates the A/B (C5 and C10), B/C (C8 and C9), and C/D (C13 and C14) junctions independently of editor atom IDs.",
+      },
+      {
+        number: "03", title: "Angular methyl groups",
+        explanation: "The methyl groups at C13 and C10 are C18 and C19, respectively, defining the androstane parent framework.",
+      },
+      {
+        number: "04", title: "Unsaturation and functional groups",
+        explanation: "The nucleus contains C4=C5, a C3 ketone as the principal functional group, and a C17 hydroxyl group expressed as hydroxy-.",
+      },
+      {
+        number: "05", title: "Constitutional name",
+        explanation: `The name is ${analysis.steroidSystem.constitutionNameEn}. No α/β or R/S configurations have been assigned, so no specific stereoisomer is established.`,
+      },
+    ];
+  }
   if (analysis.fusedBicyclic) {
     const [first, second, third] = analysis.fusedBicyclic.paths;
     const multipleBondText = [
@@ -4086,7 +4172,9 @@ const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysis) {
   // A recognised, bare fused bicyclic hydrocarbon has a complete graph-based
   // descriptor. Other shared-ring topologies remain deliberately unsupported.
-  if (hasSharedRingAtoms(molecule)) return !analysis.fusedBicyclic;
+  if (hasSharedRingAtoms(molecule)) {
+    return !analysis.fusedBicyclic && !analysis.steroidSystem?.constitutionNameEs;
+  }
   const parentAtoms = new Set(analysis.mainChain);
   if (!parentAtoms.size) return false;
   const skeleton = carbonSkeleton(molecule);
@@ -4930,6 +5018,8 @@ export default function Home() {
   const t = (spanish: string) => uiText(language, spanish);
   const localizedIupac = (name: string) => {
     if (name === COMPLEX_NAME_UNAVAILABLE_MESSAGE) return t(COMPLEX_NAME_UNAVAILABLE_MESSAGE);
+    const steroidName = localizeSupportedSteroidConstitutionName(name, language);
+    if (steroidName) return steroidName;
     return language === "en"
       ? translateSpanishIupacToOpsin(name) || name
       : localizeChemicalNameForDisplay(name, "es");
@@ -5300,8 +5390,9 @@ export default function Home() {
   );
   const stereochemistryAvailable = useMemo(
     () => !localSuggestedNameUnavailable
+      && !analysis.steroidSystem
       && getMainChainStereoDescriptors(molecule, analysis.mainChain).length > 0,
-    [analysis.mainChain, localSuggestedNameUnavailable, molecule],
+    [analysis.mainChain, analysis.steroidSystem, localSuggestedNameUnavailable, molecule],
   );
   const stereochemicalName = useMemo(
     () => !stereochemistryAvailable
@@ -5334,9 +5425,11 @@ export default function Home() {
     const localizedName = localizedIupac(nameWithSelectedStereochemistry);
     // Recognized fused-ring common names are supplied by the naming engine.
     // Prefer them over the generic formatter, which has no fused-ring lexicon.
-    const traditionalName = analysis.fusedBicyclic
-      ? fusedBicyclicTraditionalDisplayName(analysis.fusedBicyclic, language)
-      : analysis.commonName
+    const traditionalName = analysis.steroidSystem?.constitutionNameEs
+      ? uiText(language, "Sin nombre tradicional reconocido")
+      : analysis.fusedBicyclic
+        ? fusedBicyclicTraditionalDisplayName(analysis.fusedBicyclic, language)
+        : analysis.commonName
         ? translateCommonName(language, analysis.commonName)
         : language === "es"
           ? localizedIupac(structuralTraditionalName)
@@ -5348,7 +5441,7 @@ export default function Home() {
         ? traditionalName
         : applyNomenclatureConvention(localizedName, convention, language),
     }));
-  }, [analysis.commonName, analysis.fusedBicyclic, language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
+  }, [analysis.commonName, analysis.fusedBicyclic, analysis.steroidSystem, language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
@@ -10620,7 +10713,9 @@ export default function Home() {
             <div className="functional-detection ring-system-detection" aria-label={t("Sistema de anillos detectado")}>
               <span>{t("Anillos")}</span>
               <div>
-                <strong>{analysis.ringSystem}</strong>
+                <strong>{analysis.steroidSystem?.constitutionNameEs && language === "en"
+                  ? "Androstane nucleus recognized; constitutional name only (no stereochemistry assigned)."
+                  : analysis.ringSystem}</strong>
                 {analysis.commonName && <strong>{t("Nombre tradicional")}: {analysis.commonName}</strong>}
               </div>
             </div>

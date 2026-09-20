@@ -846,3 +846,78 @@ test("gonane numbering is invariant under atom IDs, ring order and coordinates",
     numbering.map((id) => remap.get(id)),
   );
 });
+
+
+test("recognises angular C18 and C19 methyls without confusing their atom IDs with locants", () => {
+  const core = makeGonaneReference();
+  const numbered = getSteroidLike6565System(core)?.numbering;
+  assert.ok(numbered);
+  let androstane = addLinearAlkyl(core, numbered[12], 1); // C13 -> C18
+  androstane = addLinearAlkyl(androstane, numbered[9], 1); // C10 -> C19
+  const system = getSteroidLike6565System(androstane);
+  assert.equal(system?.isGonaneTopology, true);
+  assert.deepEqual(system?.angularMethyls, { C18: 18, C19: 19 });
+  assert.equal(system?.constitutionNameEs, undefined);
+  assert.equal(getSteroidLike6565System(core)?.angularMethyls, undefined);
+
+  const wrongPosition = addLinearAlkyl(core, numbered[4], 1); // C5, not C10
+  assert.equal(getSteroidLike6565System(wrongPosition)?.angularMethyls, undefined);
+});
+
+test("recognises the exact testosterone constitution without assigning stereochemistry", () => {
+  const core = makeGonaneReference();
+  const n = getSteroidLike6565System(core)?.numbering;
+  assert.ok(n);
+  let molecule = setBondOrder(core, n[3], n[4], 2); // C4=C5
+  molecule = addOxygenGroup(molecule, n[2], 2); // C3 ketone
+  molecule = addOxygenGroup(molecule, n[16], 1); // C17 OH
+  molecule = addLinearAlkyl(molecule, n[12], 1); // C13 -> C18
+  molecule = addLinearAlkyl(molecule, n[9], 1); // C10 -> C19
+  const result = getSteroidLike6565System(molecule);
+  assert.equal(result?.isGonaneTopology, true);
+  assert.deepEqual(result?.angularMethyls, { C18: 20, C19: 21 });
+  assert.equal(result?.constitutionNameEs, "17-hidroxiandrost-4-en-3-ona");
+  assert.equal(result?.constitutionNameEn, "17-hydroxyandrost-4-en-3-one");
+
+  // The matching formula alone does not justify this name: change the
+  // position of the double bond while keeping the atom/bond counts identical.
+  const otherAlkene = structuredClone(molecule);
+  const changeBond = (a, b, order) => {
+    const bond = otherAlkene.bonds.find(([left, right]) => (
+      (left === a && right === b) || (left === b && right === a)
+    ));
+    assert.ok(bond);
+    bond[2] = order;
+  };
+  changeBond(n[3], n[4], 1); // revert C4=C5
+  changeBond(n[1], n[2], 2); // C2=C3 (different constitution)
+  // C3 already has a carbonyl: this intentionally exceeds valence and is rejected.
+  assert.equal(getSteroidLike6565System(otherAlkene), null);
+  changeBond(n[1], n[2], 1);
+  changeBond(n[5], n[6], 2); // valid C6=C7 instead
+  assert.equal(getSteroidLike6565System(otherAlkene)?.constitutionNameEs, undefined);
+});
+
+test("steroid constitutional naming survives shuffled graph IDs and rejects extra groups", () => {
+  const core = makeGonaneReference();
+  const n = getSteroidLike6565System(core)?.numbering;
+  assert.ok(n);
+  let molecule = setBondOrder(core, n[3], n[4], 2);
+  molecule = addOxygenGroup(molecule, n[2], 2);
+  molecule = addOxygenGroup(molecule, n[16], 1);
+  molecule = addLinearAlkyl(molecule, n[12], 1);
+  molecule = addLinearAlkyl(molecule, n[9], 1);
+  const remap = new Map(molecule.atoms.map((atom, index) => [atom.id, 600 + index * 19]));
+  const scrambled = {
+    atoms: [...molecule.atoms].reverse().map((atom) => ({ ...atom, id: remap.get(atom.id) })),
+    bonds: [...molecule.bonds].reverse().map(([a, b, order]) => [remap.get(b), remap.get(a), order]),
+    rings: [...molecule.rings].reverse().map((ring) => ({
+      ...ring, atomIds: [...ring.atomIds].reverse().map((id) => remap.get(id)),
+    })),
+  };
+  const renamed = getSteroidLike6565System(scrambled);
+  assert.equal(renamed?.constitutionNameEs, "17-hidroxiandrost-4-en-3-ona");
+  assert.deepEqual(renamed?.angularMethyls, { C18: remap.get(20), C19: remap.get(21) });
+  const extra = addOxygenGroup(molecule, n[6], 1);
+  assert.equal(getSteroidLike6565System(extra)?.constitutionNameEs, undefined);
+});
