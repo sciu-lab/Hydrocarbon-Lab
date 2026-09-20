@@ -175,6 +175,21 @@ const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
 const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v2";
 const KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY = "hydrocarbonLab.keepIupacNameVisible.v1";
 const NUMBERING_SCALE_STORAGE_KEY = "hydrocarbonLab.numberingScale.v1";
+const FUNCTIONAL_GROUP_SCALE_STORAGE_KEY = "hydrocarbonLab.functionalGroupScale.v1";
+const DEFAULT_FUNCTIONAL_GROUP_SCALE = 1;
+const MIN_FUNCTIONAL_GROUP_SCALE = 0.6;
+const MAX_FUNCTIONAL_GROUP_SCALE = 2;
+const FUNCTIONAL_GROUP_SCALE_STEP = 0.1;
+
+function normalizeFunctionalGroupScale(value: unknown) {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numericValue)) return DEFAULT_FUNCTIONAL_GROUP_SCALE;
+  const stepped = Math.round(numericValue / FUNCTIONAL_GROUP_SCALE_STEP) * FUNCTIONAL_GROUP_SCALE_STEP;
+  if (stepped < MIN_FUNCTIONAL_GROUP_SCALE || stepped > MAX_FUNCTIONAL_GROUP_SCALE) {
+    return DEFAULT_FUNCTIONAL_GROUP_SCALE;
+  }
+  return Math.round(stepped * 10) / 10;
+}
 
 type MovablePanelId = "structure-panel" | "analysis-panel";
 type PanelPosition = { x: number; y: number };
@@ -4994,6 +5009,8 @@ export default function Home() {
   const [showNumbering, setShowNumbering] = useState(true);
   const [numberingScale, setNumberingScale] = useState(DEFAULT_NUMBERING_SCALE);
   const [numberingScalePreferenceReady, setNumberingScalePreferenceReady] = useState(false);
+  const [functionalGroupScale, setFunctionalGroupScale] = useState(DEFAULT_FUNCTIONAL_GROUP_SCALE);
+  const [functionalGroupScalePreferenceReady, setFunctionalGroupScalePreferenceReady] = useState(false);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
@@ -5599,6 +5616,31 @@ export default function Home() {
     }
   }, [numberingScale, numberingScalePreferenceReady]);
 
+  useEffect(() => {
+    const restorePreference = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(FUNCTIONAL_GROUP_SCALE_STORAGE_KEY);
+        setFunctionalGroupScale(stored === null
+          ? DEFAULT_FUNCTIONAL_GROUP_SCALE
+          : normalizeFunctionalGroupScale(stored));
+      } catch {
+        setFunctionalGroupScale(DEFAULT_FUNCTIONAL_GROUP_SCALE);
+      } finally {
+        setFunctionalGroupScalePreferenceReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(restorePreference);
+  }, []);
+
+  useEffect(() => {
+    if (!functionalGroupScalePreferenceReady) return;
+    try {
+      window.localStorage.setItem(FUNCTIONAL_GROUP_SCALE_STORAGE_KEY, String(functionalGroupScale));
+    } catch {
+      // The current session still keeps the chosen scale when storage is unavailable.
+    }
+  }, [functionalGroupScale, functionalGroupScalePreferenceReady]);
+
   useEffect(() => () => {
     if (nomenclatureHintTimer.current !== null) {
       window.clearTimeout(nomenclatureHintTimer.current);
@@ -6145,6 +6187,11 @@ export default function Home() {
   const updateNumberingScale = (value: number) => {
     const clamped = Math.min(MAX_NUMBERING_SCALE, Math.max(MIN_NUMBERING_SCALE, value));
     setNumberingScale(normalizeNumberingScale(clamped));
+  };
+
+  const updateFunctionalGroupScale = (value: number) => {
+    const clamped = Math.min(MAX_FUNCTIONAL_GROUP_SCALE, Math.max(MIN_FUNCTIONAL_GROUP_SCALE, value));
+    setFunctionalGroupScale(normalizeFunctionalGroupScale(clamped));
   };
 
   const addCarbon = (dx: number, dy: number) => {
@@ -7700,8 +7747,29 @@ export default function Home() {
         }];
       })
     : [];
+  // Heteroatom labels are functional-group labels in the editor (OH, NH2,
+  // carbonyl O, halogens, etc.). Keep their bounds explicit so enlarged
+  // labels are included by both the live SVG viewBox and export framing.
+  const functionalLabelExtents = molecule.atoms.flatMap((atom) => {
+    if (isCarbonAtom(atom)) return [];
+    const position = displayPositions.get(atom.id)!;
+    const element = getElement(atom);
+    const hydrogenCount = showHydrogens ? getImplicitHydrogens(atom.id, molecule) : 0;
+    const visibleCharacterCount = element.length
+      + (hydrogenCount > 0 ? 1 : 0)
+      + (hydrogenCount > 1 ? String(hydrogenCount).length * 0.65 : 0)
+      + (atom.charge ? 0.7 : 0);
+    const width = Math.max(24, (visibleCharacterCount * 10 + 8) * functionalGroupScale);
+    const height = Math.max(26, 24 * functionalGroupScale);
+    return [{
+      x: position.x - width / 2,
+      y: position.y - height / 2,
+      width,
+      height,
+    }];
+  });
   const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values(), {
-    additionalExtents: numberingBadgeExtents,
+    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents],
   });
   // The normal canvas keeps a generous classroom workspace. The expanded
   // editor instead starts from the same content bounds used by export, with a
@@ -7710,7 +7778,7 @@ export default function Home() {
   const expandedFitBounds = getMoleculeVisualBounds(displayPositions.values(), {
     atomExtent: 58,
     padding: 36,
-    additionalExtents: numberingBadgeExtents,
+    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents],
   });
   const expandedFitBoundsRef = useRef(expandedFitBounds);
   expandedFitBoundsRef.current = expandedFitBounds;
@@ -9594,43 +9662,45 @@ export default function Home() {
                         </>
                       ) : (
                         <>
-                          <rect
-                            className="skeletal-hetero-hit-target"
-                            x={-heteroBadgeWidth / 2 - 8}
-                            y={-18}
-                            width={heteroBadgeWidth + 16}
-                            height={36}
-                            rx={18}
-                          />
-                          {isSelected && (
+                          <g className="functional-group-label" transform={`scale(${functionalGroupScale})`}>
                             <rect
-                              className="skeletal-selection-ring skeletal-hetero-selection-ring"
-                              x={-heteroBadgeWidth / 2 - 4}
-                              y={-14}
-                              width={heteroBadgeWidth + 8}
-                              height={28}
-                              rx={14}
+                              className="skeletal-hetero-hit-target"
+                              x={-heteroBadgeWidth / 2 - 8}
+                              y={-18}
+                              width={heteroBadgeWidth + 16}
+                              height={36}
+                              rx={18}
                             />
-                          )}
-                          <rect
-                            className="skeletal-hetero-badge"
-                            x={-heteroBadgeWidth / 2}
-                            y={-13}
-                            width={heteroBadgeWidth}
-                            height={26}
-                            rx={13}
-                          />
-                          <text className="atom-label skeletal-hetero-label" textAnchor="middle" dominantBaseline="central">
-                            <tspan>{atomLabel}</tspan>
-                            {hydrogenSubscript && (
-                              <tspan className="hydrogen-subscript" baselineShift="sub">
-                                {hydrogenSubscript}
-                              </tspan>
+                            {isSelected && (
+                              <rect
+                                className="skeletal-selection-ring skeletal-hetero-selection-ring"
+                                x={-heteroBadgeWidth / 2 - 4}
+                                y={-14}
+                                width={heteroBadgeWidth + 8}
+                                height={28}
+                                rx={14}
+                              />
                             )}
-                            {chargeText && (
-                              <tspan className="atom-charge" baselineShift="super">{chargeText}</tspan>
-                            )}
-                          </text>
+                            <rect
+                              className="skeletal-hetero-badge"
+                              x={-heteroBadgeWidth / 2}
+                              y={-13}
+                              width={heteroBadgeWidth}
+                              height={26}
+                              rx={13}
+                            />
+                            <text className="atom-label skeletal-hetero-label" textAnchor="middle" dominantBaseline="central">
+                              <tspan>{atomLabel}</tspan>
+                              {hydrogenSubscript && (
+                                <tspan className="hydrogen-subscript" baselineShift="sub">
+                                  {hydrogenSubscript}
+                                </tspan>
+                              )}
+                              {chargeText && (
+                                <tspan className="atom-charge" baselineShift="super">{chargeText}</tspan>
+                              )}
+                            </text>
+                          </g>
                           {effectiveShowNumbering && chainNumber && (
                             <g
                               className="skeletal-number"
@@ -9655,17 +9725,22 @@ export default function Home() {
                       <>
                         {isSelected && <circle className="selection-ring" r="39" />}
                         <circle className="atom-circle" r={CONDENSED_NODE_RADIUS} />
-                        <text className="atom-label" textAnchor="middle" dominantBaseline="central">
-                          <tspan>{atomLabel}</tspan>
-                          {hydrogenSubscript && (
-                            <tspan className="hydrogen-subscript" baselineShift="sub">
-                              {hydrogenSubscript}
-                            </tspan>
-                          )}
-                          {chargeText && (
-                            <tspan className="atom-charge" baselineShift="super">{chargeText}</tspan>
-                          )}
-                        </text>
+                        <g
+                          className={carbonAtom ? undefined : "functional-group-label"}
+                          transform={carbonAtom ? undefined : `scale(${functionalGroupScale})`}
+                        >
+                          <text className="atom-label" textAnchor="middle" dominantBaseline="central">
+                            <tspan>{atomLabel}</tspan>
+                            {hydrogenSubscript && (
+                              <tspan className="hydrogen-subscript" baselineShift="sub">
+                                {hydrogenSubscript}
+                              </tspan>
+                            )}
+                            {chargeText && (
+                              <tspan className="atom-charge" baselineShift="super">{chargeText}</tspan>
+                            )}
+                          </text>
+                        </g>
                         {effectiveShowNumbering && chainNumber && (
                           <g transform={`translate(${(molecule.isMirrored ? -25 : 25) * numberingScale} ${-27 * numberingScale})`}>
                             <circle
@@ -10212,6 +10287,35 @@ export default function Home() {
                 aria-label={t("Aumentar tamaño de numeración")}
               >+</button>
               <output aria-live="polite">{Math.round(numberingScale * 100)} %</output>
+            </div>
+            <div
+              className="numbering-size-control functional-group-size-control"
+              role="group"
+              aria-label={t("Tamaño de grupos funcionales")}
+            >
+              <span className="numbering-size-label">{t("Tamaño de grupos funcionales")}</span>
+              <button
+                type="button"
+                disabled={functionalGroupScale <= MIN_FUNCTIONAL_GROUP_SCALE}
+                onClick={() => updateFunctionalGroupScale(functionalGroupScale - FUNCTIONAL_GROUP_SCALE_STEP)}
+                aria-label={t("Reducir tamaño de grupos funcionales")}
+              >−</button>
+              <input
+                type="range"
+                min={MIN_FUNCTIONAL_GROUP_SCALE}
+                max={MAX_FUNCTIONAL_GROUP_SCALE}
+                step={FUNCTIONAL_GROUP_SCALE_STEP}
+                value={functionalGroupScale}
+                onChange={(event) => updateFunctionalGroupScale(Number(event.target.value))}
+                aria-label={t("Tamaño de grupos funcionales")}
+              />
+              <button
+                type="button"
+                disabled={functionalGroupScale >= MAX_FUNCTIONAL_GROUP_SCALE}
+                onClick={() => updateFunctionalGroupScale(functionalGroupScale + FUNCTIONAL_GROUP_SCALE_STEP)}
+                aria-label={t("Aumentar tamaño de grupos funcionales")}
+              >+</button>
+              <output aria-live="polite">{Math.round(functionalGroupScale * 100)} %</output>
             </div>
             <label>
               <input
