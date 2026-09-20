@@ -1,4 +1,5 @@
 import {
+  englishIupacRoot,
   iupacAlkylNameForCarbonCount,
   iupacRootForCarbonCount,
 } from "./iupac-prefixes.ts";
@@ -82,9 +83,27 @@ export type FusedTricyclicSystem = {
     atomIds: [number, number];
     order: 2 | 3;
   }[];
-  /** General fused-polycycle numbering is deliberately not inferred from ring sizes. */
-  numbering: null;
-  systematicName: null;
+  numbering: number[];
+  numberingCandidates: number[][];
+  vonBaeyerDescriptor: string;
+  mainRing: number[];
+  mainBridge: {
+    bridgeheads: [number, number];
+    atomIds: number[];
+    length: number;
+  };
+  mainRingBranches: [{ atomIds: number[]; length: number }, { atomIds: number[]; length: number }];
+  secondaryBridges: {
+    bridgeheads: [number, number];
+    atomIds: number[];
+    length: number;
+    attachmentLocants: [number, number];
+  }[];
+  parentName: string;
+  parentNameEn: string;
+  /** Full-molecule name is emitted only for the bare saturated parent. */
+  systematicName: string | null;
+  systematicNameEn: string | null;
 };
 
 export type SteroidLikeRingSystem = {
@@ -113,11 +132,168 @@ export type SteroidLikeRingSystem = {
   };
 };
 
-/**
- * Recognises a chain of three ortho-fused aliphatic rings. This descriptor is
- * structural only: IUPAC fusion/von Baeyer numbering needs a separate,
- * validated algorithm and cannot be inferred by concatenating ring sizes.
- */
+type TricyclicVonBaeyerCandidate = {
+  score: number[];
+  numbering: number[];
+  mainRing: number[];
+  mainBridgeheads: [number, number];
+  branches: [number[], number[]];
+  secondaryBridgeheads: [number, number];
+  secondaryLocants: [number, number];
+};
+
+const edgeKey = (left: number, right: number) => (
+  left < right ? `${left}-${right}` : `${right}-${left}`
+);
+
+function enumerateCoreCycles(
+  atomIds: readonly number[],
+  bonds: readonly FusedRingBond[],
+) {
+  const core = new Set(atomIds);
+  const adjacency = new Map(atomIds.map((atomId) => [atomId, [] as number[]]));
+  for (const [left, right] of bonds) {
+    if (!core.has(left) || !core.has(right)) continue;
+    adjacency.get(left)?.push(right);
+    adjacency.get(right)?.push(left);
+  }
+  const cycles = new Map<string, number[]>();
+  for (const start of atomIds) {
+    const visit = (current: number, path: number[], visited: Set<number>) => {
+      for (const neighbor of adjacency.get(current) ?? []) {
+        if (neighbor === start && path.length >= 3) {
+          const edges = path.map((atomId, index) => edgeKey(atomId, path[(index + 1) % path.length]));
+          const key = edges.sort().join("|");
+          if (!cycles.has(key)) cycles.set(key, [...path]);
+          continue;
+        }
+        if (visited.has(neighbor) || path.length >= atomIds.length) continue;
+        visited.add(neighbor);
+        path.push(neighbor);
+        visit(neighbor, path, visited);
+        path.pop();
+        visited.delete(neighbor);
+      }
+    };
+    visit(start, [start], new Set([start]));
+  }
+  return [...cycles.values()];
+}
+
+function pathsAroundCycle(cycle: readonly number[], start: number, end: number) {
+  const startIndex = cycle.indexOf(start);
+  const walk = (step: 1 | -1) => {
+    const path = [start];
+    for (
+      let index = (startIndex + step + cycle.length) % cycle.length;
+      cycle[index] !== end;
+      index = (index + step + cycle.length) % cycle.length
+    ) path.push(cycle[index]);
+    path.push(end);
+    return path;
+  };
+  return [walk(1), walk(-1)] as const;
+}
+
+function compareCandidateScores(left: readonly number[], right: readonly number[]) {
+  return compareNumberLists(left, right);
+}
+
+function buildTricyclicVonBaeyerDescriptor(
+  molecule: FusedRingMolecule,
+  atomIds: readonly number[],
+) {
+  const core = new Set(atomIds);
+  const coreBonds = molecule.bonds.filter(([left, right]) => core.has(left) && core.has(right));
+  const cycles = enumerateCoreCycles(atomIds, coreBonds);
+  const maximumCycleLength = Math.max(0, ...cycles.map((cycle) => cycle.length));
+  const mainRings = cycles.filter((cycle) => cycle.length === maximumCycleLength);
+  const candidates: TricyclicVonBaeyerCandidate[] = [];
+
+  for (const mainRing of mainRings) {
+    const mainRingEdges = new Set(mainRing.map(
+      (atomId, index) => edgeKey(atomId, mainRing[(index + 1) % mainRing.length]),
+    ));
+    const bridges = coreBonds.filter(([left, right]) => !mainRingEdges.has(edgeKey(left, right)));
+    // Every currently supported ortho-fused tricycle has a Hamiltonian main
+    // ring and two independent zero-length bridges.
+    if (mainRing.length !== atomIds.length || bridges.length !== 2) continue;
+
+    for (let mainBridgeIndex = 0; mainBridgeIndex < bridges.length; mainBridgeIndex++) {
+      const [left, right] = bridges[mainBridgeIndex];
+      const secondary = bridges[1 - mainBridgeIndex];
+      const ringPaths = pathsAroundCycle(mainRing, left, right);
+      const branchLengths = ringPaths.map((path) => path.length - 2);
+      const longest = Math.max(...branchLengths);
+      const shortest = Math.min(...branchLengths);
+      const symmetryDifference = longest - shortest;
+
+      for (const start of [left, right]) {
+        const orientedPaths = ringPaths.map((path) => (
+          path[0] === start ? [...path] : [...path].reverse()
+        ));
+        const admissibleOrders = branchLengths[0] === branchLengths[1]
+          ? [[0, 1], [1, 0]] as const
+          : [branchLengths[0] > branchLengths[1] ? [0, 1] : [1, 0]] as const;
+        for (const [firstIndex, secondIndex] of admissibleOrders) {
+          const first = orientedPaths[firstIndex];
+          const second = orientedPaths[secondIndex];
+          const numbering = [
+            start,
+            ...first.slice(1, -1),
+            first.at(-1)!,
+            ...second.slice(1, -1).reverse(),
+          ];
+          if (numbering.length !== atomIds.length || new Set(numbering).size !== atomIds.length) continue;
+          const locants = new Map(numbering.map((atomId, index) => [atomId, index + 1]));
+          const secondaryLocants = [
+            locants.get(secondary[0])!,
+            locants.get(secondary[1])!,
+          ].sort((a, b) => a - b) as [number, number];
+          candidates.push({
+            // P-23.2.1, P-23.2.4 and P-23.2.6.2: largest main ring,
+            // longest main bridge, most symmetric division, then lowest
+            // secondary-bridge locants. Zero bridges tie on their lengths.
+            score: [
+              -mainRing.length,
+              0,
+              symmetryDifference,
+              0,
+              ...secondaryLocants,
+            ],
+            numbering,
+            mainRing: [...mainRing],
+            mainBridgeheads: [left, right],
+            branches: [first.slice(1, -1), second.slice(1, -1)],
+            secondaryBridgeheads: [secondary[0], secondary[1]],
+            secondaryLocants,
+          });
+        }
+      }
+    }
+  }
+
+  candidates.sort((left, right) => compareCandidateScores(left.score, right.score));
+  const best = candidates[0];
+  if (!best) return null;
+  const equallyPreferred = candidates.filter((candidate) => (
+    compareCandidateScores(candidate.score, best.score) === 0
+  ));
+  const branchLengths = best.branches.map((branch) => branch.length) as [number, number];
+  const descriptor = `[${branchLengths[0]}.${branchLengths[1]}.0.0^{${best.secondaryLocants.join(",")}}]`;
+  return {
+    descriptor,
+    numbering: best.numbering,
+    numberingCandidates: equallyPreferred.map((candidate) => candidate.numbering),
+    mainRing: best.mainRing,
+    mainBridgeheads: best.mainBridgeheads,
+    branches: best.branches,
+    secondaryBridgeheads: best.secondaryBridgeheads,
+    secondaryLocants: best.secondaryLocants,
+  };
+}
+
+/** Recognises and numbers the supported chain of three ortho-fused aliphatic rings. */
 export function getFusedTricyclicSystem(
   molecule: FusedRingMolecule,
 ): FusedTricyclicSystem | null {
@@ -210,6 +386,14 @@ export function getFusedTricyclicSystem(
       centralRingSize: centralRing.atomIds.length,
     };
   });
+  const vonBaeyer = buildTricyclicVonBaeyerDescriptor(molecule, atomIds);
+  const parentRoot = iupacRootForCarbonCount(atomIds.length);
+  if (!vonBaeyer || !parentRoot) return null;
+  const [firstBranch, secondBranch] = vonBaeyer.branches;
+  if (firstBranch.length + secondBranch.length + 2 !== atomIds.length) return null;
+  const parentName = `triciclo${vonBaeyer.descriptor}${parentRoot}ano`;
+  const parentNameEn = `tricyclo${vonBaeyer.descriptor}${englishIupacRoot(parentRoot)}ane`;
+  const isBareSaturatedParent = externalAtomIds.length === 0 && coreMultipleBonds.length === 0;
 
   return {
     atomIds,
@@ -225,8 +409,29 @@ export function getFusedTricyclicSystem(
     sharedAtomPairs: fusionBonds.map((fusion) => fusion.atomIds),
     externalAttachments,
     coreMultipleBonds,
-    numbering: null,
-    systematicName: null,
+    numbering: vonBaeyer.numbering,
+    numberingCandidates: vonBaeyer.numberingCandidates,
+    vonBaeyerDescriptor: vonBaeyer.descriptor,
+    mainRing: vonBaeyer.mainRing,
+    mainBridge: {
+      bridgeheads: vonBaeyer.mainBridgeheads,
+      atomIds: [],
+      length: 0,
+    },
+    mainRingBranches: [
+      { atomIds: firstBranch, length: firstBranch.length },
+      { atomIds: secondBranch, length: secondBranch.length },
+    ],
+    secondaryBridges: [{
+      bridgeheads: vonBaeyer.secondaryBridgeheads,
+      atomIds: [],
+      length: 0,
+      attachmentLocants: vonBaeyer.secondaryLocants,
+    }],
+    parentName,
+    parentNameEn,
+    systematicName: isBareSaturatedParent ? parentName : null,
+    systematicNameEn: isBareSaturatedParent ? parentNameEn : null,
   };
 }
 

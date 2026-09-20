@@ -29,6 +29,13 @@ function makeTricycle(middleSize = 6, terminalSize = 6, topology = "linear") {
   return molecule;
 }
 
+function makeTricycleFromOppositeTerminal(middleSize, firstTerminalSize) {
+  let molecule = fuseRingOnBond(makeRing(firstTerminalSize), 1, 2, middleSize);
+  const middle = molecule.rings[1];
+  molecule = fuseRingOnBond(molecule, middle.atomIds[1], middle.atomIds[2], 6);
+  return molecule;
+}
+
 function peripheralCoreAtom(molecule) {
   const fusionAtoms = new Set();
   for (let left = 0; left < molecule.rings.length; left++) {
@@ -75,12 +82,50 @@ function addCoreDoubleBond(molecule) {
   return next;
 }
 
+function hasBond(molecule, left, right) {
+  return molecule.bonds.some(([a, b]) => (
+    (a === left && b === right) || (a === right && b === left)
+  ));
+}
+
+function assertCoherentVonBaeyerNumbering(molecule, system) {
+  assert.ok(system);
+  assert.equal(system.numbering.length, system.atomIds.length);
+  assert.equal(new Set(system.numbering).size, system.atomIds.length);
+  assert.deepEqual(
+    [...system.numbering].sort((a, b) => a - b),
+    [...system.atomIds].sort((a, b) => a - b),
+  );
+  assert.equal(system.mainRing.length, system.atomIds.length);
+  system.mainRing.forEach((atomId, index) => {
+    assert.ok(hasBond(molecule, atomId, system.mainRing[(index + 1) % system.mainRing.length]));
+  });
+  assert.equal(system.mainBridge.length, 0);
+  assert.ok(hasBond(molecule, ...system.mainBridge.bridgeheads));
+  assert.equal(system.secondaryBridges.length, 1);
+  const secondary = system.secondaryBridges[0];
+  assert.equal(secondary.length, 0);
+  assert.ok(hasBond(molecule, ...secondary.bridgeheads));
+  const locants = new Map(system.numbering.map((atomId, index) => [atomId, index + 1]));
+  assert.deepEqual(
+    secondary.bridgeheads.map((atomId) => locants.get(atomId)).sort((a, b) => a - b),
+    secondary.attachmentLocants,
+  );
+  const descriptorNumbers = system.vonBaeyerDescriptor
+    .slice(1, system.vonBaeyerDescriptor.indexOf("^"))
+    .split(".")
+    .map((part) => Number.parseInt(part, 10));
+  assert.equal(descriptorNumbers.reduce((sum, value) => sum + value, 0) + 2, system.atomIds.length);
+}
+
 test("recognises linear and angular fused 6-6-6 systems", () => {
-  const linear = getFusedTricyclicSystem(makeTricycle(6, 6, "linear"));
-  const angular = getFusedTricyclicSystem(makeTricycle(6, 6, "angular"));
+  const linearMolecule = makeTricycle(6, 6, "linear");
+  const angularMolecule = makeTricycle(6, 6, "angular");
+  const linear = getFusedTricyclicSystem(linearMolecule);
+  const angular = getFusedTricyclicSystem(angularMolecule);
   assert.equal(linear?.topology, "linear");
   assert.equal(angular?.topology, "angular");
-  for (const system of [linear, angular]) {
+  for (const [molecule, system] of [[linearMolecule, linear], [angularMolecule, angular]]) {
     assert.deepEqual(system?.ringSizes, [6, 6, 6]);
     assert.equal(system?.atomIds.length, 14);
     assert.equal(system?.fusionBonds.length, 2);
@@ -89,18 +134,40 @@ test("recognises linear and angular fused 6-6-6 systems", () => {
     assert.equal(system?.ringConnectivity.centralRingAtomIds.length, 6);
     assert.deepEqual(system?.ringConnectivity.terminalRingAtomIds.map((ids) => ids.length), [6, 6]);
     assert.equal(system?.externalAtomIds.length, 0);
-    assert.equal(system?.numbering, null);
-    assert.equal(system?.systematicName, null);
+    assertCoherentVonBaeyerNumbering(molecule, system);
   }
+  assert.equal(linear?.vonBaeyerDescriptor, "[8.4.0.0^{3,8}]");
+  assert.equal(linear?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradecano");
+  assert.equal(linear?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradecane");
+  assert.equal(angular?.vonBaeyerDescriptor, "[8.4.0.0^{2,7}]");
+  assert.equal(angular?.systematicName, "triciclo[8.4.0.0^{2,7}]tetradecano");
+  assert.equal(angular?.systematicNameEn, "tricyclo[8.4.0.0^{2,7}]tetradecane");
 });
 
 test("distinguishes 6-6-5 and 6-5-6 by the central ring", () => {
-  const sixSixFive = getFusedTricyclicSystem(makeTricycle(6, 5, "angular"));
-  const sixFiveSix = getFusedTricyclicSystem(makeTricycle(5, 6, "angular"));
+  const sixSixFiveMolecule = makeTricycle(6, 5, "angular");
+  const sixFiveSixMolecule = makeTricycle(5, 6, "angular");
+  const sixSixFive = getFusedTricyclicSystem(sixSixFiveMolecule);
+  const sixFiveSix = getFusedTricyclicSystem(sixFiveSixMolecule);
   assert.deepEqual(sixSixFive?.ringSizes, [6, 6, 5]);
   assert.equal(sixSixFive?.centralRingSize, 6);
+  assert.equal(sixSixFive?.systematicName, "triciclo[7.4.0.0^{2,6}]tridecano");
+  assert.equal(sixSixFive?.systematicNameEn, "tricyclo[7.4.0.0^{2,6}]tridecane");
   assert.deepEqual(sixFiveSix?.ringSizes, [6, 5, 6]);
   assert.equal(sixFiveSix?.centralRingSize, 5);
+  assert.equal(sixFiveSix?.systematicName, "triciclo[7.4.0.0^{2,7}]tridecano");
+  assert.equal(sixFiveSix?.systematicNameEn, "tricyclo[7.4.0.0^{2,7}]tridecane");
+  assertCoherentVonBaeyerNumbering(sixSixFiveMolecule, sixSixFive);
+  assertCoherentVonBaeyerNumbering(sixFiveSixMolecule, sixFiveSix);
+});
+
+test("descriptor is independent of which terminal ring is constructed first", () => {
+  const sixSixFive = getFusedTricyclicSystem(makeTricycle(6, 5, "angular"));
+  const reversedConstruction = getFusedTricyclicSystem(makeTricycleFromOppositeTerminal(6, 5));
+  assert.equal(reversedConstruction?.topology, sixSixFive?.topology);
+  assert.deepEqual(reversedConstruction?.ringSizes, sixSixFive?.ringSizes);
+  assert.equal(reversedConstruction?.vonBaeyerDescriptor, sixSixFive?.vonBaeyerDescriptor);
+  assert.equal(reversedConstruction?.systematicName, sixSixFive?.systematicName);
 });
 
 test("keeps methyl and ethyl atoms outside the recognised core", () => {
@@ -111,6 +178,9 @@ test("keeps methyl and ethyl atoms outside the recognised core", () => {
     assert.equal(system?.externalAtomIds.length, length);
     assert.equal(system?.externalAttachments.length, 1);
     assert.equal(system?.externalAttachments[0].order, 1);
+    assert.equal(system?.systematicName, null);
+    assert.equal(system?.parentName, "triciclo[8.4.0.0^{3,8}]tetradecano");
+    assertCoherentVonBaeyerNumbering(molecule, system);
   }
 });
 
@@ -123,6 +193,9 @@ test("recognises the same core with ketone, alcohol or a double bond", () => {
   assert.equal(alcohol?.externalAtomIds.length, 1);
   assert.equal(alcohol?.externalAttachments[0].order, 1);
   assert.deepEqual(alkene?.coreMultipleBonds.map((bond) => bond.order), [2]);
+  assert.equal(ketone?.systematicName, null);
+  assert.equal(alcohol?.systematicName, null);
+  assert.equal(alkene?.systematicName, null);
 });
 
 test("recognition is invariant under IDs, coordinates and ring record order", () => {
@@ -150,7 +223,11 @@ test("recognition is invariant under IDs, coordinates and ring record order", ()
   assert.equal(actual?.atomIds.length, expected?.atomIds.length);
   assert.equal(actual?.externalAtomIds.length, expected?.externalAtomIds.length);
   assert.equal(actual?.fusionBonds.length, expected?.fusionBonds.length);
+  assert.equal(actual?.vonBaeyerDescriptor, expected?.vonBaeyerDescriptor);
+  assert.equal(actual?.parentName, expected?.parentName);
+  assert.deepEqual(actual?.secondaryBridges[0].attachmentLocants, expected?.secondaryBridges[0].attachmentLocants);
   assert.deepEqual(actual?.coreMultipleBonds.map((bond) => bond.order), [2]);
+  assertCoherentVonBaeyerNumbering(transformed, actual);
   assert.deepEqual(
     [...actual.atomIds].sort((left, right) => left - right),
     expected.atomIds.map((id) => idMap.get(id)).sort((left, right) => left - right),
@@ -165,6 +242,11 @@ test("recognition is invariant under IDs, coordinates and ring record order", ()
   assert.deepEqual(
     normalizedPairs(actual.sharedAtomPairs),
     normalizedPairs(expected.sharedAtomPairs.map((pair) => pair.map((id) => idMap.get(id)))),
+  );
+  const candidateKeys = (candidates) => candidates.map((candidate) => candidate.join(",")).sort();
+  assert.deepEqual(
+    candidateKeys(actual.numberingCandidates),
+    candidateKeys(expected.numberingCandidates.map((candidate) => candidate.map((id) => idMap.get(id)))),
   );
 });
 

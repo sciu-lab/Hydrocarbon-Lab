@@ -295,6 +295,7 @@ function translateCore(value: string) {
     .replace(/naftaleno/g, "naphthalene")
     .replace(/naftalen(?=-|$)/g, "naphthalen")
     .replace(/espiro(?=\[)/g, "spiro")
+    .replace(/triciclo(?=\[)/g, "tricyclo")
     .replace(/biciclo(?=\[)/g, "bicyclo")
     .replace(/ciclo/g, "cyclo")
     .replace(/tetrahidro/g, "tetrahydro")
@@ -425,6 +426,7 @@ const displayVocabulary: readonly DisplayVocabularyEntry[] = [
   { pattern: /pyrrole(?=$|[-,.)])/gi, spanish: "pirrol" },
   { pattern: /morpholine(?=$|[-,.)])/gi, spanish: "morfolina" },
   { pattern: /decalin(?=$|[-,.)])/gi, spanish: "decalina" },
+  { pattern: /tricyclo(?=\[)/gi, spanish: "triciclo" },
   { pattern: /bicyclo(?=\[)/gi, spanish: "biciclo" },
   { pattern: /spiro(?=\[)/gi, spanish: "espiro" },
   // These stems appear inside a complete IUPAC component such as

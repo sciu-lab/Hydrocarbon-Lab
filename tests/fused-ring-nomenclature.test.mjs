@@ -922,10 +922,17 @@ test("steroid constitutional naming survives shuffled graph IDs and rejects extr
   assert.equal(getSteroidLike6565System(extra)?.constitutionNameEs, undefined);
 });
 
-test("integrates a structural tricyclic descriptor without inventing an IUPAC name", () => {
+test("integrates tricyclic parent naming and retains numbering for unsupported derivatives", () => {
   let molecule = fuseRingOnBond(makeRing(6), 1, 2, 6);
   const centralRing = molecule.rings[1];
   molecule = fuseRingOnBond(molecule, centralRing.atomIds[2], centralRing.atomIds[3], 6);
+  const parentAnalysis = analyzeMolecule(molecule);
+  assert.equal(parentAnalysis.name, "triciclo[8.4.0.0^{3,8}]tetradecano");
+  assert.equal(parentAnalysis.fusedTricyclic?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradecane");
+  assert.equal(parentAnalysis.numberedAtoms.size, 14);
+  assert.deepEqual([...parentAnalysis.numberedAtoms.values()].sort((a, b) => a - b), Array.from({ length: 14 }, (_, index) => index + 1));
+  assert.equal(translateSpanishIupacToOpsin(parentAnalysis.name), "tricyclo[8.4.0.0^{3,8}]tetradecane");
+
   const anchorId = molecule.rings[2].atomIds[2];
   molecule = addLinearAlkyl(molecule, anchorId, 2);
   const analysis = analyzeMolecule(molecule);
@@ -934,7 +941,8 @@ test("integrates a structural tricyclic descriptor without inventing an IUPAC na
   assert.deepEqual(analysis.fusedTricyclic?.ringSizes, [6, 6, 6]);
   assert.equal(analysis.fusedTricyclic?.atomIds.length, 14);
   assert.equal(analysis.fusedTricyclic?.externalAtomIds.length, 2);
-  assert.equal(analysis.fusedTricyclic?.numbering, null);
+  assert.equal(analysis.fusedTricyclic?.numbering.length, 14);
+  assert.equal(analysis.numberedAtoms.size, 14);
   assert.equal(analysis.fusedTricyclic?.systematicName, null);
   assert.match(analysis.ringSystem, /Sistema tricíclico fusionado 6-6-6 \(lineal\)/);
 });

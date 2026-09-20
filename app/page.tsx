@@ -417,7 +417,7 @@ export function splitChemicalNameForWrapping(value: string) {
       boundaries.add(index + 1);
     }
   }
-  for (const match of value.matchAll(/(?:bicyclo|biciclo|spiro|espiro)\[/gi)) {
+  for (const match of value.matchAll(/(?:tricyclo|triciclo|bicyclo|biciclo|spiro|espiro)\[/gi)) {
     const index = match.index ?? 0;
     if (index > 0) boundaries.add(index);
   }
@@ -3246,14 +3246,17 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
     const fusedTricyclic = getFusedTricyclicSystem(molecule);
     if (fusedTricyclic) {
       const primaryFunctionalGroup = selectPrimaryFunctionalGroup(groups);
+      const numberedAtoms = new Map(fusedTricyclic.numbering.map(
+        (atomId, index) => [atomId, index + 1] as const,
+      ));
       return {
-        name: "Nombre no disponible para estructuras complejas",
+        name: fusedTricyclic.systematicName ?? "Nombre no disponible para estructuras complejas",
         formula: molecularFormula(molecule),
         family: "polycyclic",
-        mainChain: [...fusedTricyclic.atomIds],
-        chainName: "",
+        mainChain: [...fusedTricyclic.numbering],
+        chainName: fusedTricyclic.parentName,
         substituents: [],
-        numberedAtoms: new Map(),
+        numberedAtoms,
         doubleBondLocants: [],
         tripleBondLocants: [],
         functionalGroups: groups,
@@ -3262,7 +3265,7 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
           ? functionalGroupLabels[primaryFunctionalGroup]
           : undefined,
         fusedTricyclic,
-        ringSystem: `Sistema tricíclico fusionado ${fusedTricyclic.ringSizes.join("-")} (${fusedTricyclic.topology === "linear" ? "lineal" : "angular"}); ${fusedTricyclic.atomIds.length} átomos en el núcleo y ${fusedTricyclic.externalAtomIds.length} externos.`,
+        ringSystem: `Sistema tricíclico fusionado ${fusedTricyclic.ringSizes.join("-")} (${fusedTricyclic.topology === "linear" ? "lineal" : "angular"}), ${fusedTricyclic.vonBaeyerDescriptor}; ${fusedTricyclic.atomIds.length} átomos en el núcleo y ${fusedTricyclic.externalAtomIds.length} externos.`,
       };
     }
     const steroidLike = getSteroidLike6565System(molecule);
@@ -3576,14 +3579,18 @@ export function buildIupacReasoningSteps(
         explanation: `El grafo contiene tres anillos ${system.ringSizes.join("-")} unidos por dos enlaces de fusión; la disposición respecto del anillo central es ${system.topology === "linear" ? "lineal" : "angular"}.`,
       },
       {
-        number: "02",
-        title: "Núcleo y átomos externos",
-        explanation: `El núcleo contiene ${system.atomIds.length} átomos y se detectan ${system.externalAtomIds.length} átomos externos. Sustituyentes, insaturaciones y grupos funcionales no alteran el reconocimiento del núcleo.`,
+        number: "02", title: "Anillo y puente principales",
+        explanation: `El anillo principal contiene ${system.mainRing.length} átomos. El puente principal de longitud ${system.mainBridge.length} lo divide en recorridos de ${system.mainRingBranches[0].length} y ${system.mainRingBranches[1].length} átomos.`,
       },
       {
-        number: "03",
-        title: "Alcance de nomenclatura",
-        explanation: "La topología está identificada, pero aún no se asigna numeración sistemática general de policiclos fusionados. Se omite el nombre antes que generar localizadores no validados.",
+        number: "03", title: "Puente secundario y descriptor",
+        explanation: `El puente secundario de longitud ${system.secondaryBridges[0].length} se une en ${system.secondaryBridges[0].attachmentLocants.join(",")}; el descriptor resultante es ${system.vonBaeyerDescriptor}.`,
+      },
+      {
+        number: "04", title: "Nombre del progenitor",
+        explanation: system.systematicName
+          ? `El núcleo saturado sin sustituyentes se nombra ${system.systematicName}.`
+          : `La numeración del progenitor ${system.parentName} queda disponible, pero esta etapa todavía no nombra sus sustituyentes, insaturaciones o grupos funcionales.`,
       },
     ];
   }
@@ -3912,12 +3919,18 @@ export function buildEnglishReasoningSteps(
         explanation: `The graph contains three fused ${system.ringSizes.join("-")} rings joined by two fusion bonds; their arrangement around the central ring is ${system.topology}.`,
       },
       {
-        number: "02", title: "Core and external atoms",
-        explanation: `The core contains ${system.atomIds.length} atoms and ${system.externalAtomIds.length} external atoms are detected. Substituents, unsaturation, and functional groups do not change core recognition.`,
+        number: "02", title: "Main ring and main bridge",
+        explanation: `The main ring contains ${system.mainRing.length} atoms. The main bridge of length ${system.mainBridge.length} divides it into paths containing ${system.mainRingBranches[0].length} and ${system.mainRingBranches[1].length} atoms.`,
       },
       {
-        number: "03", title: "Nomenclature scope",
-        explanation: "The topology is identified, but a general systematic numbering for fused polycycles is not assigned yet. The name is withheld rather than emitting unvalidated locants.",
+        number: "03", title: "Secondary bridge and descriptor",
+        explanation: `The secondary bridge of length ${system.secondaryBridges[0].length} is attached at ${system.secondaryBridges[0].attachmentLocants.join(",")}, giving ${system.vonBaeyerDescriptor}.`,
+      },
+      {
+        number: "04", title: "Parent name",
+        explanation: system.systematicNameEn
+          ? `The unsubstituted saturated parent is ${system.systematicNameEn}.`
+          : `The ${system.parentNameEn} parent numbering is available, but substituents, unsaturation, and functional groups are intentionally not named at this stage.`,
       },
     ];
   }
@@ -4228,10 +4241,12 @@ const COMPLEX_NAME_UNAVAILABLE_MESSAGE = "Nombre no disponible para estructuras 
 const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 
 export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysis) {
-  // A recognised, bare fused bicyclic hydrocarbon has a complete graph-based
-  // descriptor. Other shared-ring topologies remain deliberately unsupported.
+  // Recognised fused parents with a complete graph-based descriptor are safe;
+  // other shared-ring topologies remain deliberately unsupported.
   if (hasSharedRingAtoms(molecule)) {
-    return !analysis.fusedBicyclic && !analysis.steroidSystem?.constitutionNameEs;
+    return !analysis.fusedBicyclic
+      && !analysis.fusedTricyclic?.systematicName
+      && !analysis.steroidSystem?.constitutionNameEs;
   }
   const parentAtoms = new Set(analysis.mainChain);
   if (!parentAtoms.size) return false;
