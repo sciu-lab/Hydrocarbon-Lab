@@ -3498,6 +3498,27 @@ function multipleBondLocantsText(doubleLocants: number[], tripleLocants: number[
   return joinSpanishList(parts);
 }
 
+function fusedMultipleBondLocationsText(
+  system: FusedTricyclicSystem,
+  language: AppLanguage,
+) {
+  const describe = (
+    location: FusedTricyclicSystem["doubleBondLocations"][number],
+    symbol: "=" | "≡",
+  ) => {
+    const citedLocant = location.compound
+      ? `${location.lower}(${location.higher})`
+      : String(location.lower);
+    const label = language === "en" ? "locant" : "localizador";
+    return `C${location.lower}${symbol}C${location.higher} (${label} ${citedLocant})`;
+  };
+  const parts = [
+    ...system.doubleBondLocations.map((location) => describe(location, "=")),
+    ...system.tripleBondLocations.map((location) => describe(location, "≡")),
+  ];
+  return language === "en" ? parts.join(" and ") : joinSpanishList(parts);
+}
+
 const spanishCardinals = [
   "cero",
   "un",
@@ -3634,12 +3655,15 @@ export function buildIupacReasoningSteps(
       {
         number: "04", title: "Insaturaciones",
         explanation: system.doubleBondLocants.length || system.tripleBondLocants.length
-          ? `Los enlaces múltiples reciben prioridad sobre los prefijos: ${multipleBondLocantsText(system.doubleBondLocants, system.tripleBondLocants)}.`
+          ? `Los enlaces múltiples reciben prioridad sobre los prefijos: ${fusedMultipleBondLocationsText(system, "es")}.`
           : "El núcleo no contiene dobles ni triples enlaces.",
       },
       {
         number: "05", title: "Selección de localizadores",
-        explanation: system.substituents.length
+        explanation: [...system.doubleBondLocations, ...system.tripleBondLocations]
+          .some((location) => location.compound)
+          ? "Entre las numeraciones admisibles se minimiza primero la cantidad de localizadores compuestos; después se comparan los localizadores citados sin contar temporalmente los números entre paréntesis. Los sustituyentes resuelven los empates restantes."
+          : system.substituents.length
           ? `Entre las numeraciones equivalentes del progenitor se elige el menor conjunto de localizadores para los sustituyentes (${system.substituents.map((substituent) => substituent.locant).sort((left, right) => left - right).join(",")}); los empates se resuelven por orden alfabético.`
           : "Las orientaciones equivalentes del progenitor producen el mismo descriptor y no hay sustituyentes que rompan la simetría.",
       },
@@ -3647,7 +3671,7 @@ export function buildIupacReasoningSteps(
         number: "06", title: "Nombre sistemático",
         explanation: system.systematicName
           ? `Los prefijos alquilo se agrupan y se citan alfabéticamente delante del progenitor: ${system.systematicName}.`
-          : `La numeración del progenitor ${system.parentName} queda disponible, pero no se emite un nombre completo cuando hacen falta localizadores compuestos o existen grupos funcionales fuera de esta etapa.`,
+          : `La numeración del progenitor ${system.parentName} queda disponible, pero no se emite un nombre completo cuando existen grupos funcionales fuera de esta etapa.`,
       },
     ];
   }
@@ -3986,19 +4010,15 @@ export function buildEnglishReasoningSteps(
       {
         number: "04", title: "Unsaturation",
         explanation: system.doubleBondLocants.length || system.tripleBondLocants.length
-          ? `Multiple bonds take priority over prefix substituents: ${[
-            system.doubleBondLocants.length
-              ? `C=C at ${system.doubleBondLocants.map((locant) => `C${locant}`).join(", ")}`
-              : "",
-            system.tripleBondLocants.length
-              ? `C≡C at ${system.tripleBondLocants.map((locant) => `C${locant}`).join(", ")}`
-              : "",
-          ].filter(Boolean).join(" and ")}.`
+          ? `Multiple bonds take priority over prefix substituents: ${fusedMultipleBondLocationsText(system, "en")}.`
           : "The core contains no double or triple bonds.",
       },
       {
         number: "05", title: "Locant selection",
-        explanation: system.substituents.length
+        explanation: [...system.doubleBondLocations, ...system.tripleBondLocations]
+          .some((location) => location.compound)
+          ? "Among admissible numberings, the number of compound locants is minimized first; cited locants are then compared while temporarily ignoring parenthesized numbers. Substituents resolve any remaining ties."
+          : system.substituents.length
           ? `Among equivalent parent numberings, the lowest set of substituent locants (${system.substituents.map((substituent) => substituent.locant).sort((left, right) => left - right).join(",")}) is selected; alphabetical order resolves remaining ties.`
           : "Equivalent parent orientations give the same descriptor, and no substituent breaks the symmetry.",
       },
@@ -4006,7 +4026,7 @@ export function buildEnglishReasoningSteps(
         number: "06", title: "Systematic name",
         explanation: system.systematicNameEn
           ? `Alkyl prefixes are grouped and cited alphabetically before the parent: ${system.systematicNameEn}.`
-          : `The ${system.parentNameEn} parent numbering is available, but no complete name is emitted when compound locants or functional groups outside this phase are required.`,
+          : `The ${system.parentNameEn} parent numbering is available, but no complete name is emitted when functional groups outside this phase are required.`,
       },
     ];
   }

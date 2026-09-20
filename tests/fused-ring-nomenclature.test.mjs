@@ -547,6 +547,16 @@ test("renders von Baeyer bridge locants as safe superscripts without changing st
   assert.doesNotMatch(ordinaryMarkup, /<sup/);
   assert.deepEqual(parseChemicalNotation(ordinaryName), [{ text: ordinaryName, superscript: false }]);
 
+  const compoundUnsaturation = "triciclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-trieno";
+  const compoundMarkup = renderToStaticMarkup(createElement(ChemicalNameText, { name: compoundUnsaturation }));
+  assert.match(compoundMarkup, />2,7<\/sup>/);
+  assert.equal(
+    compoundMarkup.replace(/<[^>]+>/g, ""),
+    compoundUnsaturation.replace(/\^\{(\d+(?:,\d+)+)\}/g, "$1"),
+  );
+  assert.equal((compoundMarkup.match(/<sup/g) ?? []).length, 1);
+  assert.equal(compoundUnsaturation, "triciclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-trieno");
+
   const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(pageSource, /navigator\.clipboard\?\.writeText\(displayedIupacName\)/);
   assert.ok((pageSource.match(/<ChemicalNameText/g) ?? []).length >= 4);
@@ -1010,6 +1020,35 @@ test("integrates tricyclic unsaturation into analysis, numbering and bilingual r
   assert.deepEqual(analysis.substituents.map(({ locant, name }) => ({ locant, name })), [{ locant: 6, name: "metil" }]);
   const spanishReasoning = buildIupacReasoningSteps(molecule, analysis);
   const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
-  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /enlaces múltiples reciben prioridad.*C=C en C4/s);
-  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /Multiple bonds take priority.*C=C at C4/s);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /enlaces múltiples reciben prioridad.*C4=C5 \(localizador 4\)/s);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /Multiple bonds take priority.*C4=C5 \(locant 4\)/s);
+});
+
+test("integrates compound unsaturation locants into analysis and bilingual reasoning", () => {
+  let molecule = fuseRingOnBond(makeRing(6), 1, 2, 6);
+  const centralRing = molecule.rings[1];
+  molecule = fuseRingOnBond(molecule, centralRing.atomIds[1], centralRing.atomIds[2], 6);
+  molecule = setBondOrder(molecule, 11, 12, 2);
+  molecule = setBondOrder(molecule, 13, 14, 2);
+  molecule = setBondOrder(molecule, 7, 8, 2);
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.formula, "C₁₄H₁₈");
+  assert.equal(analysis.name, "triciclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-trieno");
+  assert.equal(
+    analysis.fusedTricyclic?.systematicNameEn,
+    "tricyclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-triene",
+  );
+  assert.deepEqual(analysis.doubleBondLocants, [1, 11, 13]);
+  assert.equal(analysis.numberedAtoms.get(7), 1);
+  assert.equal(analysis.numberedAtoms.get(8), 10);
+  const spanishReasoning = buildIupacReasoningSteps(molecule, analysis);
+  const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /C1=C10 \(localizador 1\(10\)\)/);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /minimiza primero la cantidad de localizadores compuestos/);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /C1=C10 \(locant 1\(10\)\)/);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /number of compound locants is minimized first/);
+  assert.equal(
+    translateSpanishIupacToOpsin(analysis.name),
+    "tricyclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-triene",
+  );
 });

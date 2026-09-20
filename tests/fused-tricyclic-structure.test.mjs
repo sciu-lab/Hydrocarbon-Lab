@@ -110,6 +110,16 @@ function hasBond(molecule, left, right) {
   ));
 }
 
+function hydrocarbonFormula(molecule) {
+  const valence = new Map(molecule.atoms.map((atom) => [atom.id, 0]));
+  molecule.bonds.forEach(([left, right, order = 1]) => {
+    valence.set(left, valence.get(left) + order);
+    valence.set(right, valence.get(right) + order);
+  });
+  const hydrogens = molecule.atoms.reduce((total, atom) => total + 4 - valence.get(atom.id), 0);
+  return `C${molecule.atoms.length}H${hydrogens}`;
+}
+
 function assertCoherentVonBaeyerNumbering(molecule, system) {
   assert.ok(system);
   assert.equal(system.numbering.length, system.atomIds.length);
@@ -326,16 +336,76 @@ test("names simple unsaturation in all four supported tricyclic topologies", () 
   assert.equal(sixFiveSix?.systematicName, "triciclo[7.4.0.0^{2,7}]tridec-3-eno");
 });
 
-test("retains the descriptor but withholds fusion-bond unsaturation needing a compound locant", () => {
+test("names a fusion-bond double bond with a compound locant", () => {
   const molecule = setCoreBondOrder(makeTricycle(), 1, 2, 2);
   const system = getFusedTricyclicSystem(molecule);
   assert.ok(system);
-  assert.equal(system.systematicName, null);
-  assert.equal(system.systematicNameEn, null);
+  assert.equal(system.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-1(10)-eno");
+  assert.equal(system.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradec-1(10)-ene");
   assert.equal(system.vonBaeyerDescriptor, "[8.4.0.0^{3,8}]");
   assert.deepEqual(system.coreMultipleBonds, [{ atomIds: [1, 2], order: 2 }]);
+  assert.deepEqual(system.doubleBondLocations, [{
+    atomIds: [1, 2], locants: [1, 10], lower: 1, higher: 10, compound: true,
+  }]);
   assert.equal(system.atomIds.length, 14);
   assert.equal(getFusedTricyclicSystem(setCoreBondOrder(makeTricycle(), 1, 2, 3)), null);
+});
+
+test("selects the preferred numbering for the angular C14H18 triene independently of visible locants", () => {
+  let molecule = makeTricycle(6, 6, "angular");
+  molecule = setCoreBondOrder(molecule, 11, 12, 2);
+  molecule = setCoreBondOrder(molecule, 13, 14, 2);
+  molecule = setCoreBondOrder(molecule, 7, 8, 2);
+  const system = getFusedTricyclicSystem(molecule);
+  assert.equal(hydrocarbonFormula(molecule), "C14H18");
+  assert.equal(system?.coreMultipleBonds.length, 3);
+  assert.equal(system?.systematicName, "triciclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-trieno");
+  assert.equal(system?.systematicNameEn, "tricyclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-triene");
+  assert.deepEqual(system?.doubleBondLocations.map(({ locants, compound }) => ({ locants, compound })), [
+    { locants: [1, 10], compound: true },
+    { locants: [11, 12], compound: false },
+    { locants: [13, 14], compound: false },
+  ]);
+  assert.deepEqual(system?.doubleBondLocants, [1, 11, 13]);
+  assertCoherentVonBaeyerNumbering(molecule, system);
+});
+
+test("keeps the angular diene name without an unnecessary compound locant", () => {
+  let molecule = makeTricycle(6, 6, "angular");
+  molecule = setCoreBondOrder(molecule, 11, 12, 2);
+  molecule = setCoreBondOrder(molecule, 13, 14, 2);
+  const system = getFusedTricyclicSystem(molecule);
+  assert.equal(hydrocarbonFormula(molecule), "C14H20");
+  assert.equal(system?.systematicName, "triciclo[8.4.0.0^{2,7}]tetradeca-3,5-dieno");
+  assert.equal(system?.systematicNameEn, "tricyclo[8.4.0.0^{2,7}]tetradeca-3,5-diene");
+  assert.ok(system?.doubleBondLocations.every((location) => !location.compound));
+});
+
+test("combines methyl or ethyl prefixes with a compound unsaturation locant", () => {
+  const parent = setCoreBondOrder(makeTricycle(), 1, 2, 2);
+  const methyl = getFusedTricyclicSystem(addExternalChainAt(parent, 12, 1));
+  const ethyl = getFusedTricyclicSystem(addExternalChainAt(parent, 12, 2));
+  assert.equal(
+    methyl?.systematicName,
+    "5-metiltriciclo[8.4.0.0^{3,8}]tetradec-1(10)-eno",
+  );
+  assert.equal(
+    ethyl?.systematicNameEn,
+    "5-ethyltricyclo[8.4.0.0^{3,8}]tetradec-1(10)-ene",
+  );
+  assert.equal(methyl?.doubleBondLocations[0].compound, true);
+  assert.equal(ethyl?.doubleBondLocations[0].compound, true);
+});
+
+test("supports compound alkene locants across the 6-6-5 and 6-5-6 cores", () => {
+  for (const [middleSize, terminalSize] of [[6, 5], [5, 6]]) {
+    const base = makeTricycle(middleSize, terminalSize, "angular");
+    const [left, right] = getFusedTricyclicSystem(base).sharedAtomPairs[0];
+    const system = getFusedTricyclicSystem(setCoreBondOrder(base, left, right, 2));
+    assert.ok(system?.systematicName);
+    assert.ok(system.doubleBondLocations.some((location) => location.compound));
+    assert.match(system.systematicName, /\d+\(\d+\)-eno$/);
+  }
 });
 
 test("does not mistake side-chain unsaturation for parent unsaturation", () => {
@@ -414,10 +484,12 @@ test("recognition is invariant under IDs, coordinates and ring record order", ()
   );
 });
 
-test("substituted unsaturated naming is invariant under IDs, coordinates and record order", () => {
-  let source = setCoreBondOrder(makeTricycle(6, 6, "linear"), 11, 12, 2);
-  source = addExternalChainAt(source, 12, 2);
-  source = addExternalChainAt(source, 13, 1);
+test("compound-locant naming is invariant under IDs, coordinates and record order", () => {
+  let source = makeTricycle(6, 6, "angular");
+  source = setCoreBondOrder(source, 11, 12, 2);
+  source = setCoreBondOrder(source, 13, 14, 2);
+  source = setCoreBondOrder(source, 7, 8, 2);
+  source = addExternalChainAt(source, 9, 2);
   const expected = getFusedTricyclicSystem(source);
   const idMap = new Map(source.atoms.map((atom, index) => [atom.id, 2003 + index * 31]));
   const transformed = {
@@ -437,6 +509,10 @@ test("substituted unsaturated naming is invariant under IDs, coordinates and rec
   const actual = getFusedTricyclicSystem(transformed);
   assert.equal(actual?.systematicName, expected?.systematicName);
   assert.equal(actual?.systematicNameEn, expected?.systematicNameEn);
+  assert.deepEqual(
+    actual?.doubleBondLocations.map(({ locants, compound }) => ({ locants, compound })),
+    expected?.doubleBondLocations.map(({ locants, compound }) => ({ locants, compound })),
+  );
   assert.deepEqual(
     actual?.substituents.map((substituent) => [substituent.locant, substituent.name]).sort(),
     expected?.substituents.map((substituent) => [substituent.locant, substituent.name]).sort(),

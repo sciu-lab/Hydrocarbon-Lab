@@ -54,6 +54,14 @@ export type FusedBicyclicSubstituent = {
   name: string;
 };
 
+export type FusedMultipleBondLocant = {
+  atomIds: [number, number];
+  locants: [number, number];
+  lower: number;
+  higher: number;
+  compound: boolean;
+};
+
 export type FusedTricyclicSystem = {
   atomIds: number[];
   externalAtomIds: number[];
@@ -85,6 +93,8 @@ export type FusedTricyclicSystem = {
   substituents: FusedBicyclicSubstituent[];
   doubleBondLocants: number[];
   tripleBondLocants: number[];
+  doubleBondLocations: FusedMultipleBondLocant[];
+  tripleBondLocations: FusedMultipleBondLocant[];
   vonBaeyerDescriptor: string;
   mainRing: number[];
   mainBridge: {
@@ -393,7 +403,7 @@ export function getFusedTricyclicSystem(
   const unnumberedSubstituents = findSimpleAlkylSubstituents(molecule, atomIds, new Set());
   const rankedNumberings = unnumberedSubstituents
     ? vonBaeyer.candidates.flatMap((candidate) => {
-      const unsaturation = multipleBondLocants(molecule, atomIds, candidate.numbering);
+      const unsaturation = multipleBondLocations(molecule, atomIds, candidate.numbering);
       if (!unsaturation) return [];
       const locants = new Map(candidate.numbering.map((atomId, index) => [atomId, index + 1]));
       const substituents = unnumberedSubstituents.map((substituent) => ({
@@ -408,21 +418,35 @@ export function getFusedTricyclicSystem(
           .filter((substituent) => substituent.name === name)
           .map((substituent) => substituent.locant)
           .sort((left, right) => left - right));
-      const multipleLocants = [
-        ...unsaturation.doubleBondLocants,
-        ...unsaturation.tripleBondLocants,
-      ].sort((left, right) => left - right);
+      const combinedLocations = [
+        ...unsaturation.doubleBondLocations,
+        ...unsaturation.tripleBondLocations,
+      ];
+      const multipleLocants = combinedLocations.map((location) => location.lower)
+        .sort((left, right) => left - right);
+      const doubleBondLocants = unsaturation.doubleBondLocations.map((location) => location.lower);
+      const tripleBondLocants = unsaturation.tripleBondLocations.map((location) => location.lower);
+      const allMultipleLocants = combinedLocations.flatMap((location) => location.locants)
+        .sort((left, right) => left - right);
       return [{
         candidate,
         substituents,
         prefixLocants,
         citationLocants,
         multipleLocants,
+        doubleBondLocants,
+        tripleBondLocants,
+        allMultipleLocants,
+        compoundLocantCount: combinedLocations.filter((location) => location.compound).length,
         ...unsaturation,
       }];
     }).sort((left, right) => (
-      compareNumberLists(left.multipleLocants, right.multipleLocants)
+      // IUPAC VB-8.3: minimize compound locants first, then compare the cited
+      // locants without their parenthesized second numbers before later ties.
+      left.compoundLocantCount - right.compoundLocantCount
+      || compareNumberLists(left.multipleLocants, right.multipleLocants)
       || compareNumberLists(left.doubleBondLocants, right.doubleBondLocants)
+      || compareNumberLists(left.allMultipleLocants, right.allMultipleLocants)
       || compareNumberLists(left.prefixLocants, right.prefixLocants)
       || compareNumberLists(left.citationLocants, right.citationLocants)
     ))
@@ -437,6 +461,8 @@ export function getFusedTricyclicSystem(
   }));
   const doubleBondLocants = selected?.doubleBondLocants ?? [];
   const tripleBondLocants = selected?.tripleBondLocants ?? [];
+  const doubleBondLocations = selected?.doubleBondLocations ?? [];
+  const tripleBondLocations = selected?.tripleBondLocations ?? [];
   const [firstBranch, secondBranch] = selectedCandidate.branches;
   if (firstBranch.length + secondBranch.length + 2 !== atomIds.length) return null;
   const saturatedParentName = `triciclo${vonBaeyer.descriptor}${parentRoot}ano`;
@@ -445,8 +471,8 @@ export function getFusedTricyclicSystem(
       `triciclo${vonBaeyer.descriptor}`,
       atomIds.length,
       `${parentRoot}ano`,
-      doubleBondLocants,
-      tripleBondLocants,
+      doubleBondLocations.map(formatMultipleBondLocant),
+      tripleBondLocations.map(formatMultipleBondLocant),
     )
     : null;
   const parentName = hydrocarbonParentName ?? saturatedParentName;
@@ -477,6 +503,8 @@ export function getFusedTricyclicSystem(
     substituents,
     doubleBondLocants,
     tripleBondLocants,
+    doubleBondLocations,
+    tripleBondLocations,
     vonBaeyerDescriptor: vonBaeyer.descriptor,
     mainRing: selectedCandidate.mainRing,
     mainBridge: {
@@ -678,30 +706,59 @@ function findDirectFunctionalGroups(
   return groups;
 }
 
-function multipleBondLocants(
+function multipleBondLocations(
   molecule: FusedRingMolecule,
   coreAtomIds: readonly number[],
   numbering: readonly number[],
 ) {
   const core = new Set(coreAtomIds);
   const locants = new Map(numbering.map((atomId, index) => [atomId, index + 1]));
-  const doubleBondLocants: number[] = [];
-  const tripleBondLocants: number[] = [];
+  const doubleBondLocations: FusedMultipleBondLocant[] = [];
+  const tripleBondLocations: FusedMultipleBondLocant[] = [];
   for (const [left, right, order = 1] of molecule.bonds) {
     if (!core.has(left) || !core.has(right) || order === 1) continue;
     if (order !== 2 && order !== 3) return null;
     const leftLocant = locants.get(left);
     const rightLocant = locants.get(right);
-    if (leftLocant === undefined || rightLocant === undefined || Math.abs(leftLocant - rightLocant) !== 1) {
-      // Compound locants such as 1(6) are deliberately outside phase 2.
-      return null;
-    }
-    const locant = Math.min(leftLocant, rightLocant);
-    (order === 2 ? doubleBondLocants : tripleBondLocants).push(locant);
+    if (leftLocant === undefined || rightLocant === undefined) return null;
+    const lower = Math.min(leftLocant, rightLocant);
+    const higher = Math.max(leftLocant, rightLocant);
+    const location: FusedMultipleBondLocant = {
+      atomIds: leftLocant <= rightLocant ? [left, right] : [right, left],
+      locants: [lower, higher],
+      lower,
+      higher,
+      compound: higher - lower !== 1,
+    };
+    (order === 2 ? doubleBondLocations : tripleBondLocations).push(location);
   }
+  const compareLocations = (left: FusedMultipleBondLocant, right: FusedMultipleBondLocant) => (
+    left.lower - right.lower || left.higher - right.higher
+  );
   return {
-    doubleBondLocants: doubleBondLocants.sort((left, right) => left - right),
-    tripleBondLocants: tripleBondLocants.sort((left, right) => left - right),
+    doubleBondLocations: doubleBondLocations.sort(compareLocations),
+    tripleBondLocations: tripleBondLocations.sort(compareLocations),
+  };
+}
+
+function formatMultipleBondLocant(location: FusedMultipleBondLocant) {
+  return location.compound ? `${location.lower}(${location.higher})` : String(location.lower);
+}
+
+function multipleBondLocants(
+  molecule: FusedRingMolecule,
+  coreAtomIds: readonly number[],
+  numbering: readonly number[],
+) {
+  const locations = multipleBondLocations(molecule, coreAtomIds, numbering);
+  if (
+    !locations
+    || locations.doubleBondLocations.some((location) => location.compound)
+    || locations.tripleBondLocations.some((location) => location.compound)
+  ) return null;
+  return {
+    doubleBondLocants: locations.doubleBondLocations.map((location) => location.lower),
+    tripleBondLocants: locations.tripleBondLocations.map((location) => location.lower),
   };
 }
 
@@ -721,8 +778,8 @@ function unsaturatedParentName(
   descriptor: string,
   carbonCount: number,
   saturatedParent: string,
-  doubleBondLocants: readonly number[],
-  tripleBondLocants: readonly number[],
+  doubleBondLocants: readonly (number | string)[],
+  tripleBondLocants: readonly (number | string)[],
 ) {
   if (!doubleBondLocants.length && !tripleBondLocants.length) return `${descriptor}${saturatedParent}`;
   const root = iupacRootForCarbonCount(carbonCount);
