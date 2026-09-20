@@ -92,6 +92,35 @@ function candidateClearance(
   return Math.min(atomClearance, bondClearance * 1.35);
 }
 
+function getFusionJunctionExteriorAngle(
+  atomId: number,
+  rings: readonly { atomIds: readonly number[] }[],
+  positions: ReadonlyMap<number, SkeletalPoint>,
+) {
+  const directRings = rings.filter((ring) => ring.atomIds.includes(atomId));
+  if (directRings.length < 2) return null;
+  const origin = positions.get(atomId);
+  if (!origin) return null;
+  const ringNeighborIds = new Set<number>();
+  for (const ring of directRings) {
+    const index = ring.atomIds.indexOf(atomId);
+    ringNeighborIds.add(ring.atomIds[(index - 1 + ring.atomIds.length) % ring.atomIds.length]);
+    ringNeighborIds.add(ring.atomIds[(index + 1) % ring.atomIds.length]);
+  }
+  const freeValenceDirection = [...ringNeighborIds].reduce((sum, neighborId) => {
+    const neighbor = positions.get(neighborId);
+    if (!neighbor) return sum;
+    const distance = Math.hypot(origin.x - neighbor.x, origin.y - neighbor.y) || 1;
+    return {
+      x: sum.x + (origin.x - neighbor.x) / distance,
+      y: sum.y + (origin.y - neighbor.y) / distance,
+    };
+  }, { x: 0, y: 0 });
+  return Math.hypot(freeValenceDirection.x, freeValenceDirection.y) > 1e-8
+    ? Math.atan2(freeValenceDirection.y, freeValenceDirection.x)
+    : null;
+}
+
 function buildRingAwarePositions(
   molecule: LayoutMolecule,
   rings: readonly { atomIds: readonly number[]; inferred?: boolean }[],
@@ -249,7 +278,10 @@ function buildRingAwarePositions(
     const ringPoint = positions.get(ringAtomId);
     const center = ringCenters.get(ringAtomId);
     if (!ringPoint || !center) continue;
-    const outwardAngle = Math.atan2(ringPoint.y - center.y, ringPoint.x - center.x);
+    const radialAngle = Math.atan2(ringPoint.y - center.y, ringPoint.x - center.x);
+    // At a fused-ring junction, the global ring-system centroid can lie on
+    // the wrong face. Use the free sector between its immediate ring bonds.
+    const outwardAngle = getFusionJunctionExteriorAngle(ringAtomId, rings, positions) ?? radialAngle;
     for (const childId of adjacency.get(ringAtomId) ?? []) {
       if (visited.has(childId)) continue;
       const rawRingAtom = atomsById.get(ringAtomId);

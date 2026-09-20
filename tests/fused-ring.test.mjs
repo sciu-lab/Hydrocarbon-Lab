@@ -5,6 +5,7 @@ import ts from "typescript";
 import { fuseRingOnBond, removeFusedRingAtom, ringFusionError } from "../app/fused-ring.ts";
 import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
+import { getSteroidLike6565System } from "../app/fused-ring-nomenclature.ts";
 import {
   getFusedRingSystemAtomIds,
   getPreferredAttachmentDirection,
@@ -123,6 +124,58 @@ function assertExterior(molecule, anchorId, firstAddedId) {
   assert.ok(outward.x * attachment.x + outward.y * attachment.y > 0, "attachment points outside the fused system");
 }
 
+function makeAndrostaneLayoutReference() {
+  const ringAtomIds = [
+    [1, 17, 16, 4, 3, 2],
+    [5, 6, 7, 15, 16, 4],
+    [13, 14, 15, 7, 8, 12],
+    [9, 8, 12, 11, 10],
+  ];
+  const points = new Map([
+    [1, [0, 1.732]], [17, [-1, 0.866]], [16, [0, 0]], [4, [1, 0]], [3, [1.5, -0.866]], [2, [0.5, -1.732]],
+    [5, [2, 0.866]], [6, [3, 0]], [7, [3, -1.732]], [15, [2, -2.598]],
+    [13, [2, -4.33]], [14, [1, -3.464]], [8, [3.5, -2.598]], [12, [3, -3.464]],
+    [9, [4.5, -2.598]], [11, [4, -4.33]], [10, [5, -4.33]],
+  ]);
+  const edgeKeys = new Set();
+  const bonds = [];
+  for (const ids of ringAtomIds) {
+    ids.forEach((atomId, index) => {
+      const otherId = ids[(index + 1) % ids.length];
+      const key = [atomId, otherId].sort((a, b) => a - b).join("-");
+      if (!edgeKeys.has(key)) {
+        edgeKeys.add(key);
+        bonds.push([atomId, otherId, 1]);
+      }
+    });
+  }
+  return {
+    atoms: [...points].map(([id, [x, y]]) => ({ id, x, y })),
+    bonds,
+    rings: ringAtomIds.map((atomIds, index) => ({ id: index + 1, kind: "cycloalkane", atomIds })),
+  };
+}
+
+function fusionExterior(molecule, atomId) {
+  const atom = molecule.atoms.find((candidate) => candidate.id === atomId);
+  const rings = molecule.rings.filter((ring) => ring.atomIds.includes(atomId));
+  const neighbourIds = new Set();
+  for (const ring of rings) {
+    const index = ring.atomIds.indexOf(atomId);
+    neighbourIds.add(ring.atomIds[(index - 1 + ring.atomIds.length) % ring.atomIds.length]);
+    neighbourIds.add(ring.atomIds[(index + 1) % ring.atomIds.length]);
+  }
+  const vector = [...neighbourIds].reduce((sum, neighbourId) => {
+    const neighbour = molecule.atoms.find((candidate) => candidate.id === neighbourId);
+    const dx = atom.x - neighbour.x;
+    const dy = atom.y - neighbour.y;
+    const length = Math.hypot(dx, dy);
+    return { x: sum.x + dx / length, y: sum.y + dy / length };
+  }, { x: 0, y: 0 });
+  const length = Math.hypot(vector.x, vector.y);
+  return { x: vector.x / length, y: vector.y / length };
+}
+
 test("6+6 uses ten carbons, eleven bonds and exactly the original shared edge", () => {
   const original = makeRing(6, "cycloalkane");
   const snapshot = structuredClone(original);
@@ -178,6 +231,48 @@ test("methyl placement uses the exterior of the complete fused bicyclic system",
   const skeletal = calculateMolecule2DLayout(attached, []);
   const condensed = calculateMolecule2DLayout(attached, attached.rings.flatMap((ring) => ring.atomIds));
   assert.deepEqual([...skeletal], [...condensed], "both views consume the same fused-system geometry");
+});
+
+test("C10-C19 stays in the free exterior sector of the steroid fusion junction", () => {
+  const nucleus = makeAndrostaneLayoutReference();
+  const steroid = getSteroidLike6565System(nucleus);
+  assert.ok(steroid?.numbering);
+  const c10 = steroid.numbering[9];
+  const c13 = steroid.numbering[12];
+  const c10Direction = fusionExterior(nucleus, c10);
+  const c13Direction = fusionExterior(nucleus, c13);
+  const insertionDirection = getPreferredAttachmentDirection(nucleus, c10);
+  assert.ok(
+    insertionDirection.x * c10Direction.x + insertionDirection.y * c10Direction.y > 0.999,
+    "manual insertion chooses C10's local free sector before display layout",
+  );
+  const atom10 = nucleus.atoms.find((atom) => atom.id === c10);
+  const atom13 = nucleus.atoms.find((atom) => atom.id === c13);
+  const molecule = {
+    ...nucleus,
+    atoms: [
+      ...nucleus.atoms,
+      { id: 18, x: atom13.x + c13Direction.x, y: atom13.y + c13Direction.y },
+      { id: 19, x: atom10.x + c10Direction.x, y: atom10.y + c10Direction.y },
+    ],
+    bonds: [...nucleus.bonds, [c13, 18, 1], [c10, 19, 1]],
+  };
+  const snapshot = structuredClone(molecule);
+  const c18OnlyPositions = calculateMolecule2DLayout({
+    ...molecule,
+    atoms: molecule.atoms.filter((atom) => atom.id !== 19),
+    bonds: molecule.bonds.filter((bond) => !bond.includes(19)),
+  }, []);
+  const positions = calculateMolecule2DLayout(molecule, []);
+  const anchor10 = positions.get(c10);
+  const c19 = positions.get(19);
+  const c19Attachment = { x: c19.x - anchor10.x, y: c19.y - anchor10.y };
+  assert.ok(c19Attachment.x * c10Direction.x + c19Attachment.y * c10Direction.y > 100, "C19 points through C10's exterior sector");
+  assert.ok(Math.abs(Math.hypot(c19Attachment.x, c19Attachment.y) - 130) < 1e-8);
+  assert.deepEqual(positions.get(18), c18OnlyPositions.get(18), "placing C19 does not alter C18 geometry");
+  assert.deepEqual(molecule, snapshot, "display layout does not change the steroid graph or coordinates");
+  assert.equal(formulaCounts(molecule).get("C"), 19);
+  checkGraph(molecule);
 });
 
 test("ethyl and propyl leave a tricyclic system as non-collinear zigzags", () => {

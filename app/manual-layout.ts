@@ -77,6 +77,26 @@ export function getPreferredAttachmentDirection(
   );
   const radial = { x: selected.x - center.x, y: selected.y - center.y };
   const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
+  const directRings = (molecule.rings ?? []).filter((ring) => ring.atomIds.includes(selectedId));
+  // A bridgehead has three ring bonds. Their opposite vectors point through
+  // its only free valence, unlike a centroid of the whole polycyclic system.
+  if (directRings.length > 1) {
+    const ringNeighborIds = new Set<number>();
+    for (const ring of directRings) {
+      const index = ring.atomIds.indexOf(selectedId);
+      ringNeighborIds.add(ring.atomIds[(index - 1 + ring.atomIds.length) % ring.atomIds.length]);
+      ringNeighborIds.add(ring.atomIds[(index + 1) % ring.atomIds.length]);
+    }
+    const freeValenceDirection = [...ringNeighborIds].reduce((sum, neighborId) => {
+      const neighbor = atomsById.get(neighborId);
+      if (!neighbor) return sum;
+      const away = normalized({ x: selected.x - neighbor.x, y: selected.y - neighbor.y });
+      return { x: sum.x + away.x, y: sum.y + away.y };
+    }, { x: 0, y: 0 });
+    if (Math.hypot(freeValenceDirection.x, freeValenceDirection.y) > 1e-8) {
+      return normalized(freeValenceDirection);
+    }
+  }
   const repulsion = molecule.bonds.reduce((sum, [left, right]) => {
     const neighborId = left === selectedId ? right : right === selectedId ? left : undefined;
     const neighbor = neighborId === undefined ? undefined : atomsById.get(neighborId);
