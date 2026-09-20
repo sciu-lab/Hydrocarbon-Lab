@@ -351,6 +351,9 @@ function translateCore(value: string) {
     .replace(/ano(?=-\d)/g, "ane")
     .replace(/eno(?=-\d)/g, "ene")
     .replace(/ino(?=-\d)/g, "yne")
+    // Before a principal-group suffix Spanish elides the terminal "o" from
+    // -ino (for example dec-3-in-2-ona); English correspondingly uses -yn-.
+    .replace(/in(?=-\d)/g, "yn")
     .replace(/-en$/g, "-ene")
     .replace(/-in$/g, "-yne")
     .replace(/ano$/g, "ane")

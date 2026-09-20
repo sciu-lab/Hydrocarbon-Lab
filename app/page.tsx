@@ -2146,7 +2146,7 @@ function atomNeighbors(atomId: number, molecule: Molecule) {
   });
 }
 
-function detectFunctionalGroups(molecule: Molecule): FunctionalGroup[] {
+export function detectFunctionalGroups(molecule: Molecule): FunctionalGroup[] {
   const groups: FunctionalGroup[] = [];
   const claimedHeteroAtoms = new Set<number>();
   const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
@@ -3178,7 +3178,11 @@ function analyzeFunctionalRing(
   };
 }
 
-function analyzeFusedBicyclicMolecule(molecule: Molecule, system: FusedBicyclicSystem): Analysis {
+function analyzeFusedBicyclicMolecule(
+  molecule: Molecule,
+  system: FusedBicyclicSystem,
+  detectedGroups: FunctionalGroup[],
+): Analysis {
   const substituents = system.substituents.map((substituent) => ({
     locant: substituent.locant,
     name: substituent.name,
@@ -3186,6 +3190,12 @@ function analyzeFusedBicyclicMolecule(molecule: Molecule, system: FusedBicyclicS
     complex: false,
     atomIds: substituent.atomIds,
   }));
+  const functionalHeteroAtomIds = new Set(
+    system.functionalGroups.map((group) => group.heteroAtomId),
+  );
+  const functionalGroups = detectedGroups.filter((group) => (
+    functionalHeteroAtomIds.has(group.heteroAtomId)
+  ));
   return {
     name: system.systematicName,
     commonName: system.traditionalName,
@@ -3197,7 +3207,11 @@ function analyzeFusedBicyclicMolecule(molecule: Molecule, system: FusedBicyclicS
     numberedAtoms: new Map(system.numbering.map((atomId, index) => [atomId, index + 1])),
     doubleBondLocants: system.doubleBondLocants,
     tripleBondLocants: system.tripleBondLocants,
-    functionalGroups: [],
+    functionalGroups,
+    primaryFunctionalGroup: system.primaryFunctionalGroup,
+    primaryFunctionalLabel: system.primaryFunctionalGroup
+      ? functionalGroupLabels[system.primaryFunctionalGroup]
+      : undefined,
     fusedBicyclic: system,
     ringSystem: `Sistema bicíclico fusionado [${system.paths.join(".")}]`,
   };
@@ -3213,9 +3227,10 @@ export function fusedBicyclicTraditionalDisplayName(
 }
 
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
-  const fusedBicyclic = getFusedBicyclicSystem(molecule);
+  const groups = detectFunctionalGroups(molecule);
+  const fusedBicyclic = getFusedBicyclicSystem(molecule, groups);
   if (fusedBicyclic) {
-    return analyzeFusedBicyclicMolecule(molecule, fusedBicyclic);
+    return analyzeFusedBicyclicMolecule(molecule, fusedBicyclic, groups);
   }
   if (hasSharedRingAtoms(molecule)) {
     const steroidLike = getSteroidLike6565System(molecule);
@@ -3223,7 +3238,7 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
       name: "Nombre no disponible para estructuras complejas",
       formula: molecularFormula(molecule), family: "polycyclic",
       mainChain: [], chainName: "", substituents: [], numberedAtoms: new Map(),
-      doubleBondLocants: [], tripleBondLocants: [], functionalGroups: detectFunctionalGroups(molecule),
+      doubleBondLocants: [], tripleBondLocants: [], functionalGroups: groups,
       ringSystem: steroidLike ? "Núcleo tetracíclico fusionado 6-6-6-5 reconocido; la nomenclatura de esteroides aún requiere sustituyentes y estereoquímica verificables." : undefined,
     };
   }
@@ -3231,7 +3246,6 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
   if (heterocycle) return analyzeHeterocycleMolecule(molecule, heterocycle, enabledAliases);
 
   const skeleton = carbonSkeleton(molecule);
-  const groups = detectFunctionalGroups(molecule);
   const primaryKind = selectPrimaryFunctionalGroup(groups);
   const chainAgainstRing = selectChainAgainstMonocycle(skeleton, groups, primaryKind);
   if (chainAgainstRing) {
@@ -3476,6 +3490,15 @@ export function buildIupacReasoningSteps(
       ...analysis.doubleBondLocants.map((locant) => `C${locant}=C${locant + 1}`),
       ...analysis.tripleBondLocants.map((locant) => `C${locant}≡C${locant + 1}`),
     ].join(", ");
+    const primaryFunctionalLocants = analysis.fusedBicyclic.functionalGroups
+      .filter((group) => group.kind === analysis.fusedBicyclic?.primaryFunctionalGroup)
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const functionalPriorityText = analysis.fusedBicyclic.primaryFunctionalGroup === "ketone"
+      ? `La cetona es la función principal y recibe primero el conjunto más bajo de localizadores (${primaryFunctionalLocants.join(",")}); los alcoholes restantes se expresan como hidroxi-.`
+      : analysis.fusedBicyclic.primaryFunctionalGroup === "alcohol"
+        ? `El alcohol es la función principal y recibe primero el conjunto más bajo de localizadores (${primaryFunctionalLocants.join(",")}).`
+        : "";
     const steps: IupacReasoningStep[] = [
       {
         number: "01",
@@ -3490,25 +3513,27 @@ export function buildIupacReasoningSteps(
       {
         number: "03",
         title: "Numeración bicíclica",
-        explanation: multipleBondText
-          ? `La numeración comienza en una cabeza de puente y recorre primero el camino más largo. Entre orientaciones equivalentes, los enlaces múltiples reciben primero el conjunto más bajo de localizadores (${multipleBondText}); después se consideran los sustituyentes.`
-          : "La numeración comienza en una cabeza de puente, recorre primero el camino más largo y elige, entre orientaciones equivalentes, el conjunto más bajo de localizadores para los sustituyentes.",
+        explanation: `La numeración comienza en una cabeza de puente y recorre primero el camino más largo. ${functionalPriorityText}${multipleBondText ? ` Después, los enlaces múltiples reciben el conjunto más bajo de localizadores (${multipleBondText}).` : ""} Finalmente se consideran los prefijos y sustituyentes.`.replace(/\s+/g, " ").trim(),
       },
       {
         number: "04",
         title: "Nombre sistemático",
-        explanation: `Las rutas contienen ${analysis.fusedBicyclic.atomIds.length} carbonos en total; el hidrocarburo base es ${analysis.fusedBicyclic.parentName}.`,
+        explanation: `Las rutas contienen ${analysis.fusedBicyclic.atomIds.length} carbonos en total; el nombre del padre con la función principal es ${analysis.fusedBicyclic.parentName}.`,
       },
     ];
-    if (analysis.substituents.length) {
-      const substituentText = [...analysis.substituents]
+    const prefixDetails = [
+      ...analysis.fusedBicyclic.functionalGroups
+        .filter((group) => group.kind !== analysis.fusedBicyclic?.primaryFunctionalGroup)
+        .map((group) => `hidroxi en C${group.locant}`),
+      ...[...analysis.substituents]
         .sort((left, right) => left.locant - right.locant)
-        .map((substituent) => `${substituent.name} en C${substituent.locant}`)
-        .join(", ");
+        .map((substituent) => `${substituent.name} en C${substituent.locant}`),
+    ];
+    if (prefixDetails.length) {
       steps.push({
         number: "05",
         title: "Sustituyentes y localizadores",
-        explanation: `Las ramas externas no forman parte del esqueleto bicíclico: ${substituentText}. El nombre completo es ${analysis.name}.`,
+        explanation: `Los grupos citados como prefijos son ${prefixDetails.join(", ")}. El nombre completo es ${analysis.name}.`,
       });
     }
     return steps;
@@ -3758,10 +3783,23 @@ export function buildEnglishReasoningSteps(
       ...analysis.doubleBondLocants.map((locant) => `C${locant}=C${locant + 1}`),
       ...analysis.tripleBondLocants.map((locant) => `C${locant}≡C${locant + 1}`),
     ].join(", ");
-    const translatedSubstituents = [...analysis.substituents]
-      .sort((left, right) => left.locant - right.locant)
-      .map((substituent) => `${translateSpanishIupacToOpsin(substituent.name) || substituent.name} at C${substituent.locant}`)
-      .join(", ");
+    const primaryFunctionalLocants = analysis.fusedBicyclic.functionalGroups
+      .filter((group) => group.kind === analysis.fusedBicyclic?.primaryFunctionalGroup)
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const functionalPriorityText = analysis.fusedBicyclic.primaryFunctionalGroup === "ketone"
+      ? `Ketone is the principal group and first receives the lowest locant set (${primaryFunctionalLocants.join(",")}); remaining alcohol groups are cited as hydroxy-.`
+      : analysis.fusedBicyclic.primaryFunctionalGroup === "alcohol"
+        ? `Alcohol is the principal group and first receives the lowest locant set (${primaryFunctionalLocants.join(",")}).`
+        : "";
+    const translatedPrefixDetails = [
+      ...analysis.fusedBicyclic.functionalGroups
+        .filter((group) => group.kind !== analysis.fusedBicyclic?.primaryFunctionalGroup)
+        .map((group) => `hydroxy at C${group.locant}`),
+      ...[...analysis.substituents]
+        .sort((left, right) => left.locant - right.locant)
+        .map((substituent) => `${translateSpanishIupacToOpsin(substituent.name) || substituent.name} at C${substituent.locant}`),
+    ].join(", ");
     const fusedSteps: IupacReasoningStep[] = [
       {
         number: "01",
@@ -3776,21 +3814,19 @@ export function buildEnglishReasoningSteps(
       {
         number: "03",
         title: "Bicyclic numbering",
-        explanation: multipleBondText
-          ? `Numbering starts at a bridgehead and follows the longest path first. Among equivalent orientations, multiple bonds receive the lowest locant set first (${multipleBondText}), followed by substituents.`
-          : "Numbering starts at a bridgehead, follows the longest path first, and uses the lowest set of substituent locants when equivalent orientations are available.",
+        explanation: `Numbering starts at a bridgehead and follows the longest path first. ${functionalPriorityText}${multipleBondText ? ` Multiple bonds are considered next (${multipleBondText}).` : ""} Prefixes and substituents are considered last.`.replace(/\s+/g, " ").trim(),
       },
       {
         number: "04",
         title: "Systematic name",
-        explanation: `The paths contain ${analysis.fusedBicyclic.atomIds.length} carbon atoms in total; the parent hydrocarbon is ${parentName}.`,
+        explanation: `The paths contain ${analysis.fusedBicyclic.atomIds.length} carbon atoms in total; the parent name with its principal group is ${parentName}.`,
       },
     ];
-    if (translatedSubstituents) {
+    if (translatedPrefixDetails) {
       fusedSteps.push({
         number: "05",
-        title: "Substituents and locants",
-        explanation: `The external branches are not part of the bicyclic skeleton: ${translatedSubstituents}. The complete name is ${englishName}.`,
+        title: "Prefixes and locants",
+        explanation: `The groups cited as prefixes are ${translatedPrefixDetails}. The complete name is ${englishName}.`,
       });
     }
     return fusedSteps;

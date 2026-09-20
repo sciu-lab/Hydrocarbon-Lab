@@ -14,6 +14,7 @@ import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
+let detectFunctionalGroups;
 let buildIupacReasoningSteps;
 let buildEnglishReasoningSteps;
 let fusedBicyclicTraditionalDisplayName;
@@ -30,6 +31,7 @@ before(async () => {
   });
   ({
     analyzeMolecule,
+    detectFunctionalGroups,
     buildIupacReasoningSteps,
     buildEnglishReasoningSteps,
     fusedBicyclicTraditionalDisplayName,
@@ -104,6 +106,18 @@ function setBondOrder(molecule, leftId, rightId, order) {
   assert.ok(bond, `expected bond ${leftId}-${rightId}`);
   bond[2] = order;
   return next;
+}
+
+function addOxygenGroup(molecule, carbonId, order) {
+  const next = structuredClone(molecule);
+  const oxygenId = Math.max(...next.atoms.map((atom) => atom.id)) + 1;
+  next.atoms.push({ id: oxygenId, element: "O" });
+  next.bonds.push([carbonId, oxygenId, order]);
+  return next;
+}
+
+function getDetectedFusedSystem(molecule) {
+  return getFusedBicyclicSystem(molecule, detectFunctionalGroups(molecule));
 }
 
 test("names two fused cyclohexanes from their shared graph edge", () => {
@@ -215,6 +229,96 @@ test("gives multiple bonds priority over substituent locants", () => {
   );
 });
 
+test("names fused bicyclic alcohols, ketones, diols and diones", () => {
+  const parent = makeCanonicalDecalin();
+  const alcohol = getDetectedFusedSystem(addOxygenGroup(parent, 2, 1));
+  assert.equal(alcohol?.systematicName, "biciclo[4.4.0]decan-2-ol");
+  assert.equal(alcohol?.primaryFunctionalGroup, "alcohol");
+  assert.equal(alcohol?.functionalGroups[0].locant, 2);
+
+  const ketone = getDetectedFusedSystem(addOxygenGroup(parent, 2, 2));
+  assert.equal(ketone?.systematicName, "biciclo[4.4.0]decan-2-ona");
+  assert.equal(ketone?.primaryFunctionalGroup, "ketone");
+
+  const diol = getDetectedFusedSystem(
+    addOxygenGroup(addOxygenGroup(parent, 2, 1), 7, 1),
+  );
+  assert.equal(diol?.systematicName, "biciclo[4.4.0]decano-2,7-diol");
+  assert.equal(
+    translateSpanishIupacToOpsin(diol.systematicName),
+    "bicyclo[4.4.0]decane-2,7-diol",
+  );
+
+  const dione = getDetectedFusedSystem(
+    addOxygenGroup(addOxygenGroup(parent, 2, 2), 7, 2),
+  );
+  assert.equal(dione?.systematicName, "biciclo[4.4.0]decano-2,7-diona");
+  assert.equal(
+    translateSpanishIupacToOpsin(dione.systematicName),
+    "bicyclo[4.4.0]decane-2,7-dione",
+  );
+});
+
+test("uses ketone as suffix and alcohol as hydroxy prefix", () => {
+  const molecule = addOxygenGroup(
+    addOxygenGroup(makeCanonicalDecalin(), 2, 2),
+    3,
+    1,
+  );
+  const system = getDetectedFusedSystem(molecule);
+  assert.equal(system?.systematicName, "3-hidroxibiciclo[4.4.0]decan-2-ona");
+  assert.equal(system?.primaryFunctionalGroup, "ketone");
+  assert.deepEqual(
+    system?.functionalGroups.map(({ kind, locant }) => ({ kind, locant })),
+    [{ kind: "ketone", locant: 2 }, { kind: "alcohol", locant: 3 }],
+  );
+  assert.equal(
+    translateSpanishIupacToOpsin(system.systematicName),
+    "3-hydroxybicyclo[4.4.0]decan-2-one",
+  );
+});
+
+test("combines the principal group with unsaturation and alkyl prefixes", () => {
+  let molecule = setBondOrder(makeCanonicalDecalin(), 3, 4, 2);
+  molecule = addOxygenGroup(molecule, 2, 2);
+  const enone = getDetectedFusedSystem(molecule);
+  assert.equal(enone?.systematicName, "biciclo[4.4.0]dec-3-en-2-ona");
+  assert.deepEqual(enone?.doubleBondLocants, [3]);
+
+  molecule = addOxygenGroup(molecule, 5, 1);
+  molecule = addLinearAlkyl(molecule, 7, 1);
+  const combined = getDetectedFusedSystem(molecule);
+  assert.equal(
+    combined?.systematicName,
+    "5-hidroxi-7-metilbiciclo[4.4.0]dec-3-en-2-ona",
+  );
+  assert.equal(
+    translateSpanishIupacToOpsin(combined.systematicName),
+    "5-hydroxy-7-methylbicyclo[4.4.0]dec-3-en-2-one",
+  );
+
+  const ynone = getDetectedFusedSystem(addOxygenGroup(
+    setBondOrder(makeCanonicalDecalin(), 3, 4, 3),
+    2,
+    2,
+  ));
+  assert.equal(ynone?.systematicName, "biciclo[4.4.0]dec-3-in-2-ona");
+  assert.equal(
+    translateSpanishIupacToOpsin(ynone.systematicName),
+    "bicyclo[4.4.0]dec-3-yn-2-one",
+  );
+});
+
+test("gives the principal functional group priority over unsaturation and prefixes", () => {
+  let molecule = setBondOrder(makeCanonicalDecalin(), 9, 10, 2);
+  molecule = addOxygenGroup(molecule, 2, 2);
+  molecule = addLinearAlkyl(molecule, 3, 2);
+  const system = getDetectedFusedSystem(molecule);
+  assert.equal(system?.functionalGroups.find((group) => group.kind === "ketone")?.locant, 2);
+  assert.equal(system?.doubleBondLocants[0], 9);
+  assert.match(system?.systematicName ?? "", /^3-etilbiciclo\[4\.4\.0\]dec-9-en-2-ona$/);
+});
+
 test("integrates substituted fused-bicycle naming, numbering, English and reasoning", () => {
   const molecule = addLinearAlkyl(makeCanonicalDecalin(), 2, 1);
   const analysis = analyzeMolecule(molecule);
@@ -250,7 +354,30 @@ test("integrates unsaturated fused bicycles in Spanish and English", () => {
   const reasoning = buildIupacReasoningSteps(molecule, analysis);
   assert.ok(reasoning.some((step) => step.explanation.includes("C3=C4")));
   const englishReasoning = buildEnglishReasoningSteps(reasoning, molecule, analysis);
-  assert.ok(englishReasoning.some((step) => step.explanation.includes("multiple bonds receive the lowest locant set")));
+  assert.ok(englishReasoning.some((step) => step.explanation.includes("Multiple bonds are considered next")));
+});
+
+test("integrates fused functional groups in analysis, numbering and bilingual reasoning", () => {
+  const molecule = addOxygenGroup(
+    addOxygenGroup(makeCanonicalDecalin(), 2, 2),
+    3,
+    1,
+  );
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.name, "3-hidroxibiciclo[4.4.0]decan-2-ona");
+  assert.equal(analysis.primaryFunctionalGroup, "ketone");
+  assert.equal(analysis.primaryFunctionalLabel, "Cetona");
+  assert.equal(analysis.functionalGroups.length, 2);
+  assert.equal(analysis.numberedAtoms.get(2), 2);
+  const reasoning = buildIupacReasoningSteps(molecule, analysis);
+  assert.ok(reasoning.some((step) => step.explanation.includes("La cetona es la función principal")));
+  assert.ok(reasoning.some((step) => step.explanation.includes("hidroxi en C3")));
+  const englishReasoning = buildEnglishReasoningSteps(reasoning, molecule, analysis);
+  assert.ok(englishReasoning.some((step) => step.explanation.includes("Ketone is the principal group")));
+  assert.ok(englishReasoning.some((step) => step.explanation.includes("hydroxy at C3")));
+  assert.ok(englishReasoning.some((step) => (
+    step.explanation.includes("3-hydroxybicyclo[4.4.0]decan-2-one")
+  )));
 });
 
 test("numbering is invariant under atom IDs, construction order and ring orientation", () => {
@@ -279,6 +406,37 @@ test("numbering is invariant under atom IDs, construction order and ring orienta
   assert.equal(getFusedBicyclicSystem(remapped)?.systematicName, expected);
 });
 
+test("functional numbering is invariant under IDs, coordinates and construction order", () => {
+  let source = setBondOrder(makeCanonicalDecalin(), 3, 4, 2);
+  source = addOxygenGroup(source, 2, 2);
+  source = addOxygenGroup(source, 5, 1);
+  source = addLinearAlkyl(source, 7, 1);
+  const expected = analyzeMolecule(source).name;
+  const idMap = new Map(
+    source.atoms.map((atom, index) => [atom.id, 301 + ((index * 7) % source.atoms.length)]),
+  );
+  const remapped = {
+    atoms: [...source.atoms].reverse().map((atom, index) => ({
+      ...atom,
+      id: idMap.get(atom.id),
+      x: -900 + index * 47,
+      y: 640 - index * 29,
+    })),
+    bonds: [...source.bonds].reverse().map(([left, right, order]) => [
+      idMap.get(right),
+      idMap.get(left),
+      order,
+    ]),
+    rings: [...source.rings].reverse().map((ring) => ({
+      ...ring,
+      id: ring.id + 40,
+      atomIds: [...ring.atomIds].reverse().map((id) => idMap.get(id)),
+    })),
+  };
+  assert.equal(analyzeMolecule(remapped).name, expected);
+  assert.equal(expected, "5-hidroxi-7-metilbiciclo[4.4.0]dec-3-en-2-ona");
+});
+
 test("rejects fused systems outside phase-two coverage without inventing a name", () => {
   const parent = makeCanonicalDecalin();
   const unsaturatedSubstituent = addLinearAlkyl(parent, 2, 2);
@@ -299,6 +457,23 @@ test("rejects fused systems outside phase-two coverage without inventing a name"
 
   const overValent = setBondOrder(parent, 1, 6, 3);
   assert.equal(getFusedBicyclicSystem(overValent), null);
+});
+
+test("rejects unsupported functional placement without inventing a fused name", () => {
+  const sideChainAlcohol = addOxygenGroup(
+    addLinearAlkyl(makeCanonicalDecalin(), 2, 2),
+    12,
+    1,
+  );
+  assert.equal(getDetectedFusedSystem(sideChainAlcohol), null);
+  assert.equal(analyzeMolecule(sideChainAlcohol).name, "Nombre no disponible para estructuras complejas");
+
+  const ether = addOxygenGroup(makeCanonicalDecalin(), 2, 1);
+  const carbonId = Math.max(...ether.atoms.map((atom) => atom.id)) + 1;
+  const oxygenId = ether.atoms.find((atom) => atom.element === "O").id;
+  ether.atoms.push({ id: carbonId });
+  ether.bonds.push([oxygenId, carbonId, 1]);
+  assert.equal(getDetectedFusedSystem(ether), null);
 });
 
 test("does not confuse externally connected rings with fused rings", () => {

@@ -24,10 +24,29 @@ export type FusedBicyclicSystem = {
   numbering: number[];
   parentName: string;
   substituents: FusedBicyclicSubstituent[];
+  functionalGroups: FusedBicyclicFunctionalGroup[];
+  primaryFunctionalGroup?: FusedBicyclicFunctionalKind;
   doubleBondLocants: number[];
   tripleBondLocants: number[];
   systematicName: string;
   traditionalName?: string;
+};
+
+export type FusedBicyclicFunctionalKind = "alcohol" | "ketone";
+
+export type FusedBicyclicFunctionalGroupInput = {
+  kind: string;
+  carbonId: number;
+  heteroAtomId: number;
+  atomIds: readonly number[];
+};
+
+export type FusedBicyclicFunctionalGroup = {
+  kind: FusedBicyclicFunctionalKind;
+  carbonId: number;
+  heteroAtomId: number;
+  atomIds: number[];
+  locant: number;
 };
 
 export type FusedBicyclicSubstituent = {
@@ -115,7 +134,11 @@ function bicyclicNumberingCandidates(
   return candidates;
 }
 
-function findSimpleAlkylSubstituents(molecule: FusedRingMolecule, coreAtomIds: readonly number[]) {
+function findSimpleAlkylSubstituents(
+  molecule: FusedRingMolecule,
+  coreAtomIds: readonly number[],
+  excludedAtomIds: ReadonlySet<number>,
+) {
   const core = new Set(coreAtomIds);
   const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
   const adjacency = new Map<number, { id: number; order: number }[]>();
@@ -125,7 +148,8 @@ function findSimpleAlkylSubstituents(molecule: FusedRingMolecule, coreAtomIds: r
     adjacency.get(right)?.push({ id: left, order });
   }
 
-  const outsideIds = molecule.atoms.map((atom) => atom.id).filter((id) => !core.has(id));
+  const outsideIds = molecule.atoms.map((atom) => atom.id)
+    .filter((id) => !core.has(id) && !excludedAtomIds.has(id));
   const visited = new Set<number>();
   const substituents: Omit<FusedBicyclicSubstituent, "locant">[] = [];
   for (const outsideId of outsideIds) {
@@ -137,7 +161,7 @@ function findSimpleAlkylSubstituents(molecule: FusedRingMolecule, coreAtomIds: r
       const current = pending.pop()!;
       component.push(current);
       for (const neighbor of adjacency.get(current) ?? []) {
-        if (!core.has(neighbor.id) && !visited.has(neighbor.id)) {
+        if (!core.has(neighbor.id) && !excludedAtomIds.has(neighbor.id) && !visited.has(neighbor.id)) {
           visited.add(neighbor.id);
           pending.push(neighbor.id);
         }
@@ -171,6 +195,47 @@ function findSimpleAlkylSubstituents(molecule: FusedRingMolecule, coreAtomIds: r
     });
   }
   return substituents;
+}
+
+function findDirectFunctionalGroups(
+  molecule: FusedRingMolecule,
+  coreAtomIds: readonly number[],
+  detectedGroups: readonly FusedBicyclicFunctionalGroupInput[],
+) {
+  const core = new Set(coreAtomIds);
+  const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
+  const directGroups = detectedGroups.filter((group) => core.has(group.carbonId));
+  const seenHeteroAtoms = new Set<number>();
+  const groups: Omit<FusedBicyclicFunctionalGroup, "locant">[] = [];
+  for (const group of directGroups) {
+    if (group.kind !== "alcohol" && group.kind !== "ketone") return null;
+    if (seenHeteroAtoms.has(group.heteroAtomId)) return null;
+    const carbon = atomsById.get(group.carbonId);
+    const oxygen = atomsById.get(group.heteroAtomId);
+    const expectedOrder = group.kind === "ketone" ? 2 : 1;
+    const oxygenBonds = molecule.bonds.filter(([left, right]) => (
+      left === group.heteroAtomId || right === group.heteroAtomId
+    ));
+    const attachment = oxygenBonds.find(([left, right]) => (
+      (left === group.carbonId && right === group.heteroAtomId)
+      || (right === group.carbonId && left === group.heteroAtomId)
+    ));
+    if (
+      (carbon?.element ?? "C") !== "C"
+      || oxygen?.element !== "O"
+      || oxygenBonds.length !== 1
+      || !attachment
+      || (attachment[2] ?? 1) !== expectedOrder
+    ) return null;
+    seenHeteroAtoms.add(group.heteroAtomId);
+    groups.push({
+      kind: group.kind,
+      carbonId: group.carbonId,
+      heteroAtomId: group.heteroAtomId,
+      atomIds: [...group.atomIds],
+    });
+  }
+  return groups;
 }
 
 function multipleBondLocants(
@@ -249,7 +314,26 @@ function unsaturatedParentName(
   return `${descriptor}${stem}-${alkenePart}-${alkynePart}`;
 }
 
-function formatSubstituentPrefixes(substituents: readonly FusedBicyclicSubstituent[]): string | null {
+function functionalParentName(
+  hydrocarbonParent: string,
+  kind: FusedBicyclicFunctionalKind | undefined,
+  locants: readonly number[],
+) {
+  if (!kind) return hydrocarbonParent;
+  const stem = hydrocarbonParent.endsWith("o") ? hydrocarbonParent.slice(0, -1) : hydrocarbonParent;
+  const ordered = [...locants].sort((left, right) => left - right);
+  if (!ordered.length) return null;
+  const suffix = kind === "ketone" ? "ona" : "ol";
+  if (ordered.length === 1) return `${stem}-${ordered[0]}-${suffix}`;
+  let multiplier = substituentMultipliers[ordered.length];
+  if (!multiplier) return null;
+  if (kind === "alcohol" && multiplier.endsWith("a")) multiplier = multiplier.slice(0, -1);
+  return `${hydrocarbonParent}-${ordered.join(",")}-${multiplier}${suffix}`;
+}
+
+type LocantedPrefix = { name: string; locant: number };
+
+function formatSubstituentPrefixes(substituents: readonly LocantedPrefix[]): string | null {
   const groups = new Map<string, number[]>();
   for (const substituent of substituents) {
     const locants = groups.get(substituent.name) ?? [];
@@ -275,7 +359,10 @@ function formatSubstituentPrefixes(substituents: readonly FusedBicyclicSubstitue
  * It deliberately rejects external ring-to-ring bonds, spiro systems and
  * bridged graphs: their ring records do not share this single edge.
  */
-export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicyclicSystem | null {
+export function getFusedBicyclicSystem(
+  molecule: FusedRingMolecule,
+  detectedGroups: readonly FusedBicyclicFunctionalGroupInput[] = [],
+): FusedBicyclicSystem | null {
   const rings = molecule.rings ?? [];
   if (
     rings.length !== 2
@@ -291,8 +378,23 @@ export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicycl
   const parent = alkaneParents[total];
   if (!parent) return null;
   const atomIds = [...new Set([...left.atomIds, ...right.atomIds])];
-  const unnumberedSubstituents = findSimpleAlkylSubstituents(molecule, atomIds);
+  const unnumberedFunctionalGroups = findDirectFunctionalGroups(molecule, atomIds, detectedGroups);
+  if (!unnumberedFunctionalGroups) return null;
+  const functionalHeteroAtomIds = new Set(
+    unnumberedFunctionalGroups.map((group) => group.heteroAtomId),
+  );
+  const unnumberedSubstituents = findSimpleAlkylSubstituents(
+    molecule,
+    atomIds,
+    functionalHeteroAtomIds,
+  );
   if (!unnumberedSubstituents) return null;
+  const primaryFunctionalGroup: FusedBicyclicFunctionalKind | undefined = unnumberedFunctionalGroups
+    .some((group) => group.kind === "ketone")
+    ? "ketone"
+    : unnumberedFunctionalGroups.some((group) => group.kind === "alcohol")
+      ? "alcohol"
+      : undefined;
   const numberedCandidates = bicyclicNumberingCandidates(
     [left, right],
     [shared[0], shared[1]],
@@ -304,36 +406,65 @@ export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicycl
       ...substituent,
       locant: locants.get(substituent.anchorId)!,
     }));
-    const locantSet = substituents.map((substituent) => substituent.locant).sort((a, b) => a - b);
-    const citationLocants = [...new Set(substituents.map((substituent) => substituent.name))]
+    const functionalGroups = unnumberedFunctionalGroups.map((group) => ({
+      ...group,
+      locant: locants.get(group.carbonId)!,
+    }));
+    const primaryLocants = functionalGroups
+      .filter((group) => group.kind === primaryFunctionalGroup)
+      .map((group) => group.locant)
+      .sort((a, b) => a - b);
+    const functionalPrefixes: LocantedPrefix[] = functionalGroups
+      .filter((group) => group.kind !== primaryFunctionalGroup)
+      .map((group) => ({ name: "hidroxi", locant: group.locant }));
+    const prefixes: LocantedPrefix[] = [...substituents, ...functionalPrefixes];
+    const prefixLocants = prefixes.map((prefix) => prefix.locant).sort((a, b) => a - b);
+    const citationLocants = [...new Set(prefixes.map((prefix) => prefix.name))]
       .sort((a, b) => a.localeCompare(b, "es"))
-      .flatMap((name) => substituents
-        .filter((substituent) => substituent.name === name)
-        .map((substituent) => substituent.locant)
+      .flatMap((name) => prefixes
+        .filter((prefix) => prefix.name === name)
+        .map((prefix) => prefix.locant)
         .sort((a, b) => a - b));
     const multipleLocants = [
       ...unsaturation.doubleBondLocants,
       ...unsaturation.tripleBondLocants,
     ].sort((a, b) => a - b);
-    return [{ numbering, substituents, locantSet, citationLocants, multipleLocants, ...unsaturation }];
+    return [{
+      numbering,
+      substituents,
+      functionalGroups,
+      primaryLocants,
+      prefixes,
+      prefixLocants,
+      citationLocants,
+      multipleLocants,
+      ...unsaturation,
+    }];
   }).sort((leftCandidate, rightCandidate) =>
-    compareNumberLists(leftCandidate.multipleLocants, rightCandidate.multipleLocants)
+    compareNumberLists(leftCandidate.primaryLocants, rightCandidate.primaryLocants)
+    || compareNumberLists(leftCandidate.multipleLocants, rightCandidate.multipleLocants)
     || compareNumberLists(leftCandidate.doubleBondLocants, rightCandidate.doubleBondLocants)
-    || compareNumberLists(leftCandidate.locantSet, rightCandidate.locantSet)
+    || compareNumberLists(leftCandidate.prefixLocants, rightCandidate.prefixLocants)
     || compareNumberLists(leftCandidate.citationLocants, rightCandidate.citationLocants),
   );
   const chosen = numberedCandidates[0];
   if (!chosen) return null;
   const descriptor = `biciclo[${paths[0]}.${paths[1]}.0]`;
-  const parentName = unsaturatedParentName(
+  const hydrocarbonParentName = unsaturatedParentName(
     descriptor,
     total,
     parent,
     chosen.doubleBondLocants,
     chosen.tripleBondLocants,
   );
+  if (!hydrocarbonParentName) return null;
+  const parentName = functionalParentName(
+    hydrocarbonParentName,
+    primaryFunctionalGroup,
+    chosen.primaryLocants,
+  );
   if (!parentName) return null;
-  const substituentPrefix = formatSubstituentPrefixes(chosen.substituents);
+  const substituentPrefix = formatSubstituentPrefixes(chosen.prefixes);
   if (substituentPrefix === null) return null;
   return {
     bridgeheads: [shared[0], shared[1]],
@@ -342,10 +473,13 @@ export function getFusedBicyclicSystem(molecule: FusedRingMolecule): FusedBicycl
     numbering: chosen.numbering,
     parentName,
     substituents: chosen.substituents,
+    functionalGroups: chosen.functionalGroups,
+    primaryFunctionalGroup,
     doubleBondLocants: chosen.doubleBondLocants,
     tripleBondLocants: chosen.tripleBondLocants,
     systematicName: substituentPrefix ? `${substituentPrefix}${parentName}` : parentName,
     traditionalName: !chosen.substituents.length
+      && !chosen.functionalGroups.length
       && !chosen.doubleBondLocants.length
       && !chosen.tripleBondLocants.length
       && paths[0] === 4 && paths[1] === 4
