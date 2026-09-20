@@ -104,7 +104,16 @@ function buildRingAwarePositions(
     adjacency.get(left)?.push(right);
     adjacency.get(right)?.push(left);
   });
-  adjacency.forEach((neighbors) => neighbors.sort((left, right) => left - right));
+  adjacency.forEach((neighbors, atomId) => {
+    const origin = atomsById.get(atomId);
+    neighbors.sort((left, right) => {
+      const leftAtom = atomsById.get(left);
+      const rightAtom = atomsById.get(right);
+      if (!origin || !leftAtom || !rightAtom) return 0;
+      return Math.atan2(leftAtom.y - origin.y, leftAtom.x - origin.x)
+        - Math.atan2(rightAtom.y - origin.y, rightAtom.x - origin.x);
+    });
+  });
 
   // Explicit editor/imported polygons retain their geometry. When an importer
   // omitted ring metadata, generate the same clean regular polygon from the
@@ -136,14 +145,27 @@ function buildRingAwarePositions(
   }
 
   const ringCenters = new Map<number, SkeletalPoint>();
-  for (const ring of rings) {
-    const vertices = ring.atomIds.map((atomId) => positions.get(atomId)).filter(Boolean) as SkeletalPoint[];
+  const unassignedRings = new Set(rings);
+  while (unassignedRings.size) {
+    const first = unassignedRings.values().next().value!;
+    const component = [first];
+    const componentAtomIds = new Set(first.atomIds);
+    unassignedRings.delete(first);
+    for (let index = 0; index < component.length; index++) {
+      for (const candidate of [...unassignedRings]) {
+        if (!candidate.atomIds.some((atomId) => componentAtomIds.has(atomId))) continue;
+        component.push(candidate);
+        candidate.atomIds.forEach((atomId) => componentAtomIds.add(atomId));
+        unassignedRings.delete(candidate);
+      }
+    }
+    const vertices = [...componentAtomIds].map((atomId) => positions.get(atomId)).filter(Boolean) as SkeletalPoint[];
     if (!vertices.length) continue;
     const center = vertices.reduce(
       (sum, point) => ({ x: sum.x + point.x / vertices.length, y: sum.y + point.y / vertices.length }),
       { x: 0, y: 0 },
     );
-    ring.atomIds.forEach((atomId) => ringCenters.set(atomId, center));
+    componentAtomIds.forEach((atomId) => ringCenters.set(atomId, center));
   }
 
   const segments: [SkeletalPoint, SkeletalPoint][] = molecule.bonds.flatMap(([left, right]) => {
@@ -199,8 +221,7 @@ function buildRingAwarePositions(
         }
         return right.clearance - left.clearance
           || left.rawDifference - right.rawDifference
-          || left.index - right.index
-          || childId - parentId;
+          || left.index - right.index;
       });
       const chosen = ranked[0];
       positions.set(childId, chosen.point);
@@ -218,7 +239,13 @@ function buildRingAwarePositions(
   // Start each acyclic substituent in its stored direction when that direction
   // already exits the ring (manual arrows depend on it). Imported inward
   // coordinates still fall back to the safe radial direction.
-  for (const ringAtomId of [...ringAtomIds].sort((left, right) => left - right)) {
+  const orderedRingAtomIds = [...ringAtomIds].sort((left, right) => {
+    const leftPoint = positions.get(left);
+    const rightPoint = positions.get(right);
+    if (!leftPoint || !rightPoint) return 0;
+    return leftPoint.x - rightPoint.x || leftPoint.y - rightPoint.y;
+  });
+  for (const ringAtomId of orderedRingAtomIds) {
     const ringPoint = positions.get(ringAtomId);
     const center = ringCenters.get(ringAtomId);
     if (!ringPoint || !center) continue;
@@ -234,12 +261,34 @@ function buildRingAwarePositions(
           )
         : outwardAngle;
       const exitsRing = Math.cos(rawAngle - outwardAngle) > 0.05;
-      const attachmentAngle = exitsRing ? rawAngle : outwardAngle;
-      const childPoint = pointAt(ringPoint, attachmentAngle);
+      const angleCandidates = [
+        ...(exitsRing ? [rawAngle] : []),
+        outwardAngle,
+        outwardAngle + TURN_ANGLE,
+        outwardAngle - TURN_ANGLE,
+      ];
+      const rankedAngles = angleCandidates.map((angle, index) => {
+        const point = pointAt(ringPoint, angle);
+        return {
+          angle,
+          index,
+          point,
+          clearance: candidateClearance(point, ringPoint, positions, segments),
+          rawDifference: Math.abs(Math.atan2(Math.sin(angle - rawAngle), Math.cos(angle - rawAngle))),
+        };
+      }).sort((left, right) => {
+        const leftSafe = left.clearance >= BOND_LENGTH * 0.55;
+        const rightSafe = right.clearance >= BOND_LENGTH * 0.55;
+        if (leftSafe !== rightSafe) return leftSafe ? -1 : 1;
+        if (leftSafe && exitsRing) return left.rawDifference - right.rawDifference || left.index - right.index;
+        return right.clearance - left.clearance || left.rawDifference - right.rawDifference || left.index - right.index;
+      });
+      const attachmentAngle = rankedAngles[0].angle;
+      const childPoint = rankedAngles[0].point;
       positions.set(childId, childPoint);
       visited.add(childId);
       segments.push([ringPoint, childPoint]);
-      placeDescendants(ringAtomId, childId, attachmentAngle, childId % 2 === 0 ? 1 : -1);
+      placeDescendants(ringAtomId, childId, attachmentAngle, 1);
     }
   }
 

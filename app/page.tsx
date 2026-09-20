@@ -87,7 +87,7 @@ import {
   type MoleculeVisualBounds,
 } from "./molecule-visual-bounds";
 import { findOrderedSimpleMonocycle } from "./simple-cycle";
-import { getAutoPlacedCarbonPosition } from "./manual-layout";
+import { getAutoPlacedCarbonPosition, placeAttachmentTemplate } from "./manual-layout";
 import {
   fuseRingOnBond,
   hasSharedRingAtoms,
@@ -101,10 +101,6 @@ import {
   type FusedBicyclicSystem,
   type SteroidLikeRingSystem,
 } from "./fused-ring-nomenclature";
-import {
-  hasCarbonylAttachment,
-  orientCarbonylTemplateOutsideRing,
-} from "./functional-group-layout";
 import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
@@ -6561,44 +6557,13 @@ export default function Home() {
       return;
     }
 
-    const occupied = new Set(molecule.atoms.map((atom) => `${atom.x},${atom.y}`));
-    const orientations = [
-      { dx: 1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: -1, dy: 0 },
-      { dx: 0, dy: -1 },
-    ];
-    const selectedRing = ringContainingAtom(molecule, selectedAtom.id);
-    if (selectedRing) {
-      const ringAtoms = molecule.atoms.filter((atom) => selectedRing.atomIds.includes(atom.id));
-      const center = ringAtoms.reduce(
-        (total, atom) => ({ x: total.x + atom.x / ringAtoms.length, y: total.y + atom.y / ringAtoms.length }),
-        { x: 0, y: 0 },
-      );
-      const outward = { x: selectedAtom.x - center.x, y: selectedAtom.y - center.y };
-      orientations.sort(
-        (left, right) => right.dx * outward.x + right.dy * outward.y - (left.dx * outward.x + left.dy * outward.y),
-      );
-    }
-    let placement: { x: number; y: number }[] | null = null;
-
-    for (const orientation of orientations) {
-      for (const mirror of [1, -1]) {
-        const candidate = template.atoms.map((atom) => ({
-          x: selectedAtom.x + atom.x * orientation.dx - atom.y * orientation.dy * mirror,
-          y: selectedAtom.y + atom.x * orientation.dy + atom.y * orientation.dx * mirror,
-        }));
-        const candidateKeys = candidate.map((atom) => `${atom.x},${atom.y}`);
-        if (
-          candidateKeys.every((key) => !occupied.has(key))
-          && new Set(candidateKeys).size === candidateKeys.length
-        ) {
-          placement = candidate;
-          break;
-        }
-      }
-      if (placement) break;
-    }
+    const placement = placeAttachmentTemplate(
+      molecule,
+      selectedAtom.id,
+      template.atoms.map((atom) => ({ ...atom, element: "C" })),
+      template.connections.map(([from, to]) => [from, to, 1]),
+      { zigzagLinear: true },
+    );
 
     if (!placement) {
       setNotice("No hay espacio libre para ese grupo. Selecciona otro carbono o retira una ramificación.");
@@ -6674,57 +6639,16 @@ export default function Home() {
       return;
     }
 
-    const occupied = new Set(molecule.atoms.map((atom) => `${atom.x.toFixed(4)},${atom.y.toFixed(4)}`));
-    const orientations = [
-      { dx: 1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: -1, dy: 0 },
-      { dx: 0, dy: -1 },
-    ];
-    const selectedRing = ringContainingAtom(molecule, selectedAtom.id);
-    if (selectedRing) {
-      const ringAtoms = molecule.atoms.filter((atom) => selectedRing.atomIds.includes(atom.id));
-      const center = ringAtoms.reduce(
-        (total, atom) => ({ x: total.x + atom.x / ringAtoms.length, y: total.y + atom.y / ringAtoms.length }),
-        { x: 0, y: 0 },
-      );
-      const outward = { x: selectedAtom.x - center.x, y: selectedAtom.y - center.y };
-      orientations.sort(
-        (left, right) => right.dx * outward.x + right.dy * outward.y - (left.dx * outward.x + left.dy * outward.y),
-      );
-    }
-
-    let placement: { x: number; y: number }[] | null = null;
-    if (selectedRing && hasCarbonylAttachment(template.bonds)) {
-      const ringPoints = molecule.atoms
-        .filter((atom) => selectedRing.atomIds.includes(atom.id))
-        .map((atom) => ({ x: atom.x, y: atom.y }));
-      const candidate = orientCarbonylTemplateOutsideRing(
-        template.atoms,
-        template.bonds,
-        selectedAtom,
-        ringPoints,
-      );
-      const keys = candidate.map((atom) => `${atom.x.toFixed(4)},${atom.y.toFixed(4)}`);
-      if (keys.every((key) => !occupied.has(key)) && new Set(keys).size === keys.length) {
-        placement = candidate;
-      }
-    } else {
-      for (const orientation of orientations) {
-        for (const mirror of [1, -1]) {
-          const candidate = template.atoms.map((atom) => ({
-            x: selectedAtom.x + atom.x * orientation.dx - atom.y * orientation.dy * mirror,
-            y: selectedAtom.y + atom.x * orientation.dy + atom.y * orientation.dx * mirror,
-          }));
-          const keys = candidate.map((atom) => `${atom.x.toFixed(4)},${atom.y.toFixed(4)}`);
-          if (keys.every((key) => !occupied.has(key)) && new Set(keys).size === keys.length) {
-            placement = candidate;
-            break;
-          }
-        }
-        if (placement) break;
-      }
-    }
+    const placement = placeAttachmentTemplate(
+      molecule,
+      selectedAtom.id,
+      template.atoms,
+      template.bonds.map(([from, to, order]) => [
+        from === 0 ? -1 : from - 1,
+        to - 1,
+        order,
+      ]),
+    );
 
     if (!placement) {
       setNotice("No hay espacio libre para dibujar ese grupo. Prueba otro carbono o retira una rama cercana.");
