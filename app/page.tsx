@@ -97,8 +97,10 @@ import {
 } from "./fused-ring";
 import {
   getFusedBicyclicSystem,
+  getFusedTricyclicSystem,
   getSteroidLike6565System,
   type FusedBicyclicSystem,
+  type FusedTricyclicSystem,
   type SteroidLikeRingSystem,
 } from "./fused-ring-nomenclature";
 import { flipCoordinates } from "./coordinate-flip";
@@ -397,6 +399,7 @@ type Analysis = {
   primaryFunctionalGroup?: FunctionalGroupKind;
   primaryFunctionalLabel?: string;
   fusedBicyclic?: FusedBicyclicSystem;
+  fusedTricyclic?: FusedTricyclicSystem;
   steroidSystem?: SteroidLikeRingSystem;
   ringSystem?: string;
 };
@@ -3240,6 +3243,28 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
     return analyzeFusedBicyclicMolecule(molecule, fusedBicyclic, groups);
   }
   if (hasSharedRingAtoms(molecule)) {
+    const fusedTricyclic = getFusedTricyclicSystem(molecule);
+    if (fusedTricyclic) {
+      const primaryFunctionalGroup = selectPrimaryFunctionalGroup(groups);
+      return {
+        name: "Nombre no disponible para estructuras complejas",
+        formula: molecularFormula(molecule),
+        family: "polycyclic",
+        mainChain: [...fusedTricyclic.atomIds],
+        chainName: "",
+        substituents: [],
+        numberedAtoms: new Map(),
+        doubleBondLocants: [],
+        tripleBondLocants: [],
+        functionalGroups: groups,
+        primaryFunctionalGroup,
+        primaryFunctionalLabel: primaryFunctionalGroup
+          ? functionalGroupLabels[primaryFunctionalGroup]
+          : undefined,
+        fusedTricyclic,
+        ringSystem: `Sistema tricíclico fusionado ${fusedTricyclic.ringSizes.join("-")} (${fusedTricyclic.topology === "linear" ? "lineal" : "angular"}); ${fusedTricyclic.atomIds.length} átomos en el núcleo y ${fusedTricyclic.externalAtomIds.length} externos.`,
+      };
+    }
     const steroidLike = getSteroidLike6565System(molecule);
     if (steroidLike?.constitutionNameEs && steroidLike.numbering && steroidLike.angularMethyls) {
       const numberedAtoms = new Map(steroidLike.numbering.map(
@@ -3539,6 +3564,26 @@ export function buildIupacReasoningSteps(
       {
         number: "05", title: "Nombre constitucional",
         explanation: `El nombre es ${analysis.name}. No se han asignado configuraciones α/β ni R/S, por lo que no se identifica inequívocamente un estereoisómero concreto.`,
+      },
+    ];
+  }
+  if (analysis.fusedTricyclic) {
+    const system = analysis.fusedTricyclic;
+    return [
+      {
+        number: "01",
+        title: "Sistema tricíclico fusionado",
+        explanation: `El grafo contiene tres anillos ${system.ringSizes.join("-")} unidos por dos enlaces de fusión; la disposición respecto del anillo central es ${system.topology === "linear" ? "lineal" : "angular"}.`,
+      },
+      {
+        number: "02",
+        title: "Núcleo y átomos externos",
+        explanation: `El núcleo contiene ${system.atomIds.length} átomos y se detectan ${system.externalAtomIds.length} átomos externos. Sustituyentes, insaturaciones y grupos funcionales no alteran el reconocimiento del núcleo.`,
+      },
+      {
+        number: "03",
+        title: "Alcance de nomenclatura",
+        explanation: "La topología está identificada, pero aún no se asigna numeración sistemática general de policiclos fusionados. Se omite el nombre antes que generar localizadores no validados.",
       },
     ];
   }
@@ -3856,6 +3901,23 @@ export function buildEnglishReasoningSteps(
       {
         number: "05", title: "Constitutional name",
         explanation: `The name is ${analysis.steroidSystem.constitutionNameEn}. No α/β or R/S configurations have been assigned, so no specific stereoisomer is established.`,
+      },
+    ];
+  }
+  if (analysis.fusedTricyclic) {
+    const system = analysis.fusedTricyclic;
+    return [
+      {
+        number: "01", title: "Fused tricyclic system",
+        explanation: `The graph contains three fused ${system.ringSizes.join("-")} rings joined by two fusion bonds; their arrangement around the central ring is ${system.topology}.`,
+      },
+      {
+        number: "02", title: "Core and external atoms",
+        explanation: `The core contains ${system.atomIds.length} atoms and ${system.externalAtomIds.length} external atoms are detected. Substituents, unsaturation, and functional groups do not change core recognition.`,
+      },
+      {
+        number: "03", title: "Nomenclature scope",
+        explanation: "The topology is identified, but a general systematic numbering for fused polycycles is not assigned yet. The name is withheld rather than emitting unvalidated locants.",
       },
     ];
   }
@@ -5037,6 +5099,11 @@ export default function Home() {
         policíclico: "polycyclic",
       }[complexPolycycle[1]];
       return `OpenChemLib recognized a complex ${topology} polycyclic system. Analysis and editing of fused, bridged, and spiro structures remain limited.`;
+    }
+
+    const fusedTricycle = source.match(/^Sistema tricíclico fusionado ([0-9-]+) \((lineal|angular)\); (\d+) átomos en el núcleo y (\d+) externos\.$/);
+    if (fusedTricycle) {
+      return `Fused ${fusedTricycle[1]} tricyclic system (${fusedTricycle[2] === "lineal" ? "linear" : "angular"}); ${fusedTricycle[3]} atoms in the core and ${fusedTricycle[4]} external atoms.`;
     }
 
     const continuing = source.match(/^Continuamos donde quedaste: (.+)\.$/);
@@ -10707,7 +10774,7 @@ export default function Home() {
               <div>
                 <strong>{analysis.steroidSystem?.constitutionNameEs && language === "en"
                   ? "Androstane nucleus recognized; constitutional name only (no stereochemistry assigned)."
-                  : analysis.ringSystem}</strong>
+                  : localizedDynamicText(analysis.ringSystem)}</strong>
                 {analysis.commonName && <strong>{t("Nombre tradicional")}: {analysis.commonName}</strong>}
               </div>
             </div>

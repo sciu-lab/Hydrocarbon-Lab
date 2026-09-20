@@ -921,3 +921,20 @@ test("steroid constitutional naming survives shuffled graph IDs and rejects extr
   const extra = addOxygenGroup(molecule, n[6], 1);
   assert.equal(getSteroidLike6565System(extra)?.constitutionNameEs, undefined);
 });
+
+test("integrates a structural tricyclic descriptor without inventing an IUPAC name", () => {
+  let molecule = fuseRingOnBond(makeRing(6), 1, 2, 6);
+  const centralRing = molecule.rings[1];
+  molecule = fuseRingOnBond(molecule, centralRing.atomIds[2], centralRing.atomIds[3], 6);
+  const anchorId = molecule.rings[2].atomIds[2];
+  molecule = addLinearAlkyl(molecule, anchorId, 2);
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.name, "Nombre no disponible para estructuras complejas");
+  assert.equal(analysis.fusedTricyclic?.topology, "linear");
+  assert.deepEqual(analysis.fusedTricyclic?.ringSizes, [6, 6, 6]);
+  assert.equal(analysis.fusedTricyclic?.atomIds.length, 14);
+  assert.equal(analysis.fusedTricyclic?.externalAtomIds.length, 2);
+  assert.equal(analysis.fusedTricyclic?.numbering, null);
+  assert.equal(analysis.fusedTricyclic?.systematicName, null);
+  assert.match(analysis.ringSystem, /Sistema tricíclico fusionado 6-6-6 \(lineal\)/);
+});

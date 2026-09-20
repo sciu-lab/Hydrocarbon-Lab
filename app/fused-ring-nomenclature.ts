@@ -56,6 +56,37 @@ export type FusedBicyclicSubstituent = {
   name: string;
 };
 
+export type FusedTricyclicSystem = {
+  atomIds: number[];
+  externalAtomIds: number[];
+  ringSizes: [number, number, number];
+  centralRingSize: number;
+  topology: "linear" | "angular";
+  ringConnectivity: {
+    centralRingAtomIds: number[];
+    terminalRingAtomIds: [number[], number[]];
+  };
+  fusionBonds: {
+    atomIds: [number, number];
+    order: number;
+    terminalRingSize: number;
+    centralRingSize: number;
+  }[];
+  sharedAtomPairs: [number, number][];
+  externalAttachments: {
+    coreAtomId: number;
+    externalAtomId: number;
+    order: number;
+  }[];
+  coreMultipleBonds: {
+    atomIds: [number, number];
+    order: 2 | 3;
+  }[];
+  /** General fused-polycycle numbering is deliberately not inferred from ring sizes. */
+  numbering: null;
+  systematicName: null;
+};
+
 export type SteroidLikeRingSystem = {
   ringSizes: [6, 6, 6, 5];
   atomIds: number[];
@@ -81,6 +112,123 @@ export type SteroidLikeRingSystem = {
     CD: [number, number];
   };
 };
+
+/**
+ * Recognises a chain of three ortho-fused aliphatic rings. This descriptor is
+ * structural only: IUPAC fusion/von Baeyer numbering needs a separate,
+ * validated algorithm and cannot be inferred by concatenating ring sizes.
+ */
+export function getFusedTricyclicSystem(
+  molecule: FusedRingMolecule,
+): FusedTricyclicSystem | null {
+  const rings = molecule.rings ?? [];
+  if (
+    rings.length !== 3
+    || !rings.every((ring) => isSupportedCarbocycle(molecule, ring))
+    || !hasValidCarbonValence(molecule)
+  ) return null;
+
+  const sortedSizes = rings.map((ring) => ring.atomIds.length).sort((left, right) => right - left);
+  if (sortedSizes.join(",") !== "6,6,6" && sortedSizes.join(",") !== "6,6,5") return null;
+
+  const linked = rings.map(() => new Set<number>());
+  const relations: { left: number; right: number; shared: [number, number] }[] = [];
+  for (let left = 0; left < rings.length; left++) {
+    for (let right = left + 1; right < rings.length; right++) {
+      const shared = rings[left].atomIds.filter((atomId) => rings[right].atomIds.includes(atomId));
+      if (!shared.length) continue;
+      if (
+        shared.length !== 2
+        || !hasRingBond(rings[left], shared[0], shared[1])
+        || !hasRingBond(rings[right], shared[0], shared[1])
+      ) return null;
+      linked[left].add(right);
+      linked[right].add(left);
+      relations.push({ left, right, shared: [shared[0], shared[1]] });
+    }
+  }
+
+  const centralIndex = linked.findIndex((neighbors) => neighbors.size === 2);
+  if (
+    relations.length !== 2
+    || centralIndex < 0
+    || linked.filter((neighbors) => neighbors.size === 1).length !== 2
+  ) return null;
+
+  const centralRing = rings[centralIndex];
+  const centralRelations = relations.filter((relation) => (
+    relation.left === centralIndex || relation.right === centralIndex
+  ));
+  if (centralRelations.length !== 2) return null;
+  const fusionEdgeIndices = centralRelations.map((relation) => centralRing.atomIds.findIndex(
+    (atomId, index) => {
+      const nextId = centralRing.atomIds[(index + 1) % centralRing.atomIds.length];
+      return relation.shared.includes(atomId) && relation.shared.includes(nextId);
+    },
+  ));
+  if (fusionEdgeIndices.some((index) => index < 0)) return null;
+  const rawSeparation = Math.abs(fusionEdgeIndices[0] - fusionEdgeIndices[1]);
+  const edgeSeparation = Math.min(rawSeparation, centralRing.atomIds.length - rawSeparation);
+  if (edgeSeparation < 2) return null;
+  const topology = centralRing.atomIds.length % 2 === 0
+    && edgeSeparation === centralRing.atomIds.length / 2
+    ? "linear"
+    : "angular";
+
+  const terminalIndices = [...linked[centralIndex]];
+  const terminalRings = terminalIndices.map((index) => rings[index]);
+  const terminalSizes = terminalRings.map((ring) => ring.atomIds.length).sort((left, right) => right - left);
+  const ringSizes: [number, number, number] = centralRing.atomIds.length === 5
+    ? [terminalSizes[0], 5, terminalSizes[1]]
+    : [terminalSizes[0], centralRing.atomIds.length, terminalSizes[1]];
+  const atomIds = [...new Set(rings.flatMap((ring) => ring.atomIds))];
+  const core = new Set(atomIds);
+  const externalAtomIds = molecule.atoms.map((atom) => atom.id).filter((atomId) => !core.has(atomId));
+  const externalAttachments = molecule.bonds.flatMap(([left, right, order = 1]) => {
+    if (core.has(left) === core.has(right)) return [];
+    return [{
+      coreAtomId: core.has(left) ? left : right,
+      externalAtomId: core.has(left) ? right : left,
+      order,
+    }];
+  });
+  const coreMultipleBonds = molecule.bonds.flatMap(([left, right, order = 1]) => (
+    core.has(left) && core.has(right) && (order === 2 || order === 3)
+      ? [{ atomIds: [left, right] as [number, number], order: order as 2 | 3 }]
+      : []
+  ));
+  const fusionBonds = centralRelations.map((relation) => {
+    const terminalIndex = relation.left === centralIndex ? relation.right : relation.left;
+    const bond = molecule.bonds.find(([left, right]) => (
+      (left === relation.shared[0] && right === relation.shared[1])
+      || (left === relation.shared[1] && right === relation.shared[0])
+    ));
+    return {
+      atomIds: relation.shared,
+      order: bond?.[2] ?? 1,
+      terminalRingSize: rings[terminalIndex].atomIds.length,
+      centralRingSize: centralRing.atomIds.length,
+    };
+  });
+
+  return {
+    atomIds,
+    externalAtomIds,
+    ringSizes,
+    centralRingSize: centralRing.atomIds.length,
+    topology,
+    ringConnectivity: {
+      centralRingAtomIds: [...centralRing.atomIds],
+      terminalRingAtomIds: terminalRings.map((ring) => [...ring.atomIds]) as [number[], number[]],
+    },
+    fusionBonds,
+    sharedAtomPairs: fusionBonds.map((fusion) => fusion.atomIds),
+    externalAttachments,
+    coreMultipleBonds,
+    numbering: null,
+    systematicName: null,
+  };
+}
 
 function hasRingBond(ring: FusedRing, a: number, b: number) {
   return ring.atomIds.some((id, index) => id === a && (
