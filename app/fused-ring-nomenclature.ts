@@ -60,7 +60,8 @@ export type SteroidLikeRingSystem = {
   ringSizes: [6, 6, 6, 5];
   atomIds: number[];
   isGonaneTopology: boolean;
-  
+  /** Atom IDs in conventional steroid order C1 through C17; only for a matching gonane core. */
+  numbering?: number[];
 
   ringsByLabel: {
     A: number[];
@@ -503,10 +504,120 @@ export function getFusedBicyclicSystem(
   };
 }
 
+/** Conventional C1-C17 steroid numbering as a labelled, connectivity-only graph.
+ * Ring membership disambiguates A/B/C/D while graph edges resolve each atom.
+ * These reference numbers are chemical locants, never molecule atom IDs.
+ */
+const steroidNumberedRings = {
+  A: [1, 2, 3, 4, 5, 10],
+  B: [5, 6, 7, 8, 9, 10],
+  C: [8, 9, 11, 12, 13, 14],
+  D: [13, 14, 15, 16, 17],
+} as const;
+
+type SteroidRingLabel = keyof typeof steroidNumberedRings;
+const steroidRingLabels: readonly SteroidRingLabel[] = ["A", "B", "C", "D"];
+
+function numberedGonaneAtoms(
+  molecule: FusedRingMolecule,
+  ringsByLabel: SteroidLikeRingSystem["ringsByLabel"],
+): number[] | null {
+  const coreIds = new Set(steroidRingLabels.flatMap((label) => ringsByLabel[label]));
+  if (coreIds.size !== 17) return null;
+
+  const membership = (rings: Record<SteroidRingLabel, readonly number[]>, id: number) =>
+    steroidRingLabels.filter((label) => rings[label].includes(id)).join("");
+
+  const referenceMembership = new Map<number, string>();
+  for (let locant = 1; locant <= 17; locant++) {
+    referenceMembership.set(locant, membership(steroidNumberedRings, locant));
+  }
+
+  const actualAdjacency = new Map<number, Set<number>>(
+    [...coreIds].map((id) => [id, new Set<number>()]),
+  );
+  const actualEdges = new Set<string>();
+  const edgeKey = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`;
+  let actualCoreBondCount = 0;
+  for (const [a, b] of molecule.bonds) {
+    if (!coreIds.has(a) || !coreIds.has(b)) continue;
+    actualCoreBondCount++;
+    actualEdges.add(edgeKey(a, b));
+    actualAdjacency.get(a)!.add(b);
+    actualAdjacency.get(b)!.add(a);
+  }
+
+  const referenceEdges = new Set<string>();
+  const referenceAdjacency = new Map<number, Set<number>>(
+    Array.from({ length: 17 }, (_, index) => [index + 1, new Set<number>()]),
+  );
+  for (const label of steroidRingLabels) {
+    const ring = steroidNumberedRings[label];
+    for (let index = 0; index < ring.length; index++) {
+      const a = ring[index];
+      const b = ring[(index + 1) % ring.length];
+      referenceEdges.add(edgeKey(a, b));
+      referenceAdjacency.get(a)!.add(b);
+      referenceAdjacency.get(b)!.add(a);
+    }
+  }
+  // Extra chords, duplicated bonds or absent bonds disqualify this exact core.
+  if (actualCoreBondCount !== referenceEdges.size || actualEdges.size !== referenceEdges.size) {
+    return null;
+  }
+
+  const choices = new Map<number, number[]>();
+  for (let locant = 1; locant <= 17; locant++) {
+    const candidates = [...coreIds].filter((id) =>
+      membership(ringsByLabel, id) === referenceMembership.get(locant)
+      && actualAdjacency.get(id)!.size === referenceAdjacency.get(locant)!.size,
+    );
+    if (!candidates.length) return null;
+    choices.set(locant, candidates);
+  }
+
+  const searchOrder = Array.from({ length: 17 }, (_, index) => index + 1)
+    .sort((a, b) => choices.get(a)!.length - choices.get(b)!.length);
+  const assignment = new Map<number, number>();
+  const used = new Set<number>();
+  let solution: number[] | null = null;
+  let ambiguous = false;
+
+  const search = (index: number): void => {
+    if (ambiguous) return;
+    if (index === searchOrder.length) {
+      const candidate = Array.from({ length: 17 }, (_, locant) => assignment.get(locant + 1)!);
+      if (solution) ambiguous = true;
+      else solution = candidate;
+      return;
+    }
+    const locant = searchOrder[index];
+    for (const atomId of choices.get(locant)!) {
+      if (used.has(atomId)) continue;
+      let compatible = true;
+      for (const [assignedLocant, assignedId] of assignment) {
+        if (referenceAdjacency.get(locant)!.has(assignedLocant)
+          !== actualAdjacency.get(atomId)!.has(assignedId)) {
+          compatible = false;
+          break;
+        }
+      }
+      if (!compatible) continue;
+      assignment.set(locant, atomId);
+      used.add(atomId);
+      search(index + 1);
+      used.delete(atomId);
+      assignment.delete(locant);
+    }
+  };
+  search(0);
+  return ambiguous ? null : solution;
+}
+
 /**
- * Structural-only benchmark for the linearly fused 6-6-6-5 nucleus. It does
- * not name a steroid or infer stereochemistry; it merely proves that the
- * fusion graph and the 17-carbon ring nucleus are present.
+ * Finds the 17-carbon connected 6-6-6-5 nucleus. Only a unique match to
+ * the labelled gonane graph receives conventional C1-C17 numbering.
+ * No stereochemistry or steroid derivative name is inferred.
  */
 export function getSteroidLike6565System(molecule: FusedRingMolecule): SteroidLikeRingSystem | null {
   const rings = molecule.rings ?? [];
@@ -674,17 +785,21 @@ const isGonaneTopology =
     cdShared
   );
 
+const ringsByLabel = {
+  A: [...rings[aIndex].atomIds],
+  B: [...rings[bIndex].atomIds],
+  C: [...rings[cIndex].atomIds],
+  D: [...rings[dIndex].atomIds],
+};
+const numbering = isGonaneTopology ? numberedGonaneAtoms(molecule, ringsByLabel) : null;
+
 return {
   ringSizes: [6, 6, 6, 5],
   atomIds,
-  isGonaneTopology,
+  isGonaneTopology: numbering !== null,
+  ...(numbering ? { numbering } : {}),
 
-  ringsByLabel: {
-    A: [...rings[aIndex].atomIds],
-    B: [...rings[bIndex].atomIds],
-    C: [...rings[cIndex].atomIds],
-    D: [...rings[dIndex].atomIds],
-  },
+  ringsByLabel,
 
   junctions: {
     AB: [abShared[0], abShared[1]],

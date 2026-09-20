@@ -521,6 +521,7 @@ test("recognises the connected, linearly fused 6-6-6-5 nucleus", () => {
   nucleus = fuseRingOnBond(nucleus, thirdRing.atomIds[2], thirdRing.atomIds[3], 5);
   const system = getSteroidLike6565System(nucleus);
   assert.equal(system?.isGonaneTopology, false);
+  assert.equal(system?.numbering, undefined);
 
   assert.deepEqual(system?.ringSizes, [6, 6, 6, 5]);
   assert.equal(system?.atomIds.length, 17);
@@ -657,7 +658,7 @@ test("steroid ring labels are invariant under atom IDs, ring order and orientati
   assert.equal(result.atomIds.length, 17);
   assert.deepEqual(result.ringSizes, [6, 6, 6, 5]);
 });
-test("recognises the gonane ring connectivity", () => {
+function makeGonaneReference() {
   // Núcleo de gonano sin especificar estereoquímica.
   // Anillos en orden A, B, C y D.
   const ringAtomIds = [
@@ -685,7 +686,7 @@ test("recognises the gonane ring connectivity", () => {
     });
   }
 
-  const nucleus = {
+  return {
     atoms: Array.from({ length: 17 }, (_, index) => ({
       id: index + 1,
     })),
@@ -698,6 +699,11 @@ test("recognises the gonane ring connectivity", () => {
       atomIds,
     })),
   };
+}
+
+test("recognises the gonane ring connectivity", () => {
+  const nucleus = makeGonaneReference();
+  const ringAtomIds = nucleus.rings.map((ring) => ring.atomIds);
 
 const system = getSteroidLike6565System(nucleus);
 
@@ -793,4 +799,50 @@ test("does not confuse partially angular fusion with gonane topology", () => {
   assert.ok(system);
   assert.equal(system.atomIds.length, 17);
   assert.equal(system.isGonaneTopology, false);
+  assert.equal(system.numbering, undefined);
+});
+
+test("numbers the gonane core C1-C17 independently of atom IDs", () => {
+  const nucleus = makeGonaneReference();
+  const system = getSteroidLike6565System(nucleus);
+  assert.equal(system?.isGonaneTopology, true);
+  // Molecule IDs in this fixture are intentionally NOT steroid locants.
+  assert.deepEqual(system?.numbering, [
+    17, 1, 2, 3, 4, 5, 6, 7, 15, 16, 14, 13, 12, 8, 9, 10, 11,
+  ]);
+  const numbered = system.numbering;
+  const sameSet = (actual, expected) => {
+    assert.deepEqual([...actual].sort((a, b) => a - b), [...expected].sort((a, b) => a - b));
+  };
+  sameSet(system.junctions.AB, [numbered[4], numbered[9]]); // C5 and C10
+  sameSet(system.junctions.BC, [numbered[7], numbered[8]]); // C8 and C9
+  sameSet(system.junctions.CD, [numbered[12], numbered[13]]); // C13 and C14
+
+  // Unsaturation and exocyclic oxygen are permitted if carbon valence remains valid.
+  let derivative = setBondOrder(nucleus, numbered[3], numbered[4], 2); // C4=C5
+  derivative = addOxygenGroup(derivative, numbered[2], 2); // C3 ketone
+  derivative = addOxygenGroup(derivative, numbered[16], 1); // C17 alcohol
+  derivative = addLinearAlkyl(derivative, numbered[9], 1); // C10 methyl
+  derivative = addLinearAlkyl(derivative, numbered[12], 1); // C13 methyl
+  assert.deepEqual(getSteroidLike6565System(derivative)?.numbering, numbered);
+});
+
+test("gonane numbering is invariant under atom IDs, ring order and coordinates", () => {
+  const nucleus = makeGonaneReference();
+  const numbering = getSteroidLike6565System(nucleus)?.numbering;
+  assert.ok(numbering);
+  const remap = new Map(nucleus.atoms.map((atom, index) => [atom.id, 1009 + index * 23]));
+  const scrambled = {
+    atoms: [...nucleus.atoms].reverse().map((atom, index) => ({
+      ...atom, id: remap.get(atom.id), x: -500 + index * 37, y: 400 - index * 31,
+    })),
+    bonds: [...nucleus.bonds].reverse().map(([a, b, order]) => [remap.get(b), remap.get(a), order]),
+    rings: [...nucleus.rings].reverse().map((ring) => ({
+      ...ring, id: ring.id + 100, atomIds: [...ring.atomIds].reverse().map((id) => remap.get(id)),
+    })),
+  };
+  assert.deepEqual(
+    getSteroidLike6565System(scrambled)?.numbering,
+    numbering.map((id) => remap.get(id)),
+  );
 });
