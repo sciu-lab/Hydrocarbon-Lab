@@ -59,6 +59,19 @@ export type FusedBicyclicSubstituent = {
 export type SteroidLikeRingSystem = {
   ringSizes: [6, 6, 6, 5];
   atomIds: number[];
+
+  ringsByLabel: {
+    A: number[];
+    B: number[];
+    C: number[];
+    D: number[];
+  };
+
+  junctions: {
+    AB: [number, number];
+    BC: [number, number];
+    CD: [number, number];
+  };
 };
 
 function hasRingBond(ring: FusedRing, a: number, b: number) {
@@ -525,7 +538,101 @@ export function getSteroidLike6565System(molecule: FusedRingMolecule): SteroidLi
       pending.push(neighbor);
     }
   }
-  const atomIds = [...new Set(rings.flatMap((ring) => ring.atomIds))];
-  if (fusedEdges !== 3 || visited.size !== 4 || degrees.join(",") !== "1,1,2,2" || atomIds.length !== 17) return null;
-  return { ringSizes: [6, 6, 6, 5], atomIds };
+const atomIds = [...new Set(rings.flatMap((ring) => ring.atomIds))];
+
+if (
+  fusedEdges !== 3 ||
+  visited.size !== 4 ||
+  degrees.join(",") !== "1,1,2,2" ||
+  atomIds.length !== 17
+) {
+  return null;
+}
+
+// D: anillo terminal de cinco miembros.
+const dIndex = rings.findIndex(
+  (ring) => ring.atomIds.length === 5
+);
+
+if (dIndex < 0 || linked[dIndex].size !== 1) {
+  return null;
+}
+
+// C: hexágono directamente fusionado con D.
+const cIndex = [...linked[dIndex]][0];
+
+if (
+  rings[cIndex].atomIds.length !== 6 ||
+  linked[cIndex].size !== 2
+) {
+  return null;
+}
+
+// B: hexágono fusionado con C, distinto de D.
+const bIndex = [...linked[cIndex]].find(
+  (index) => index !== dIndex
+);
+
+if (
+  bIndex === undefined ||
+  rings[bIndex].atomIds.length !== 6 ||
+  linked[bIndex].size !== 2
+) {
+  return null;
+}
+
+// A: hexágono terminal fusionado con B.
+const aIndex = [...linked[bIndex]].find(
+  (index) => index !== cIndex
+);
+
+if (
+  aIndex === undefined ||
+  rings[aIndex].atomIds.length !== 6 ||
+  linked[aIndex].size !== 1
+) {
+  return null;
+}
+
+// Carbonos compartidos entre los anillos A y B.
+const abShared = rings[aIndex].atomIds.filter(
+  (id) => rings[bIndex].atomIds.includes(id)
+);
+
+// Carbonos compartidos entre los anillos B y C.
+const bcShared = rings[bIndex].atomIds.filter(
+  (id) => rings[cIndex].atomIds.includes(id)
+);
+
+// Carbonos compartidos entre los anillos C y D.
+const cdShared = rings[cIndex].atomIds.filter(
+  (id) => rings[dIndex].atomIds.includes(id)
+);
+
+// Cada unión debe compartir exactamente dos carbonos.
+if (
+  abShared.length !== 2 ||
+  bcShared.length !== 2 ||
+  cdShared.length !== 2
+) {
+  return null;
+}
+
+return {
+  ringSizes: [6, 6, 6, 5],
+  atomIds,
+
+  ringsByLabel: {
+    A: [...rings[aIndex].atomIds],
+    B: [...rings[bIndex].atomIds],
+    C: [...rings[cIndex].atomIds],
+    D: [...rings[dIndex].atomIds],
+  },
+
+  junctions: {
+    AB: [abShared[0], abShared[1]],
+    BC: [bcShared[0], bcShared[1]],
+    CD: [cdShared[0], cdShared[1]],
+  },
+};
 }

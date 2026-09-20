@@ -522,4 +522,136 @@ test("recognises the connected, linearly fused 6-6-6-5 nucleus", () => {
   const system = getSteroidLike6565System(nucleus);
   assert.deepEqual(system?.ringSizes, [6, 6, 6, 5]);
   assert.equal(system?.atomIds.length, 17);
+  assert.deepEqual(
+  system?.ringsByLabel.A,
+  nucleus.rings[0].atomIds
+);
+
+assert.deepEqual(
+  system?.ringsByLabel.B,
+  nucleus.rings[1].atomIds
+);
+
+assert.deepEqual(
+  system?.ringsByLabel.C,
+  nucleus.rings[2].atomIds
+);
+
+assert.deepEqual(
+  system?.ringsByLabel.D,
+  nucleus.rings[3].atomIds
+);
+const sharedAtoms = (left, right) =>
+  left.atomIds.filter((id) => right.atomIds.includes(id));
+
+assert.deepEqual(
+  new Set(system.junctions.AB),
+  new Set(sharedAtoms(nucleus.rings[0], nucleus.rings[1]))
+);
+
+assert.deepEqual(
+  new Set(system.junctions.BC),
+  new Set(sharedAtoms(nucleus.rings[1], nucleus.rings[2]))
+);
+
+assert.deepEqual(
+  new Set(system.junctions.CD),
+  new Set(sharedAtoms(nucleus.rings[2], nucleus.rings[3]))
+);
+
+assert.equal(
+  new Set(Object.values(system.junctions).flat()).size,
+  6
+);});
+
+test("steroid ring labels are invariant under atom IDs, ring order and orientation", () => {
+  let nucleus = fuseRingOnBond(makeRing(6), 1, 2, 6);
+
+  const secondRing = nucleus.rings[1];
+
+  nucleus = fuseRingOnBond(
+    nucleus,
+    secondRing.atomIds[2],
+    secondRing.atomIds[3],
+    6
+  );
+
+  const thirdRing = nucleus.rings[2];
+
+  nucleus = fuseRingOnBond(
+    nucleus,
+    thirdRing.atomIds[2],
+    thirdRing.atomIds[3],
+    5
+  );
+
+  const original = getSteroidLike6565System(nucleus);
+
+  assert.ok(original);
+
+  // Cambiar todos los identificadores internos.
+  const idMap = new Map(
+    nucleus.atoms.map((atom, index) => [
+      atom.id,
+      101 + index * 11
+    ])
+  );
+
+  // Crear una copia con diferente orden y orientación.
+  const remapped = {
+    atoms: [...nucleus.atoms].reverse().map((atom, index) => ({
+      ...atom,
+      id: idMap.get(atom.id),
+      x: index * 37,
+      y: -index * 23
+    })),
+
+    bonds: [...nucleus.bonds].reverse().map(
+      ([left, right, order]) => [
+        idMap.get(right),
+        idMap.get(left),
+        order
+      ]
+    ),
+
+    rings: [...nucleus.rings].reverse().map((ring) => ({
+      ...ring,
+      id: ring.id + 100,
+      atomIds: [...ring.atomIds]
+        .reverse()
+        .map((id) => idMap.get(id))
+    }))
+  };
+
+  const result = getSteroidLike6565System(remapped);
+
+  assert.ok(result);
+
+  // Los cuatro anillos deben conservar su identidad.
+  for (const label of ["A", "B", "C", "D"]) {
+    const expected = original.ringsByLabel[label]
+      .map((id) => idMap.get(id))
+      .sort((a, b) => a - b);
+
+    const actual = [...result.ringsByLabel[label]]
+      .sort((a, b) => a - b);
+
+    assert.deepEqual(actual, expected);
+  }
+
+  // Comprobar que las uniones A/B, B/C y C/D
+  // conservan sus átomos aunque cambien los IDs.
+  for (const junction of ["AB", "BC", "CD"]) {
+    const expected = original.junctions[junction]
+      .map((id) => idMap.get(id))
+      .sort((a, b) => a - b);
+
+    const actual = [...result.junctions[junction]]
+      .sort((a, b) => a - b);
+
+    assert.deepEqual(actual, expected);
+  }
+
+  assert.equal(result.atomIds.length, 17);
+  assert.deepEqual(result.ringSizes, [6, 6, 6, 5]);
 });
