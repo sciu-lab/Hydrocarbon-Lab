@@ -47,12 +47,33 @@ test("one global SVG transform scales every heteroatom label without scaling bon
   assert.doesNotMatch(page, /molecule-stage[^\n]*scale\(\$\{functionalGroupScale\}/);
 });
 
-test("the selected label size is shared by expanded rendering and exports with fitted bounds", () => {
+test("the selected label size and resolved number badges share fitted export bounds", () => {
   assert.match(page, /const \[functionalGroupScale, setFunctionalGroupScale\] = useState\(DEFAULT_FUNCTIONAL_GROUP_SCALE\)/);
   assert.match(page, /<ViewportPortal active=\{canvasExpanded\}>/);
-  assert.match(page, /additionalExtents: \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents\]/);
+  assert.match(page, /const offset = skeletalNumberBadgeOffsets\.get\(atom\.id\)!/);
+  assert.match(
+    page,
+    /additionalExtents: \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.steroidRingLabels\.map/s,
+  );
   assert.match(page, /const clonedSvg = sourceSvg\.cloneNode\(true\) as SVGSVGElement/);
   assert.match(page, /fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
+});
+
+test("fitted bounds contain moved badges, functional labels and ring labels", () => {
+  const badge = { x: 44, y: -20, width: 28, height: 28 };
+  const functionalLabel = { x: -52, y: 18, width: 44, height: 32 };
+  const ringLabel = { x: 10, y: -48, width: 32, height: 32 };
+  const bounds = getMoleculeVisualBounds([{ x: 0, y: 0 }], {
+    atomExtent: 12,
+    padding: 0,
+    additionalExtents: [badge, functionalLabel, ringLabel],
+  });
+  for (const extent of [badge, functionalLabel, ringLabel]) {
+    assert.ok(bounds.x <= extent.x);
+    assert.ok(bounds.y <= extent.y);
+    assert.ok(bounds.x + bounds.width >= extent.x + extent.width);
+    assert.ok(bounds.y + bounds.height >= extent.y + extent.height);
+  }
 });
 
 test("a 200% functional label contributes its full painted extent to the SVG frame", () => {
