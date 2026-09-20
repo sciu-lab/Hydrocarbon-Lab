@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { fuseRingOnBond } from "../app/fused-ring.ts";
@@ -19,6 +21,8 @@ let buildIupacReasoningSteps;
 let buildEnglishReasoningSteps;
 let fusedBicyclicTraditionalDisplayName;
 let splitChemicalNameForWrapping;
+let ChemicalNameText;
+let parseChemicalNotation;
 
 before(async () => {
   server = await createServer({
@@ -36,6 +40,8 @@ before(async () => {
     buildEnglishReasoningSteps,
     fusedBicyclicTraditionalDisplayName,
     splitChemicalNameForWrapping,
+    ChemicalNameText,
+    parseChemicalNotation,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
@@ -513,6 +519,42 @@ test("keeps long bicyclic names wrap-safe and does not invent traditional synony
   );
 });
 
+test("renders von Baeyer bridge locants as safe superscripts without changing stored text", () => {
+  const name = "5-etiltriciclo[8.4.0.0^{2,7}]tetradec-3-eno";
+  const parts = parseChemicalNotation(name);
+  assert.deepEqual(parts.filter((part) => part.superscript), [{ text: "2,7", superscript: true }]);
+  const markup = renderToStaticMarkup(createElement(ChemicalNameText, { name }));
+  assert.match(markup, /0<\/span><sup class="chemical-name-superscript">2,7<\/sup><span>\]/);
+  assert.doesNotMatch(markup, /\^\{/);
+  assert.equal(
+    markup.replace(/<[^>]+>/g, ""),
+    name.replace(/\^\{(\d+(?:,\d+)+)\}/g, "$1"),
+  );
+  assert.equal(name, "5-etiltriciclo[8.4.0.0^{2,7}]tetradec-3-eno");
+
+  const multipleBridges = "tetraciclo[5.5.0.0^{2,6}.0^{4,9}]dodecano";
+  const multipleMarkup = renderToStaticMarkup(createElement(ChemicalNameText, { name: multipleBridges }));
+  assert.equal((multipleMarkup.match(/<sup class="chemical-name-superscript">/g) ?? []).length, 2);
+  assert.match(multipleMarkup, />2,6<\/sup>/);
+  assert.match(multipleMarkup, />4,9<\/sup>/);
+
+  const englishBicycle = "bicyclo[3.2.1.0^{2,6}]octane";
+  const englishMarkup = renderToStaticMarkup(createElement(ChemicalNameText, { name: englishBicycle }));
+  assert.match(englishMarkup, />2,6<\/sup>/);
+
+  const ordinaryName = "3-metilhex-2-eno";
+  const ordinaryMarkup = renderToStaticMarkup(createElement(ChemicalNameText, { name: ordinaryName }));
+  assert.doesNotMatch(ordinaryMarkup, /<sup/);
+  assert.deepEqual(parseChemicalNotation(ordinaryName), [{ text: ordinaryName, superscript: false }]);
+
+  const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(pageSource, /navigator\.clipboard\?\.writeText\(displayedIupacName\)/);
+  assert.ok((pageSource.match(/<ChemicalNameText/g) ?? []).length >= 4);
+  assert.match(pageSource, /<p><ChemicalNotationText value=\{step\.explanation\}/);
+  const stylesheet = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(stylesheet, /\.chemical-name-superscript\s*\{[^}]*font-size:\s*0\.68em;[^}]*vertical-align:\s*super;/s);
+});
+
 test("recognises the connected, linearly fused 6-6-6-5 nucleus", () => {
   let nucleus = fuseRingOnBond(makeRing(6), 1, 2, 6);
   const secondRing = nucleus.rings[1];
@@ -951,4 +993,23 @@ test("integrates tricyclic parent and linear alkyl naming", () => {
   const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
   assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /menor conjunto de localizadores.*5-etiltriciclo/s);
   assert.match(englishReasoning.map((step) => step.explanation).join(" "), /lowest set of substituent locants.*5-ethyltricyclo/s);
+});
+
+test("integrates tricyclic unsaturation into analysis, numbering and bilingual reasoning", () => {
+  let molecule = fuseRingOnBond(makeRing(6), 1, 2, 6);
+  const centralRing = molecule.rings[1];
+  molecule = fuseRingOnBond(molecule, centralRing.atomIds[2], centralRing.atomIds[3], 6);
+  molecule = setBondOrder(molecule, 11, 12, 2);
+  molecule = addLinearAlkyl(molecule, 13, 1);
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.name, "6-metiltriciclo[8.4.0.0^{3,8}]tetradec-4-eno");
+  assert.deepEqual(analysis.doubleBondLocants, [4]);
+  assert.deepEqual(analysis.tripleBondLocants, []);
+  assert.equal(analysis.numberedAtoms.get(11), 4);
+  assert.equal(analysis.numberedAtoms.get(12), 5);
+  assert.deepEqual(analysis.substituents.map(({ locant, name }) => ({ locant, name })), [{ locant: 6, name: "metil" }]);
+  const spanishReasoning = buildIupacReasoningSteps(molecule, analysis);
+  const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /enlaces múltiples reciben prioridad.*C=C en C4/s);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /Multiple bonds take priority.*C=C at C4/s);
 });

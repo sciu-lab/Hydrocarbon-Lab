@@ -1,8 +1,5 @@
-import {
-  englishIupacRoot,
-  iupacAlkylNameForCarbonCount,
-  iupacRootForCarbonCount,
-} from "./iupac-prefixes.ts";
+import { iupacAlkylNameForCarbonCount, iupacRootForCarbonCount } from "./iupac-prefixes.ts";
+import { translateSpanishIupacToOpsin } from "./iupac-name-normalization.ts";
 
 export type FusedRingBond = readonly [number, number, number?];
 
@@ -86,6 +83,8 @@ export type FusedTricyclicSystem = {
   numbering: number[];
   numberingCandidates: number[][];
   substituents: FusedBicyclicSubstituent[];
+  doubleBondLocants: number[];
+  tripleBondLocants: number[];
   vonBaeyerDescriptor: string;
   mainRing: number[];
   mainBridge: {
@@ -102,7 +101,7 @@ export type FusedTricyclicSystem = {
   }[];
   parentName: string;
   parentNameEn: string;
-  /** Full-molecule name is emitted for the saturated parent and supported linear alkyl derivatives. */
+  /** Full name for supported alkyl derivatives and simply locanted core unsaturation. */
   systematicName: string | null;
   systematicNameEn: string | null;
 };
@@ -392,9 +391,10 @@ export function getFusedTricyclicSystem(
   const parentRoot = iupacRootForCarbonCount(atomIds.length);
   if (!vonBaeyer || !parentRoot) return null;
   const unnumberedSubstituents = findSimpleAlkylSubstituents(molecule, atomIds, new Set());
-  const canNameSaturatedDerivative = coreMultipleBonds.length === 0 && unnumberedSubstituents !== null;
-  const rankedNumberings = canNameSaturatedDerivative
-    ? vonBaeyer.candidates.map((candidate) => {
+  const rankedNumberings = unnumberedSubstituents
+    ? vonBaeyer.candidates.flatMap((candidate) => {
+      const unsaturation = multipleBondLocants(molecule, atomIds, candidate.numbering);
+      if (!unsaturation) return [];
       const locants = new Map(candidate.numbering.map((atomId, index) => [atomId, index + 1]));
       const substituents = unnumberedSubstituents.map((substituent) => ({
         ...substituent,
@@ -408,32 +408,55 @@ export function getFusedTricyclicSystem(
           .filter((substituent) => substituent.name === name)
           .map((substituent) => substituent.locant)
           .sort((left, right) => left - right));
-      return { candidate, substituents, prefixLocants, citationLocants };
+      const multipleLocants = [
+        ...unsaturation.doubleBondLocants,
+        ...unsaturation.tripleBondLocants,
+      ].sort((left, right) => left - right);
+      return [{
+        candidate,
+        substituents,
+        prefixLocants,
+        citationLocants,
+        multipleLocants,
+        ...unsaturation,
+      }];
     }).sort((left, right) => (
-      compareNumberLists(left.prefixLocants, right.prefixLocants)
+      compareNumberLists(left.multipleLocants, right.multipleLocants)
+      || compareNumberLists(left.doubleBondLocants, right.doubleBondLocants)
+      || compareNumberLists(left.prefixLocants, right.prefixLocants)
       || compareNumberLists(left.citationLocants, right.citationLocants)
     ))
     : [];
   const selected = rankedNumberings[0];
   const selectedCandidate = selected?.candidate ?? vonBaeyer.candidates[0];
   if (!selectedCandidate) return null;
-  const substituents = selected?.substituents ?? [];
+  const selectedLocants = new Map(selectedCandidate.numbering.map((atomId, index) => [atomId, index + 1]));
+  const substituents = selected?.substituents ?? (unnumberedSubstituents ?? []).map((substituent) => ({
+    ...substituent,
+    locant: selectedLocants.get(substituent.anchorId)!,
+  }));
+  const doubleBondLocants = selected?.doubleBondLocants ?? [];
+  const tripleBondLocants = selected?.tripleBondLocants ?? [];
   const [firstBranch, secondBranch] = selectedCandidate.branches;
   if (firstBranch.length + secondBranch.length + 2 !== atomIds.length) return null;
-  const parentName = `triciclo${vonBaeyer.descriptor}${parentRoot}ano`;
-  const parentNameEn = `tricyclo${vonBaeyer.descriptor}${englishIupacRoot(parentRoot)}ane`;
-  const substituentPrefix = canNameSaturatedDerivative
+  const saturatedParentName = `triciclo${vonBaeyer.descriptor}${parentRoot}ano`;
+  const hydrocarbonParentName = selected
+    ? unsaturatedParentName(
+      `triciclo${vonBaeyer.descriptor}`,
+      atomIds.length,
+      `${parentRoot}ano`,
+      doubleBondLocants,
+      tripleBondLocants,
+    )
+    : null;
+  const parentName = hydrocarbonParentName ?? saturatedParentName;
+  const parentNameEn = translateSpanishIupacToOpsin(parentName);
+  const substituentPrefix = selected && hydrocarbonParentName
     ? formatSubstituentPrefixes(substituents)
     : null;
-  const englishSubstituentPrefix = canNameSaturatedDerivative
-    ? formatSubstituentPrefixes(substituents.map((substituent) => {
-      const root = iupacRootForCarbonCount(substituent.atomIds.length)!;
-      return {
-        locant: substituent.locant,
-        name: `${englishIupacRoot(root)}yl`,
-      };
-    }), "en")
-    : null;
+  const systematicName = substituentPrefix === null
+    ? null
+    : substituentPrefix ? `${substituentPrefix}${parentName}` : parentName;
 
   return {
     atomIds,
@@ -452,6 +475,8 @@ export function getFusedTricyclicSystem(
     numbering: selectedCandidate.numbering,
     numberingCandidates: vonBaeyer.numberingCandidates,
     substituents,
+    doubleBondLocants,
+    tripleBondLocants,
     vonBaeyerDescriptor: vonBaeyer.descriptor,
     mainRing: selectedCandidate.mainRing,
     mainBridge: {
@@ -471,12 +496,8 @@ export function getFusedTricyclicSystem(
     }],
     parentName,
     parentNameEn,
-    systematicName: substituentPrefix === null
-      ? null
-      : substituentPrefix ? `${substituentPrefix}${parentName}` : parentName,
-    systematicNameEn: englishSubstituentPrefix === null
-      ? null
-      : englishSubstituentPrefix ? `${englishSubstituentPrefix}${parentNameEn}` : parentNameEn,
+    systematicName,
+    systematicNameEn: systematicName ? translateSpanishIupacToOpsin(systematicName) : null,
   };
 }
 

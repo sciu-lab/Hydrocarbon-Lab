@@ -417,7 +417,7 @@ export function splitChemicalNameForWrapping(value: string) {
       boundaries.add(index + 1);
     }
   }
-  for (const match of value.matchAll(/(?:tricyclo|triciclo|bicyclo|biciclo|spiro|espiro)\[/gi)) {
+  for (const match of value.matchAll(/(?:(?:bi|tri|tetra|penta|hexa|hepta|octa)(?:cyclo|ciclo)|spiro|espiro)\[/gi)) {
     const index = match.index ?? 0;
     if (index > 0) boundaries.add(index);
   }
@@ -425,13 +425,51 @@ export function splitChemicalNameForWrapping(value: string) {
   return ordered.slice(0, -1).map((start, index) => value.slice(start, ordered[index + 1]));
 }
 
-function ChemicalNameText({ name = "" }: { name?: string }) {
+export type ChemicalNotationPart = { text: string; superscript: boolean };
+
+/** Parses only von Baeyer bridge-locant markup; every other character remains text. */
+export function parseChemicalNotation(value: string): ChemicalNotationPart[] {
+  const parts: ChemicalNotationPart[] = [];
+  const descriptorPattern = /(?:bi|tri|tetra|penta|hexa|hepta|octa)(?:cyclo|ciclo)\[[^\]]*\]|(?:spiro|espiro)\[[^\]]*\]/gi;
+  let cursor = 0;
+  for (const descriptorMatch of value.matchAll(descriptorPattern)) {
+    const descriptorStart = descriptorMatch.index ?? 0;
+    const descriptor = descriptorMatch[0];
+    if (descriptorStart > cursor) parts.push({ text: value.slice(cursor, descriptorStart), superscript: false });
+    const superscriptPattern = /\^\{(\d+(?:,\d+)+)\}/g;
+    let descriptorCursor = 0;
+    for (const superscriptMatch of descriptor.matchAll(superscriptPattern)) {
+      const superscriptStart = superscriptMatch.index ?? 0;
+      if (superscriptStart > descriptorCursor) {
+        parts.push({ text: descriptor.slice(descriptorCursor, superscriptStart), superscript: false });
+      }
+      parts.push({ text: superscriptMatch[1], superscript: true });
+      descriptorCursor = superscriptStart + superscriptMatch[0].length;
+    }
+    if (descriptorCursor < descriptor.length) {
+      parts.push({ text: descriptor.slice(descriptorCursor), superscript: false });
+    }
+    cursor = descriptorStart + descriptor.length;
+  }
+  if (cursor < value.length) parts.push({ text: value.slice(cursor), superscript: false });
+  return parts.length ? parts : [{ text: value, superscript: false }];
+}
+
+function ChemicalNotationText({ value }: { value: string }) {
+  return parseChemicalNotation(value).map((part, index) => (
+    part.superscript
+      ? <sup className="chemical-name-superscript" key={`${index}-${part.text}`}>{part.text}</sup>
+      : <span key={`${index}-${part.text}`}>{part.text}</span>
+  ));
+}
+
+export function ChemicalNameText({ name = "" }: { name?: string }) {
   return (
     <span className="chemical-name-text">
       {splitChemicalNameForWrapping(name).map((segment, index) => (
         <span key={`${index}-${segment}`}>
           {index > 0 && <wbr />}
-          {segment}
+          <ChemicalNotationText value={segment} />
         </span>
       ))}
     </span>
@@ -3264,8 +3302,8 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
         chainName: fusedTricyclic.parentName,
         substituents,
         numberedAtoms,
-        doubleBondLocants: [],
-        tripleBondLocants: [],
+        doubleBondLocants: fusedTricyclic.doubleBondLocants,
+        tripleBondLocants: fusedTricyclic.tripleBondLocants,
         functionalGroups: groups,
         primaryFunctionalGroup,
         primaryFunctionalLabel: primaryFunctionalGroup
@@ -3594,16 +3632,22 @@ export function buildIupacReasoningSteps(
         explanation: `El puente secundario de longitud ${system.secondaryBridges[0].length} se une en ${system.secondaryBridges[0].attachmentLocants.join(",")}; el descriptor resultante es ${system.vonBaeyerDescriptor}.`,
       },
       {
-        number: "04", title: "Selección de localizadores",
+        number: "04", title: "Insaturaciones",
+        explanation: system.doubleBondLocants.length || system.tripleBondLocants.length
+          ? `Los enlaces múltiples reciben prioridad sobre los prefijos: ${multipleBondLocantsText(system.doubleBondLocants, system.tripleBondLocants)}.`
+          : "El núcleo no contiene dobles ni triples enlaces.",
+      },
+      {
+        number: "05", title: "Selección de localizadores",
         explanation: system.substituents.length
           ? `Entre las numeraciones equivalentes del progenitor se elige el menor conjunto de localizadores para los sustituyentes (${system.substituents.map((substituent) => substituent.locant).sort((left, right) => left - right).join(",")}); los empates se resuelven por orden alfabético.`
           : "Las orientaciones equivalentes del progenitor producen el mismo descriptor y no hay sustituyentes que rompan la simetría.",
       },
       {
-        number: "05", title: "Nombre sistemático",
+        number: "06", title: "Nombre sistemático",
         explanation: system.systematicName
           ? `Los prefijos alquilo se agrupan y se citan alfabéticamente delante del progenitor: ${system.systematicName}.`
-          : `La numeración del progenitor ${system.parentName} queda disponible, pero esta etapa todavía no nombra insaturaciones ni grupos funcionales.`,
+          : `La numeración del progenitor ${system.parentName} queda disponible, pero no se emite un nombre completo cuando hacen falta localizadores compuestos o existen grupos funcionales fuera de esta etapa.`,
       },
     ];
   }
@@ -3940,16 +3984,29 @@ export function buildEnglishReasoningSteps(
         explanation: `The secondary bridge of length ${system.secondaryBridges[0].length} is attached at ${system.secondaryBridges[0].attachmentLocants.join(",")}, giving ${system.vonBaeyerDescriptor}.`,
       },
       {
-        number: "04", title: "Locant selection",
+        number: "04", title: "Unsaturation",
+        explanation: system.doubleBondLocants.length || system.tripleBondLocants.length
+          ? `Multiple bonds take priority over prefix substituents: ${[
+            system.doubleBondLocants.length
+              ? `C=C at ${system.doubleBondLocants.map((locant) => `C${locant}`).join(", ")}`
+              : "",
+            system.tripleBondLocants.length
+              ? `C≡C at ${system.tripleBondLocants.map((locant) => `C${locant}`).join(", ")}`
+              : "",
+          ].filter(Boolean).join(" and ")}.`
+          : "The core contains no double or triple bonds.",
+      },
+      {
+        number: "05", title: "Locant selection",
         explanation: system.substituents.length
           ? `Among equivalent parent numberings, the lowest set of substituent locants (${system.substituents.map((substituent) => substituent.locant).sort((left, right) => left - right).join(",")}) is selected; alphabetical order resolves remaining ties.`
           : "Equivalent parent orientations give the same descriptor, and no substituent breaks the symmetry.",
       },
       {
-        number: "05", title: "Systematic name",
+        number: "06", title: "Systematic name",
         explanation: system.systematicNameEn
           ? `Alkyl prefixes are grouped and cited alphabetically before the parent: ${system.systematicNameEn}.`
-          : `The ${system.parentNameEn} parent numbering is available, but unsaturation and functional groups are intentionally not named at this stage.`,
+          : `The ${system.parentNameEn} parent numbering is available, but no complete name is emitted when compound locants or functional groups outside this phase are required.`,
       },
     ];
   }
@@ -10806,9 +10863,9 @@ export default function Home() {
             <div className="functional-detection ring-system-detection" aria-label={t("Sistema de anillos detectado")}>
               <span>{t("Anillos")}</span>
               <div>
-                <strong>{analysis.steroidSystem?.constitutionNameEs && language === "en"
+                <strong><ChemicalNotationText value={analysis.steroidSystem?.constitutionNameEs && language === "en"
                   ? "Androstane nucleus recognized; constitutional name only (no stereochemistry assigned)."
-                  : localizedDynamicText(analysis.ringSystem)}</strong>
+                  : localizedDynamicText(analysis.ringSystem)} /></strong>
                 {analysis.commonName && <strong>{t("Nombre tradicional")}: {analysis.commonName}</strong>}
               </div>
             </div>
@@ -11000,7 +11057,7 @@ export default function Home() {
                       <span>{step.number}</span>
                       <div>
                         <strong>{step.title}</strong>
-                        <p>{step.explanation}</p>
+                        <p><ChemicalNotationText value={step.explanation} /></p>
                       </div>
                     </li>
                   ))}

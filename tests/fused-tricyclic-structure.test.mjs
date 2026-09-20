@@ -94,6 +94,16 @@ function addCoreDoubleBond(molecule) {
   return next;
 }
 
+function setCoreBondOrder(molecule, leftId, rightId, order) {
+  const next = structuredClone(molecule);
+  const bond = next.bonds.find(([left, right]) => (
+    (left === leftId && right === rightId) || (left === rightId && right === leftId)
+  ));
+  assert.ok(bond, `expected bond ${leftId}-${rightId}`);
+  bond[2] = order;
+  return next;
+}
+
 function hasBond(molecule, left, right) {
   return molecule.bonds.some(([a, b]) => (
     (a === left && b === right) || (a === right && b === left)
@@ -249,6 +259,95 @@ test("names a methyl on a fusion carbon when valence permits it", () => {
   assertCoherentVonBaeyerNumbering(molecule, system);
 });
 
+test("names one and several double or triple bonds on a tricyclic core", () => {
+  const alkene = getFusedTricyclicSystem(setCoreBondOrder(makeTricycle(), 11, 12, 2));
+  const diene = getFusedTricyclicSystem(setCoreBondOrder(
+    setCoreBondOrder(makeTricycle(), 11, 12, 2),
+    13,
+    14,
+    2,
+  ));
+  const alkyne = getFusedTricyclicSystem(setCoreBondOrder(makeTricycle(), 11, 12, 3));
+  const diyne = getFusedTricyclicSystem(setCoreBondOrder(
+    setCoreBondOrder(makeTricycle(), 11, 12, 3),
+    13,
+    14,
+    3,
+  ));
+  assert.equal(alkene?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-4-eno");
+  assert.equal(alkene?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradec-4-ene");
+  assert.equal(diene?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradeca-4,6-dieno");
+  assert.deepEqual(diene?.doubleBondLocants, [4, 6]);
+  assert.equal(alkyne?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-4-ino");
+  assert.equal(alkyne?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradec-4-yne");
+  assert.equal(diyne?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradeca-4,6-diino");
+  assert.equal(diyne?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradeca-4,6-diyne");
+});
+
+test("gives double bonds priority when an enyne locant set ties", () => {
+  let molecule = setCoreBondOrder(makeTricycle(), 11, 12, 2);
+  molecule = setCoreBondOrder(molecule, 13, 14, 3);
+  const system = getFusedTricyclicSystem(molecule);
+  assert.equal(system?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-4-en-6-ino");
+  assert.equal(system?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradec-4-en-6-yne");
+  assert.deepEqual(system?.doubleBondLocants, [4]);
+  assert.deepEqual(system?.tripleBondLocants, [6]);
+});
+
+test("multiple bonds outrank alkyl prefixes and combine with repeated substituents", () => {
+  let methyl = setCoreBondOrder(makeTricycle(), 11, 12, 2);
+  methyl = addExternalChainAt(methyl, 13, 1);
+  assert.equal(
+    getFusedTricyclicSystem(methyl)?.systematicName,
+    "6-metiltriciclo[8.4.0.0^{3,8}]tetradec-4-eno",
+  );
+
+  let ethyl = setCoreBondOrder(makeTricycle(), 11, 12, 2);
+  ethyl = addExternalChainAt(ethyl, 13, 2);
+  assert.equal(
+    getFusedTricyclicSystem(ethyl)?.systematicNameEn,
+    "6-ethyltricyclo[8.4.0.0^{3,8}]tetradec-4-ene",
+  );
+
+  let mixed = setCoreBondOrder(makeTricycle(), 11, 12, 2);
+  mixed = addExternalChainAt(mixed, 13, 1);
+  mixed = addExternalChainAt(mixed, 14, 2);
+  const mixedSystem = getFusedTricyclicSystem(mixed);
+  assert.equal(mixedSystem?.systematicName, "7-etil-6-metiltriciclo[8.4.0.0^{3,8}]tetradec-4-eno");
+  assert.equal(mixedSystem?.systematicNameEn, "7-ethyl-6-methyltricyclo[8.4.0.0^{3,8}]tetradec-4-ene");
+});
+
+test("names simple unsaturation in all four supported tricyclic topologies", () => {
+  const angular = getFusedTricyclicSystem(setCoreBondOrder(makeTricycle(6, 6, "angular"), 11, 12, 2));
+  const sixSixFive = getFusedTricyclicSystem(setCoreBondOrder(makeTricycle(6, 5, "angular"), 11, 12, 2));
+  const sixFiveSix = getFusedTricyclicSystem(setCoreBondOrder(makeTricycle(5, 6, "angular"), 10, 11, 2));
+  assert.equal(angular?.systematicName, "triciclo[8.4.0.0^{2,7}]tetradec-3-eno");
+  assert.equal(sixSixFive?.systematicName, "triciclo[7.4.0.0^{2,6}]tridec-3-eno");
+  assert.equal(sixFiveSix?.systematicName, "triciclo[7.4.0.0^{2,7}]tridec-3-eno");
+});
+
+test("retains the descriptor but withholds fusion-bond unsaturation needing a compound locant", () => {
+  const molecule = setCoreBondOrder(makeTricycle(), 1, 2, 2);
+  const system = getFusedTricyclicSystem(molecule);
+  assert.ok(system);
+  assert.equal(system.systematicName, null);
+  assert.equal(system.systematicNameEn, null);
+  assert.equal(system.vonBaeyerDescriptor, "[8.4.0.0^{3,8}]");
+  assert.deepEqual(system.coreMultipleBonds, [{ atomIds: [1, 2], order: 2 }]);
+  assert.equal(system.atomIds.length, 14);
+  assert.equal(getFusedTricyclicSystem(setCoreBondOrder(makeTricycle(), 1, 2, 3)), null);
+});
+
+test("does not mistake side-chain unsaturation for parent unsaturation", () => {
+  let molecule = addExternalChainAt(makeTricycle(), 12, 3);
+  molecule = setCoreBondOrder(molecule, 15, 16, 2);
+  const system = getFusedTricyclicSystem(molecule);
+  assert.ok(system);
+  assert.equal(system.systematicName, null);
+  assert.deepEqual(system.coreMultipleBonds, []);
+  assert.equal(system.externalAtomIds.length, 3);
+});
+
 test("recognises the same core with ketone, alcohol or a double bond", () => {
   const ketone = getFusedTricyclicSystem(addOxygen(makeTricycle(), 2));
   const alcohol = getFusedTricyclicSystem(addOxygen(makeTricycle(), 1));
@@ -260,7 +359,7 @@ test("recognises the same core with ketone, alcohol or a double bond", () => {
   assert.deepEqual(alkene?.coreMultipleBonds.map((bond) => bond.order), [2]);
   assert.equal(ketone?.systematicName, null);
   assert.equal(alcohol?.systematicName, null);
-  assert.equal(alkene?.systematicName, null);
+  assert.equal(alkene?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-4-eno");
 });
 
 test("recognition is invariant under IDs, coordinates and ring record order", () => {
@@ -315,8 +414,9 @@ test("recognition is invariant under IDs, coordinates and ring record order", ()
   );
 });
 
-test("substituted naming is invariant under IDs, coordinates and record order", () => {
-  let source = addExternalChainAt(makeTricycle(6, 6, "linear"), 12, 2);
+test("substituted unsaturated naming is invariant under IDs, coordinates and record order", () => {
+  let source = setCoreBondOrder(makeTricycle(6, 6, "linear"), 11, 12, 2);
+  source = addExternalChainAt(source, 12, 2);
   source = addExternalChainAt(source, 13, 1);
   const expected = getFusedTricyclicSystem(source);
   const idMap = new Map(source.atoms.map((atom, index) => [atom.id, 2003 + index * 31]));

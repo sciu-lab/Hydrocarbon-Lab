@@ -3941,6 +3941,15 @@ button {
   word-break: normal;
 }
 
+.chemical-name-superscript {
+  position: relative;
+  top: -0.08em;
+  font-size: 0.68em;
+  line-height: 0;
+  vertical-align: super;
+  white-space: nowrap;
+}
+
 .nomenclature-variants {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
