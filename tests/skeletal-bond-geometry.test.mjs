@@ -6,6 +6,7 @@ import {
   clipSkeletalParallelBondSegments,
   clipSkeletalRingDoubleBondSegments,
   getSkeletalNumberBadgeGeometry,
+  getSkeletalNumberBadgeOffsetWithClearance,
   getSkeletalRingNumberBadgeOffset,
   getSkeletalRingDoubleBondSegments,
   SKELETAL_BOND_END_CLEARANCE,
@@ -141,6 +142,25 @@ test("numbering scale is the single source for badge paint, offsets and clearanc
     const offset = getSkeletalRingNumberBadgeOffset(hexagon[0], hexagon, scale);
     assert.ok(Math.abs(Math.hypot(offset.x, offset.y) - SKELETAL_RING_NUMBER_BADGE_DISTANCE * scale) < 1e-9);
   }
+});
+
+test("moves a crowded badge without changing its atom association", () => {
+  const preferred = { x: 30, y: 0 };
+  const clear = getSkeletalNumberBadgeOffsetWithClearance(preferred, 13.25, []);
+  assert.deepEqual(clear, preferred, "clear badges retain their established radial placement");
+
+  const displaced = getSkeletalNumberBadgeOffsetWithClearance(preferred, 13.25, [
+    { center: { x: 30, y: 0 }, radius: 20 }, // e.g. OH or carbonyl O label
+    { center: { x: 18, y: 18 }, radius: 17 }, // neighbouring numbered carbon
+  ]);
+  assert.ok(Math.abs(displaced.y) > 1, "a functional label makes the badge choose an angled alternative");
+  for (const obstacle of [{ center: { x: 30, y: 0 }, radius: 20 }, { center: { x: 18, y: 18 }, radius: 17 }]) {
+    assert.ok(
+      Math.hypot(displaced.x - obstacle.center.x, displaced.y - obstacle.center.y) >= 13.25 + obstacle.radius - 1e-9,
+      "the selected badge center clears every visible obstacle",
+    );
+  }
+  assert.ok(Math.hypot(displaced.x, displaced.y) <= 30 * 1.16 + 1e-9, "the badge remains adjacent to its atom");
 });
 
 test("invalid persisted numbering scales fall back to 100 percent", () => {

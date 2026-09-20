@@ -501,11 +501,13 @@ test("keeps long bicyclic names wrap-safe and does not invent traditional synony
   const segments = splitChemicalNameForWrapping(longName);
   assert.equal(segments.join(""), longName);
   assert.ok(segments.includes("biciclo[4.4.0]"));
-  assert.ok(segments.includes("deca-"));
+  assert.ok(segments.includes("deca-2,7-dieno"));
+  assert.ok(segments.includes("2-hexil-"), "a locant stays with its chemical prefix");
 
   const stylesheet = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(stylesheet, /\.chemical-name-text\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*normal;/s);
   assert.match(stylesheet, /\.sticky-iupac-name strong\s*\{[^}]*white-space:\s*normal;/s);
+  assert.match(stylesheet, /\.chemical-name-descriptor\s*\{[^}]*white-space:\s*nowrap;/s);
 
   const decalin = getFusedBicyclicSystem(makeCanonicalDecalin());
   assert.equal(decalin?.traditionalName, "decalina");
@@ -1002,7 +1004,9 @@ test("integrates tricyclic parent and linear alkyl naming", () => {
   const spanishReasoning = buildIupacReasoningSteps(molecule, analysis);
   const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
   assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /menor conjunto de localizadores.*5-etiltriciclo/s);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /sustituyentes alquilo son etil en C5/);
   assert.match(englishReasoning.map((step) => step.explanation).join(" "), /lowest set of substituent locants.*5-ethyltricyclo/s);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /alkyl substituents are ethyl at C5/);
 });
 
 test("integrates tricyclic unsaturation into analysis, numbering and bilingual reasoning", () => {
@@ -1086,8 +1090,10 @@ test("integrates general tricyclic ketone, alcohol, methyl and alkene naming", (
   const spanishReasoning = buildIupacReasoningSteps(molecule, analysis);
   const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
   assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /cetona en C4 e hidroxi en C5/);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /sustituyentes alquilo son metil en C6/);
   assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /cetona principal recibe primero.*\(4\)/s);
   assert.match(englishReasoning.map((step) => step.explanation).join(" "), /ketone at C4 and hydroxy at C5/);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /alkyl substituents are methyl at C6/);
   assert.match(englishReasoning.map((step) => step.explanation).join(" "), /principal ketone first receives.*\(4\)/s);
 });
 

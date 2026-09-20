@@ -3,6 +3,11 @@ export type SkeletalPoint = {
   y: number;
 };
 
+export type SkeletalNumberBadgeObstacle = {
+  center: SkeletalPoint;
+  radius: number;
+};
+
 export type SkeletalBondSegment = SkeletalPoint & {
   x2: number;
   y2: number;
@@ -77,6 +82,46 @@ export function getSkeletalRingNumberBadgeOffset(
     x: outwardX / outwardLength * geometry.ringDistance,
     y: outwardY / outwardLength * geometry.ringDistance,
   };
+}
+
+/**
+ * Keeps the preferred badge position unless it conflicts with a visible label
+ * or another badge. Candidate positions remain close to the same atom, so a
+ * short leader can preserve the atom-to-locant association when it moves.
+ */
+export function getSkeletalNumberBadgeOffsetWithClearance(
+  preferredOffset: SkeletalPoint,
+  badgeRadius: number,
+  obstacles: readonly SkeletalNumberBadgeObstacle[],
+): SkeletalPoint {
+  const preferredLength = Math.hypot(preferredOffset.x, preferredOffset.y);
+  if (preferredLength === 0 || obstacles.length === 0) return { ...preferredOffset };
+
+  const candidateOffsets = [0, -24, 24, -48, 48, -72, 72].flatMap((degrees) => {
+    const angle = degrees * Math.PI / 180;
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    return [1, 1.16].map((distanceScale) => ({
+      x: (preferredOffset.x * cosine - preferredOffset.y * sine) * distanceScale,
+      y: (preferredOffset.x * sine + preferredOffset.y * cosine) * distanceScale,
+    }));
+  });
+
+  return candidateOffsets.reduce((best, candidate) => {
+    const candidatePenalty = obstacles.reduce((penalty, obstacle) => {
+      const distance = Math.hypot(candidate.x - obstacle.center.x, candidate.y - obstacle.center.y);
+      return penalty + Math.max(0, badgeRadius + obstacle.radius - distance) ** 2;
+    }, 0);
+    const bestPenalty = obstacles.reduce((penalty, obstacle) => {
+      const distance = Math.hypot(best.x - obstacle.center.x, best.y - obstacle.center.y);
+      return penalty + Math.max(0, badgeRadius + obstacle.radius - distance) ** 2;
+    }, 0);
+    const candidateDeviation = Math.hypot(candidate.x - preferredOffset.x, candidate.y - preferredOffset.y);
+    const bestDeviation = Math.hypot(best.x - preferredOffset.x, best.y - preferredOffset.y);
+    return candidatePenalty < bestPenalty || (candidatePenalty === bestPenalty && candidateDeviation < bestDeviation)
+      ? candidate
+      : best;
+  }, candidateOffsets[0]);
 }
 
 /**

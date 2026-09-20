@@ -72,6 +72,7 @@ import {
   clipSkeletalRingDoubleBondSegments,
   DEFAULT_NUMBERING_SCALE,
   getSkeletalNumberBadgeGeometry,
+  getSkeletalNumberBadgeOffsetWithClearance,
   getSkeletalRingNumberBadgeOffset,
   getSkeletalRingDoubleBondSegments,
   MAX_NUMBERING_SCALE,
@@ -411,6 +412,18 @@ export type IupacReasoningStep = {
 };
 
 export function splitChemicalNameForWrapping(value: string) {
+  const descriptorMatch = /(?:bi|tri|tetra|penta|hexa|hepta|octa)(?:cyclo|ciclo)\[[^\]]*\]|(?:spiro|espiro)\[[^\]]*\]/i.exec(value);
+  if (descriptorMatch?.index !== undefined) {
+    const prefix = value.slice(0, descriptorMatch.index);
+    const suffix = value.slice(descriptorMatch.index + descriptorMatch[0].length);
+    // Keep each locant–prefix unit and the von Baeyer descriptor intact.
+    // The parent remains one unit until a narrow card genuinely needs wrapping.
+    return [
+      ...prefix.split(/(?<=-)(?=\d)/).filter(Boolean),
+      descriptorMatch[0],
+      suffix,
+    ].filter(Boolean);
+  }
   const boundaries = new Set<number>([0, value.length]);
   for (let index = 0; index < value.length; index += 1) {
     if (value[index] === "-" || value[index] === " " || value[index] === "]") {
@@ -467,7 +480,12 @@ export function ChemicalNameText({ name = "" }: { name?: string }) {
   return (
     <span className="chemical-name-text">
       {splitChemicalNameForWrapping(name).map((segment, index) => (
-        <span key={`${index}-${segment}`}>
+        <span
+          className={/(?:bi|tri|tetra|penta|hexa|hepta|octa)(?:cyclo|ciclo)\[|(?:spiro|espiro)\[/i.test(segment)
+            ? "chemical-name-descriptor"
+            : "chemical-name-segment"}
+          key={`${index}-${segment}`}
+        >
           {index > 0 && <wbr />}
           <ChemicalNotationText value={segment} />
         </span>
@@ -3652,6 +3670,10 @@ export function buildIupacReasoningSteps(
       : system.primaryFunctionalGroup === "alcohol"
         ? `alcohol en ${carbonLocantsText(primaryLocants)}`
         : "";
+    const alkylSummary = [...system.substituents]
+      .sort((left, right) => left.locant - right.locant || left.name.localeCompare(right.name, "es"))
+      .map((substituent) => `${substituent.name} en C${substituent.locant}`)
+      .join(", ");
     return [
       {
         number: "01",
@@ -3670,6 +3692,7 @@ export function buildIupacReasoningSteps(
         number: "04", title: "Funciones e insaturaciones",
         explanation: [
           functionalSummary ? `Se reconoce ${functionalSummary}.` : "",
+          alkylSummary ? `Los sustituyentes alquilo son ${alkylSummary}.` : "",
           system.doubleBondLocants.length || system.tripleBondLocants.length
             ? `Los enlaces múltiples reciben prioridad sobre los prefijos y se localizan como ${fusedMultipleBondLocationsText(system, "es")}.`
             : "El núcleo no contiene dobles ni triples enlaces.",
@@ -3689,7 +3712,7 @@ export function buildIupacReasoningSteps(
       {
         number: "06", title: "Nombre sistemático",
         explanation: system.systematicName
-          ? `Los prefijos funcionales y alquilo se agrupan y se citan alfabéticamente delante del progenitor: ${system.systematicName}.`
+          ? `Los prefijos funcionales y alquilo se agrupan y se citan alfabéticamente delante del progenitor${alkylSummary ? ` (${alkylSummary})` : ""}: ${system.systematicName}.`
           : `La numeración del progenitor ${system.parentName} queda disponible, pero no se emite un nombre completo cuando existen grupos funcionales fuera de esta etapa.`,
       },
     ];
@@ -4026,6 +4049,10 @@ export function buildEnglishReasoningSteps(
       : system.primaryFunctionalGroup === "alcohol"
         ? `alcohol at ${carbonLocantsText(primaryLocants)}`
         : "";
+    const alkylSummary = [...system.substituents]
+      .sort((left, right) => left.locant - right.locant || left.name.localeCompare(right.name, "en"))
+      .map((substituent) => `${translateSpanishIupacToOpsin(substituent.name) || substituent.name} at C${substituent.locant}`)
+      .join(", ");
     return [
       {
         number: "01", title: "Fused tricyclic system",
@@ -4043,6 +4070,7 @@ export function buildEnglishReasoningSteps(
         number: "04", title: "Functions and unsaturation",
         explanation: [
           functionalSummary ? `The core contains ${functionalSummary}.` : "",
+          alkylSummary ? `The alkyl substituents are ${alkylSummary}.` : "",
           system.doubleBondLocants.length || system.tripleBondLocants.length
             ? `Multiple bonds take priority over prefix substituents and are located as ${fusedMultipleBondLocationsText(system, "en")}.`
             : "The core contains no double or triple bonds.",
@@ -4062,7 +4090,7 @@ export function buildEnglishReasoningSteps(
       {
         number: "06", title: "Systematic name",
         explanation: system.systematicNameEn
-          ? `Functional and alkyl prefixes are grouped and cited alphabetically before the parent: ${system.systematicNameEn}.`
+          ? `Functional and alkyl prefixes are grouped and cited alphabetically before the parent${alkylSummary ? ` (${alkylSummary})` : ""}: ${system.systematicNameEn}.`
           : `The ${system.parentNameEn} parent numbering is available, but no complete name is emitted when functional groups outside this phase are required.`,
       },
     ];
@@ -8093,33 +8121,71 @@ export default function Home() {
       ))
     : null;
   const numberingGeometry = getSkeletalNumberBadgeGeometry(numberingScale);
-  const skeletalNumberBadgeOffsets = new Map(
+  const numberBadgePreferredOffsets = new Map(
     molecule.atoms.map((atom) => {
       const containingRing = molecule.rings?.find((ring) => ring.atomIds.includes(atom.id));
       const position = displayPositions.get(atom.id)!;
-      const offset = containingRing
+      const offset = viewMode === "skeletal" && containingRing
           ? getSkeletalRingNumberBadgeOffset(
               position,
               containingRing.atomIds.map((atomId) => displayPositions.get(atomId)!),
               numberingScale,
             )
+          : viewMode !== "skeletal"
+            ? {
+                x: (molecule.isMirrored ? -25 : 25) * numberingScale,
+                y: -27 * numberingScale,
+              }
           : molecule.isMirrored
           ? { x: -numberingGeometry.offset.x, y: numberingGeometry.offset.y }
           : numberingGeometry.offset;
       return [atom.id, offset];
     }),
   );
+  const paintedNumberBadgeRadius = numberingGeometry.radius + numberingGeometry.strokeWidth / 2;
+  const skeletalNumberBadgeOffsets = new Map<number, { x: number; y: number }>();
+  const numberBadgeNeedsLeader = new Set<number>();
+  const numberedAtomsInOrder = [...analysis.numberedAtoms.entries()]
+    .sort(([, left], [, right]) => left - right)
+    .map(([atomId]) => molecule.atoms.find((atom) => atom.id === atomId))
+    .filter((atom): atom is CarbonAtom => Boolean(atom));
+  for (const atom of numberedAtomsInOrder) {
+    const position = displayPositions.get(atom.id)!;
+    const preferredOffset = numberBadgePreferredOffsets.get(atom.id) ?? numberingGeometry.offset;
+    const labelObstacles = molecule.atoms.flatMap((otherAtom) => {
+      if (otherAtom.id === atom.id || isCarbonAtom(otherAtom)) return [];
+      const otherPosition = displayPositions.get(otherAtom.id)!;
+      return [{
+        center: { x: otherPosition.x - position.x, y: otherPosition.y - position.y },
+        radius: Math.max(18, 22 * functionalGroupScale),
+      }];
+    });
+    const priorBadgeObstacles = [...skeletalNumberBadgeOffsets.entries()].map(([otherAtomId, offset]) => {
+      const otherPosition = displayPositions.get(otherAtomId)!;
+      return {
+        center: {
+          x: otherPosition.x + offset.x - position.x,
+          y: otherPosition.y + offset.y - position.y,
+        },
+        radius: paintedNumberBadgeRadius + 4,
+      };
+    });
+    const offset = getSkeletalNumberBadgeOffsetWithClearance(
+      preferredOffset,
+      paintedNumberBadgeRadius,
+      [...labelObstacles, ...priorBadgeObstacles],
+    );
+    skeletalNumberBadgeOffsets.set(atom.id, offset);
+    if (Math.hypot(offset.x - preferredOffset.x, offset.y - preferredOffset.y) > 1) {
+      numberBadgeNeedsLeader.add(atom.id);
+    }
+  }
   const numberingBadgeExtents = effectiveShowNumbering
     ? molecule.atoms.flatMap((atom) => {
         if (!analysis.numberedAtoms.has(atom.id) || carbonCount <= 1) return [];
         const position = displayPositions.get(atom.id)!;
-        const offset = viewMode === "skeletal"
-          ? skeletalNumberBadgeOffsets.get(atom.id)!
-          : {
-              x: (molecule.isMirrored ? -25 : 25) * numberingScale,
-              y: -27 * numberingScale,
-            };
-        const paintedRadius = numberingGeometry.radius + numberingGeometry.strokeWidth / 2;
+        const offset = skeletalNumberBadgeOffsets.get(atom.id)!;
+        const paintedRadius = paintedNumberBadgeRadius;
         return [{
           x: position.x + offset.x - paintedRadius,
           y: position.y + offset.y - paintedRadius,
@@ -10044,7 +10110,7 @@ export default function Home() {
                           )}
                           {effectiveShowNumbering && chainNumber && carbonCount > 1 && (
                             <>
-                              {showSteroidNumberLeaders && (
+                              {(showSteroidNumberLeaders || numberBadgeNeedsLeader.has(atom.id)) && (
                                 <line
                                   className="skeletal-number-leader"
                                   x1={numberBadgeOffset.x / numberBadgeDistance * numberLeaderStart}
@@ -10154,7 +10220,17 @@ export default function Home() {
                           </text>
                         </g>
                         {effectiveShowNumbering && chainNumber && (
-                          <g transform={`translate(${(molecule.isMirrored ? -25 : 25) * numberingScale} ${-27 * numberingScale})`}>
+                          <>
+                            {numberBadgeNeedsLeader.has(atom.id) && (
+                              <line
+                                className="skeletal-number-leader"
+                                x1={numberBadgeOffset.x / numberBadgeDistance * numberLeaderStart}
+                                y1={numberBadgeOffset.y / numberBadgeDistance * numberLeaderStart}
+                                x2={numberBadgeOffset.x / numberBadgeDistance * numberLeaderEnd}
+                                y2={numberBadgeOffset.y / numberBadgeDistance * numberLeaderEnd}
+                              />
+                            )}
+                            <g transform={`translate(${numberBadgeOffset.x} ${numberBadgeOffset.y})`}>
                             <circle
                               className="number-circle"
                               r={numberingGeometry.radius}
@@ -10166,7 +10242,8 @@ export default function Home() {
                               textAnchor="middle"
                               dominantBaseline="central"
                             >{chainNumber}</text>
-                          </g>
+                            </g>
+                          </>
                         )}
                       </>
                     )}
