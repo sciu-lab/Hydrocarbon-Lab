@@ -60,6 +60,18 @@ function addExternalChain(molecule, length) {
   return next;
 }
 
+function addExternalChainAt(molecule, anchorId, length) {
+  const next = structuredClone(molecule);
+  let previousId = anchorId;
+  for (let index = 0; index < length; index++) {
+    const id = Math.max(...next.atoms.map((atom) => atom.id)) + 1;
+    next.atoms.push({ id, x: 20 + index, y: -10 - index });
+    next.bonds.push([previousId, id, 1]);
+    previousId = id;
+  }
+  return next;
+}
+
 function addOxygen(molecule, order) {
   const next = structuredClone(molecule);
   const carbonId = peripheralCoreAtom(next);
@@ -178,10 +190,63 @@ test("keeps methyl and ethyl atoms outside the recognised core", () => {
     assert.equal(system?.externalAtomIds.length, length);
     assert.equal(system?.externalAttachments.length, 1);
     assert.equal(system?.externalAttachments[0].order, 1);
-    assert.equal(system?.systematicName, null);
+    assert.match(system?.systematicName ?? "", new RegExp(`^\\d+-${length === 1 ? "metil" : "etil"}triciclo`));
     assert.equal(system?.parentName, "triciclo[8.4.0.0^{3,8}]tetradecano");
     assertCoherentVonBaeyerNumbering(molecule, system);
   }
+});
+
+test("names linear alkyl substituents from methyl through hexyl", () => {
+  const expectedNames = ["metil", "etil", "propil", "butil", "pentil", "hexil"];
+  const expectedNamesEn = ["methyl", "ethyl", "propyl", "butyl", "pentyl", "hexyl"];
+  expectedNames.forEach((name, index) => {
+    const molecule = addExternalChainAt(makeTricycle(6, 6, "linear"), 12, index + 1);
+    const system = getFusedTricyclicSystem(molecule);
+    assert.equal(system?.systematicName, `5-${name}triciclo[8.4.0.0^{3,8}]tetradecano`);
+    assert.equal(system?.systematicNameEn, `5-${expectedNamesEn[index]}tricyclo[8.4.0.0^{3,8}]tetradecane`);
+    assert.deepEqual(system?.substituents.map((substituent) => substituent.locant), [5]);
+  });
+});
+
+test("selects substituent locants across equivalent linear and angular numberings", () => {
+  const linear = getFusedTricyclicSystem(addExternalChainAt(makeTricycle(6, 6, "linear"), 12, 1));
+  const angular = getFusedTricyclicSystem(addExternalChainAt(makeTricycle(6, 6, "angular"), 12, 1));
+  assert.equal(linear?.numberingCandidates.length, 4);
+  assert.equal(linear?.systematicName, "5-metiltriciclo[8.4.0.0^{3,8}]tetradecano");
+  assert.equal(angular?.numberingCandidates.length, 2);
+  assert.equal(angular?.systematicName, "4-metiltriciclo[8.4.0.0^{2,7}]tetradecano");
+});
+
+test("names alkyl derivatives of the supported 6-6-5 and 6-5-6 parents", () => {
+  const sixSixFive = getFusedTricyclicSystem(addExternalChainAt(makeTricycle(6, 5, "angular"), 11, 1));
+  const sixFiveSix = getFusedTricyclicSystem(addExternalChainAt(makeTricycle(5, 6, "angular"), 11, 1));
+  assert.equal(sixSixFive?.systematicName, "3-metiltriciclo[7.4.0.0^{2,6}]tridecano");
+  assert.equal(sixSixFive?.systematicNameEn, "3-methyltricyclo[7.4.0.0^{2,6}]tridecane");
+  assert.equal(sixFiveSix?.systematicName, "4-metiltriciclo[7.4.0.0^{2,7}]tridecano");
+  assert.equal(sixFiveSix?.systematicNameEn, "4-methyltricyclo[7.4.0.0^{2,7}]tridecane");
+});
+
+test("groups repeated alkyls and uses alphabetical order to break locant ties", () => {
+  let dimethyl = addExternalChainAt(makeTricycle(6, 6, "linear"), 12, 1);
+  dimethyl = addExternalChainAt(dimethyl, 4, 1);
+  const dimethylSystem = getFusedTricyclicSystem(dimethyl);
+  assert.equal(dimethylSystem?.systematicName, "5,12-dimetiltriciclo[8.4.0.0^{3,8}]tetradecano");
+  assert.equal(dimethylSystem?.systematicNameEn, "5,12-dimethyltricyclo[8.4.0.0^{3,8}]tetradecane");
+
+  let ethylMethyl = addExternalChainAt(makeTricycle(6, 6, "linear"), 12, 2);
+  ethylMethyl = addExternalChainAt(ethylMethyl, 13, 1);
+  const mixedSystem = getFusedTricyclicSystem(ethylMethyl);
+  assert.equal(mixedSystem?.systematicName, "5-etil-6-metiltriciclo[8.4.0.0^{3,8}]tetradecano");
+  assert.equal(mixedSystem?.systematicNameEn, "5-ethyl-6-methyltricyclo[8.4.0.0^{3,8}]tetradecane");
+});
+
+test("names a methyl on a fusion carbon when valence permits it", () => {
+  const molecule = addExternalChainAt(makeTricycle(6, 6, "linear"), 1, 1);
+  const system = getFusedTricyclicSystem(molecule);
+  assert.equal(system?.systematicName, "1-metiltriciclo[8.4.0.0^{3,8}]tetradecano");
+  assert.equal(system?.substituents[0].anchorId, 1);
+  assert.equal(system?.substituents[0].locant, 1);
+  assertCoherentVonBaeyerNumbering(molecule, system);
 });
 
 test("recognises the same core with ketone, alcohol or a double bond", () => {
@@ -247,6 +312,38 @@ test("recognition is invariant under IDs, coordinates and ring record order", ()
   assert.deepEqual(
     candidateKeys(actual.numberingCandidates),
     candidateKeys(expected.numberingCandidates.map((candidate) => candidate.map((id) => idMap.get(id)))),
+  );
+});
+
+test("substituted naming is invariant under IDs, coordinates and record order", () => {
+  let source = addExternalChainAt(makeTricycle(6, 6, "linear"), 12, 2);
+  source = addExternalChainAt(source, 13, 1);
+  const expected = getFusedTricyclicSystem(source);
+  const idMap = new Map(source.atoms.map((atom, index) => [atom.id, 2003 + index * 31]));
+  const transformed = {
+    atoms: [...source.atoms].reverse().map((atom) => ({
+      ...atom,
+      id: idMap.get(atom.id),
+      x: -atom.y * 17 + 400,
+      y: atom.x * 17 - 250,
+    })),
+    bonds: [...source.bonds].reverse().map(([left, right, order]) => [idMap.get(right), idMap.get(left), order]),
+    rings: [...source.rings].reverse().map((ring, index) => ({
+      ...ring,
+      id: 900 + index,
+      atomIds: [...ring.atomIds].reverse().map((id) => idMap.get(id)),
+    })),
+  };
+  const actual = getFusedTricyclicSystem(transformed);
+  assert.equal(actual?.systematicName, expected?.systematicName);
+  assert.equal(actual?.systematicNameEn, expected?.systematicNameEn);
+  assert.deepEqual(
+    actual?.substituents.map((substituent) => [substituent.locant, substituent.name]).sort(),
+    expected?.substituents.map((substituent) => [substituent.locant, substituent.name]).sort(),
+  );
+  assert.deepEqual(
+    actual?.numbering,
+    expected?.numbering.map((id) => idMap.get(id)),
   );
 });
 

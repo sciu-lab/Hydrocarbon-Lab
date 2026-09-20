@@ -3246,6 +3246,13 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
     const fusedTricyclic = getFusedTricyclicSystem(molecule);
     if (fusedTricyclic) {
       const primaryFunctionalGroup = selectPrimaryFunctionalGroup(groups);
+      const substituents = fusedTricyclic.substituents.map((substituent) => ({
+        locant: substituent.locant,
+        name: substituent.name,
+        sortName: substituent.name,
+        complex: false,
+        atomIds: substituent.atomIds,
+      }));
       const numberedAtoms = new Map(fusedTricyclic.numbering.map(
         (atomId, index) => [atomId, index + 1] as const,
       ));
@@ -3255,7 +3262,7 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
         family: "polycyclic",
         mainChain: [...fusedTricyclic.numbering],
         chainName: fusedTricyclic.parentName,
-        substituents: [],
+        substituents,
         numberedAtoms,
         doubleBondLocants: [],
         tripleBondLocants: [],
@@ -3587,10 +3594,16 @@ export function buildIupacReasoningSteps(
         explanation: `El puente secundario de longitud ${system.secondaryBridges[0].length} se une en ${system.secondaryBridges[0].attachmentLocants.join(",")}; el descriptor resultante es ${system.vonBaeyerDescriptor}.`,
       },
       {
-        number: "04", title: "Nombre del progenitor",
+        number: "04", title: "Selección de localizadores",
+        explanation: system.substituents.length
+          ? `Entre las numeraciones equivalentes del progenitor se elige el menor conjunto de localizadores para los sustituyentes (${system.substituents.map((substituent) => substituent.locant).sort((left, right) => left - right).join(",")}); los empates se resuelven por orden alfabético.`
+          : "Las orientaciones equivalentes del progenitor producen el mismo descriptor y no hay sustituyentes que rompan la simetría.",
+      },
+      {
+        number: "05", title: "Nombre sistemático",
         explanation: system.systematicName
-          ? `El núcleo saturado sin sustituyentes se nombra ${system.systematicName}.`
-          : `La numeración del progenitor ${system.parentName} queda disponible, pero esta etapa todavía no nombra sus sustituyentes, insaturaciones o grupos funcionales.`,
+          ? `Los prefijos alquilo se agrupan y se citan alfabéticamente delante del progenitor: ${system.systematicName}.`
+          : `La numeración del progenitor ${system.parentName} queda disponible, pero esta etapa todavía no nombra insaturaciones ni grupos funcionales.`,
       },
     ];
   }
@@ -3927,10 +3940,16 @@ export function buildEnglishReasoningSteps(
         explanation: `The secondary bridge of length ${system.secondaryBridges[0].length} is attached at ${system.secondaryBridges[0].attachmentLocants.join(",")}, giving ${system.vonBaeyerDescriptor}.`,
       },
       {
-        number: "04", title: "Parent name",
+        number: "04", title: "Locant selection",
+        explanation: system.substituents.length
+          ? `Among equivalent parent numberings, the lowest set of substituent locants (${system.substituents.map((substituent) => substituent.locant).sort((left, right) => left - right).join(",")}) is selected; alphabetical order resolves remaining ties.`
+          : "Equivalent parent orientations give the same descriptor, and no substituent breaks the symmetry.",
+      },
+      {
+        number: "05", title: "Systematic name",
         explanation: system.systematicNameEn
-          ? `The unsubstituted saturated parent is ${system.systematicNameEn}.`
-          : `The ${system.parentNameEn} parent numbering is available, but substituents, unsaturation, and functional groups are intentionally not named at this stage.`,
+          ? `Alkyl prefixes are grouped and cited alphabetically before the parent: ${system.systematicNameEn}.`
+          : `The ${system.parentNameEn} parent numbering is available, but unsaturation and functional groups are intentionally not named at this stage.`,
       },
     ];
   }

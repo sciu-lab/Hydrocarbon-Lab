@@ -922,7 +922,7 @@ test("steroid constitutional naming survives shuffled graph IDs and rejects extr
   assert.equal(getSteroidLike6565System(extra)?.constitutionNameEs, undefined);
 });
 
-test("integrates tricyclic parent naming and retains numbering for unsupported derivatives", () => {
+test("integrates tricyclic parent and linear alkyl naming", () => {
   let molecule = fuseRingOnBond(makeRing(6), 1, 2, 6);
   const centralRing = molecule.rings[1];
   molecule = fuseRingOnBond(molecule, centralRing.atomIds[2], centralRing.atomIds[3], 6);
@@ -936,13 +936,19 @@ test("integrates tricyclic parent naming and retains numbering for unsupported d
   const anchorId = molecule.rings[2].atomIds[2];
   molecule = addLinearAlkyl(molecule, anchorId, 2);
   const analysis = analyzeMolecule(molecule);
-  assert.equal(analysis.name, "Nombre no disponible para estructuras complejas");
+  assert.equal(analysis.name, "5-etiltriciclo[8.4.0.0^{3,8}]tetradecano");
   assert.equal(analysis.fusedTricyclic?.topology, "linear");
   assert.deepEqual(analysis.fusedTricyclic?.ringSizes, [6, 6, 6]);
   assert.equal(analysis.fusedTricyclic?.atomIds.length, 14);
   assert.equal(analysis.fusedTricyclic?.externalAtomIds.length, 2);
   assert.equal(analysis.fusedTricyclic?.numbering.length, 14);
   assert.equal(analysis.numberedAtoms.size, 14);
-  assert.equal(analysis.fusedTricyclic?.systematicName, null);
+  assert.deepEqual(analysis.substituents.map(({ locant, name }) => ({ locant, name })), [{ locant: 5, name: "etil" }]);
+  assert.equal(analysis.fusedTricyclic?.systematicNameEn, "5-ethyltricyclo[8.4.0.0^{3,8}]tetradecane");
+  assert.equal(translateSpanishIupacToOpsin(analysis.name), "5-ethyltricyclo[8.4.0.0^{3,8}]tetradecane");
   assert.match(analysis.ringSystem, /Sistema tricíclico fusionado 6-6-6 \(lineal\)/);
+  const spanishReasoning = buildIupacReasoningSteps(molecule, analysis);
+  const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /menor conjunto de localizadores.*5-etiltriciclo/s);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /lowest set of substituent locants.*5-ethyltricyclo/s);
 });

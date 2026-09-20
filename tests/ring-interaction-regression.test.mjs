@@ -78,7 +78,7 @@ test("expanded workspace wraps the live canvas and construction controls", () =>
 });
 
 test("the traditional nomenclature card uses the name supplied by fused-ring analysis", () => {
-  assert.match(page, /const traditionalName = analysis\.fusedBicyclic/);
+  assert.match(page, /const traditionalName = analysis\.steroidSystem[\s\S]*: analysis\.fusedBicyclic/);
   assert.match(page, /fusedBicyclicTraditionalDisplayName\(analysis\.fusedBicyclic, language\)/);
   assert.match(page, /name: convention === "traditional"\s*\? traditionalName/s);
 });

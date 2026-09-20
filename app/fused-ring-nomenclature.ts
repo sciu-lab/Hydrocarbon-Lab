@@ -85,6 +85,7 @@ export type FusedTricyclicSystem = {
   }[];
   numbering: number[];
   numberingCandidates: number[][];
+  substituents: FusedBicyclicSubstituent[];
   vonBaeyerDescriptor: string;
   mainRing: number[];
   mainBridge: {
@@ -101,7 +102,7 @@ export type FusedTricyclicSystem = {
   }[];
   parentName: string;
   parentNameEn: string;
-  /** Full-molecule name is emitted only for the bare saturated parent. */
+  /** Full-molecule name is emitted for the saturated parent and supported linear alkyl derivatives. */
   systematicName: string | null;
   systematicNameEn: string | null;
 };
@@ -290,6 +291,7 @@ function buildTricyclicVonBaeyerDescriptor(
     branches: best.branches,
     secondaryBridgeheads: best.secondaryBridgeheads,
     secondaryLocants: best.secondaryLocants,
+    candidates: equallyPreferred,
   };
 }
 
@@ -389,11 +391,49 @@ export function getFusedTricyclicSystem(
   const vonBaeyer = buildTricyclicVonBaeyerDescriptor(molecule, atomIds);
   const parentRoot = iupacRootForCarbonCount(atomIds.length);
   if (!vonBaeyer || !parentRoot) return null;
-  const [firstBranch, secondBranch] = vonBaeyer.branches;
+  const unnumberedSubstituents = findSimpleAlkylSubstituents(molecule, atomIds, new Set());
+  const canNameSaturatedDerivative = coreMultipleBonds.length === 0 && unnumberedSubstituents !== null;
+  const rankedNumberings = canNameSaturatedDerivative
+    ? vonBaeyer.candidates.map((candidate) => {
+      const locants = new Map(candidate.numbering.map((atomId, index) => [atomId, index + 1]));
+      const substituents = unnumberedSubstituents.map((substituent) => ({
+        ...substituent,
+        locant: locants.get(substituent.anchorId)!,
+      }));
+      const prefixLocants = substituents.map((substituent) => substituent.locant)
+        .sort((left, right) => left - right);
+      const citationLocants = [...new Set(substituents.map((substituent) => substituent.name))]
+        .sort((left, right) => left.localeCompare(right, "es"))
+        .flatMap((name) => substituents
+          .filter((substituent) => substituent.name === name)
+          .map((substituent) => substituent.locant)
+          .sort((left, right) => left - right));
+      return { candidate, substituents, prefixLocants, citationLocants };
+    }).sort((left, right) => (
+      compareNumberLists(left.prefixLocants, right.prefixLocants)
+      || compareNumberLists(left.citationLocants, right.citationLocants)
+    ))
+    : [];
+  const selected = rankedNumberings[0];
+  const selectedCandidate = selected?.candidate ?? vonBaeyer.candidates[0];
+  if (!selectedCandidate) return null;
+  const substituents = selected?.substituents ?? [];
+  const [firstBranch, secondBranch] = selectedCandidate.branches;
   if (firstBranch.length + secondBranch.length + 2 !== atomIds.length) return null;
   const parentName = `triciclo${vonBaeyer.descriptor}${parentRoot}ano`;
   const parentNameEn = `tricyclo${vonBaeyer.descriptor}${englishIupacRoot(parentRoot)}ane`;
-  const isBareSaturatedParent = externalAtomIds.length === 0 && coreMultipleBonds.length === 0;
+  const substituentPrefix = canNameSaturatedDerivative
+    ? formatSubstituentPrefixes(substituents)
+    : null;
+  const englishSubstituentPrefix = canNameSaturatedDerivative
+    ? formatSubstituentPrefixes(substituents.map((substituent) => {
+      const root = iupacRootForCarbonCount(substituent.atomIds.length)!;
+      return {
+        locant: substituent.locant,
+        name: `${englishIupacRoot(root)}yl`,
+      };
+    }), "en")
+    : null;
 
   return {
     atomIds,
@@ -409,12 +449,13 @@ export function getFusedTricyclicSystem(
     sharedAtomPairs: fusionBonds.map((fusion) => fusion.atomIds),
     externalAttachments,
     coreMultipleBonds,
-    numbering: vonBaeyer.numbering,
+    numbering: selectedCandidate.numbering,
     numberingCandidates: vonBaeyer.numberingCandidates,
+    substituents,
     vonBaeyerDescriptor: vonBaeyer.descriptor,
-    mainRing: vonBaeyer.mainRing,
+    mainRing: selectedCandidate.mainRing,
     mainBridge: {
-      bridgeheads: vonBaeyer.mainBridgeheads,
+      bridgeheads: selectedCandidate.mainBridgeheads,
       atomIds: [],
       length: 0,
     },
@@ -423,15 +464,19 @@ export function getFusedTricyclicSystem(
       { atomIds: secondBranch, length: secondBranch.length },
     ],
     secondaryBridges: [{
-      bridgeheads: vonBaeyer.secondaryBridgeheads,
+      bridgeheads: selectedCandidate.secondaryBridgeheads,
       atomIds: [],
       length: 0,
-      attachmentLocants: vonBaeyer.secondaryLocants,
+      attachmentLocants: selectedCandidate.secondaryLocants,
     }],
     parentName,
     parentNameEn,
-    systematicName: isBareSaturatedParent ? parentName : null,
-    systematicNameEn: isBareSaturatedParent ? parentNameEn : null,
+    systematicName: substituentPrefix === null
+      ? null
+      : substituentPrefix ? `${substituentPrefix}${parentName}` : parentName,
+    systematicNameEn: englishSubstituentPrefix === null
+      ? null
+      : englishSubstituentPrefix ? `${englishSubstituentPrefix}${parentNameEn}` : parentNameEn,
   };
 }
 
@@ -707,7 +752,10 @@ function functionalParentName(
 
 type LocantedPrefix = { name: string; locant: number };
 
-function formatSubstituentPrefixes(substituents: readonly LocantedPrefix[]): string | null {
+function formatSubstituentPrefixes(
+  substituents: readonly LocantedPrefix[],
+  locale: "es" | "en" = "es",
+): string | null {
   const groups = new Map<string, number[]>();
   for (const substituent of substituents) {
     const locants = groups.get(substituent.name) ?? [];
@@ -715,7 +763,7 @@ function formatSubstituentPrefixes(substituents: readonly LocantedPrefix[]): str
     groups.set(substituent.name, locants);
   }
   const prefixes: string[] = [];
-  for (const [name, locants] of [...groups].sort(([left], [right]) => left.localeCompare(right, "es"))) {
+  for (const [name, locants] of [...groups].sort(([left], [right]) => left.localeCompare(right, locale))) {
     const ordered = locants.sort((left, right) => left - right);
     if (ordered.length === 1) {
       prefixes.push(`${ordered[0]}-${name}`);
