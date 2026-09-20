@@ -1052,3 +1052,60 @@ test("integrates compound unsaturation locants into analysis and bilingual reaso
     "tricyclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-triene",
   );
 });
+
+test("integrates general tricyclic ketone, alcohol, methyl and alkene naming", () => {
+  let molecule = fuseRingOnBond(makeRing(6), 1, 2, 6);
+  const centralRing = molecule.rings[1];
+  molecule = fuseRingOnBond(molecule, centralRing.atomIds[2], centralRing.atomIds[3], 6);
+  molecule = addOxygenGroup(molecule, 11, 2);
+  molecule = addOxygenGroup(molecule, 12, 1);
+  molecule = addLinearAlkyl(molecule, 13, 1);
+  molecule = setBondOrder(molecule, 3, 4, 2);
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(
+    analysis.name,
+    "5-hidroxi-6-metiltriciclo[8.4.0.0^{3,8}]tetradec-11-en-4-ona",
+  );
+  assert.equal(
+    analysis.fusedTricyclic?.systematicNameEn,
+    "5-hydroxy-6-methyltricyclo[8.4.0.0^{3,8}]tetradec-11-en-4-one",
+  );
+  assert.equal(analysis.primaryFunctionalGroup, "ketone");
+  assert.equal(analysis.primaryFunctionalLabel, "Cetona");
+  assert.deepEqual(
+    analysis.fusedTricyclic?.functionalGroups.map(({ kind, locant }) => ({ kind, locant })),
+    [{ kind: "ketone", locant: 4 }, { kind: "alcohol", locant: 5 }],
+  );
+  assert.equal(analysis.numberedAtoms.get(11), 4);
+  assert.equal(analysis.numberedAtoms.get(12), 5);
+  assert.equal(analysis.numberedAtoms.get(13), 6);
+  assert.deepEqual(analysis.doubleBondLocants, [11]);
+  assert.deepEqual(analysis.substituents.map(({ name, locant }) => ({ name, locant })), [
+    { name: "metil", locant: 6 },
+  ]);
+  const spanishReasoning = buildIupacReasoningSteps(molecule, analysis);
+  const englishReasoning = buildEnglishReasoningSteps(spanishReasoning, molecule, analysis);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /cetona en C4 e hidroxi en C5/);
+  assert.match(spanishReasoning.map((step) => step.explanation).join(" "), /cetona principal recibe primero.*\(4\)/s);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /ketone at C4 and hydroxy at C5/);
+  assert.match(englishReasoning.map((step) => step.explanation).join(" "), /principal ketone first receives.*\(4\)/s);
+});
+
+test("integrates a tricyclic ketone with a compound alkene locant", () => {
+  let molecule = fuseRingOnBond(makeRing(6), 1, 2, 6);
+  const centralRing = molecule.rings[1];
+  molecule = fuseRingOnBond(molecule, centralRing.atomIds[2], centralRing.atomIds[3], 6);
+  molecule = addOxygenGroup(molecule, 12, 2);
+  molecule = setBondOrder(molecule, 1, 2, 2);
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(
+    analysis.name,
+    "triciclo[8.4.0.0^{3,8}]tetradec-1(10)-en-5-ona",
+  );
+  assert.equal(
+    analysis.fusedTricyclic?.systematicNameEn,
+    "tricyclo[8.4.0.0^{3,8}]tetradec-1(10)-en-5-one",
+  );
+  assert.equal(analysis.fusedTricyclic?.doubleBondLocations[0].compound, true);
+  assert.equal(analysis.primaryFunctionalGroup, "ketone");
+});

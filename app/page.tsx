@@ -3281,9 +3281,10 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
     return analyzeFusedBicyclicMolecule(molecule, fusedBicyclic, groups);
   }
   if (hasSharedRingAtoms(molecule)) {
-    const fusedTricyclic = getFusedTricyclicSystem(molecule);
+    const fusedTricyclic = getFusedTricyclicSystem(molecule, groups);
     if (fusedTricyclic) {
-      const primaryFunctionalGroup = selectPrimaryFunctionalGroup(groups);
+      const primaryFunctionalGroup = fusedTricyclic.primaryFunctionalGroup
+        ?? selectPrimaryFunctionalGroup(groups);
       const substituents = fusedTricyclic.substituents.map((substituent) => ({
         locant: substituent.locant,
         name: substituent.name,
@@ -3638,6 +3639,19 @@ export function buildIupacReasoningSteps(
   }
   if (analysis.fusedTricyclic) {
     const system = analysis.fusedTricyclic;
+    const primaryLocants = system.functionalGroups
+      .filter((group) => group.kind === system.primaryFunctionalGroup)
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const hydroxyLocants = system.functionalGroups
+      .filter((group) => group.kind === "alcohol" && system.primaryFunctionalGroup === "ketone")
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const functionalSummary = system.primaryFunctionalGroup === "ketone"
+      ? `cetona en ${carbonLocantsText(primaryLocants)}${hydroxyLocants.length ? ` e hidroxi en ${carbonLocantsText(hydroxyLocants)}` : ""}`
+      : system.primaryFunctionalGroup === "alcohol"
+        ? `alcohol en ${carbonLocantsText(primaryLocants)}`
+        : "";
     return [
       {
         number: "01",
@@ -3653,14 +3667,19 @@ export function buildIupacReasoningSteps(
         explanation: `El puente secundario de longitud ${system.secondaryBridges[0].length} se une en ${system.secondaryBridges[0].attachmentLocants.join(",")}; el descriptor resultante es ${system.vonBaeyerDescriptor}.`,
       },
       {
-        number: "04", title: "Insaturaciones",
-        explanation: system.doubleBondLocants.length || system.tripleBondLocants.length
-          ? `Los enlaces múltiples reciben prioridad sobre los prefijos: ${fusedMultipleBondLocationsText(system, "es")}.`
-          : "El núcleo no contiene dobles ni triples enlaces.",
+        number: "04", title: "Funciones e insaturaciones",
+        explanation: [
+          functionalSummary ? `Se reconoce ${functionalSummary}.` : "",
+          system.doubleBondLocants.length || system.tripleBondLocants.length
+            ? `Los enlaces múltiples reciben prioridad sobre los prefijos y se localizan como ${fusedMultipleBondLocationsText(system, "es")}.`
+            : "El núcleo no contiene dobles ni triples enlaces.",
+        ].filter(Boolean).join(" "),
       },
       {
         number: "05", title: "Selección de localizadores",
-        explanation: [...system.doubleBondLocations, ...system.tripleBondLocations]
+        explanation: system.primaryFunctionalGroup
+          ? `La ${system.primaryFunctionalGroup === "ketone" ? "cetona" : "función alcohol"} principal recibe primero el menor conjunto de localizadores (${primaryLocants.join(",")}); después se comparan insaturaciones y finalmente los prefijos${hydroxyLocants.length ? ", incluidos los hidroxi-" : ""}.`
+          : [...system.doubleBondLocations, ...system.tripleBondLocations]
           .some((location) => location.compound)
           ? "Entre las numeraciones admisibles se minimiza primero la cantidad de localizadores compuestos; después se comparan los localizadores citados sin contar temporalmente los números entre paréntesis. Los sustituyentes resuelven los empates restantes."
           : system.substituents.length
@@ -3670,7 +3689,7 @@ export function buildIupacReasoningSteps(
       {
         number: "06", title: "Nombre sistemático",
         explanation: system.systematicName
-          ? `Los prefijos alquilo se agrupan y se citan alfabéticamente delante del progenitor: ${system.systematicName}.`
+          ? `Los prefijos funcionales y alquilo se agrupan y se citan alfabéticamente delante del progenitor: ${system.systematicName}.`
           : `La numeración del progenitor ${system.parentName} queda disponible, pero no se emite un nombre completo cuando existen grupos funcionales fuera de esta etapa.`,
       },
     ];
@@ -3994,6 +4013,19 @@ export function buildEnglishReasoningSteps(
   }
   if (analysis.fusedTricyclic) {
     const system = analysis.fusedTricyclic;
+    const primaryLocants = system.functionalGroups
+      .filter((group) => group.kind === system.primaryFunctionalGroup)
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const hydroxyLocants = system.functionalGroups
+      .filter((group) => group.kind === "alcohol" && system.primaryFunctionalGroup === "ketone")
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const functionalSummary = system.primaryFunctionalGroup === "ketone"
+      ? `ketone at ${carbonLocantsText(primaryLocants)}${hydroxyLocants.length ? ` and hydroxy at ${carbonLocantsText(hydroxyLocants)}` : ""}`
+      : system.primaryFunctionalGroup === "alcohol"
+        ? `alcohol at ${carbonLocantsText(primaryLocants)}`
+        : "";
     return [
       {
         number: "01", title: "Fused tricyclic system",
@@ -4008,14 +4040,19 @@ export function buildEnglishReasoningSteps(
         explanation: `The secondary bridge of length ${system.secondaryBridges[0].length} is attached at ${system.secondaryBridges[0].attachmentLocants.join(",")}, giving ${system.vonBaeyerDescriptor}.`,
       },
       {
-        number: "04", title: "Unsaturation",
-        explanation: system.doubleBondLocants.length || system.tripleBondLocants.length
-          ? `Multiple bonds take priority over prefix substituents: ${fusedMultipleBondLocationsText(system, "en")}.`
-          : "The core contains no double or triple bonds.",
+        number: "04", title: "Functions and unsaturation",
+        explanation: [
+          functionalSummary ? `The core contains ${functionalSummary}.` : "",
+          system.doubleBondLocants.length || system.tripleBondLocants.length
+            ? `Multiple bonds take priority over prefix substituents and are located as ${fusedMultipleBondLocationsText(system, "en")}.`
+            : "The core contains no double or triple bonds.",
+        ].filter(Boolean).join(" "),
       },
       {
         number: "05", title: "Locant selection",
-        explanation: [...system.doubleBondLocations, ...system.tripleBondLocations]
+        explanation: system.primaryFunctionalGroup
+          ? `The principal ${system.primaryFunctionalGroup === "ketone" ? "ketone" : "alcohol"} first receives the lowest locant set (${primaryLocants.join(",")}); unsaturation is compared next, followed by prefixes${hydroxyLocants.length ? ", including hydroxy-" : ""}.`
+          : [...system.doubleBondLocations, ...system.tripleBondLocations]
           .some((location) => location.compound)
           ? "Among admissible numberings, the number of compound locants is minimized first; cited locants are then compared while temporarily ignoring parenthesized numbers. Substituents resolve any remaining ties."
           : system.substituents.length
@@ -4025,7 +4062,7 @@ export function buildEnglishReasoningSteps(
       {
         number: "06", title: "Systematic name",
         explanation: system.systematicNameEn
-          ? `Alkyl prefixes are grouped and cited alphabetically before the parent: ${system.systematicNameEn}.`
+          ? `Functional and alkyl prefixes are grouped and cited alphabetically before the parent: ${system.systematicNameEn}.`
           : `The ${system.parentNameEn} parent numbering is available, but no complete name is emitted when functional groups outside this phase are required.`,
       },
     ];

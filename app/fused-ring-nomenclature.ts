@@ -91,6 +91,8 @@ export type FusedTricyclicSystem = {
   numbering: number[];
   numberingCandidates: number[][];
   substituents: FusedBicyclicSubstituent[];
+  functionalGroups: FusedBicyclicFunctionalGroup[];
+  primaryFunctionalGroup?: FusedBicyclicFunctionalKind;
   doubleBondLocants: number[];
   tripleBondLocants: number[];
   doubleBondLocations: FusedMultipleBondLocant[];
@@ -307,6 +309,7 @@ function buildTricyclicVonBaeyerDescriptor(
 /** Recognises and numbers the supported chain of three ortho-fused aliphatic rings. */
 export function getFusedTricyclicSystem(
   molecule: FusedRingMolecule,
+  detectedGroups: readonly FusedBicyclicFunctionalGroupInput[] = [],
 ): FusedTricyclicSystem | null {
   const rings = molecule.rings ?? [];
   if (
@@ -400,8 +403,22 @@ export function getFusedTricyclicSystem(
   const vonBaeyer = buildTricyclicVonBaeyerDescriptor(molecule, atomIds);
   const parentRoot = iupacRootForCarbonCount(atomIds.length);
   if (!vonBaeyer || !parentRoot) return null;
-  const unnumberedSubstituents = findSimpleAlkylSubstituents(molecule, atomIds, new Set());
-  const rankedNumberings = unnumberedSubstituents
+  const unnumberedFunctionalGroups = findDirectFunctionalGroups(molecule, atomIds, detectedGroups);
+  const functionalHeteroAtomIds = new Set(
+    (unnumberedFunctionalGroups ?? []).map((group) => group.heteroAtomId),
+  );
+  const unnumberedSubstituents = findSimpleAlkylSubstituents(
+    molecule,
+    atomIds,
+    functionalHeteroAtomIds,
+  );
+  const primaryFunctionalGroup: FusedBicyclicFunctionalKind | undefined = unnumberedFunctionalGroups
+    ?.some((group) => group.kind === "ketone")
+    ? "ketone"
+    : unnumberedFunctionalGroups?.some((group) => group.kind === "alcohol")
+      ? "alcohol"
+      : undefined;
+  const rankedNumberings = unnumberedFunctionalGroups && unnumberedSubstituents
     ? vonBaeyer.candidates.flatMap((candidate) => {
       const unsaturation = multipleBondLocations(molecule, atomIds, candidate.numbering);
       if (!unsaturation) return [];
@@ -410,13 +427,25 @@ export function getFusedTricyclicSystem(
         ...substituent,
         locant: locants.get(substituent.anchorId)!,
       }));
-      const prefixLocants = substituents.map((substituent) => substituent.locant)
+      const functionalGroups = unnumberedFunctionalGroups.map((group) => ({
+        ...group,
+        locant: locants.get(group.carbonId)!,
+      }));
+      const primaryLocants = functionalGroups
+        .filter((group) => group.kind === primaryFunctionalGroup)
+        .map((group) => group.locant)
         .sort((left, right) => left - right);
-      const citationLocants = [...new Set(substituents.map((substituent) => substituent.name))]
+      const functionalPrefixes: LocantedPrefix[] = functionalGroups
+        .filter((group) => group.kind !== primaryFunctionalGroup)
+        .map((group) => ({ name: "hidroxi", locant: group.locant }));
+      const prefixes: LocantedPrefix[] = [...substituents, ...functionalPrefixes];
+      const prefixLocants = prefixes.map((prefix) => prefix.locant)
+        .sort((left, right) => left - right);
+      const citationLocants = [...new Set(prefixes.map((prefix) => prefix.name))]
         .sort((left, right) => left.localeCompare(right, "es"))
-        .flatMap((name) => substituents
-          .filter((substituent) => substituent.name === name)
-          .map((substituent) => substituent.locant)
+        .flatMap((name) => prefixes
+          .filter((prefix) => prefix.name === name)
+          .map((prefix) => prefix.locant)
           .sort((left, right) => left - right));
       const combinedLocations = [
         ...unsaturation.doubleBondLocations,
@@ -431,6 +460,9 @@ export function getFusedTricyclicSystem(
       return [{
         candidate,
         substituents,
+        functionalGroups,
+        primaryLocants,
+        prefixes,
         prefixLocants,
         citationLocants,
         multipleLocants,
@@ -441,9 +473,11 @@ export function getFusedTricyclicSystem(
         ...unsaturation,
       }];
     }).sort((left, right) => (
-      // IUPAC VB-8.3: minimize compound locants first, then compare the cited
+      // IUPAC P-14.4 and VB-8.3: principal suffix groups precede unsaturation;
+      // within unsaturation minimize compound locants, then compare the cited
       // locants without their parenthesized second numbers before later ties.
-      left.compoundLocantCount - right.compoundLocantCount
+      compareNumberLists(left.primaryLocants, right.primaryLocants)
+      || left.compoundLocantCount - right.compoundLocantCount
       || compareNumberLists(left.multipleLocants, right.multipleLocants)
       || compareNumberLists(left.doubleBondLocants, right.doubleBondLocants)
       || compareNumberLists(left.allMultipleLocants, right.allMultipleLocants)
@@ -459,6 +493,11 @@ export function getFusedTricyclicSystem(
     ...substituent,
     locant: selectedLocants.get(substituent.anchorId)!,
   }));
+  const functionalGroups = selected?.functionalGroups ?? (unnumberedFunctionalGroups ?? []).map((group) => ({
+    ...group,
+    locant: selectedLocants.get(group.carbonId)!,
+  }));
+  const primaryLocants = selected?.primaryLocants ?? [];
   const doubleBondLocants = selected?.doubleBondLocants ?? [];
   const tripleBondLocants = selected?.tripleBondLocants ?? [];
   const doubleBondLocations = selected?.doubleBondLocations ?? [];
@@ -475,10 +514,13 @@ export function getFusedTricyclicSystem(
       tripleBondLocations.map(formatMultipleBondLocant),
     )
     : null;
-  const parentName = hydrocarbonParentName ?? saturatedParentName;
+  const functionalizedParentName = hydrocarbonParentName
+    ? functionalParentName(hydrocarbonParentName, primaryFunctionalGroup, primaryLocants)
+    : null;
+  const parentName = functionalizedParentName ?? hydrocarbonParentName ?? saturatedParentName;
   const parentNameEn = translateSpanishIupacToOpsin(parentName);
-  const substituentPrefix = selected && hydrocarbonParentName
-    ? formatSubstituentPrefixes(substituents)
+  const substituentPrefix = selected && functionalizedParentName
+    ? formatSubstituentPrefixes(selected.prefixes)
     : null;
   const systematicName = substituentPrefix === null
     ? null
@@ -501,6 +543,8 @@ export function getFusedTricyclicSystem(
     numbering: selectedCandidate.numbering,
     numberingCandidates: vonBaeyer.numberingCandidates,
     substituents,
+    functionalGroups,
+    primaryFunctionalGroup,
     doubleBondLocants,
     tripleBondLocants,
     doubleBondLocations,

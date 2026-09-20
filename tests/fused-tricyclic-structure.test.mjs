@@ -81,6 +81,31 @@ function addOxygen(molecule, order) {
   return next;
 }
 
+function addOxygenAt(molecule, carbonId, order) {
+  const next = structuredClone(molecule);
+  const id = Math.max(...next.atoms.map((atom) => atom.id)) + 1;
+  next.atoms.push({ id, x: 10 + id, y: 10 - id, element: "O" });
+  next.bonds.push([carbonId, id, order]);
+  return next;
+}
+
+function detectedOxygenGroups(molecule) {
+  return molecule.atoms.filter((atom) => atom.element === "O").map((oxygen) => {
+    const attachment = molecule.bonds.find(([left, right]) => left === oxygen.id || right === oxygen.id);
+    const attachedCarbonId = attachment[0] === oxygen.id ? attachment[1] : attachment[0];
+    return {
+      kind: (attachment[2] ?? 1) === 2 ? "ketone" : "alcohol",
+      carbonId: attachedCarbonId,
+      heteroAtomId: oxygen.id,
+      atomIds: [attachedCarbonId, oxygen.id],
+    };
+  });
+}
+
+function getDetectedTricyclicSystem(molecule) {
+  return getFusedTricyclicSystem(molecule, detectedOxygenGroups(molecule));
+}
+
 function addCoreDoubleBond(molecule) {
   const next = structuredClone(molecule);
   const fusionAtoms = new Set(getFusedTricyclicSystem(next).sharedAtomPairs.flat());
@@ -408,6 +433,136 @@ test("supports compound alkene locants across the 6-6-5 and 6-5-6 cores", () => 
   }
 });
 
+test("names tricyclic alcohols, ketones, diols, triols and diones", () => {
+  const parent = makeTricycle();
+  const alcohol = getDetectedTricyclicSystem(addOxygenAt(parent, 12, 1));
+  const diol = getDetectedTricyclicSystem(addOxygenAt(addOxygenAt(parent, 12, 1), 13, 1));
+  const triol = getDetectedTricyclicSystem(
+    addOxygenAt(addOxygenAt(addOxygenAt(parent, 11, 1), 12, 1), 13, 1),
+  );
+  const ketone = getDetectedTricyclicSystem(addOxygenAt(parent, 12, 2));
+  const dione = getDetectedTricyclicSystem(addOxygenAt(addOxygenAt(parent, 12, 2), 13, 2));
+  assert.equal(alcohol?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradecan-5-ol");
+  assert.equal(alcohol?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradecan-5-ol");
+  assert.equal(diol?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradecano-5,6-diol");
+  assert.equal(triol?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradecano-4,5,6-triol");
+  assert.equal(ketone?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradecan-5-ona");
+  assert.equal(ketone?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradecan-5-one");
+  assert.equal(dione?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradecano-5,6-diona");
+  assert.equal(dione?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradecane-5,6-dione");
+});
+
+test("uses ketone as suffix and alcohol as hydroxy prefix in tricycles", () => {
+  const parent = makeTricycle();
+  const hydroxyKetone = getDetectedTricyclicSystem(
+    addOxygenAt(addOxygenAt(parent, 12, 2), 13, 1),
+  );
+  const dihydroxyKetone = getDetectedTricyclicSystem(
+    addOxygenAt(addOxygenAt(addOxygenAt(parent, 11, 1), 12, 2), 13, 1),
+  );
+  assert.equal(
+    hydroxyKetone?.systematicName,
+    "6-hidroxitriciclo[8.4.0.0^{3,8}]tetradecan-5-ona",
+  );
+  assert.equal(
+    hydroxyKetone?.systematicNameEn,
+    "6-hydroxytricyclo[8.4.0.0^{3,8}]tetradecan-5-one",
+  );
+  assert.equal(
+    dihydroxyKetone?.systematicName,
+    "4,6-dihidroxitriciclo[8.4.0.0^{3,8}]tetradecan-5-ona",
+  );
+  assert.equal(hydroxyKetone?.primaryFunctionalGroup, "ketone");
+});
+
+test("combines tricyclic functional groups with alkyls and unsaturation", () => {
+  let dialkylKetone = addOxygenAt(makeTricycle(), 11, 2);
+  dialkylKetone = addExternalChainAt(dialkylKetone, 12, 1);
+  dialkylKetone = addExternalChainAt(dialkylKetone, 13, 2);
+  assert.equal(
+    getDetectedTricyclicSystem(dialkylKetone)?.systematicName,
+    "6-etil-5-metiltriciclo[8.4.0.0^{3,8}]tetradecan-4-ona",
+  );
+
+  const alcoholAlkene = getDetectedTricyclicSystem(setCoreBondOrder(
+    addOxygenAt(makeTricycle(), 11, 1), 13, 14, 2,
+  ));
+  const ketoneAlkene = getDetectedTricyclicSystem(setCoreBondOrder(
+    addOxygenAt(makeTricycle(), 11, 2), 13, 14, 2,
+  ));
+  let ketoneDieneMolecule = addOxygenAt(makeTricycle(), 11, 2);
+  ketoneDieneMolecule = setCoreBondOrder(ketoneDieneMolecule, 13, 14, 2);
+  ketoneDieneMolecule = setCoreBondOrder(ketoneDieneMolecule, 3, 4, 2);
+  const ketoneDiene = getDetectedTricyclicSystem(ketoneDieneMolecule);
+  assert.equal(alcoholAlkene?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-6-en-4-ol");
+  assert.equal(ketoneAlkene?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-6-en-4-ona");
+  assert.equal(ketoneDiene?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradeca-6,11-dien-4-ona");
+
+  const alcoholAlkyne = getDetectedTricyclicSystem(setCoreBondOrder(
+    addOxygenAt(makeTricycle(), 11, 1), 13, 14, 3,
+  ));
+  const ketoneAlkyne = getDetectedTricyclicSystem(setCoreBondOrder(
+    addOxygenAt(makeTricycle(), 11, 2), 13, 14, 3,
+  ));
+  assert.equal(alcoholAlkyne?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-6-in-4-ol");
+  assert.equal(ketoneAlkyne?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradec-6-yn-4-one");
+});
+
+test("combines a principal group with a compound unsaturation locant", () => {
+  const molecule = setCoreBondOrder(addOxygenAt(makeTricycle(), 12, 2), 1, 2, 2);
+  const system = getDetectedTricyclicSystem(molecule);
+  assert.equal(system?.systematicName, "triciclo[8.4.0.0^{3,8}]tetradec-1(10)-en-5-ona");
+  assert.equal(system?.systematicNameEn, "tricyclo[8.4.0.0^{3,8}]tetradec-1(10)-en-5-one");
+  assert.equal(system?.doubleBondLocations[0].compound, true);
+});
+
+test("names the complete general tricyclic ketone-alcohol-methyl-alkene combination", () => {
+  let molecule = addOxygenAt(makeTricycle(), 11, 2);
+  molecule = addOxygenAt(molecule, 12, 1);
+  molecule = addExternalChainAt(molecule, 13, 1);
+  molecule = setCoreBondOrder(molecule, 3, 4, 2);
+  const system = getDetectedTricyclicSystem(molecule);
+  assert.equal(
+    system?.systematicName,
+    "5-hidroxi-6-metiltriciclo[8.4.0.0^{3,8}]tetradec-11-en-4-ona",
+  );
+  assert.equal(
+    system?.systematicNameEn,
+    "5-hydroxy-6-methyltricyclo[8.4.0.0^{3,8}]tetradec-11-en-4-one",
+  );
+});
+
+test("gives the principal tricyclic function priority over unsaturation and alkyl prefixes", () => {
+  let molecule = addOxygenAt(makeTricycle(), 3, 2);
+  molecule = setCoreBondOrder(molecule, 11, 12, 2);
+  molecule = addExternalChainAt(molecule, 13, 1);
+  const system = getDetectedTricyclicSystem(molecule);
+  assert.equal(system?.functionalGroups[0].locant, 4);
+  assert.deepEqual(system?.doubleBondLocants, [11]);
+  assert.equal(system?.substituents[0].locant, 13);
+  assert.equal(system?.systematicName, "13-metiltriciclo[8.4.0.0^{3,8}]tetradec-11-en-4-ona");
+  assert.equal(system?.numbering[3], 3);
+});
+
+test("rejects unsupported or invalid tricyclic functional placement safely", () => {
+  let sideChainAlcohol = addExternalChainAt(makeTricycle(), 12, 1);
+  sideChainAlcohol = addOxygenAt(sideChainAlcohol, 15, 1);
+  const sideChainSystem = getFusedTricyclicSystem(sideChainAlcohol, detectedOxygenGroups(sideChainAlcohol));
+  assert.ok(sideChainSystem);
+  assert.equal(sideChainSystem.systematicName, null);
+
+  const amine = structuredClone(makeTricycle());
+  amine.atoms.push({ id: 15, x: 20, y: 20, element: "N" });
+  amine.bonds.push([12, 15, 1]);
+  const unsupported = getFusedTricyclicSystem(amine, [{
+    kind: "amine", carbonId: 12, heteroAtomId: 15, atomIds: [12, 15],
+  }]);
+  assert.ok(unsupported);
+  assert.equal(unsupported.systematicName, null);
+
+  assert.equal(getDetectedTricyclicSystem(addOxygenAt(makeTricycle(), 1, 2)), null);
+});
+
 test("does not mistake side-chain unsaturation for parent unsaturation", () => {
   let molecule = addExternalChainAt(makeTricycle(), 12, 3);
   molecule = setCoreBondOrder(molecule, 15, 16, 2);
@@ -521,6 +676,40 @@ test("compound-locant naming is invariant under IDs, coordinates and record orde
     actual?.numbering,
     expected?.numbering.map((id) => idMap.get(id)),
   );
+});
+
+test("functional tricyclic naming is invariant under IDs, reflection and record order", () => {
+  let source = addOxygenAt(makeTricycle(), 11, 2);
+  source = addOxygenAt(source, 12, 1);
+  source = addExternalChainAt(source, 13, 1);
+  source = setCoreBondOrder(source, 3, 4, 2);
+  const expected = getDetectedTricyclicSystem(source);
+  const idMap = new Map(source.atoms.map((atom, index) => [atom.id, 5003 + index * 37]));
+  const transformed = {
+    atoms: [...source.atoms].reverse().map((atom) => ({
+      ...atom,
+      id: idMap.get(atom.id),
+      x: -atom.x * 23 + 700,
+      y: atom.y * 23 - 310,
+    })),
+    bonds: [...source.bonds].reverse().map(([left, right, order]) => [idMap.get(right), idMap.get(left), order]),
+    rings: [...source.rings].reverse().map((ring, index) => ({
+      ...ring,
+      id: 1200 + index,
+      atomIds: [...ring.atomIds].reverse().map((id) => idMap.get(id)),
+    })),
+  };
+  const actual = getDetectedTricyclicSystem(transformed);
+  assert.equal(actual?.systematicName, expected?.systematicName);
+  assert.equal(actual?.systematicNameEn, expected?.systematicNameEn);
+  const functionalLocants = (system) => system?.functionalGroups
+    .map(({ kind, locant }) => ({ kind, locant }))
+    .sort((left, right) => left.locant - right.locant || left.kind.localeCompare(right.kind));
+  assert.deepEqual(
+    functionalLocants(actual),
+    functionalLocants(expected),
+  );
+  assert.deepEqual(actual?.numbering, expected?.numbering.map((id) => idMap.get(id)));
 });
 
 function disjointRingsConnectedByBonds() {
