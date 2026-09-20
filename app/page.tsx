@@ -3150,39 +3150,23 @@ function analyzeFunctionalRing(
   };
 }
 
-function fusedBicyclicNumbering(molecule: Molecule, system: FusedBicyclicSystem) {
-  const [start, end] = system.bridgeheads;
-  const paths = (molecule.rings ?? []).map((ring) => {
-    const startIndex = ring.atomIds.indexOf(start);
-    const endIndex = ring.atomIds.indexOf(end);
-    const forward = [start];
-    for (let index = (startIndex + 1) % ring.atomIds.length; index !== endIndex; index = (index + 1) % ring.atomIds.length) {
-      forward.push(ring.atomIds[index]);
-    }
-    forward.push(end);
-    // The fused edge is the one-step direction. Keep the other direction as
-    // the bridgehead-to-bridgehead route that supplies this descriptor.
-    if (forward.length > 2) return forward;
-    const reverse = [start];
-    for (let index = (startIndex + ring.atomIds.length - 1) % ring.atomIds.length; index !== endIndex; index = (index + ring.atomIds.length - 1) % ring.atomIds.length) {
-      reverse.push(ring.atomIds[index]);
-    }
-    return [...reverse, end];
-  }).sort((left, right) => right.length - left.length);
-  return [start, ...paths[0].slice(1, -1), end, ...paths[1].slice(1, -1)];
-}
-
 function analyzeFusedBicyclicMolecule(molecule: Molecule, system: FusedBicyclicSystem): Analysis {
-  const numberingPath = fusedBicyclicNumbering(molecule, system);
+  const substituents = system.substituents.map((substituent) => ({
+    locant: substituent.locant,
+    name: substituent.name,
+    sortName: substituent.name,
+    complex: false,
+    atomIds: substituent.atomIds,
+  }));
   return {
     name: system.systematicName,
     commonName: system.traditionalName,
     formula: molecularFormula(molecule),
     family: "polycyclic",
-    mainChain: numberingPath,
-    chainName: system.systematicName,
-    substituents: [],
-    numberedAtoms: new Map(numberingPath.map((atomId, index) => [atomId, index + 1])),
+    mainChain: system.numbering,
+    chainName: system.parentName,
+    substituents,
+    numberedAtoms: new Map(system.numbering.map((atomId, index) => [atomId, index + 1])),
     doubleBondLocants: [],
     tripleBondLocants: [],
     functionalGroups: [],
@@ -3193,10 +3177,7 @@ function analyzeFusedBicyclicMolecule(molecule: Molecule, system: FusedBicyclicS
 
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
   const fusedBicyclic = getFusedBicyclicSystem(molecule);
-  const fusedBicyclicIsBareHydrocarbon = fusedBicyclic
-    && fusedBicyclic.atomIds.length === molecule.atoms.length
-    && molecule.atoms.every(isCarbonAtom);
-  if (fusedBicyclic && fusedBicyclicIsBareHydrocarbon) {
+  if (fusedBicyclic) {
     return analyzeFusedBicyclicMolecule(molecule, fusedBicyclic);
   }
   if (hasSharedRingAtoms(molecule)) {
@@ -3454,7 +3435,7 @@ export function buildIupacReasoningSteps(
 ): IupacReasoningStep[] {
   if (analysis.fusedBicyclic) {
     const [first, second, third] = analysis.fusedBicyclic.paths;
-    return [
+    const steps: IupacReasoningStep[] = [
       {
         number: "01",
         title: "Sistema de anillos fusionados",
@@ -3467,10 +3448,27 @@ export function buildIupacReasoningSteps(
       },
       {
         number: "03",
+        title: "Numeración bicíclica",
+        explanation: "La numeración comienza en una cabeza de puente, recorre primero el camino más largo y elige, entre orientaciones equivalentes, el conjunto más bajo de localizadores para los sustituyentes.",
+      },
+      {
+        number: "04",
         title: "Nombre sistemático",
-        explanation: `Las rutas contienen ${analysis.fusedBicyclic.atomIds.length} carbonos en total; el hidrocarburo base es ${analysis.name}.`,
+        explanation: `Las rutas contienen ${analysis.fusedBicyclic.atomIds.length} carbonos en total; el hidrocarburo base es ${analysis.fusedBicyclic.parentName}.`,
       },
     ];
+    if (analysis.substituents.length) {
+      const substituentText = [...analysis.substituents]
+        .sort((left, right) => left.locant - right.locant)
+        .map((substituent) => `${substituent.name} en C${substituent.locant}`)
+        .join(", ");
+      steps.push({
+        number: "05",
+        title: "Sustituyentes y localizadores",
+        explanation: `Las ramas externas no forman parte del esqueleto bicíclico: ${substituentText}. El nombre completo es ${analysis.name}.`,
+      });
+    }
+    return steps;
   }
   if (sourceName && usesNitrogenLocants(sourceName)) {
     const normalizedSource = sourceName
@@ -3704,13 +3702,49 @@ export function buildIupacReasoningSteps(
   return steps;
 }
 
-function buildEnglishReasoningSteps(
+export function buildEnglishReasoningSteps(
   steps: IupacReasoningStep[],
   molecule: Molecule,
   analysis: Analysis,
 ): IupacReasoningStep[] {
   const englishName = translateSpanishIupacToOpsin(analysis.name) || analysis.name;
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
+  if (analysis.fusedBicyclic) {
+    const [first, second, third] = analysis.fusedBicyclic.paths;
+    const translatedSubstituents = [...analysis.substituents]
+      .sort((left, right) => left.locant - right.locant)
+      .map((substituent) => `${translateSpanishIupacToOpsin(substituent.name) || substituent.name} at C${substituent.locant}`)
+      .join(", ");
+    return [
+      {
+        number: "01",
+        title: "Fused ring system",
+        explanation: "The two saturated rings share exactly two adjacent carbon atoms and their common bond, so they form one fused bicyclic parent.",
+      },
+      {
+        number: "02",
+        title: "Bridgeheads and paths",
+        explanation: `The shared atoms are the bridgeheads. The three paths between them contain ${first}, ${second}, and ${third} atoms, giving the descriptor [${first}.${second}.${third}].`,
+      },
+      {
+        number: "03",
+        title: "Bicyclic numbering",
+        explanation: "Numbering starts at a bridgehead, follows the longest path first, and uses the lowest set of substituent locants when equivalent orientations are available.",
+      },
+      {
+        number: "04",
+        title: "Systematic name",
+        explanation: `The paths contain ${analysis.fusedBicyclic.atomIds.length} carbon atoms in total; the parent hydrocarbon is ${parentName}.`,
+      },
+      ...(translatedSubstituents
+        ? [{
+          number: "05",
+          title: "Substituents and locants",
+          explanation: `The external branches are not part of the bicyclic skeleton: ${translatedSubstituents}. The complete name is ${englishName}.`,
+        }]
+        : []),
+    ];
+  }
   const primaryLabel = analysis.primaryFunctionalLabel
     ? uiText("en", analysis.primaryFunctionalLabel)
     : undefined;
