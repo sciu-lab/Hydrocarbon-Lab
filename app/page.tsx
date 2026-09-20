@@ -5213,6 +5213,7 @@ export default function Home() {
   const [historyTransferNotice, setHistoryTransferNotice] = useState<HistoryTransferNotice | null>(null);
   const [showHydrogens, setShowHydrogens] = useState(true);
   const [showNumbering, setShowNumbering] = useState(true);
+  const [showSteroidRingLabels, setShowSteroidRingLabels] = useState(false);
   const [numberingScale, setNumberingScale] = useState(DEFAULT_NUMBERING_SCALE);
   const [numberingScalePreferenceReady, setNumberingScalePreferenceReady] = useState(false);
   const [functionalGroupScale, setFunctionalGroupScale] = useState(DEFAULT_FUNCTIONAL_GROUP_SCALE);
@@ -7841,6 +7842,32 @@ export default function Home() {
     }]),
   );
   const ringFusionPreviewMolecule = ringFusionDropTarget?.preview ?? null;
+  const fusedRingAtomIds = new Set<number>();
+  for (const ring of molecule.rings ?? []) {
+    for (const atomId of ring.atomIds) {
+      const membershipCount = molecule.rings?.filter((candidate) => candidate.atomIds.includes(atomId)).length ?? 0;
+      if (membershipCount > 1) fusedRingAtomIds.add(atomId);
+    }
+  }
+  const fusedTerminalSubstituentIds = new Set(
+    molecule.atoms.flatMap((atom) => {
+      if (!isCarbonAtom(atom)) return [];
+      const neighbors = molecule.bonds.flatMap(([left, right]) => left === atom.id ? [right] : right === atom.id ? [left] : []);
+      return neighbors.length === 1 && fusedRingAtomIds.has(neighbors[0]) ? [atom.id] : [];
+    }),
+  );
+  const steroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
+    ? Object.entries(analysis.steroidSystem.ringsByLabel).flatMap(([label, atomIds]) => {
+        const points = atomIds.map((atomId) => displayPositions.get(atomId)).filter(Boolean);
+        if (points.length !== atomIds.length) return [];
+        return [{
+          label,
+          x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+          y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+        }];
+      })
+    : [];
+  const showSteroidNumberLeaders = Boolean(analysis.steroidSystem?.numbering);
   const existingAtomIds = new Set(molecule.atoms.map((atom) => atom.id));
   const ringFusionPreviewPositions = ringFusionPreviewMolecule
     ? new Map([...calculateMolecule2DLayout(ringFusionPreviewMolecule, []).entries()].map(
@@ -7908,7 +7935,7 @@ export default function Home() {
     }];
   });
   const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values(), {
-    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents],
+    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...steroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 }))],
   });
   // The normal canvas keeps a generous classroom workspace. The expanded
   // editor instead starts from the same content bounds used by export, with a
@@ -7917,7 +7944,7 @@ export default function Home() {
   const expandedFitBounds = getMoleculeVisualBounds(displayPositions.values(), {
     atomExtent: 58,
     padding: 36,
-    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents],
+    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...steroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 }))],
   });
   const expandedFitBoundsRef = useRef(expandedFitBounds);
   expandedFitBoundsRef.current = expandedFitBounds;
@@ -9700,6 +9727,17 @@ export default function Home() {
                 </g>
               )}
 
+              {steroidRingLabels.length > 0 && (
+                <g className="steroid-ring-labels" aria-label={t("Etiquetas educativas de anillos esteroideos")}>
+                  {steroidRingLabels.map(({ label, x, y }) => (
+                    <g className="steroid-ring-label" transform={`translate(${x} ${y})`} key={label}>
+                      <circle r="15" />
+                      <text textAnchor="middle" dominantBaseline="central">{label}</text>
+                    </g>
+                  ))}
+                </g>
+              )}
+
               <g className="molecule-nodes-layer">
               {molecule.atoms.map((atom) => {
                 const element = getElement(atom);
@@ -9710,6 +9748,12 @@ export default function Home() {
                 const position = displayPositions.get(atom.id)!;
                 const numberBadgeOffset = skeletalNumberBadgeOffsets.get(atom.id)
                   ?? numberingGeometry.offset;
+                const numberBadgeDistance = Math.hypot(numberBadgeOffset.x, numberBadgeOffset.y) || 1;
+                const numberLeaderStart = 5;
+                const numberLeaderEnd = Math.max(
+                  numberLeaderStart,
+                  numberBadgeDistance - numberingGeometry.radius - numberingGeometry.strokeWidth / 2 - 2,
+                );
                 const showHydrogenOnLabel = showHydrogens;
                 const atomLabel = carbonAtom
                   ? showHydrogenOnLabel
@@ -9765,6 +9809,9 @@ export default function Home() {
                           <circle className="skeletal-hit-target" r="31" />
                           {isSelected && <circle className="skeletal-selection-ring" r="22" />}
                           <circle className="skeletal-anchor" r="3.2" />
+                          {fusedTerminalSubstituentIds.has(atom.id) && (
+                            <circle className="skeletal-terminal-carbon" r="6.5" />
+                          )}
                           {carbonCount === 1 && molecule.atoms.length === 1 && (
                             <g className="methane-marker">
                               <circle r="28" />
@@ -9781,22 +9828,33 @@ export default function Home() {
                             </g>
                           )}
                           {effectiveShowNumbering && chainNumber && carbonCount > 1 && (
-                            <g
-                              className="skeletal-number"
-                              transform={`translate(${numberBadgeOffset.x} ${numberBadgeOffset.y})`}
-                            >
-                              <circle
-                                className="number-circle"
-                                r={numberingGeometry.radius}
-                                style={{ strokeWidth: numberingGeometry.strokeWidth }}
-                              />
-                              <text
-                                className="number-label"
-                                style={{ fontSize: numberingGeometry.fontSize }}
-                                textAnchor="middle"
-                                dominantBaseline="central"
-                              >{chainNumber}</text>
-                            </g>
+                            <>
+                              {showSteroidNumberLeaders && (
+                                <line
+                                  className="skeletal-number-leader"
+                                  x1={numberBadgeOffset.x / numberBadgeDistance * numberLeaderStart}
+                                  y1={numberBadgeOffset.y / numberBadgeDistance * numberLeaderStart}
+                                  x2={numberBadgeOffset.x / numberBadgeDistance * numberLeaderEnd}
+                                  y2={numberBadgeOffset.y / numberBadgeDistance * numberLeaderEnd}
+                                />
+                              )}
+                              <g
+                                className="skeletal-number"
+                                transform={`translate(${numberBadgeOffset.x} ${numberBadgeOffset.y})`}
+                              >
+                                <circle
+                                  className="number-circle"
+                                  r={numberingGeometry.radius}
+                                  style={{ strokeWidth: numberingGeometry.strokeWidth }}
+                                />
+                                <text
+                                  className="number-label"
+                                  style={{ fontSize: numberingGeometry.fontSize }}
+                                  textAnchor="middle"
+                                  dominantBaseline="central"
+                                >{chainNumber}</text>
+                              </g>
+                            </>
                           )}
                         </>
                       ) : (
@@ -10397,6 +10455,16 @@ export default function Home() {
                 ? `${t("Numerar")} ${isRingStructure ? t("anillo") : t("cadena principal")}`
                 : t("Numeración N- conservada en el nombre")}
             </label>
+            {analysis.steroidSystem?.numbering && (
+              <label title={t("Muestra las letras A–D solo para el núcleo esteroideo reconocido")}>
+                <input
+                  type="checkbox"
+                  checked={showSteroidRingLabels}
+                  onChange={(event) => setShowSteroidRingLabels(event.target.checked)}
+                />
+                <span /> {t("Mostrar etiquetas de anillos esteroideos")}
+              </label>
+            )}
             <div
               className={`numbering-size-control ${!automaticNumberingAvailable ? "option-disabled" : ""}`}
               role="group"
