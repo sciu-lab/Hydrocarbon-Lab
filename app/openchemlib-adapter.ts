@@ -6,6 +6,10 @@ import type {
   GeneratedMolecule,
   GeneratedRing,
 } from "./name-to-molecule";
+import {
+  buildOpenChemLibStereoGraph,
+  tetrahedralConfigurationFromOpenChemLib,
+} from "./tetrahedral-stereochemistry.ts";
 
 type SupportedElement = NonNullable<GeneratedAtom["element"]>;
 
@@ -23,6 +27,9 @@ export type OpenChemLibSmilesInspectionResult =
       canonicalConnectivity: string;
       formula: string;
       hasTetrahedralStereo: boolean;
+      tetrahedralStereoCenterCount: number;
+      preservedTetrahedralStereoCenterCount: number;
+      unpreservedTetrahedralStereoCenterCount: number;
     }
   | { ok: false; error: string };
 
@@ -81,45 +88,22 @@ export function moleculeToSmiles(molecule: GeneratedMolecule): OpenChemLibSmiles
   }
 
   try {
-    const oclMolecule = new OCLMolecule(
-      Math.max(64, molecule.atoms.length + 16),
-      Math.max(64, molecule.bonds.length + 16),
-    );
-    const atomIdToIndex = new Map<number, number>();
-
     for (const atom of molecule.atoms) {
       const element = atom.element ?? "C";
       const atomicNumber = atomicNumberByElement[element];
       if (!atomicNumber) {
         return { ok: false, error: `El elemento ${element} no puede exportarse como SMILES desde este canvas.` };
       }
-      const atomIndex = oclMolecule.addAtom(atomicNumber);
-      atomIdToIndex.set(atom.id, atomIndex);
-      // The canvas uses a downward-positive Y axis. Mirroring Y keeps the
-      // chemical drawing orientation conventional without changing E/Z.
-      oclMolecule.setAtomX(atomIndex, atom.x);
-      oclMolecule.setAtomY(atomIndex, -atom.y);
-      if (atom.charge) oclMolecule.setAtomCharge(atomIndex, atom.charge);
-      // Fusion creates junction stereocenters, but this 2D editor does not
-      // specify their cis/trans configuration. Export them as unspecified.
-      if ((molecule.rings ?? []).filter((ring) => ring.atomIds.includes(atom.id)).length > 1) {
-        oclMolecule.setAtomConfigurationUnknown(atomIndex, true);
-      }
     }
 
-    for (const [leftId, rightId, order = 1] of molecule.bonds) {
-      const left = atomIdToIndex.get(leftId);
-      const right = atomIdToIndex.get(rightId);
-      if (left === undefined || right === undefined) {
+    for (const [leftId, rightId] of molecule.bonds) {
+      if (!molecule.atoms.some((atom) => atom.id === leftId)
+        || !molecule.atoms.some((atom) => atom.id === rightId)) {
         return { ok: false, error: "La estructura contiene un enlace con átomos inexistentes." };
       }
-      const bondIndex = oclMolecule.addBond(left, right);
-      oclMolecule.setBondOrder(bondIndex, order);
     }
 
-    oclMolecule.setFragment(false);
-    oclMolecule.ensureHelperArrays(OCLMolecule.cHelperParities);
-    oclMolecule.validate();
+    const { molecule: oclMolecule } = buildOpenChemLibStereoGraph(molecule);
     const smiles = oclMolecule.toIsomericSmiles().trim();
     if (!smiles) {
       return { ok: false, error: "OpenChemLib no pudo generar el SMILES de esta estructura." };
@@ -175,6 +159,8 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
       error: "La molécula es demasiado grande para editarla con claridad en este canvas.",
     };
   }
+
+  oclMolecule.ensureHelperArrays(OCLMolecule.cHelperCIP);
 
   const bondedNeighbors = (atomIndex: number) => {
     const neighbors: Array<{ atomIndex: number; order: number }> = [];
@@ -236,6 +222,9 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
       y: 0,
       element,
       ...(oclMolecule.getAtomCharge(atomIndex) ? { charge: oclMolecule.getAtomCharge(atomIndex) } : {}),
+      ...(tetrahedralConfigurationFromOpenChemLib(oclMolecule, atomIndex)
+        ? { tetrahedralParity: tetrahedralConfigurationFromOpenChemLib(oclMolecule, atomIndex)! }
+        : {}),
       rawX: oclMolecule.getAtomX(atomIndex),
       rawY: oclMolecule.getAtomY(atomIndex),
     });
@@ -340,19 +329,36 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
 export function inspectSmilesStructure(smiles: string): OpenChemLibSmilesInspectionResult {
   let formula: string;
   let canonicalConnectivity: string;
+  let tetrahedralStereoCenterCount = 0;
   try {
     const parsed = new SmilesParser().parseMolecule(smiles);
+    parsed.ensureHelperArrays(OCLMolecule.cHelperCIP);
     formula = parsed.getMolecularFormula().formula;
     canonicalConnectivity = parsed.toSmiles();
+    for (let atomIndex = 0; atomIndex < parsed.getAllAtoms(); atomIndex += 1) {
+      const parity = parsed.getAtomParity(atomIndex);
+      if (parity === OCLMolecule.cAtomParity1 || parity === OCLMolecule.cAtomParity2) {
+        tetrahedralStereoCenterCount += 1;
+      }
+    }
   } catch {
     return { ok: false, error: "OpenChemLib no pudo convertir la estructura recibida." };
   }
   const editable = moleculeFromSmiles(smiles);
   if (!editable.ok) return editable;
+  const preservedTetrahedralStereoCenterCount = editable.molecule.atoms.filter(
+    (atom) => atom.tetrahedralParity,
+  ).length;
   return {
     ok: true,
     canonicalConnectivity,
     formula,
-    hasTetrahedralStereo: /@/.test(smiles),
+    hasTetrahedralStereo: tetrahedralStereoCenterCount > 0,
+    tetrahedralStereoCenterCount,
+    preservedTetrahedralStereoCenterCount,
+    unpreservedTetrahedralStereoCenterCount: Math.max(
+      0,
+      tetrahedralStereoCenterCount - preservedTetrahedralStereoCenterCount,
+    ),
   };
 }

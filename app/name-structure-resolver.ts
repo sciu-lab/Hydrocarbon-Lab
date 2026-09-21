@@ -8,7 +8,9 @@ import {
 import { verifiedCommonNameQuery } from "./verified-common-name-equivalences.ts";
 
 const PUBCHEM_BASE_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound";
-const STEREO_WARNING = "La estructura contiene estereoquímica tetraédrica que el canvas no puede representar de forma inequívoca; se conserva la conectividad, pero no se afirma una identidad estereoquímica exacta.";
+function stereoWarning(unpreservedCenterCount: number) {
+  return `No se pudo conservar la configuración tetraédrica de ${unpreservedCenterCount} ${unpreservedCenterCount === 1 ? "centro" : "centros"}; la conectividad sí se conservó.`;
+}
 
 type PubChemCidPayload = {
   IdentifierList?: { CID?: number[] };
@@ -149,7 +151,9 @@ async function resolveNameWithPubChem(
           source: "PubChem",
           cid: selected.property.CID,
           molecularFormula: selected.molecularFormula,
-          warnings: selected.inspection.hasTetrahedralStereo ? [STEREO_WARNING] : [],
+          warnings: selected.inspection.unpreservedTetrahedralStereoCenterCount > 0
+            ? [stereoWarning(selected.inspection.unpreservedTetrahedralStereoCenterCount)]
+            : [],
         },
       };
     }

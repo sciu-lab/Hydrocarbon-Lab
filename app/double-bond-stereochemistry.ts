@@ -1,3 +1,5 @@
+import { getMainChainTetrahedralDescriptors } from "./tetrahedral-stereochemistry.ts";
+
 export type StereoConfiguration = "E" | "Z";
 
 type StereoElement = "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
@@ -9,6 +11,8 @@ export type StereoMolecule = {
     x: number;
     y: number;
     element?: StereoElement;
+    charge?: number;
+    tetrahedralParity?: "R" | "S";
   }>;
   bonds: Array<[number, number, StereoBondOrder?]>;
   rings?: Array<{
@@ -72,6 +76,7 @@ const atomicNumbers: Record<StereoElement, number> = {
   C: 6,
   N: 7,
   O: 8,
+  S: 16,
   F: 9,
   Cl: 17,
   Br: 35,
@@ -82,6 +87,7 @@ const valences: Record<StereoElement, number> = {
   C: 4,
   N: 3,
   O: 2,
+  S: 2,
   F: 1,
   Cl: 1,
   Br: 1,
@@ -518,7 +524,17 @@ export function formatStereochemicalName(
   mainChain: number[],
   baseName: string,
 ) {
-  const descriptors = getMainChainStereoDescriptors(molecule, mainChain);
+  const descriptors = [
+    ...getMainChainStereoDescriptors(molecule, mainChain).map((descriptor) => ({
+      locant: descriptor.locant,
+      configuration: descriptor.configuration,
+    })),
+    ...getMainChainTetrahedralDescriptors(molecule, mainChain).map((descriptor) => ({
+      locant: descriptor.locant,
+      configuration: descriptor.configuration,
+    })),
+  ].sort((left, right) => left.locant - right.locant
+    || left.configuration.localeCompare(right.configuration));
   if (!descriptors.length) return baseName;
   const prefix = descriptors
     .map((descriptor) => `${descriptor.locant}${descriptor.configuration}`)

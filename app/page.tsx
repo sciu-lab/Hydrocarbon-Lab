@@ -82,6 +82,13 @@ import {
 } from "./skeletal-bond-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
 import {
+  getMainChainTetrahedralDescriptors,
+  getTetrahedralStereoBonds,
+  getTetrahedralStereoCenters,
+  sanitizeTetrahedralStereochemistry,
+  toggleTetrahedralConfiguration,
+} from "./tetrahedral-stereochemistry";
+import {
   getMoleculeExportDimensions,
   getMoleculeExportFrame,
   getMoleculeVisualBounds,
@@ -138,6 +145,7 @@ type CarbonAtom = {
   y: number;
   element?: ChemicalElement;
   charge?: number;
+  tetrahedralParity?: "R" | "S";
 };
 
 type ChemicalElement = "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
@@ -204,13 +212,7 @@ type PanelPositions = Record<MovablePanelId, PanelPosition>;
  * the expanded presentation.
  */
 function ViewportPortal({ active, children }: { active: boolean; children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setReady(true);
-  }, []);
-
-  if (active && ready) return createPortal(children, document.body);
+  if (active && typeof document !== "undefined") return createPortal(children, document.body);
   return <>{children}</>;
 }
 
@@ -3675,6 +3677,10 @@ export function buildIupacReasoningSteps(
   sourceName?: string | null,
 ): IupacReasoningStep[] {
   if (analysis.steroidSystem?.constitutionNameEs) {
+    const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
+    const stereoExplanation = tetrahedralDescriptors.length
+      ? `OpenChemLib conserva las configuraciones CIP ${tetrahedralDescriptors.map((descriptor) => `${descriptor.locant}${descriptor.configuration}`).join(", ")} recibidas en la estructura; no se deducen de la orientación 2D.`
+      : "No se han asignado configuraciones α/β ni R/S, por lo que no se identifica inequívocamente un estereoisómero concreto.";
     return [
       {
         number: "01", title: "Núcleo esteroideo",
@@ -3693,8 +3699,8 @@ export function buildIupacReasoningSteps(
         explanation: "Se identifica C4=C5, una cetona en C3 como función principal y un hidroxilo en C17 como prefijo hidroxi-.",
       },
       {
-        number: "05", title: "Nombre constitucional",
-        explanation: `El nombre es ${analysis.name}. No se han asignado configuraciones α/β ni R/S, por lo que no se identifica inequívocamente un estereoisómero concreto.`,
+        number: "05", title: tetrahedralDescriptors.length ? "Nombre y estereoquímica" : "Nombre constitucional",
+        explanation: `El nombre constitucional es ${analysis.name}. ${stereoExplanation}`,
       },
     ];
   }
@@ -4087,13 +4093,17 @@ export function buildIupacReasoningSteps(
   }
 
   const stereoDescriptors = getMainChainStereoDescriptors(molecule, analysis.mainChain);
-  if (stereoDescriptors.length) {
+  const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
+  if (stereoDescriptors.length || tetrahedralDescriptors.length) {
     const descriptorDetails = stereoDescriptors.map((descriptor) => {
       const geometry = descriptor.configuration === "E"
         ? "lados opuestos"
         : "el mismo lado";
       return `C${descriptor.locant}=C${descriptor.locant + 1} es ${descriptor.locant}${descriptor.configuration}: los sustituyentes de mayor prioridad quedan en ${geometry}`;
     });
+    descriptorDetails.push(...tetrahedralDescriptors.map((descriptor) =>
+      `C${descriptor.locant} es ${descriptor.locant}${descriptor.configuration}: OpenChemLib ordena sus cuatro sustituyentes mediante CIP y la paridad queda guardada independientemente de las coordenadas`,
+    ));
     steps.push({
       number: "06",
       title: "Estereoquímica (E/Z o R/S)",
@@ -4112,6 +4122,10 @@ export function buildEnglishReasoningSteps(
   const englishName = translateSpanishIupacToOpsin(analysis.name) || analysis.name;
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
   if (analysis.steroidSystem?.constitutionNameEs) {
+    const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
+    const stereoExplanation = tetrahedralDescriptors.length
+      ? `OpenChemLib preserves the received CIP configurations ${tetrahedralDescriptors.map((descriptor) => `${descriptor.locant}${descriptor.configuration}`).join(", ")}; they are not inferred from the 2D orientation.`
+      : "No α/β or R/S configurations have been assigned, so no specific stereoisomer is established.";
     return [
       {
         number: "01", title: "Steroid nucleus",
@@ -4130,8 +4144,8 @@ export function buildEnglishReasoningSteps(
         explanation: "The nucleus contains C4=C5, a C3 ketone as the principal functional group, and a C17 hydroxyl group expressed as hydroxy-.",
       },
       {
-        number: "05", title: "Constitutional name",
-        explanation: `The name is ${analysis.steroidSystem.constitutionNameEn}. No α/β or R/S configurations have been assigned, so no specific stereoisomer is established.`,
+        number: "05", title: tetrahedralDescriptors.length ? "Name and stereochemistry" : "Constitutional name",
+        explanation: `The constitutional name is ${analysis.steroidSystem.constitutionNameEn}. ${stereoExplanation}`,
       },
     ];
   }
@@ -4353,8 +4367,12 @@ export function buildEnglishReasoningSteps(
         : "Substituent prefixes are ordered alphabetically when more than one different substituent is present.";
     } else {
       const descriptors = getMainChainStereoDescriptors(molecule, analysis.mainChain);
-      explanation = descriptors.length
-        ? `CIP priority rules are applied to each stereogenic double bond. ${descriptors.map((descriptor) => `${descriptor.locant}${descriptor.configuration} identifies the relative position of the higher-priority substituents`).join("; ")}.`
+      const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
+      explanation = descriptors.length || tetrahedralDescriptors.length
+        ? `CIP priority rules are applied to every defined stereogenic element. ${[
+            ...descriptors.map((descriptor) => `${descriptor.locant}${descriptor.configuration} identifies the relative position of the higher-priority alkene substituents`),
+            ...tetrahedralDescriptors.map((descriptor) => `${descriptor.locant}${descriptor.configuration} is the stored absolute tetrahedral configuration`),
+          ].join("; ")}.`
         : "Stereochemical descriptors are assigned from molecular geometry using CIP priority rules when the structure requires them.";
     }
 
@@ -5798,16 +5816,15 @@ export default function Home() {
     [analysis.name, localSuggestedNameUnavailable],
   );
   const stereochemistryAvailable = useMemo(
-    () => !localSuggestedNameUnavailable
-      && !analysis.steroidSystem
-      && getMainChainStereoDescriptors(molecule, analysis.mainChain).length > 0,
-    [analysis.mainChain, analysis.steroidSystem, localSuggestedNameUnavailable, molecule],
+    () => getMainChainStereoDescriptors(molecule, analysis.mainChain).length > 0
+      || getTetrahedralStereoCenters(molecule).length > 0,
+    [analysis.mainChain, molecule],
   );
   const stereochemicalName = useMemo(
-    () => !stereochemistryAvailable
+    () => !stereochemistryAvailable || localSuggestedNameUnavailable
       ? pinName
       : formatStereochemicalName(molecule, analysis.mainChain, pinName),
-    [analysis.mainChain, molecule, pinName, stereochemistryAvailable],
+    [analysis.mainChain, localSuggestedNameUnavailable, molecule, pinName, stereochemistryAvailable],
   );
   const stereochemistryEnabled = showStereochemistry && !simplifiedModeEnabled;
   const nameWithSelectedStereochemistry = stereochemistryEnabled && stereochemistryAvailable
@@ -6522,7 +6539,12 @@ export default function Home() {
   }, []);
 
   const commit = (next: Molecule, message: string, preserveName = false) => {
-    const violation = findMoleculeValenceViolation(next);
+    // `typeof` keeps the source-extracted interaction harnesses usable while
+    // the real application always has the imported sanitizer in scope.
+    const sanitizedNext = typeof sanitizeTetrahedralStereochemistry === "function"
+      ? sanitizeTetrahedralStereochemistry(next)
+      : next;
+    const violation = findMoleculeValenceViolation(sanitizedNext);
     if (violation) {
       showValenceError(
         `Acción bloqueada: el ${titleCaseElement(violation.element)} ${violation.atomId} quedaría con ${violation.attempted} enlaces y su máximo es ${violation.limit}.`,
@@ -6532,7 +6554,7 @@ export default function Home() {
     setPlacementTool(null);
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
     setFuture([]);
-    setMolecule(next);
+    setMolecule(sanitizedNext);
     if (!preserveName) {
       setReasoningSourceName(null);
       setSourceNameOverride(null);
@@ -6650,6 +6672,7 @@ export default function Home() {
       // functional groups exceed the local naming grammar, keep the validated
       // source name rather than replacing it with an incomplete suggestion.
       setSourceNameOverride(preserveGraphSourceName ? submittedName : null);
+      if (getTetrahedralStereoCenters(next).length) setShowStereochemistry(true);
       setSelectedId(next.atoms[0].id);
       setCommonAlkylNameSelections(selectedAliasOccurrences);
       setShowIupacName(true);
@@ -6961,6 +6984,26 @@ export default function Home() {
         ? `Enlace actualizado: ${getBondOrderLabel(currentOrder)} → ${getBondOrderLabel(nextOrder)}. El anillo dejó de marcarse como aromático y se conservaron sus órdenes de enlace explícitos.`
         : `Enlace actualizado: ${getBondOrderLabel(currentOrder)} → ${getBondOrderLabel(nextOrder)}. Fórmula y nombre recalculados.`,
     );
+  };
+
+  const toggleTetrahedralCenter = (atomId: number) => {
+    if (!stereochemistryEnabled) {
+      setNotice("Activa Estereoquímica para alternar la configuración R/S de este centro.");
+      return;
+    }
+    const toggled = toggleTetrahedralConfiguration(molecule, atomId);
+    if (!toggled.ok) {
+      setNotice(toggled.error);
+      return;
+    }
+    const locantIndex = analysis.mainChain.indexOf(atomId);
+    const descriptor = `${locantIndex >= 0 ? locantIndex + 1 : ""}${toggled.configuration}`;
+    if (commit(
+      toggled.molecule,
+      `Configuración cambiada a (${descriptor}); conectividad, fórmula y órdenes de enlace se conservaron.`,
+    )) {
+      setShowIupacName(true);
+    }
   };
 
   const addAlkylGroup = (template: AlkylTemplate, anchorId = selectedId) => {
@@ -7781,6 +7824,7 @@ export default function Home() {
         throw new Error(t("El SMILES fue interpretado, pero el canvas lo bloqueó por una validación de valencia."));
       }
 
+      if (getTetrahedralStereoCenters(next).length) setShowStereochemistry(true);
       setSelectedId(next.atoms[0].id);
       setCommonAlkylNameSelections([]);
       setShowIupacName(true);
@@ -8259,6 +8303,22 @@ export default function Home() {
       y: point.y * coordinateScale,
     }]),
   );
+  const tetrahedralStereoBonds = viewMode === "skeletal" && stereochemistryEnabled
+    ? getTetrahedralStereoBonds({
+        ...molecule,
+        atoms: molecule.atoms.map((atom) => ({
+          ...atom,
+          x: displayPositions.get(atom.id)?.x ?? atom.x,
+          y: displayPositions.get(atom.id)?.y ?? atom.y,
+        })),
+      })
+    : [];
+  const tetrahedralStereoBondByKey = new Map(
+    tetrahedralStereoBonds.map((descriptor) => [
+      bondKey(descriptor.atomId, descriptor.neighborAtomId),
+      descriptor,
+    ]),
+  );
   const ringFusionPreviewMolecule = ringFusionDropTarget?.preview ?? null;
   const fusedRingAtomIds = new Set<number>();
   for (const ring of molecule.rings ?? []) {
@@ -8276,7 +8336,9 @@ export default function Home() {
   );
   const steroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
     ? Object.entries(analysis.steroidSystem.ringsByLabel).flatMap(([label, atomIds]) => {
-        const points = atomIds.map((atomId) => displayPositions.get(atomId)).filter(Boolean);
+        const points = atomIds
+          .map((atomId) => displayPositions.get(atomId))
+          .filter((point): point is { x: number; y: number } => Boolean(point));
         if (points.length !== atomIds.length) return [];
         return [{
           label,
@@ -8402,13 +8464,14 @@ export default function Home() {
     padding: 36,
     additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...steroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 }))],
   });
-  const expandedFitBoundsRef = useRef(expandedFitBounds);
-  expandedFitBoundsRef.current = expandedFitBounds;
+  const readExpandedFitBounds = useEffectEvent(() => expandedFitBounds);
+  /* eslint-disable react-hooks/set-state-in-effect -- modal-open transition synchronizes its derived viewport once */
   useEffect(() => {
     if (!canvasExpanded) return;
-    setExpandedViewFrame({ ...expandedFitBoundsRef.current });
+    setExpandedViewFrame({ ...readExpandedFitBounds() });
     setExpandedZoom(1);
   }, [canvasExpanded]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   const activeViewBounds = canvasExpanded
     ? expandedViewFrame ?? expandedFitBounds
     : moleculeVisualBounds;
@@ -9561,7 +9624,7 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
-                <small>{t("Admite grupos funcionales, sustituyentes entre paréntesis y descriptores estereoquímicos E/Z.")}</small>
+                <small>{t("Admite grupos funcionales, sustituyentes entre paréntesis y descriptores estereoquímicos E/Z y R/S.")}</small>
               </div>
 
               {nameBuilderFeedback && (
@@ -9933,6 +9996,24 @@ export default function Home() {
                 const bondLength = Math.hypot(deltaX, deltaY) || 1;
                 const normalX = -deltaY / bondLength;
                 const normalY = deltaX / bondLength;
+                const tetrahedralStereoBond = order === 1
+                  ? tetrahedralStereoBondByKey.get(bondKey(a, b))
+                  : undefined;
+                const tetrahedralCenterPosition = tetrahedralStereoBond
+                  ? displayPositions.get(tetrahedralStereoBond.atomId)!
+                  : null;
+                const tetrahedralNeighborPosition = tetrahedralStereoBond
+                  ? displayPositions.get(tetrahedralStereoBond.neighborAtomId)!
+                  : null;
+                const tetrahedralDeltaX = tetrahedralCenterPosition && tetrahedralNeighborPosition
+                  ? tetrahedralNeighborPosition.x - tetrahedralCenterPosition.x
+                  : 0;
+                const tetrahedralDeltaY = tetrahedralCenterPosition && tetrahedralNeighborPosition
+                  ? tetrahedralNeighborPosition.y - tetrahedralCenterPosition.y
+                  : 0;
+                const tetrahedralLength = Math.hypot(tetrahedralDeltaX, tetrahedralDeltaY) || 1;
+                const tetrahedralNormalX = -tetrahedralDeltaY / tetrahedralLength;
+                const tetrahedralNormalY = tetrahedralDeltaX / tetrahedralLength;
                 const containingRings = molecule.rings?.filter((ring) => ringHasBond(ring, a, b)) ?? [];
                 const containingRing = containingRings[0];
                 const ringDoubleBondSegments = viewMode === "skeletal"
@@ -10115,7 +10196,7 @@ export default function Home() {
                       x2={positionB.x}
                       y2={positionB.y}
                     />
-                    {visibleBondSegments.map((segment, index) => (
+                    {!tetrahedralStereoBond && visibleBondSegments.map((segment, index) => (
                       <line
                         key={index}
                         className={`${isMainBond ? "bond main-bond" : "bond branch-bond"} ${isFunctionalBond ? "functional-bond" : ""} ${viewMode === "skeletal" ? "skeletal-bond" : ""} ${segment.role ? `skeletal-ring-double-bond ring-double-bond-${segment.role}` : ""} ${doubleBondPatternEnabled && order === 2 ? `double-bond-pattern-line double-bond-pattern-${index}` : ""}`}
@@ -10125,6 +10206,59 @@ export default function Home() {
                         y2={segment.y2}
                       />
                     ))}
+                    {tetrahedralStereoBond?.style === "wedge"
+                      && tetrahedralCenterPosition && tetrahedralNeighborPosition && (
+                      <polygon
+                        className={`tetrahedral-wedge ${isMainBond ? "main-bond-fill" : "branch-bond-fill"}`}
+                        points={`${tetrahedralCenterPosition.x},${tetrahedralCenterPosition.y} ${tetrahedralNeighborPosition.x + tetrahedralNormalX * 8},${tetrahedralNeighborPosition.y + tetrahedralNormalY * 8} ${tetrahedralNeighborPosition.x - tetrahedralNormalX * 8},${tetrahedralNeighborPosition.y - tetrahedralNormalY * 8}`}
+                      />
+                    )}
+                    {tetrahedralStereoBond?.style === "hash"
+                      && tetrahedralCenterPosition && tetrahedralNeighborPosition && (
+                      <g className={`tetrahedral-hash ${isMainBond ? "main-bond-stroke" : "branch-bond-stroke"}`}>
+                        {[0.18, 0.34, 0.5, 0.66, 0.82, 0.96].map((fraction) => {
+                          const x = tetrahedralCenterPosition.x + tetrahedralDeltaX * fraction;
+                          const y = tetrahedralCenterPosition.y + tetrahedralDeltaY * fraction;
+                          const halfWidth = 1.5 + fraction * 6.5;
+                          return (
+                            <line
+                              key={fraction}
+                              x1={x - tetrahedralNormalX * halfWidth}
+                              y1={y - tetrahedralNormalY * halfWidth}
+                              x2={x + tetrahedralNormalX * halfWidth}
+                              y2={y + tetrahedralNormalY * halfWidth}
+                            />
+                          );
+                        })}
+                      </g>
+                    )}
+                    {tetrahedralStereoBond && tetrahedralCenterPosition && (
+                      <g
+                        className="tetrahedral-center-marker"
+                        transform={`translate(${tetrahedralCenterPosition.x - tetrahedralNormalX * 25} ${tetrahedralCenterPosition.y - tetrahedralNormalY * 25})`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={language === "en"
+                          ? `Switch tetrahedral configuration from ${tetrahedralStereoBond.configuration} to ${tetrahedralStereoBond.configuration === "R" ? "S" : "R"}`
+                          : `Cambiar configuración tetraédrica de ${tetrahedralStereoBond.configuration} a ${tetrahedralStereoBond.configuration === "R" ? "S" : "R"}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleTetrahedralCenter(tetrahedralStereoBond.atomId);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            toggleTetrahedralCenter(tetrahedralStereoBond.atomId);
+                          }
+                        }}
+                      >
+                        <circle r="11" />
+                        <text textAnchor="middle" dominantBaseline="central">
+                          {tetrahedralStereoBond.configuration}
+                        </text>
+                      </g>
+                    )}
                     {stereoInteractionEnabled && (
                       <g
                         className="stereo-bond-marker"
@@ -11041,7 +11175,7 @@ export default function Home() {
                   disabled={!stereochemistryAvailable}
                   title={stereochemistryAvailable
                     ? t("Mostrar descriptores E/Z")
-                    : t("La estereoquímica E/Z no corresponde a esta estructura")}
+                    : t("No hay centros E/Z o R/S definidos en esta estructura")}
                   onClick={() => setShowStereochemistry((visible) => !visible)}
                 >
                   <span aria-hidden="true" />

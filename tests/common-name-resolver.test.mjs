@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dynamicUiText } from "../app/i18n.ts";
 import { getSteroidLike6565System } from "../app/fused-ring-nomenclature.ts";
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
 import { resolveChemicalName } from "../app/name-structure-resolver.ts";
@@ -166,20 +165,20 @@ test("resolves the requested Spanish and English common names through validated 
   assert.ok(calls.some((url) => url.includes("/name/cholesterol/cids/JSON")));
 });
 
-test("warns when tetrahedral identity cannot be represented exactly", async () => {
+test("does not warn when every PubChem tetrahedral center is preserved", async () => {
   const { fetchImpl } = mockedChemicalServices();
   for (const name of ["testosterona", "testosterone", "colesterol", "cholesterol"]) {
     const result = await resolveChemicalName(name, { fetchImpl });
     assert.equal(result.ok, true, result.ok ? name : `${name}: ${result.error} ${result.detail}`);
-    assert.match(result.value.warnings.join(" "), /estereoquímica tetraédrica/i, name);
+    assert.deepEqual(result.value.warnings, [], name);
+    const inspection = inspectSmilesStructure(result.value.smiles);
+    assert.equal(inspection.ok, true, name);
+    assert.equal(inspection.unpreservedTetrahedralStereoCenterCount, 0, name);
+    assert.ok(inspection.preservedTetrahedralStereoCenterCount > 0, name);
   }
   const achiral = await resolveChemicalName("toluene", { fetchImpl });
   assert.equal(achiral.ok, true);
   assert.deepEqual(achiral.value.warnings, []);
-  assert.match(
-    dynamicUiText("en", "La estructura contiene estereoquímica tetraédrica que el canvas no puede representar de forma inequívoca; se conserva la conectividad, pero no se afirma una identidad estereoquímica exacta."),
-    /exact stereochemical identity/i,
-  );
 });
 
 function pointInPolygon(point, polygon) {

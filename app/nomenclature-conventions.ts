@@ -14,7 +14,7 @@ const conventionCycles: Record<AppLanguage, ConventionCycle> = {
   es: ["current", "traditional"],
   en: ["current", "traditional"],
 };
-const stereoPrefix = /^(\((?:\d+[EZ](?:,\d+[EZ])*)\)-)(.+)$/;
+const stereoPrefix = /^(\((?:\d+[EZRS](?:,\d+[EZRS])*)\)-)(.+)$/;
 const pureAlkaneNames = new Set(
   IUPAC_ROOTS.slice(1).flatMap((root) => [`${root}ano`, `${englishIupacRoot(root)}ane`]),
 );
@@ -112,12 +112,12 @@ const traditionalNames: Record<string, TraditionalName> = {
   methylbenzene: { es: "tolueno", en: "toluene" },
 };
 
-/** Removes only the displayed alkene E/Z prefix; the structural model is untouched. */
+/** Removes the displayed E/Z or R/S prefix; the structural model is untouched. */
 export function stripStereochemicalDescriptors(name: string) {
   const directMatch = name.match(stereoPrefix);
   if (directMatch) return directMatch[2];
 
-  const acidMatch = name.match(/^(ácido |acid )(\((?:\d+[EZ](?:,\d+[EZ])*)\)-)(.+)$/i);
+  const acidMatch = name.match(/^(ácido |acid )(\((?:\d+[EZRS](?:,\d+[EZRS])*)\)-)(.+)$/i);
   if (acidMatch) return `${acidMatch[1]}${acidMatch[3]}`;
   return name;
 }
@@ -126,7 +126,7 @@ function splitStereochemicalPrefix(name: string) {
   const directMatch = name.match(stereoPrefix);
   if (directMatch) return { prefix: directMatch[1], baseName: directMatch[2] };
 
-  const acidMatch = name.match(/^(ácido |acid )(\((?:\d+[EZ](?:,\d+[EZ])*)\)-)(.+)$/i);
+  const acidMatch = name.match(/^(ácido |acid )(\((?:\d+[EZRS](?:,\d+[EZRS])*)\)-)(.+)$/i);
   if (acidMatch) return { prefix: `${acidMatch[1]}${acidMatch[2]}`, baseName: acidMatch[3] };
   return { prefix: "", baseName: name };
 }

@@ -18,6 +18,8 @@ export type GeneratedAtom = {
   y: number;
   element?: "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
   charge?: number;
+  /** Absolute tetrahedral configuration. It is independent of atom IDs and 2D coordinates. */
+  tetrahedralParity?: "R" | "S";
 };
 
 export type GeneratedRing = {

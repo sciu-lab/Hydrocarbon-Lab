@@ -2666,6 +2666,60 @@ button {
   stroke-width: 2;
 }
 
+.tetrahedral-wedge {
+  stroke: none;
+  pointer-events: none;
+}
+
+.tetrahedral-hash {
+  pointer-events: none;
+}
+
+.tetrahedral-hash line {
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.main-bond-fill {
+  fill: var(--structure-main);
+}
+
+.branch-bond-fill {
+  fill: var(--structure-branch);
+}
+
+.main-bond-stroke line {
+  stroke: var(--structure-main);
+}
+
+.branch-bond-stroke line {
+  stroke: var(--structure-branch);
+}
+
+.tetrahedral-center-marker {
+  cursor: pointer;
+  outline: none;
+}
+
+.tetrahedral-center-marker circle {
+  fill: #e7f5f0;
+  stroke: #438d7b;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 3px 5px rgba(31, 91, 76, 0.15));
+}
+
+.tetrahedral-center-marker text {
+  fill: #236b59;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.tetrahedral-center-marker:hover circle,
+.tetrahedral-center-marker:focus-visible circle {
+  fill: #d7efe7;
+  stroke-width: 2.5;
+}
+
 .main-bond {
   stroke: var(--structure-main);
   stroke-width: 5;
@@ -6819,12 +6873,14 @@ html[data-theme="dark"] .uniform-colors .functional-bond {
   stroke: var(--structure-functional);
 }
 
-html[data-theme="dark"] .stereo-bond-marker rect {
+html[data-theme="dark"] .stereo-bond-marker rect,
+html[data-theme="dark"] .tetrahedral-center-marker circle {
   fill: #173e35;
   stroke: #74b6a4;
 }
 
-html[data-theme="dark"] .stereo-bond-marker text {
+html[data-theme="dark"] .stereo-bond-marker text,
+html[data-theme="dark"] .tetrahedral-center-marker text {
   fill: #bce5d9;
 }
 
