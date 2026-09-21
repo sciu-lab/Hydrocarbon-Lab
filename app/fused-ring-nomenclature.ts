@@ -224,6 +224,17 @@ const edgeKey = (left: number, right: number) => (
   left < right ? `${left}-${right}` : `${right}-${left}`
 );
 
+function independentCoreCycleCount(
+  molecule: FusedRingMolecule,
+  atomIds: readonly number[],
+) {
+  const core = new Set(atomIds);
+  const coreBondKeys = new Set(molecule.bonds.flatMap(([left, right]) => (
+    core.has(left) && core.has(right) ? [edgeKey(left, right)] : []
+  )));
+  return coreBondKeys.size - atomIds.length + 1;
+}
+
 function enumerateCoreCycles(
   atomIds: readonly number[],
   bonds: readonly FusedRingBond[],
@@ -471,6 +482,7 @@ export function getFusedTricyclicSystem(
     ? [terminalSizes[0], 5, terminalSizes[1]]
     : [terminalSizes[0], centralRing.atomIds.length, terminalSizes[1]];
   const atomIds = [...new Set(rings.flatMap((ring) => ring.atomIds))];
+  if (independentCoreCycleCount(molecule, atomIds) !== 3) return null;
   const core = new Set(atomIds);
   const externalAtomIds = molecule.atoms.map((atom) => atom.id).filter((atomId) => !core.has(atomId));
   const externalAttachments = molecule.bonds.flatMap(([left, right, order = 1]) => {
@@ -1029,12 +1041,9 @@ export function getFusedTetracyclicSystem(
   const labelBySourceIndex = new Map(selected.order.map((sourceIndex, index) => [sourceIndex, labels[index]]));
   const orderedRings = selected.order.map((sourceIndex) => sourceRings[sourceIndex]);
   const atomIds = [...new Set(orderedRings.flatMap((ring) => ring.atomIds))];
-  const core = new Set(atomIds);
-  const coreBondKeys = new Set(molecule.bonds.flatMap(([left, right]) => (
-    core.has(left) && core.has(right) ? [edgeKey(left, right)] : []
-  )));
-  const independentCycleCount = coreBondKeys.size - atomIds.length + 1;
+  const independentCycleCount = independentCoreCycleCount(molecule, atomIds);
   if (independentCycleCount !== 4) return null;
+  const core = new Set(atomIds);
 
   const fusionBonds = graph.relations.map((relation) => {
     const leftLabel = labelBySourceIndex.get(relation.left)!;
@@ -1377,6 +1386,7 @@ export function getFusedBicyclicSystem(
   const parent = alkaneParents[total];
   if (!parent) return null;
   const atomIds = [...new Set([...left.atomIds, ...right.atomIds])];
+  if (independentCoreCycleCount(molecule, atomIds) !== 2) return null;
   const unnumberedFunctionalGroups = findDirectFunctionalGroups(molecule, atomIds, detectedGroups);
   if (!unnumberedFunctionalGroups) return null;
   const functionalHeteroAtomIds = new Set(

@@ -849,6 +849,13 @@ test("rejects spiro, externally connected and branched four-ring assemblies", ()
   assert.equal(getFusedTetracyclicSystem(branched), null);
 });
 
+test("rejects a nominal tetracycle when an extra core chord creates a fifth independent cycle", () => {
+  const molecule = makeTetracycle();
+  molecule.bonds.push([3, 5, 1]);
+
+  assert.equal(getFusedTetracyclicSystem(molecule), null);
+});
+
 test("integrates the complete tetracyclic functional name and explanation bilingually", () => {
   const molecule = decoratedTetracycle();
   const analysis = analyzeMolecule(molecule);
@@ -857,6 +864,7 @@ test("integrates the complete tetracyclic functional name and explanation biling
     analysis.name,
     "14-hidroxi-16-metiltetraciclo[8.8.0.0^{2,7}.0^{12,17}]octadec-5-en-18-ona",
   );
+  assert.equal(analysis.formula, "C₁₉H₂₈O₂");
   assert.equal(analysis.numberedAtoms.size, 18);
   assert.equal(analysis.primaryFunctionalGroup, "ketone");
   assert.match(analysis.ringSystem, /Sistema tetracíclico fusionado 6-6-6-6/);

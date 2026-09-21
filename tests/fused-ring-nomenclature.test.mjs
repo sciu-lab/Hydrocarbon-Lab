@@ -371,6 +371,7 @@ test("integrates fused functional groups in analysis, numbering and bilingual re
   );
   const analysis = analyzeMolecule(molecule);
   assert.equal(analysis.name, "3-hidroxibiciclo[4.4.0]decan-2-ona");
+  assert.equal(analysis.formula, "C₁₀H₁₆O₂");
   assert.equal(analysis.primaryFunctionalGroup, "ketone");
   assert.equal(analysis.primaryFunctionalLabel, "Cetona");
   assert.equal(analysis.functionalGroups.length, 2);
@@ -494,6 +495,16 @@ test("does not confuse externally connected rings with fused rings", () => {
     rings: [...left.rings, { ...right.rings[0], id: 2 }],
   };
   assert.equal(getFusedBicyclicSystem(connected), null);
+});
+
+test("rejects a nominal fused bicycle whose core graph has an extra independent cycle", () => {
+  const molecule = makeCanonicalDecalin();
+  molecule.bonds.push([3, 5, 1]);
+
+  // The two stored six-membered rings still share the expected edge, but the
+  // added 3-5 chord raises E - V + 1 from two to three. Naming this graph as
+  // bicyclo[4.4.0]decane would therefore contradict its actual connectivity.
+  assert.equal(getFusedBicyclicSystem(molecule), null);
 });
 
 test("keeps long bicyclic names wrap-safe and does not invent traditional synonyms", () => {
@@ -1070,6 +1081,7 @@ test("integrates general tricyclic ketone, alcohol, methyl and alkene naming", (
     analysis.name,
     "5-hidroxi-6-metiltriciclo[8.4.0.0^{3,8}]tetradec-11-en-4-ona",
   );
+  assert.equal(analysis.formula, "C₁₅H₂₂O₂");
   assert.equal(
     analysis.fusedTricyclic?.systematicNameEn,
     "5-hydroxy-6-methyltricyclo[8.4.0.0^{3,8}]tetradec-11-en-4-one",

@@ -737,3 +737,10 @@ test("rejects spiro and externally connected ring assemblies", () => {
   assert.equal(getFusedTricyclicSystem(spiro), null);
   assert.equal(getFusedTricyclicSystem(disjointRingsConnectedByBonds()), null);
 });
+
+test("rejects a nominal tricycle when an extra core chord creates a fourth independent cycle", () => {
+  const molecule = makeTricycle(6, 6, "linear");
+  molecule.bonds.push([3, 5, 1]);
+
+  assert.equal(getFusedTricyclicSystem(molecule), null);
+});
