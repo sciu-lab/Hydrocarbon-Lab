@@ -1,6 +1,12 @@
 import { IUPAC_ROOT_ALIASES, IUPAC_ROOTS } from "./iupac-prefixes.ts";
 import { normalizeTraditionalUnsaturationNotation } from "./iupac-name-normalization.ts";
 import { normalizeSubstituentAliasesForLocalParser } from "./substituent-aliases.ts";
+import { fuseRingOnBond } from "./fused-ring.ts";
+import {
+  getFusedBicyclicSystem,
+  getFusedTetracyclicSystem,
+  getFusedTricyclicSystem,
+} from "./fused-ring-nomenclature.ts";
 
 export type GeneratedBondOrder = 1 | 2 | 3;
 
@@ -66,10 +72,12 @@ export type NameBuildResult =
       molecule: GeneratedMolecule;
       normalizedInput: string;
       enabledAliases: string[];
+      inputFamily?: "fused-von-baeyer";
     }
   | {
       ok: false;
       error: string;
+      inputFamily?: "fused-von-baeyer";
     };
 
 const hydrocarbonRoots = IUPAC_ROOTS;
@@ -594,6 +602,316 @@ function makeRing(
   return { atoms, bonds, rings: [{ id: 1, kind, atomIds }] };
 }
 
+type ParsedFusedVonBaeyerName = {
+  ringCount: 2 | 3 | 4;
+  descriptor: string;
+  bridgeLengths: number[];
+  secondaryBridgeLocants: [number, number][];
+  carbonCount: number;
+  normalizedInput: string;
+};
+
+type FusedVonBaeyerParseResult =
+  | { matched: false }
+  | { matched: true; parsed: ParsedFusedVonBaeyerName }
+  | { matched: true; error: string };
+
+const superscriptDigits: Record<string, string> = {
+  "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+  "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+};
+
+function plainSuperscriptNumber(value: string) {
+  return [...value].map((character) => superscriptDigits[character] ?? character).join("");
+}
+
+function normalizeVonBaeyerSuperscripts(value: string) {
+  return value
+    .replace(/⁽([⁰¹²³⁴⁵⁶⁷⁸⁹]+),([⁰¹²³⁴⁵⁶⁷⁸⁹]+)⁾/g, (_match, left, right) => (
+      `^{${plainSuperscriptNumber(left)},${plainSuperscriptNumber(right)}}`
+    ))
+    .replace(/(\d)([⁰¹²³⁴⁵⁶⁷⁸⁹]+),([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (_match, bridge, left, right) => (
+      `${bridge}^{${plainSuperscriptNumber(left)},${plainSuperscriptNumber(right)}}`
+    ));
+}
+
+function saturatedParentCarbonCount(value: string, language: "es" | "en") {
+  const ending = language === "es" ? "ano" : "ane";
+  return IUPAC_ROOTS.findIndex((root, carbonCount) => (
+    carbonCount > 0 && `${root}${ending}` === value
+  ));
+}
+
+function parseFusedVonBaeyerName(name: string): FusedVonBaeyerParseResult {
+  const normalized = normalizeVonBaeyerSuperscripts(name);
+  const prefix = normalized.match(/^(biciclo|bicyclo|triciclo|tricyclo|tetraciclo|tetracyclo)/)?.[1];
+  if (!prefix) return { matched: false };
+
+  const match = normalized.match(
+    /^(biciclo|bicyclo|triciclo|tricyclo|tetraciclo|tetracyclo)\[([^\]]+)\]([a-z]+)$/,
+  );
+  if (!match) {
+    return { matched: true, error: "El descriptor von Baeyer está incompleto o malformado." };
+  }
+
+  const ringCount = match[1].startsWith("tetra") ? 4 : match[1].startsWith("tri") ? 3 : 2;
+  const language = match[1].includes("cyclo") ? "en" : "es";
+  const carbonCount = saturatedParentCarbonCount(match[3], language);
+  if (carbonCount < 1) {
+    return {
+      matched: true,
+      error: "El progenitor von Baeyer debe ser un hidrocarburo saturado con terminación -ano o -ane.",
+    };
+  }
+
+  const descriptorMatch = match[2].match(
+    /^(\d+)\.(\d+)\.(\d+)((?:\.\d+\^\{\d+,\d+\})*)$/,
+  );
+  if (!descriptorMatch) {
+    return { matched: true, error: "El descriptor von Baeyer contiene puentes o localizadores malformados." };
+  }
+
+  const bridgeLengths = descriptorMatch.slice(1, 4).map(Number);
+  const secondaryBridgeLocants: [number, number][] = [];
+  const secondaryLengths: number[] = [];
+  for (const secondary of descriptorMatch[4].matchAll(/\.(\d+)\^\{(\d+),(\d+)\}/g)) {
+    secondaryLengths.push(Number(secondary[1]));
+    secondaryBridgeLocants.push([Number(secondary[2]), Number(secondary[3])]);
+  }
+  bridgeLengths.push(...secondaryLengths);
+
+  if (bridgeLengths.length !== ringCount + 1 || secondaryBridgeLocants.length !== ringCount - 2) {
+    return {
+      matched: true,
+      error: `Un ${match[1]} necesita ${ringCount + 1} longitudes de puente en su descriptor.`,
+    };
+  }
+  if (bridgeLengths[0] < bridgeLengths[1]) {
+    return { matched: true, error: "Las dos ramas principales deben citarse en orden decreciente." };
+  }
+  if (bridgeLengths.slice(2).some((length) => length !== 0)) {
+    return {
+      matched: true,
+      error: "Este constructor admite por ahora únicamente policiclos ortofusionados con puentes de longitud cero.",
+    };
+  }
+  if (bridgeLengths.reduce((sum, length) => sum + length, 2) !== carbonCount) {
+    return {
+      matched: true,
+      error: "El número de carbonos del progenitor no coincide con las longitudes del descriptor von Baeyer.",
+    };
+  }
+
+  const descriptor = `[${bridgeLengths.slice(0, 3).join(".")}${secondaryBridgeLocants.map(
+    (locants, index) => `.${secondaryLengths[index]}^{${locants.join(",")}}`,
+  ).join("")}]`;
+  return {
+    matched: true,
+    parsed: {
+      ringCount: ringCount as 2 | 3 | 4,
+      descriptor,
+      bridgeLengths,
+      secondaryBridgeLocants,
+      carbonCount,
+      normalizedInput: normalized,
+    },
+  };
+}
+
+function splitRegionOnChord(region: readonly number[], chord: readonly [number, number]) {
+  let leftIndex = region.indexOf(chord[0]);
+  let rightIndex = region.indexOf(chord[1]);
+  if (leftIndex < 0 || rightIndex < 0 || leftIndex === rightIndex) return null;
+  if (leftIndex > rightIndex) [leftIndex, rightIndex] = [rightIndex, leftIndex];
+  const first = region.slice(leftIndex, rightIndex + 1);
+  const second = [...region.slice(rightIndex), ...region.slice(0, leftIndex + 1)];
+  if (first.length < 3 || second.length < 3) return null;
+  return [first, second] as const;
+}
+
+function fusedRegionsFromDescriptor(parsed: ParsedFusedVonBaeyerName) {
+  const locants = Array.from({ length: parsed.carbonCount }, (_, index) => index + 1);
+  const chords: [number, number][] = [
+    [1, parsed.bridgeLengths[0] + 2],
+    ...parsed.secondaryBridgeLocants,
+  ];
+  let regions: number[][] = [locants];
+  for (const chord of chords) {
+    if (
+      chord[0] < 1 || chord[1] > parsed.carbonCount || chord[0] >= chord[1]
+      || chord[1] - chord[0] === 1
+      || (chord[0] === 1 && chord[1] === parsed.carbonCount)
+    ) return null;
+    const matching = regions
+      .map((region, index) => ({ index, split: splitRegionOnChord(region, chord) }))
+      .filter(({ split }) => Boolean(split));
+    if (matching.length !== 1) return null;
+    const [{ index, split }] = matching;
+    regions = [
+      ...regions.slice(0, index),
+      ...(split as readonly [number[], number[]]),
+      ...regions.slice(index + 1),
+    ];
+  }
+  if (regions.length !== parsed.ringCount || regions.some((region) => ![5, 6].includes(region.length))) {
+    return null;
+  }
+  return { regions, chords };
+}
+
+function numberedFusedGraph(
+  parsed: ParsedFusedVonBaeyerName,
+  regions: readonly number[][],
+  chords: readonly [number, number][],
+): GeneratedMolecule {
+  const atoms = Array.from({ length: parsed.carbonCount }, (_, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / parsed.carbonCount;
+    return { id: index + 1, x: Math.cos(angle), y: Math.sin(angle) };
+  });
+  const bonds: GeneratedBond[] = atoms.map((atom, index) => [
+    atom.id,
+    atoms[(index + 1) % atoms.length].id,
+    1,
+  ]);
+  bonds.push(...chords.map(([left, right]) => [left, right, 1] as GeneratedBond));
+  return {
+    atoms,
+    bonds,
+    rings: regions.map((atomIds, index) => ({ id: index + 1, kind: "cycloalkane", atomIds: [...atomIds] })),
+  };
+}
+
+function validateFusedDescriptorGraph(parsed: ParsedFusedVonBaeyerName, molecule: GeneratedMolecule) {
+  if (molecule.bonds.length - molecule.atoms.length + 1 !== parsed.ringCount) return false;
+  const valences = new Map(molecule.atoms.map((atom) => [atom.id, 0]));
+  molecule.bonds.forEach(([left, right, order = 1]) => {
+    valences.set(left, (valences.get(left) ?? 0) + order);
+    valences.set(right, (valences.get(right) ?? 0) + order);
+  });
+  if ([...valences.values()].some((valence) => valence > 4)) return false;
+
+  if (parsed.ringCount === 2) {
+    const system = getFusedBicyclicSystem(molecule);
+    return Boolean(system && `[${system.paths.join(".")}]` === parsed.descriptor);
+  }
+  if (parsed.ringCount === 3) {
+    return getFusedTricyclicSystem(molecule)?.vonBaeyerDescriptor === parsed.descriptor;
+  }
+  return getFusedTetracyclicSystem(molecule)?.vonBaeyerDescriptor === parsed.descriptor;
+}
+
+function sharedRegionEdge(left: readonly number[], right: readonly number[]) {
+  const shared = left.filter((locant) => right.includes(locant));
+  if (shared.length !== 2) return null;
+  const adjacent = (region: readonly number[]) => region.some((locant, index) => (
+    locant === shared[0]
+    && (region[(index + 1) % region.length] === shared[1]
+      || region[(index + region.length - 1) % region.length] === shared[1])
+  ));
+  return adjacent(left) && adjacent(right) ? shared as [number, number] : null;
+}
+
+function fusedLayoutFromRegions(regions: readonly number[][]) {
+  const adjacency = regions.map(() => new Set<number>());
+  for (let left = 0; left < regions.length; left += 1) {
+    for (let right = left + 1; right < regions.length; right += 1) {
+      if (!sharedRegionEdge(regions[left], regions[right])) continue;
+      adjacency[left].add(right);
+      adjacency[right].add(left);
+    }
+  }
+  const start = adjacency.findIndex((neighbors) => neighbors.size === 1);
+  if (start < 0) return null;
+
+  const firstRegion = regions[start];
+  let molecule = makeRing(firstRegion.length, "cycloalkane");
+  const generatedIdByLocant = new Map(firstRegion.map((locant, index) => [locant, index + 1]));
+  const built = new Set([start]);
+  let current = start;
+  let previous = -1;
+  while (built.size < regions.length) {
+    const next = [...adjacency[current]].find((index) => index !== previous && !built.has(index));
+    if (next === undefined) return null;
+    const shared = sharedRegionEdge(regions[current], regions[next]);
+    if (!shared) return null;
+    const generatedShared = shared.map((locant) => generatedIdByLocant.get(locant));
+    if (generatedShared.some((atomId) => atomId === undefined)) return null;
+    molecule = fuseRingOnBond(
+      molecule,
+      generatedShared[0]!,
+      generatedShared[1]!,
+      regions[next].length as 5 | 6,
+    );
+    const generatedRing = molecule.rings!.at(-1)!;
+    const descriptorStart = shared.find((locant) => (
+      generatedIdByLocant.get(locant) === generatedRing.atomIds[0]
+    ));
+    const descriptorEnd = shared.find((locant) => locant !== descriptorStart);
+    if (descriptorStart === undefined || descriptorEnd === undefined) return null;
+    const startIndex = regions[next].indexOf(descriptorStart);
+    const forward: number[] = [descriptorStart];
+    for (
+      let index = (startIndex + 1) % regions[next].length;
+      regions[next][index] !== descriptorEnd;
+      index = (index + 1) % regions[next].length
+    ) forward.push(regions[next][index]);
+    forward.push(descriptorEnd);
+    const backward: number[] = [descriptorStart];
+    for (
+      let index = (startIndex + regions[next].length - 1) % regions[next].length;
+      regions[next][index] !== descriptorEnd;
+      index = (index + regions[next].length - 1) % regions[next].length
+    ) backward.push(regions[next][index]);
+    backward.push(descriptorEnd);
+    const path = forward.length === regions[next].length ? forward : backward;
+    if (path.length !== generatedRing.atomIds.length) return null;
+    path.forEach((locant, index) => generatedIdByLocant.set(locant, generatedRing.atomIds[index]));
+    built.add(next);
+    previous = current;
+    current = next;
+  }
+  return molecule;
+}
+
+function buildFusedVonBaeyerParent(name: string): NameBuildResult | null {
+  const result = parseFusedVonBaeyerName(name);
+  if (!result.matched) return null;
+  if ("error" in result) {
+    return { ok: false, error: result.error, inputFamily: "fused-von-baeyer" };
+  }
+  const geometry = fusedRegionsFromDescriptor(result.parsed);
+  if (!geometry) {
+    return {
+      ok: false,
+      error: "El descriptor no representa una cadena ortofusionada de anillos de cinco o seis miembros soportada.",
+      inputFamily: "fused-von-baeyer",
+    };
+  }
+  const numberedGraph = numberedFusedGraph(result.parsed, geometry.regions, geometry.chords);
+  if (!validateFusedDescriptorGraph(result.parsed, numberedGraph)) {
+    return {
+      ok: false,
+      error: "El descriptor von Baeyer no coincide con una topología policíclica soportada o no usa su numeración canónica.",
+      inputFamily: "fused-von-baeyer",
+    };
+  }
+  const molecule = fusedLayoutFromRegions(geometry.regions);
+  if (!molecule || !validateFusedDescriptorGraph(result.parsed, molecule)) {
+    return {
+      ok: false,
+      error: "No fue posible reconstruir de forma coherente el grafo del policiclo indicado.",
+      inputFamily: "fused-von-baeyer",
+    };
+  }
+  return {
+    ok: true,
+    molecule,
+    normalizedInput: result.parsed.normalizedInput,
+    enabledAliases: [],
+    inputFamily: "fused-von-baeyer",
+  };
+}
+
 function setUnsaturations(molecule: GeneratedMolecule, parent: ParentDescription) {
   const locantOrders = new Map<number, GeneratedBondOrder>();
   parent.doubleLocants.forEach((locant) => locantOrders.set(locant, 2));
@@ -775,6 +1093,9 @@ export function buildHydrocarbonFromIupacName(value: string): NameBuildResult {
   if (!normalizedInput) {
     return { ok: false, error: "Escribe un nombre, por ejemplo: 3-etil-2-metilhexano." };
   }
+
+  const fusedParent = buildFusedVonBaeyerParent(normalizedInput);
+  if (fusedParent) return fusedParent;
 
   const parsed = parseAlcoholName(normalizedInput)
     ?? parseAldehydeName(normalizedInput)

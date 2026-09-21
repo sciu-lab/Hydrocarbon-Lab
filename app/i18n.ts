@@ -553,6 +553,15 @@ const dynamicExact: Record<string, string> = {
   "OPSIN no reconoció ese nombre.": "OPSIN did not recognize that name.",
   "OPSIN devolvió una respuesta que no se pudo leer.": "OPSIN returned a response that could not be read.",
   "El motor químico no pudo interpretar ese nombre IUPAC. Revisa localizadores, paréntesis, guiones y sufijos.": "The chemistry engine could not interpret that IUPAC name. Check locants, parentheses, hyphens, and suffixes.",
+  "El descriptor von Baeyer está incompleto o malformado.": "The von Baeyer descriptor is incomplete or malformed.",
+  "El progenitor von Baeyer debe ser un hidrocarburo saturado con terminación -ano o -ane.": "The von Baeyer parent must be a saturated hydrocarbon ending in -ano or -ane.",
+  "El descriptor von Baeyer contiene puentes o localizadores malformados.": "The von Baeyer descriptor contains malformed bridges or locants.",
+  "Las dos ramas principales deben citarse en orden decreciente.": "The two main branches must be cited in decreasing order.",
+  "Este constructor admite por ahora únicamente policiclos ortofusionados con puentes de longitud cero.": "This builder currently supports only ortho-fused polycycles with zero-length bridges.",
+  "El número de carbonos del progenitor no coincide con las longitudes del descriptor von Baeyer.": "The parent carbon count does not match the bridge lengths in the von Baeyer descriptor.",
+  "El descriptor no representa una cadena ortofusionada de anillos de cinco o seis miembros soportada.": "The descriptor does not represent a supported ortho-fused chain of five- or six-membered rings.",
+  "El descriptor von Baeyer no coincide con una topología policíclica soportada o no usa su numeración canónica.": "The von Baeyer descriptor does not match a supported polycyclic topology or does not use its canonical numbering.",
+  "No fue posible reconstruir de forma coherente el grafo del policiclo indicado.": "The graph of the specified polycycle could not be reconstructed consistently.",
   "No fue posible conectar con OPSIN. Revisa tu conexión y vuelve a intentarlo; el constructor local seguirá disponible.": "Could not connect to OPSIN. Check your connection and try again; the local builder remains available.",
   "No fue posible leer este documento químico.": "This chemistry document could not be read.",
   "El documento supera el límite de 4 MB.": "The document exceeds the 4 MB limit.",
@@ -584,6 +593,12 @@ export function dynamicUiText(language: AppLanguage, value: string | null | unde
   if (!value || language === "es") return value ?? "";
   const exact = dynamicExact[value] ?? ENGLISH_UI[value];
   if (exact) return exact;
+  const bridgeCount = value.match(/^Un (.+) necesita (\d+) longitudes de puente en su descriptor\.$/);
+  if (bridgeCount) {
+    const system = ({ biciclo: "bicyclo", triciclo: "tricyclo", tetraciclo: "tetracyclo" } as Record<string, string>)[bridgeCount[1]]
+      ?? bridgeCount[1];
+    return `A ${system} descriptor requires ${bridgeCount[2]} bridge lengths.`;
+  }
 
   return value
     .replace(/^Acción bloqueada:/, "Action blocked:")

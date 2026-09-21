@@ -6553,6 +6553,11 @@ export default function Home() {
     // Correct them before parsing so the user can explicitly accept the PIN
     // instead of silently retaining a malformed presentation.
     const localPreflight = buildHydrocarbonFromIupacName(submittedName);
+    if (!localPreflight.ok && localPreflight.inputFamily === "fused-von-baeyer") {
+      setNameBuilderOpen(true);
+      setNameBuilderFeedback({ kind: "error", message: localPreflight.error });
+      return;
+    }
     const suggestedCorrection = fromSuggestion || localPreflight.ok || shouldTryAdvancedNameParserFirst(submittedName)
       ? null
       : findCommonNameSuggestion(submittedName, language);
@@ -6584,32 +6589,39 @@ export default function Home() {
       let serviceWarning = "";
       let advancedNameResolved = false;
 
-      try {
-        const data = await resolveNameStructure(submittedName);
-
-        const { moleculeFromSmiles } = await import("./openchemlib-adapter");
-        const converted = moleculeFromSmiles(data.smiles);
-        if (!converted.ok) throw new Error(converted.error);
-        next = converted.molecule;
-        advancedNameResolved = true;
-        if (data.source === "integrated-fallback") {
-          engineLabel = "OpenChemLib y el respaldo integrado";
-        }
-        normalizedInput = (data.interpretedName ?? submittedName)
-          .toLocaleLowerCase("es")
-          .replace(/\s+/g, "");
-        if (data.warnings?.length) serviceWarning = " OPSIN informó una posible ambigüedad del nombre.";
-      } catch (advancedError) {
-        const localResult = buildHydrocarbonFromIupacName(submittedName);
-        if (!localResult.ok) {
-          throw advancedError instanceof Error
-            ? advancedError
-            : new Error(localResult.error);
-        }
-        next = localResult.molecule;
-        enabledAliases = localResult.enabledAliases;
-        normalizedInput = localResult.normalizedInput;
+      if (localPreflight.ok && localPreflight.inputFamily === "fused-von-baeyer") {
+        next = localPreflight.molecule;
+        enabledAliases = localPreflight.enabledAliases;
+        normalizedInput = localPreflight.normalizedInput;
         engineLabel = "constructor local de respaldo";
+      } else {
+        try {
+          const data = await resolveNameStructure(submittedName);
+
+          const { moleculeFromSmiles } = await import("./openchemlib-adapter");
+          const converted = moleculeFromSmiles(data.smiles);
+          if (!converted.ok) throw new Error(converted.error);
+          next = converted.molecule;
+          advancedNameResolved = true;
+          if (data.source === "integrated-fallback") {
+            engineLabel = "OpenChemLib y el respaldo integrado";
+          }
+          normalizedInput = (data.interpretedName ?? submittedName)
+            .toLocaleLowerCase("es")
+            .replace(/\s+/g, "");
+          if (data.warnings?.length) serviceWarning = " OPSIN informó una posible ambigüedad del nombre.";
+        } catch (advancedError) {
+          const localResult = buildHydrocarbonFromIupacName(submittedName);
+          if (!localResult.ok) {
+            throw advancedError instanceof Error
+              ? advancedError
+              : new Error(localResult.error);
+          }
+          next = localResult.molecule;
+          enabledAliases = localResult.enabledAliases;
+          normalizedInput = localResult.normalizedInput;
+          engineLabel = "constructor local de respaldo";
+        }
       }
 
       const generatedAnalysis = analyzeMolecule(next, enabledAliases);
