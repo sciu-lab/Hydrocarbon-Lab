@@ -20,6 +20,8 @@ export type GeneratedAtom = {
   charge?: number;
   /** Absolute tetrahedral configuration. It is independent of atom IDs and 2D coordinates. */
   tetrahedralParity?: "R" | "S";
+  /** Preferred wedge/hash carrier. This is display metadata; R/S belongs to this atom. */
+  tetrahedralBondTo?: number;
 };
 
 export type GeneratedRing = {

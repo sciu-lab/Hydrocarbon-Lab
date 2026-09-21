@@ -10,22 +10,33 @@ import {
 } from "../app/double-bond-stereochemistry.ts";
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
 import { resolveChemicalName } from "../app/name-structure-resolver.ts";
+import { getSteroidLike6565System } from "../app/fused-ring-nomenclature.ts";
 import {
   inspectSmilesStructure,
   moleculeFromSmiles,
   moleculeToSmiles,
 } from "../app/openchemlib-adapter.ts";
 import {
+  layoutSteroidRingLabels,
+  steroidLabelIntersectsExtent,
+} from "../app/steroid-ring-label-layout.ts";
+import {
+  clearTetrahedralConfiguration,
+  getTetrahedralAssignmentSummary,
+  getTetrahedralBadgePosition,
+  getTetrahedralCandidatesForBond,
   getMainChainTetrahedralDescriptors,
   getTetrahedralStereoBonds,
   getTetrahedralStereoCenters,
   sanitizeTetrahedralStereochemistry,
+  setTetrahedralConfiguration,
   toggleTetrahedralConfiguration,
 } from "../app/tetrahedral-stereochemistry.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
+let steroidStereochemistryStatus;
 
 before(async () => {
   server = await createServer({
@@ -36,7 +47,7 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ analyzeMolecule, steroidStereochemistryStatus } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => { await server?.close(); });
@@ -140,6 +151,72 @@ test("R to S to R interaction and undo/redo snapshots change configuration only"
   assert.equal(getTetrahedralStereoCenters(redoSnapshot)[0].configuration, "S");
 });
 
+test("a selected simple bond carries explicit S/R while configuration remains atom-owned", () => {
+  const original = imported("C[C@@H](O)CC");
+  const center = getTetrahedralStereoCenters(original)[0];
+  const carrier = original.bonds.find(([left, right, order = 1]) =>
+    order === 1 && (left === center.atomId || right === center.atomId),
+  );
+  assert.ok(carrier);
+  const neighborId = carrier[0] === center.atomId ? carrier[1] : carrier[0];
+  assert.deepEqual(getTetrahedralCandidatesForBond(original, carrier[0], carrier[1]), [center.atomId]);
+
+  const toS = setTetrahedralConfiguration(original, center.atomId, "S", neighborId);
+  assert.equal(toS.ok, true);
+  assert.deepEqual(constitution(toS.molecule), constitution(original));
+  assert.equal(toS.molecule.atoms.find((atom) => atom.id === center.atomId).tetrahedralBondTo, neighborId);
+  assert.equal(getTetrahedralStereoBonds(displayedMolecule(toS.molecule))[0].neighborAtomId, neighborId);
+  assert.equal(getTetrahedralStereoBonds(displayedMolecule(toS.molecule))[0].configuration, "S");
+  assert.notEqual(exported(toS.molecule), exported(original));
+
+  const undoSnapshot = structuredClone(original);
+  const redoSnapshot = structuredClone(toS.molecule);
+  assert.equal(getTetrahedralStereoCenters(undoSnapshot)[0].configuration, "R");
+  assert.equal(getTetrahedralStereoCenters(redoSnapshot)[0].configuration, "S");
+
+  const backToR = setTetrahedralConfiguration(toS.molecule, center.atomId, "R", neighborId);
+  assert.equal(backToR.ok, true);
+  assert.equal(exported(backToR.molecule), exported(original));
+  const cleared = clearTetrahedralConfiguration(backToR.molecule, center.atomId);
+  assert.equal(getTetrahedralStereoCenters(cleared).length, 0);
+  assert.deepEqual(constitution(cleared), constitution(original));
+});
+
+test("bond context omits false tetrahedral centers and double bonds without disturbing E/Z", () => {
+  const achiral = imported("CCC(C)CC");
+  for (const [left, right] of achiral.bonds) {
+    assert.deepEqual(getTetrahedralCandidatesForBond(achiral, left, right), []);
+  }
+
+  const mixed = imported("F/C=C/[C@H](Cl)Br");
+  const alkene = mixed.bonds.find(([, , order = 1]) => order === 2);
+  assert.ok(alkene);
+  assert.deepEqual(getTetrahedralCandidatesForBond(mixed, alkene[0], alkene[1]), []);
+  const before = inspectDoubleBondStereochemistry(mixed, alkene[0], alkene[1]).configuration;
+  const center = getTetrahedralStereoCenters(mixed)[0];
+  const changed = toggleTetrahedralConfiguration(mixed, center.atomId);
+  assert.equal(changed.ok, true);
+  assert.equal(inspectDoubleBondStereochemistry(changed.molecule, alkene[0], alkene[1]).configuration, before);
+});
+
+test("a bond joining two stereocenters offers both endpoints without assigning parity to the bond", () => {
+  const molecule = imported("C[C@H](O)[C@@H](F)C");
+  const centers = getTetrahedralStereoCenters(molecule).map(({ atomId }) => atomId).sort((a, b) => a - b);
+  const shared = molecule.bonds.find(([left, right]) => centers.includes(left) && centers.includes(right));
+  assert.ok(shared);
+  assert.deepEqual(
+    getTetrahedralCandidatesForBond(molecule, shared[0], shared[1]).sort((a, b) => a - b),
+    centers,
+  );
+  const first = setTetrahedralConfiguration(molecule, shared[0], "R", shared[1]);
+  assert.equal(first.ok, true);
+  const second = setTetrahedralConfiguration(first.molecule, shared[1], "S", shared[0]);
+  assert.equal(second.ok, true);
+  assert.equal(second.molecule.atoms.find((atom) => atom.id === shared[0]).tetrahedralParity, "R");
+  assert.equal(second.molecule.atoms.find((atom) => atom.id === shared[0]).tetrahedralBondTo, undefined);
+  assert.equal(second.molecule.atoms.find((atom) => atom.id === shared[1]).tetrahedralBondTo, shared[0]);
+});
+
 test("absolute configuration survives atom-ID remapping and coordinate changes", () => {
   const source = imported("CC[C@@H](C)CCC");
   const remap = new Map(source.atoms.map((atom, index) => [atom.id, 101 + index * 17]));
@@ -221,16 +298,62 @@ test("testosterone and cholesterol preserve every imported tetrahedral center af
     ["testosterone", "C[C@]12CC[C@H]3[C@@H]([C@@H]1CC[C@@H]2O)CCC4=CC(=O)CC[C@]34C"],
     ["cholesterol", "CC(C)CCC[C@@H](C)[C@H]1CC[C@@H]2[C@@H]3CC=C4C[C@@H](O)CC[C@]4(C)[C@H]3CC[C@]12C"],
   ]);
+  const expectedCenters = new Map([["testosterone", 6], ["cholesterol", 8]]);
   for (const [name, smiles] of steroids) {
     const inspection = inspectSmilesStructure(smiles);
     assert.equal(inspection.ok, true, name);
     assert.equal(inspection.unpreservedTetrahedralStereoCenterCount, 0, name);
     const molecule = displayedMolecule(imported(smiles));
     const centers = getTetrahedralStereoCenters(molecule);
+    assert.deepEqual(getTetrahedralAssignmentSummary(molecule), {
+      detected: expectedCenters.get(name),
+      assigned: expectedCenters.get(name),
+      complete: true,
+    }, name);
+    assert.match(
+      steroidStereochemistryStatus(molecule, "en"),
+      new RegExp(`Androstane nucleus recognized · ${expectedCenters.get(name)} tetrahedral stereocenters assigned`),
+      name,
+    );
+    assert.match(analyzeMolecule(molecule).ringSystem, /centros estereogénicos tetraédricos asignados/, name);
     assert.equal(centers.length, inspection.tetrahedralStereoCenterCount, name);
     assert.equal(getTetrahedralStereoBonds(molecule).length, centers.length, name);
     const roundTrip = inspectSmilesStructure(exported(molecule));
     assert.equal(roundTrip.preservedTetrahedralStereoCenterCount, centers.length, name);
     assert.equal(roundTrip.formula, inspection.formula, name);
+
+    const system = getSteroidLike6565System(molecule);
+    assert.equal(system?.isGonaneTopology, true, `${name}: recognized steroid topology`);
+    const positions = new Map(molecule.atoms.map((atom) => [atom.id, { x: atom.x, y: atom.y }]));
+    const stereoObstacles = getTetrahedralStereoBonds(molecule).map((descriptor) => {
+      const point = getTetrahedralBadgePosition(
+        positions.get(descriptor.atomId),
+        positions.get(descriptor.neighborAtomId),
+      );
+      return { x: point.x - 17, y: point.y - 17, width: 34, height: 34 };
+    });
+    const heteroObstacles = molecule.atoms
+      .filter((atom) => (atom.element ?? "C") !== "C")
+      .map((atom) => ({ x: atom.x - 15, y: atom.y - 15, width: 30, height: 30 }));
+    const labels = layoutSteroidRingLabels(system.ringsByLabel, positions, [
+      ...stereoObstacles,
+      ...heteroObstacles,
+    ]);
+    assert.deepEqual(labels.map(({ label }) => label), ["A", "B", "C", "D"], name);
+    for (const label of labels) {
+      for (const obstacle of [...stereoObstacles, ...heteroObstacles]) {
+        assert.equal(steroidLabelIntersectsExtent(label, obstacle), false, `${name}: ${label.label} collision`);
+      }
+    }
+
+    const transformedPositions = new Map([...positions].map(([atomId, point]) => [atomId, {
+      x: -point.y * 1.3 + 41,
+      y: -point.x * 1.3 - 23,
+    }]));
+    assert.deepEqual(
+      layoutSteroidRingLabels(system.ringsByLabel, transformedPositions).map(({ label }) => label),
+      ["A", "B", "C", "D"],
+      `${name}: labels survive rotation/reflection`,
+    );
   }
 });

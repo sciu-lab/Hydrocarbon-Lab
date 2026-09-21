@@ -17,6 +17,12 @@ export type MainChainTetrahedralDescriptor = TetrahedralStereoCenter & {
   locant: number;
 };
 
+export type TetrahedralAssignmentSummary = {
+  detected: number;
+  assigned: number;
+  complete: boolean;
+};
+
 const atomicNumberByElement: Record<NonNullable<GeneratedAtom["element"]>, number> = {
   C: 6,
   N: 7,
@@ -131,17 +137,111 @@ export function getTetrahedralStereoCenters(source: GeneratedMolecule): Tetrahed
   });
 }
 
+export function getPotentialTetrahedralStereoCenterIds(source: GeneratedMolecule): number[] {
+  const graph = buildOpenChemLibStereoGraph(source, false);
+  return source.atoms.flatMap((atom) => {
+    const atomIndex = graph.atomIdToIndex.get(atom.id);
+    return atomIndex !== undefined && graph.molecule.isAtomStereoCenter(atomIndex) ? [atom.id] : [];
+  });
+}
+
+export function getTetrahedralAssignmentSummary(
+  source: GeneratedMolecule,
+): TetrahedralAssignmentSummary {
+  const detected = getPotentialTetrahedralStereoCenterIds(source).length;
+  const assigned = getTetrahedralStereoCenters(source).length;
+  return { detected, assigned, complete: detected > 0 && assigned === detected };
+}
+
+export function getTetrahedralCandidatesForBond(
+  source: GeneratedMolecule,
+  leftAtomId: number,
+  rightAtomId: number,
+) {
+  const bond = source.bonds.find(([left, right]) =>
+    (left === leftAtomId && right === rightAtomId) || (left === rightAtomId && right === leftAtomId),
+  );
+  if (!bond || (bond[2] ?? 1) !== 1) return [];
+  const potential = new Set(getPotentialTetrahedralStereoCenterIds(source));
+  return [leftAtomId, rightAtomId].filter((atomId) => potential.has(atomId));
+}
+
 export function sanitizeTetrahedralStereochemistry<T extends GeneratedMolecule>(source: T): T {
   const validIds = new Set(getTetrahedralStereoCenters(source).map((center) => center.atomId));
   let changed = false;
   const atoms = source.atoms.map((atom) => {
-    if (!atom.tetrahedralParity || validIds.has(atom.id)) return atom;
+    const carrierValid = atom.tetrahedralBondTo === undefined || source.bonds.some(
+      ([left, right, order = 1]) => order === 1 && (
+        (left === atom.id && right === atom.tetrahedralBondTo)
+        || (right === atom.id && left === atom.tetrahedralBondTo)
+      ),
+    );
+    if (atom.tetrahedralParity && validIds.has(atom.id) && carrierValid) return atom;
     const rest: GeneratedAtom = { ...atom };
-    delete rest.tetrahedralParity;
+    if (!atom.tetrahedralParity || !validIds.has(atom.id)) delete rest.tetrahedralParity;
+    delete rest.tetrahedralBondTo;
     changed = true;
     return rest;
   });
   return changed ? { ...source, atoms } : source;
+}
+
+export function setTetrahedralConfiguration<T extends GeneratedMolecule>(
+  source: T,
+  atomId: number,
+  configuration: TetrahedralConfiguration,
+  carrierNeighborAtomId?: number,
+): { ok: true; molecule: T; configuration: TetrahedralConfiguration } | { ok: false; error: string } {
+  const potential = new Set(getPotentialTetrahedralStereoCenterIds(source));
+  if (!potential.has(atomId)) {
+    return { ok: false, error: "El átomo no tiene cuatro sustituyentes CIP diferentes." };
+  }
+  if (carrierNeighborAtomId !== undefined && !source.bonds.some(
+    ([left, right, order = 1]) => order === 1 && (
+      (left === atomId && right === carrierNeighborAtomId)
+      || (right === atomId && left === carrierNeighborAtomId)
+    ),
+  )) {
+    return { ok: false, error: "El enlace elegido no puede portar el wedge/hash de este centro." };
+  }
+  return {
+    ok: true,
+    configuration,
+    molecule: {
+      ...source,
+      atoms: source.atoms.map((atom) => {
+        if (atom.id === atomId) {
+          return {
+            ...atom,
+            tetrahedralParity: configuration,
+            ...(carrierNeighborAtomId === undefined ? {} : { tetrahedralBondTo: carrierNeighborAtomId }),
+          };
+        }
+        if (carrierNeighborAtomId === atom.id && atom.tetrahedralBondTo === atomId) {
+          const copy: GeneratedAtom = { ...atom };
+          delete copy.tetrahedralBondTo;
+          return copy;
+        }
+        return { ...atom };
+      }),
+    },
+  };
+}
+
+export function clearTetrahedralConfiguration<T extends GeneratedMolecule>(
+  source: T,
+  atomId: number,
+): T {
+  return {
+    ...source,
+    atoms: source.atoms.map((atom) => {
+      if (atom.id !== atomId) return { ...atom };
+      const copy: GeneratedAtom = { ...atom };
+      delete copy.tetrahedralParity;
+      delete copy.tetrahedralBondTo;
+      return copy;
+    }),
+  };
 }
 
 export function toggleTetrahedralConfiguration<T extends GeneratedMolecule>(
@@ -167,6 +267,54 @@ export function toggleTetrahedralConfiguration<T extends GeneratedMolecule>(
   };
 }
 
+function preferredStereoBondStyle(
+  source: GeneratedMolecule,
+  atomId: number,
+  neighborAtomId: number,
+  configuration: TetrahedralConfiguration,
+): TetrahedralStereoBond["style"] | null {
+  for (const [bondType, style] of [
+    [OCLMolecule.cBondTypeUp, "wedge"],
+    [OCLMolecule.cBondTypeDown, "hash"],
+  ] as const) {
+    const graph = buildOpenChemLibStereoGraph(source, false);
+    const atomIndex = graph.atomIdToIndex.get(atomId);
+    const neighborIndex = graph.atomIdToIndex.get(neighborAtomId);
+    if (atomIndex === undefined || neighborIndex === undefined) return null;
+    let selectedBond = -1;
+    for (let bondIndex = 0; bondIndex < graph.molecule.getAllBonds(); bondIndex += 1) {
+      const first = graph.molecule.getBondAtom(0, bondIndex);
+      const second = graph.molecule.getBondAtom(1, bondIndex);
+      if ((first === atomIndex && second === neighborIndex)
+        || (first === neighborIndex && second === atomIndex)) {
+        selectedBond = bondIndex;
+        break;
+      }
+    }
+    if (selectedBond < 0 || graph.molecule.getBondOrder(selectedBond) !== 1) return null;
+    graph.molecule.setBondAtom(0, selectedBond, atomIndex);
+    graph.molecule.setBondAtom(1, selectedBond, neighborIndex);
+    graph.molecule.setBondType(selectedBond, bondType);
+    graph.molecule.ensureHelperArrays(OCLMolecule.cHelperCIP);
+    if (cipConfiguration(graph.molecule, atomIndex) === configuration) return style;
+  }
+  return null;
+}
+
+export function getTetrahedralBadgePosition(
+  center: { x: number; y: number },
+  neighbor: { x: number; y: number },
+  distance = 29,
+) {
+  const deltaX = neighbor.x - center.x;
+  const deltaY = neighbor.y - center.y;
+  const length = Math.hypot(deltaX, deltaY) || 1;
+  return {
+    x: center.x + deltaY / length * distance,
+    y: center.y - deltaX / length * distance,
+  };
+}
+
 export function getTetrahedralStereoBonds(source: GeneratedMolecule): TetrahedralStereoBond[] {
   const graph = buildOpenChemLibStereoGraph(source);
   const configured = getTetrahedralStereoCenters(source);
@@ -176,6 +324,22 @@ export function getTetrahedralStereoBonds(source: GeneratedMolecule): Tetrahedra
   return configured.flatMap((center) => {
     const atomIndex = graph.atomIdToIndex.get(center.atomId);
     if (atomIndex === undefined) return [];
+    const sourceAtom = source.atoms.find((atom) => atom.id === center.atomId);
+    if (sourceAtom?.tetrahedralBondTo !== undefined) {
+      const style = preferredStereoBondStyle(
+        source,
+        center.atomId,
+        sourceAtom.tetrahedralBondTo,
+        center.configuration,
+      );
+      if (style) {
+        return [{
+          ...center,
+          neighborAtomId: sourceAtom.tetrahedralBondTo,
+          style,
+        }];
+      }
+    }
     for (let bondIndex = 0; bondIndex < graph.molecule.getAllBonds(); bondIndex += 1) {
       const bondType = graph.molecule.getBondType(bondIndex);
       if (bondType !== OCLMolecule.cBondTypeUp && bondType !== OCLMolecule.cBondTypeDown) continue;

@@ -24,7 +24,7 @@ function action(name, context = {}) {
 }
 
 test("ordinary bond activation edits while Shift activation retains explicit fusion", () => {
-  assert.match(page, /if \(containingRing && event\.shiftKey\) \{\s*setFusionSelection/s);
+  assert.match(page, /if \(event\.shiftKey\) \{\s*setFusionSelection/s);
   assert.match(page, /setFusionSelection\(null\);\s*cycleBondOrder\(a, b, undefined, event\.altKey\);/s);
   assert.doesNotMatch(page, /containingRing && !event\.shiftKey\) setFusionSelection/);
 });
@@ -39,7 +39,7 @@ test("ring drag and drop remains available outside explicit fusion mode", () => 
 
 test("one contextual library replaces the compact fusion picker", () => {
   assert.match(page, /type RingLibraryContext = RingInsertMode \| "fuse"/);
-  assert.match(page, /const ringLibraryContext: RingLibraryContext = selectedFusionBond/);
+  assert.match(page, /const ringLibraryContext: RingLibraryContext = selectedBondCanFuse/);
   assert.match(page, /Fusionar con enlace seleccionado/);
   assert.match(page, /Unir al carbono seleccionado/);
   assert.match(page, /chooseRingFromLibrary\(template\)/);
@@ -48,10 +48,25 @@ test("one contextual library replaces the compact fusion picker", () => {
 });
 
 test("only explicit ring actions open the shared ring library", () => {
-  assert.match(page, /if \(containingRing && event\.shiftKey\) \{\s*setFusionSelection\(\{ molecule, a, b \}\);\s*setShowRingPalette\(true\);/s);
+  assert.match(page, /if \(event\.shiftKey\) \{\s*setFusionSelection\(\{ molecule, a, b \}\);\s*setShowRingPalette\(true\);/s);
   assert.doesNotMatch(page, /setSelectedId\(atom\.id\);\s*if \(carbonAtom\) \{\s*setRingInsertMode\("attach"\);\s*setShowRingPalette\(true\);/s);
   assert.match(page, /if \(!selectedFusionBond\) \{\s*setRingInsertMode\(hasActiveSelection && isCarbonAtom\(selectedAtom\) \? "attach" : "replace"\);/s);
   assert.match(page, /const key = event\.key\.toLowerCase\(\);[\s\S]*?else if \(key === "r"\) \{[\s\S]*?setShowRingPalette\(!showRingPalette\)/);
+});
+
+test("the shared bond context exposes atom-owned R/S controls without replacing fusion", () => {
+  assert.match(page, /const selectedBondTetrahedralCandidates = selectedFusionBond[\s\S]*?getTetrahedralCandidatesForBond/);
+  assert.match(page, /selectedFusionBond && selectedBondTetrahedralCandidates\.length > 0/);
+  assert.match(page, /Estereoquímica R\/S/);
+  assert.match(page, /\(\["R", "S"\] as const\)\.map\(\(configuration\)/);
+  assert.match(page, /configureSelectedBondTetrahedralCenter\(atomId, configuration\)/);
+  assert.match(page, /configureSelectedBondTetrahedralCenter\(atomId, null\)/);
+  assert.match(page, /selectedBondCanFuse && \(/);
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(page, /className="tetrahedral-center-hit-target" r="17"/);
+  assert.match(page, /className="tetrahedral-center-badge" r="13"/);
+  assert.match(css, /\.tetrahedral-center-hit-target \{[\s\S]*?pointer-events: all;/);
+  assert.match(css, /\.bond-stereochemistry-actions button \{[\s\S]*?min-width: 32px;[\s\S]*?min-height: 32px;/);
 });
 
 test("explicit fusion clears its temporary selection only after a successful commit", () => {

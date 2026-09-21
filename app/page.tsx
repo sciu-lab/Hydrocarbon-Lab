@@ -82,12 +82,18 @@ import {
 } from "./skeletal-bond-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
 import {
+  clearTetrahedralConfiguration,
   getMainChainTetrahedralDescriptors,
+  getTetrahedralAssignmentSummary,
+  getTetrahedralBadgePosition,
+  getTetrahedralCandidatesForBond,
   getTetrahedralStereoBonds,
   getTetrahedralStereoCenters,
   sanitizeTetrahedralStereochemistry,
+  setTetrahedralConfiguration,
   toggleTetrahedralConfiguration,
 } from "./tetrahedral-stereochemistry";
+import { layoutSteroidRingLabels } from "./steroid-ring-label-layout";
 import {
   getMoleculeExportDimensions,
   getMoleculeExportFrame,
@@ -146,6 +152,7 @@ type CarbonAtom = {
   element?: ChemicalElement;
   charge?: number;
   tetrahedralParity?: "R" | "S";
+  tetrahedralBondTo?: number;
 };
 
 type ChemicalElement = "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
@@ -3297,6 +3304,21 @@ export function localizeSupportedSteroidConstitutionName(
   return language === "en" ? "17-hydroxyandrost-4-en-3-one" : name;
 }
 
+export function steroidStereochemistryStatus(
+  molecule: Molecule,
+  language: AppLanguage,
+) {
+  const { detected, assigned, complete } = getTetrahedralAssignmentSummary(molecule);
+  if (language === "en") {
+    return complete
+      ? `Androstane nucleus recognized · ${assigned} tetrahedral stereocenters assigned`
+      : `Androstane nucleus recognized · ${assigned} of ${detected} tetrahedral stereocenters preserved`;
+  }
+  return complete
+    ? `Núcleo de androstano reconocido · ${assigned} centros estereogénicos tetraédricos asignados`
+    : `Núcleo de androstano reconocido · ${assigned} de ${detected} centros estereogénicos tetraédricos conservados`;
+}
+
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
   const groups = detectFunctionalGroups(molecule);
   const fusedBicyclic = getFusedBicyclicSystem(molecule, groups);
@@ -3358,7 +3380,7 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
         primaryFunctionalGroup: "ketone",
         primaryFunctionalLabel: functionalGroupLabels.ketone,
         steroidSystem: steroidLike,
-        ringSystem: "Núcleo de androstano reconocido; nombre constitucional sin estereoquímica asignada.",
+        ringSystem: steroidStereochemistryStatus(molecule, "es"),
       };
     }
     if (!steroidLike?.isGonaneTopology) {
@@ -3406,8 +3428,9 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
       formula: molecularFormula(molecule), family: "polycyclic",
       mainChain: [], chainName: "", substituents: [], numberedAtoms: new Map(),
       doubleBondLocants: [], tripleBondLocants: [], functionalGroups: groups,
+      steroidSystem: steroidLike?.isGonaneTopology ? steroidLike : undefined,
       ringSystem: steroidLike?.isGonaneTopology
-        ? "Núcleo de gonano reconocido; esta combinación de sustituyentes y grupos funcionales aún no tiene nombre local validado."
+        ? steroidStereochemistryStatus(molecule, "es")
         : steroidLike
           ? "Sistema tetracíclico 6-6-6-5 reconocido; topología no identificada como gonano."
           : undefined,
@@ -5643,7 +5666,7 @@ export default function Home() {
   const [historyTransferNotice, setHistoryTransferNotice] = useState<HistoryTransferNotice | null>(null);
   const [showHydrogens, setShowHydrogens] = useState(true);
   const [showNumbering, setShowNumbering] = useState(true);
-  const [showSteroidRingLabels, setShowSteroidRingLabels] = useState(false);
+  const [showSteroidRingLabels, setShowSteroidRingLabels] = useState(true);
   const [numberingScale, setNumberingScale] = useState(DEFAULT_NUMBERING_SCALE);
   const [numberingScalePreferenceReady, setNumberingScalePreferenceReady] = useState(false);
   const [functionalGroupScale, setFunctionalGroupScale] = useState(DEFAULT_FUNCTIONAL_GROUP_SCALE);
@@ -7006,6 +7029,36 @@ export default function Home() {
     }
   };
 
+  const configureSelectedBondTetrahedralCenter = (
+    atomId: number,
+    configuration: "R" | "S" | null,
+  ) => {
+    if (!selectedFusionBond) return;
+    const neighborAtomId = selectedFusionBond.a === atomId
+      ? selectedFusionBond.b
+      : selectedFusionBond.a;
+    const result = configuration === null
+      ? { ok: true as const, molecule: clearTetrahedralConfiguration(molecule, atomId) }
+      : setTetrahedralConfiguration(molecule, atomId, configuration, neighborAtomId);
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    const action = configuration === null
+      ? language === "en" ? "Tetrahedral configuration removed." : "Configuración tetraédrica eliminada."
+      : language === "en"
+        ? `Tetrahedral configuration assigned as ${configuration}.`
+        : `Configuración tetraédrica asignada como ${configuration}.`;
+    if (!commit(result.molecule, action)) return;
+    setFusionSelection({
+      molecule: result.molecule,
+      a: selectedFusionBond.a,
+      b: selectedFusionBond.b,
+    });
+    setShowStereochemistry(true);
+    setShowIupacName(true);
+  };
+
   const addAlkylGroup = (template: AlkylTemplate, anchorId = selectedId) => {
     const selectedAtom = molecule.atoms.find((atom) => atom.id === anchorId);
     const hasActiveSelection = Boolean(selectedAtom);
@@ -8334,19 +8387,6 @@ export default function Home() {
       return neighbors.length === 1 && fusedRingAtomIds.has(neighbors[0]) ? [atom.id] : [];
     }),
   );
-  const steroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
-    ? Object.entries(analysis.steroidSystem.ringsByLabel).flatMap(([label, atomIds]) => {
-        const points = atomIds
-          .map((atomId) => displayPositions.get(atomId))
-          .filter((point): point is { x: number; y: number } => Boolean(point));
-        if (points.length !== atomIds.length) return [];
-        return [{
-          label,
-          x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
-          y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
-        }];
-      })
-    : [];
   const showSteroidNumberLeaders = Boolean(analysis.steroidSystem?.numbering);
   const existingAtomIds = new Set(molecule.atoms.map((atom) => atom.id));
   const ringFusionPreviewPositions = ringFusionPreviewMolecule
@@ -8452,8 +8492,28 @@ export default function Home() {
       height,
     }];
   });
+  const tetrahedralBadgeExtents = tetrahedralStereoBonds.flatMap((descriptor) => {
+    const center = displayPositions.get(descriptor.atomId);
+    const neighbor = displayPositions.get(descriptor.neighborAtomId);
+    if (!center || !neighbor) return [];
+    const badge = getTetrahedralBadgePosition(center, neighbor);
+    return [{ x: badge.x - 17, y: badge.y - 17, width: 34, height: 34 }];
+  });
+  const steroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
+    ? layoutSteroidRingLabels(
+        analysis.steroidSystem.ringsByLabel,
+        displayPositions,
+        [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents],
+      )
+    : [];
+  const steroidRingLabelExtents = steroidRingLabels.map(({ x, y }) => ({
+    x: x - 16,
+    y: y - 16,
+    width: 32,
+    height: 32,
+  }));
   const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values(), {
-    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...steroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 }))],
+    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents],
   });
   // The normal canvas keeps a generous classroom workspace. The expanded
   // editor instead starts from the same content bounds used by export, with a
@@ -8462,7 +8522,7 @@ export default function Home() {
   const expandedFitBounds = getMoleculeVisualBounds(displayPositions.values(), {
     atomExtent: 58,
     padding: 36,
-    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...steroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 }))],
+    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents],
   });
   const readExpandedFitBounds = useEffectEvent(() => expandedFitBounds);
   /* eslint-disable react-hooks/set-state-in-effect -- modal-open transition synchronizes its derived viewport once */
@@ -8488,13 +8548,25 @@ export default function Home() {
   const selectedHydrogens = getImplicitHydrogens(selectedAtom.id, molecule);
   const selectedElement = getElement(selectedAtom);
   const selectedValenceLimit = getValenceLimit(selectedAtom.id, molecule);
-  const ringLibraryContext: RingLibraryContext = selectedFusionBond
+  const selectedBondRecord = selectedFusionBond
+    ? molecule.bonds.find(([left, right]) =>
+        (left === selectedFusionBond.a && right === selectedFusionBond.b)
+        || (left === selectedFusionBond.b && right === selectedFusionBond.a),
+      )
+    : undefined;
+  const selectedBondCanFuse = Boolean(selectedFusionBond && selectedBondRecord
+    && (selectedBondRecord[2] ?? 1) === 1
+    && molecule.rings?.some((ring) => ringHasBond(ring, selectedFusionBond.a, selectedFusionBond.b)));
+  const selectedBondTetrahedralCandidates = selectedFusionBond
+    ? getTetrahedralCandidatesForBond(molecule, selectedFusionBond.a, selectedFusionBond.b)
+    : [];
+  const ringLibraryContext: RingLibraryContext = selectedBondCanFuse
     ? "fuse"
     : hasActiveSelection && isCarbonAtom(selectedAtom)
       ? "attach"
       : "replace";
   const ringFusionOptionError = (template: RingTemplate) => {
-    if (!selectedFusionBond) return null;
+    if (!selectedFusionBond || !selectedBondCanFuse) return null;
     if (template.kind !== "cycloalkane" || (template.size !== 5 && template.size !== 6)) {
       return language === "en"
         ? "Only 5- and 6-membered aliphatic rings can be fused here."
@@ -8503,7 +8575,7 @@ export default function Home() {
     return ringFusionError(molecule, selectedFusionBond.a, selectedFusionBond.b);
   };
   const chooseRingFromLibrary = (template: RingTemplate) => {
-    if (selectedFusionBond) {
+    if (selectedFusionBond && selectedBondCanFuse) {
       const error = ringFusionOptionError(template);
       if (error) {
         setNotice(error);
@@ -10014,6 +10086,9 @@ export default function Home() {
                 const tetrahedralLength = Math.hypot(tetrahedralDeltaX, tetrahedralDeltaY) || 1;
                 const tetrahedralNormalX = -tetrahedralDeltaY / tetrahedralLength;
                 const tetrahedralNormalY = tetrahedralDeltaX / tetrahedralLength;
+                const tetrahedralMarkerPosition = tetrahedralCenterPosition && tetrahedralNeighborPosition
+                  ? getTetrahedralBadgePosition(tetrahedralCenterPosition, tetrahedralNeighborPosition)
+                  : null;
                 const containingRings = molecule.rings?.filter((ring) => ringHasBond(ring, a, b)) ?? [];
                 const containingRing = containingRings[0];
                 const ringDoubleBondSegments = viewMode === "skeletal"
@@ -10129,12 +10204,14 @@ export default function Home() {
                     onClick={(event) => {
                       if (placementTool || suppressBondClickAfterDrop.current) return;
                       event.currentTarget.focus({ preventScroll: true });
-                      if (containingRing && event.shiftKey) {
+                      if (event.shiftKey) {
                         setFusionSelection({ molecule, a, b });
                         setShowRingPalette(true);
                         setShowAlkylPalette(false);
                         setShowFunctionalPalette(false);
-                        setNotice(language === "en" ? "Ring bond selected for explicit fusion." : "Enlace de anillo seleccionado para fusión explícita.");
+                        setNotice(containingRing && order === 1
+                          ? language === "en" ? "Bond selected for ring fusion or stereochemistry." : "Enlace seleccionado para fusión o estereoquímica."
+                          : language === "en" ? "Bond selected for stereochemistry context." : "Enlace seleccionado para el contexto estereoquímico.");
                         return;
                       }
                       setFusionSelection(null);
@@ -10143,12 +10220,14 @@ export default function Home() {
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        if (containingRing && event.shiftKey) {
+                        if (event.shiftKey) {
                           setFusionSelection({ molecule, a, b });
                           setShowRingPalette(true);
                           setShowAlkylPalette(false);
                           setShowFunctionalPalette(false);
-                          setNotice(language === "en" ? "Ring bond selected for explicit fusion." : "Enlace de anillo seleccionado para fusión explícita.");
+                          setNotice(containingRing && order === 1
+                            ? language === "en" ? "Bond selected for ring fusion or stereochemistry." : "Enlace seleccionado para fusión o estereoquímica."
+                            : language === "en" ? "Bond selected for stereochemistry context." : "Enlace seleccionado para el contexto estereoquímico.");
                         } else {
                           setFusionSelection(null);
                           cycleBondOrder(a, b, undefined, event.altKey);
@@ -10167,7 +10246,7 @@ export default function Home() {
                     role="button"
                     tabIndex={0}
                     aria-label={containingRing
-                      ? (language === "en" ? `Ring bond ${a}–${b}. Activate to edit; Shift-activate selects it for explicit fusion.` : `Enlace del anillo ${a}–${b}. Activa para editar; Mayús-activar lo selecciona para fusión explícita.`)
+                      ? (language === "en" ? `Ring bond ${a}–${b}. Activate to edit; Shift-activate opens fusion and stereochemistry options.` : `Enlace del anillo ${a}–${b}. Activa para editar; Mayús-activar abre las opciones de fusión y estereoquímica.`)
                       : (lockedBond
                       ? language === "en"
                         ? `${t(getBondOrderLabel(order))} bond locked to preserve ${isFunctionalBond ? "the functional group" : "the ring structure"}`
@@ -10181,10 +10260,10 @@ export default function Home() {
                             ? "Double bond. Activate to edit its order; enable Stereochemistry and Alt-activate to switch E/Z."
                             : "Doble enlace. Activa para editar su orden; habilita Estereoquímica y usa Alt-activar para alternar E/Z."
                         : language === "en"
-                          ? `${t(getBondOrderLabel(order))} bond. Activate to change to ${t(getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder))}`
-                          : `Enlace ${getBondOrderLabel(order)}. Activar para cambiar a ${getBondOrderLabel(order === 3 ? 1 : (order + 1) as BondOrder)}`)}
+                          ? `${t(getBondOrderLabel(order))} bond. Activate to change its order; Shift-activate opens stereochemistry options.`
+                          : `Enlace ${getBondOrderLabel(order)}. Activa para cambiar su orden; Mayús-activar abre opciones estereoquímicas.`)}
                   >
-                    <title>{containingRing ? "Click to edit bond. Shift-click selects it for explicit ring fusion. Shortcuts: 1 single, 2 double, 3 triple while focused." : "Click to edit bond. Alt-click switches E/Z when available. Shortcuts: 1 single, 2 double, 3 triple while focused."}</title>
+                    <title>{containingRing ? "Click to edit bond. Shift-click opens ring fusion and R/S options. Shortcuts: 1 single, 2 double, 3 triple while focused." : "Click to edit bond. Shift-click opens R/S options; Alt-click switches E/Z when available."}</title>
                     {selectedFusionBond?.a === a && selectedFusionBond.b === b && (
                       <line data-editor-only="true" x1={positionA.x} y1={positionA.y} x2={positionB.x} y2={positionB.y}
                         stroke="var(--accent, #d5a254)" strokeWidth={14} opacity={0.3} pointerEvents="none" />
@@ -10232,10 +10311,10 @@ export default function Home() {
                         })}
                       </g>
                     )}
-                    {tetrahedralStereoBond && tetrahedralCenterPosition && (
+                    {tetrahedralStereoBond && tetrahedralMarkerPosition && (
                       <g
                         className="tetrahedral-center-marker"
-                        transform={`translate(${tetrahedralCenterPosition.x - tetrahedralNormalX * 25} ${tetrahedralCenterPosition.y - tetrahedralNormalY * 25})`}
+                        transform={`translate(${tetrahedralMarkerPosition.x} ${tetrahedralMarkerPosition.y})`}
                         role="button"
                         tabIndex={0}
                         aria-label={language === "en"
@@ -10253,7 +10332,8 @@ export default function Home() {
                           }
                         }}
                       >
-                        <circle r="11" />
+                        <circle className="tetrahedral-center-hit-target" r="17" />
+                        <circle className="tetrahedral-center-badge" r="13" />
                         <text textAnchor="middle" dominantBaseline="central">
                           {tetrahedralStereoBond.configuration}
                         </text>
@@ -10771,12 +10851,16 @@ export default function Home() {
                 <div>
                   <strong>{ringLibraryContext === "fuse"
                     ? t("Fusionar con enlace seleccionado")
+                    : selectedFusionBond
+                      ? t("Opciones del enlace seleccionado")
                     : ringLibraryContext === "attach"
                       ? t("Unir al carbono seleccionado")
                       : t("Biblioteca de anillos")}</strong>
                   <p>
                     {ringLibraryContext === "fuse"
                       ? t("El anillo elegido compartirá los dos carbonos y el enlace resaltado.")
+                      : selectedFusionBond
+                        ? t("La configuración R/S pertenece al átomo; este enlace solo porta el wedge/hash.")
                       : ringLibraryContext === "attach"
                       ? t("El nuevo anillo se unirá mediante un enlace simple al carbono seleccionado.")
                       : t("El anillo elegido reemplazará la estructura actual y comenzará una molécula nueva.")}
@@ -10787,6 +10871,57 @@ export default function Home() {
                   if (selectedFusionBond) setFusionSelection(null);
                 }} aria-label={t("Cerrar biblioteca de anillos")}>×</button>
               </div>
+
+              {selectedFusionBond && selectedBondTetrahedralCandidates.length > 0 && (
+                <section className="bond-stereochemistry-section" aria-labelledby="bond-stereochemistry-title">
+                  <div className="ring-section-heading">
+                    <strong id="bond-stereochemistry-title">{t("Estereoquímica R/S")}</strong>
+                    <span>{t("Centro atómico · enlace portador")}</span>
+                  </div>
+                  <div className="bond-stereochemistry-centers">
+                    {selectedBondTetrahedralCandidates.map((atomId) => {
+                      const atom = molecule.atoms.find((candidate) => candidate.id === atomId)!;
+                      const locant = analysis.numberedAtoms.get(atomId);
+                      const atomLabel = `${getElement(atom)}${locant ?? atomId}`;
+                      const current = atom.tetrahedralParity;
+                      return (
+                        <div className="bond-stereochemistry-center" key={atomId}>
+                          <div>
+                            <strong>{atomLabel}</strong>
+                            <small>{current
+                              ? `${t("Configuración actual")}: ${current}`
+                              : t("Sin configuración asignada")}</small>
+                          </div>
+                          <div className="bond-stereochemistry-actions" role="group" aria-label={`${t("Configurar centro")} ${atomLabel}`}>
+                            {(["R", "S"] as const).map((configuration) => (
+                              <button
+                                key={configuration}
+                                className={current === configuration ? "active" : ""}
+                                aria-pressed={current === configuration}
+                                onClick={() => configureSelectedBondTetrahedralCenter(atomId, configuration)}
+                              >
+                                {configuration}
+                              </button>
+                            ))}
+                            <button
+                              disabled={!current}
+                              onClick={() => configureSelectedBondTetrahedralCenter(atomId, current === "R" ? "S" : "R")}
+                            >
+                              {t("Invertir")}
+                            </button>
+                            <button
+                              disabled={!current}
+                              onClick={() => configureSelectedBondTetrahedralCenter(atomId, null)}
+                            >
+                              {t("Eliminar")}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
               <div className="ring-mode-switch" role="group" aria-label={t("Forma de insertar el anillo")}>
                 <button
@@ -10813,7 +10948,7 @@ export default function Home() {
                   <span aria-hidden="true">＋</span>
                   {t("Unir al C seleccionado")}
                 </button>
-                {selectedFusionBond && (
+                {selectedBondCanFuse && (
                   <button className="active" aria-pressed="true" disabled>
                     <span aria-hidden="true">⧉</span>
                     {t("Fusionar enlace")}
@@ -11307,7 +11442,7 @@ export default function Home() {
               <span>{t("Anillos")}</span>
               <div>
                 <strong><ChemicalNotationText value={analysis.steroidSystem?.constitutionNameEs && language === "en"
-                  ? "Androstane nucleus recognized; constitutional name only (no stereochemistry assigned)."
+                  ? steroidStereochemistryStatus(molecule, "en")
                   : localizedDynamicText(analysis.ringSystem)} /></strong>
                 {analysis.commonName && <strong>{t("Nombre tradicional")}: {analysis.commonName}</strong>}
               </div>

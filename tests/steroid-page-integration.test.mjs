@@ -10,6 +10,7 @@ let server;
 let analyzeMolecule;
 let localNamerCannotSafelyName;
 let localizeSupportedSteroidConstitutionName;
+let steroidStereochemistryStatus;
 let buildIupacReasoningSteps;
 let buildEnglishReasoningSteps;
 
@@ -26,6 +27,7 @@ before(async () => {
     analyzeMolecule,
     localNamerCannotSafelyName,
     localizeSupportedSteroidConstitutionName,
+    steroidStereochemistryStatus,
     buildIupacReasoningSteps,
     buildEnglishReasoningSteps,
   } = await server.ssrLoadModule("/app/page.tsx"));
@@ -94,6 +96,11 @@ test("shows supported steroid constitutional name, full C1-C19 numbering and fun
   assert.equal(analysis.primaryFunctionalGroup, "ketone");
   assert.equal(analysis.functionalGroups.length, 2);
   assert.ok(analysis.steroidSystem?.constitutionNameEn);
+  assert.equal(analysis.ringSystem, "Núcleo de androstano reconocido · 0 de 6 centros estereogénicos tetraédricos conservados");
+  assert.equal(
+    steroidStereochemistryStatus(molecule, "en"),
+    "Androstane nucleus recognized · 0 of 6 tetrahedral stereocenters preserved",
+  );
   assert.equal(localNamerCannotSafelyName(molecule, analysis), false);
 });
 
@@ -123,6 +130,7 @@ test("does not name a different steroid constitution as the supported compound",
   locate(numbering[5], numbering[6])[2] = 2; // C6=C7, not C4=C5
   const analysis = analyzeMolecule(altered);
   assert.equal(analysis.name, "Nombre no disponible para estructuras complejas");
-  assert.equal(analysis.steroidSystem, undefined);
+  assert.equal(analysis.steroidSystem?.isGonaneTopology, true);
+  assert.equal(analysis.steroidSystem?.constitutionNameEs, undefined);
   assert.equal(localNamerCannotSafelyName(altered, analysis), true);
 });

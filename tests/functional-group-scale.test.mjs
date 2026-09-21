@@ -53,7 +53,7 @@ test("the selected label size and resolved number badges share fitted export bou
   assert.match(page, /const offset = skeletalNumberBadgeOffsets\.get\(atom\.id\)!/);
   assert.match(
     page,
-    /additionalExtents: \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.steroidRingLabels\.map/s,
+    /additionalExtents: \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.tetrahedralBadgeExtents, \.\.\.steroidRingLabelExtents\]/s,
   );
   assert.match(page, /const clonedSvg = sourceSvg\.cloneNode\(true\) as SVGSVGElement/);
   assert.match(page, /fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);

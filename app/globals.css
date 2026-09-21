@@ -2701,21 +2701,29 @@ button {
   outline: none;
 }
 
-.tetrahedral-center-marker circle {
+.tetrahedral-center-hit-target {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: all;
+}
+
+.tetrahedral-center-badge {
   fill: #e7f5f0;
   stroke: #438d7b;
   stroke-width: 1.5;
   filter: drop-shadow(0 3px 5px rgba(31, 91, 76, 0.15));
+  pointer-events: none;
 }
 
 .tetrahedral-center-marker text {
   fill: #236b59;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 900;
+  pointer-events: none;
 }
 
-.tetrahedral-center-marker:hover circle,
-.tetrahedral-center-marker:focus-visible circle {
+.tetrahedral-center-marker:hover .tetrahedral-center-badge,
+.tetrahedral-center-marker:focus-visible .tetrahedral-center-badge {
   fill: #d7efe7;
   stroke-width: 2.5;
 }
@@ -3439,6 +3447,77 @@ button {
 }
 
 .ring-mode-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.bond-stereochemistry-section {
+  margin-bottom: 13px;
+  padding: 12px;
+  border: 1px solid #bfd9d1;
+  border-radius: 12px;
+  background: #f3faf7;
+}
+
+.bond-stereochemistry-centers {
+  display: grid;
+  gap: 8px;
+}
+
+.bond-stereochemistry-center {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 9px;
+  border: 1px solid #d6e7e1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.bond-stereochemistry-center > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 92px;
+}
+
+.bond-stereochemistry-center strong {
+  color: #285e52;
+  font-size: 12px;
+}
+
+.bond-stereochemistry-center small {
+  color: #71847f;
+  font-size: 9px;
+}
+
+.bond-stereochemistry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.bond-stereochemistry-actions button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid #c9ddd7;
+  border-radius: 8px;
+  background: #f8fbfa;
+  color: #426d63;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.bond-stereochemistry-actions button.active {
+  border-color: #438d7b;
+  background: #dff2eb;
+  color: #1f6756;
+}
+
+.bond-stereochemistry-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }
@@ -6874,7 +6953,7 @@ html[data-theme="dark"] .uniform-colors .functional-bond {
 }
 
 html[data-theme="dark"] .stereo-bond-marker rect,
-html[data-theme="dark"] .tetrahedral-center-marker circle {
+html[data-theme="dark"] .tetrahedral-center-badge {
   fill: #173e35;
   stroke: #74b6a4;
 }
@@ -6882,6 +6961,36 @@ html[data-theme="dark"] .tetrahedral-center-marker circle {
 html[data-theme="dark"] .stereo-bond-marker text,
 html[data-theme="dark"] .tetrahedral-center-marker text {
   fill: #bce5d9;
+}
+
+html[data-theme="dark"] .bond-stereochemistry-section {
+  border-color: #315f55;
+  background: #17342e;
+}
+
+html[data-theme="dark"] .bond-stereochemistry-center {
+  border-color: #35574f;
+  background: #1d302c;
+}
+
+html[data-theme="dark"] .bond-stereochemistry-center strong {
+  color: #bce5d9;
+}
+
+html[data-theme="dark"] .bond-stereochemistry-center small {
+  color: #93aba5;
+}
+
+html[data-theme="dark"] .bond-stereochemistry-actions button {
+  border-color: #42675e;
+  background: #203a34;
+  color: #b3d5cc;
+}
+
+html[data-theme="dark"] .bond-stereochemistry-actions button.active {
+  border-color: #74b6a4;
+  background: #245046;
+  color: #d6f3eb;
 }
 
 html[data-theme="dark"] .hetero-node.element-o .atom-circle,
