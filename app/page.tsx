@@ -98,9 +98,11 @@ import {
 } from "./fused-ring";
 import {
   getFusedBicyclicSystem,
+  getFusedTetracyclicSystem,
   getFusedTricyclicSystem,
   getSteroidLike6565System,
   type FusedBicyclicSystem,
+  type FusedTetracyclicSystem,
   type FusedTricyclicSystem,
   type SteroidLikeRingSystem,
 } from "./fused-ring-nomenclature";
@@ -401,6 +403,7 @@ type Analysis = {
   primaryFunctionalLabel?: string;
   fusedBicyclic?: FusedBicyclicSystem;
   fusedTricyclic?: FusedTricyclicSystem;
+  fusedTetracyclic?: FusedTetracyclicSystem;
   steroidSystem?: SteroidLikeRingSystem;
   ringSystem?: string;
 };
@@ -3356,6 +3359,38 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
         ringSystem: "Núcleo de androstano reconocido; nombre constitucional sin estereoquímica asignada.",
       };
     }
+    if (!steroidLike?.isGonaneTopology) {
+      const fusedTetracyclic = getFusedTetracyclicSystem(molecule, groups);
+      if (fusedTetracyclic) {
+        const primaryFunctionalGroup = selectPrimaryFunctionalGroup(groups);
+        const hasSystematicName = Boolean(fusedTetracyclic.systematicName);
+        const topologyLabel = fusedTetracyclic.topology === "linear"
+          ? "lineal"
+          : fusedTetracyclic.topology === "angular"
+            ? "angular"
+            : "mixta";
+        return {
+          name: fusedTetracyclic.systematicName ?? COMPLEX_NAME_UNAVAILABLE_MESSAGE,
+          formula: molecularFormula(molecule),
+          family: "polycyclic",
+          mainChain: hasSystematicName ? [...fusedTetracyclic.numbering] : [],
+          chainName: fusedTetracyclic.parentName ?? "",
+          substituents: [],
+          numberedAtoms: hasSystematicName
+            ? new Map(fusedTetracyclic.numbering.map((atomId, index) => [atomId, index + 1] as const))
+            : new Map(),
+          doubleBondLocants: [],
+          tripleBondLocants: [],
+          functionalGroups: groups,
+          primaryFunctionalGroup,
+          primaryFunctionalLabel: primaryFunctionalGroup
+            ? functionalGroupLabels[primaryFunctionalGroup]
+            : undefined,
+          fusedTetracyclic,
+          ringSystem: `Sistema tetracíclico fusionado ${fusedTetracyclic.ringSizes.join("-")} (${topologyLabel}); ${fusedTetracyclic.independentCycleCount} ciclos independientes, ${fusedTetracyclic.atomIds.length} átomos en el núcleo, ${fusedTetracyclic.externalAtomIds.length} externos, ${fusedTetracyclic.substituents.length} sustituyentes alquilo, ${fusedTetracyclic.functionalGroups.length} grupos funcionales y ${fusedTetracyclic.coreMultipleBonds.length} insaturaciones del núcleo${fusedTetracyclic.vonBaeyerDescriptor ? `; descriptor ${fusedTetracyclic.vonBaeyerDescriptor}` : ""}.`,
+        };
+      }
+    }
     return {
       name: "Nombre no disponible para estructuras complejas",
       formula: molecularFormula(molecule), family: "polycyclic",
@@ -3652,6 +3687,37 @@ export function buildIupacReasoningSteps(
       {
         number: "05", title: "Nombre constitucional",
         explanation: `El nombre es ${analysis.name}. No se han asignado configuraciones α/β ni R/S, por lo que no se identifica inequívocamente un estereoisómero concreto.`,
+      },
+    ];
+  }
+  if (analysis.fusedTetracyclic) {
+    const system = analysis.fusedTetracyclic;
+    const secondaryBridgeText = system.secondaryBridges
+      .map((bridge) => `longitud 0 en ${bridge.attachmentLocants.join(",")}`)
+      .join(" y ");
+    return [
+      {
+        number: "01",
+        title: "Sistema tetracíclico fusionado",
+        explanation: `El grafo de fusiones forma la cadena A–B–C–D con anillos ${system.ringSizes.join("-")} y ${system.independentCycleCount} ciclos independientes.`,
+      },
+      {
+        number: "02", title: "Anillo y puente principales",
+        explanation: system.mainBridge
+          ? `El anillo principal contiene ${system.mainRing.length} átomos. El puente principal de longitud cero lo divide en recorridos de ${system.mainRingBranches[0].length} y ${system.mainRingBranches[1].length} átomos, con la máxima simetría admisible.`
+          : "La topología se reconoce, pero no se ha validado un anillo y puente principales para nombrarla.",
+      },
+      {
+        number: "03", title: "Puentes secundarios y descriptor",
+        explanation: system.vonBaeyerDescriptor
+          ? `Los dos puentes secundarios independientes se ordenan por sus menores pares de localizadores (${secondaryBridgeText}); el descriptor se incorpora como tetraciclo${system.vonBaeyerDescriptor}.`
+          : "No se emite un descriptor von Baeyer cuando la selección de puentes no es inequívoca.",
+      },
+      {
+        number: "04", title: system.systematicName ? "Nombre sistemático" : "Alcance de esta etapa",
+        explanation: system.systematicName
+          ? `Las numeraciones admisibles se comparan por simetría y por los localizadores de los puentes secundarios. Con ${system.atomIds.length} carbonos, el nombre resultante es ${system.systematicName}.`
+          : `El núcleo y sus candidatos de numeración se conservan, pero no se nombra porque contiene ${system.substituents.length} sustituyentes alquilo, ${system.functionalGroups.length} grupos funcionales o ${system.coreMultipleBonds.length} enlaces múltiples fuera del alcance de esta etapa.`,
       },
     ];
   }
@@ -4034,6 +4100,36 @@ export function buildEnglishReasoningSteps(
       },
     ];
   }
+  if (analysis.fusedTetracyclic) {
+    const system = analysis.fusedTetracyclic;
+    const secondaryBridgeText = system.secondaryBridges
+      .map((bridge) => `length 0 at ${bridge.attachmentLocants.join(",")}`)
+      .join(" and ");
+    return [
+      {
+        number: "01", title: "Fused tetracyclic system",
+        explanation: `The fusion graph forms the A–B–C–D chain with ${system.ringSizes.join("-")} rings and ${system.independentCycleCount} independent cycles.`,
+      },
+      {
+        number: "02", title: "Main ring and main bridge",
+        explanation: system.mainBridge
+          ? `The main ring contains ${system.mainRing.length} atoms. The zero-length main bridge divides it into paths of ${system.mainRingBranches[0].length} and ${system.mainRingBranches[1].length} atoms with the greatest permitted symmetry.`
+          : "The topology is recognized, but no main ring and bridge have been validated for naming it.",
+      },
+      {
+        number: "03", title: "Secondary bridges and descriptor",
+        explanation: system.vonBaeyerDescriptor
+          ? `The two independent secondary bridges are ordered by their lowest locant pairs (${secondaryBridgeText}), giving tetracyclo${system.vonBaeyerDescriptor}.`
+          : "No von Baeyer descriptor is emitted when bridge selection is not unambiguous.",
+      },
+      {
+        number: "04", title: system.systematicNameEn ? "Systematic name" : "Current scope",
+        explanation: system.systematicNameEn
+          ? `Admissible numberings are compared by symmetry and secondary-bridge locants. With ${system.atomIds.length} carbons, the resulting name is ${system.systematicNameEn}.`
+          : `The core and numbering candidates are retained, but no derivative name is emitted because it contains ${system.substituents.length} alkyl substituents, ${system.functionalGroups.length} functional groups, or ${system.coreMultipleBonds.length} multiple bonds outside this phase.`,
+      },
+    ];
+  }
   if (analysis.fusedTricyclic) {
     const system = analysis.fusedTricyclic;
     const primaryLocants = system.functionalGroups
@@ -4407,6 +4503,7 @@ export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysi
   if (hasSharedRingAtoms(molecule)) {
     return !analysis.fusedBicyclic
       && !analysis.fusedTricyclic?.systematicName
+      && !analysis.fusedTetracyclic?.systematicName
       && !analysis.steroidSystem?.constitutionNameEs;
   }
   const parentAtoms = new Set(analysis.mainChain);
@@ -5280,6 +5377,16 @@ export default function Home() {
     const fusedTricycle = source.match(/^Sistema tricíclico fusionado ([0-9-]+) \((lineal|angular)\); (\d+) átomos en el núcleo y (\d+) externos\.$/);
     if (fusedTricycle) {
       return `Fused ${fusedTricycle[1]} tricyclic system (${fusedTricycle[2] === "lineal" ? "linear" : "angular"}); ${fusedTricycle[3]} atoms in the core and ${fusedTricycle[4]} external atoms.`;
+    }
+
+    const fusedTetracycle = source.match(/^Sistema tetracíclico fusionado ([0-9-]+) \((lineal|angular|mixta)\); (\d+) ciclos independientes, (\d+) átomos en el núcleo, (\d+) externos, (\d+) sustituyentes alquilo, (\d+) grupos funcionales y (\d+) insaturaciones del núcleo(?:; descriptor (.+))?\.$/);
+    if (fusedTetracycle) {
+      const topology = fusedTetracycle[2] === "lineal"
+        ? "linear"
+        : fusedTetracycle[2] === "angular"
+          ? "angular"
+          : "mixed";
+      return `Fused ${fusedTetracycle[1]} tetracyclic system (${topology}); ${fusedTetracycle[3]} independent cycles, ${fusedTetracycle[4]} atoms in the core, ${fusedTetracycle[5]} external atoms, ${fusedTetracycle[6]} alkyl substituents, ${fusedTetracycle[7]} functional groups, and ${fusedTetracycle[8]} core unsaturations${fusedTetracycle[9] ? `; descriptor ${fusedTetracycle[9]}` : ""}.`;
     }
 
     const continuing = source.match(/^Continuamos donde quedaste: (.+)\.$/);

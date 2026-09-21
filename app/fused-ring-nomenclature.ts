@@ -118,6 +118,65 @@ export type FusedTricyclicSystem = {
   systematicNameEn: string | null;
 };
 
+export type FusedTetracyclicRingLabel = "A" | "B" | "C" | "D";
+
+export type FusedTetracyclicSystem = {
+  atomIds: number[];
+  externalAtomIds: number[];
+  ringSizes: [number, number, number, number];
+  rings: {
+    label: FusedTetracyclicRingLabel;
+    atomIds: number[];
+    size: number;
+    adjacentLabels: FusedTetracyclicRingLabel[];
+  }[];
+  fusionBonds: {
+    ringLabels: [FusedTetracyclicRingLabel, FusedTetracyclicRingLabel];
+    atomIds: [number, number];
+    order: number;
+  }[];
+  fusionAtomIds: number[];
+  adjacency: Record<FusedTetracyclicRingLabel, FusedTetracyclicRingLabel[]>;
+  junctionTopologies: {
+    ringLabel: "B" | "C";
+    topology: "linear" | "angular";
+    edgeSeparation: number;
+  }[];
+  topology: "linear" | "angular" | "mixed";
+  independentCycleCount: number;
+  externalAttachments: {
+    coreAtomId: number;
+    externalAtomId: number;
+    order: number;
+  }[];
+  coreMultipleBonds: {
+    atomIds: [number, number];
+    order: 2 | 3;
+  }[];
+  substituents: Omit<FusedBicyclicSubstituent, "locant">[];
+  functionalGroups: Omit<FusedBicyclicFunctionalGroup, "locant">[];
+  numbering: number[];
+  numberingCandidates: number[][];
+  vonBaeyerDescriptor: string | null;
+  mainRing: number[];
+  mainBridge: {
+    bridgeheads: [number, number];
+    atomIds: [];
+    length: 0;
+  } | null;
+  mainRingBranches: [{ atomIds: number[]; length: number }, { atomIds: number[]; length: number }];
+  secondaryBridges: {
+    bridgeheads: [number, number];
+    atomIds: [];
+    length: 0;
+    attachmentLocants: [number, number];
+  }[];
+  parentName: string | null;
+  parentNameEn: string | null;
+  systematicName: string | null;
+  systematicNameEn: string | null;
+};
+
 export type SteroidLikeRingSystem = {
   ringSizes: [6, 6, 6, 5];
   atomIds: number[];
@@ -144,14 +203,16 @@ export type SteroidLikeRingSystem = {
   };
 };
 
-type TricyclicVonBaeyerCandidate = {
+type ZeroLengthBridgeVonBaeyerCandidate = {
   score: number[];
   numbering: number[];
   mainRing: number[];
   mainBridgeheads: [number, number];
   branches: [number[], number[]];
-  secondaryBridgeheads: [number, number];
-  secondaryLocants: [number, number];
+  secondaryBridges: {
+    bridgeheads: [number, number];
+    locants: [number, number];
+  }[];
 };
 
 const edgeKey = (left: number, right: number) => (
@@ -211,29 +272,30 @@ function compareCandidateScores(left: readonly number[], right: readonly number[
   return compareNumberLists(left, right);
 }
 
-function buildTricyclicVonBaeyerDescriptor(
+function buildZeroLengthBridgeVonBaeyerDescriptor(
   molecule: FusedRingMolecule,
   atomIds: readonly number[],
+  bridgeCount: number,
 ) {
   const core = new Set(atomIds);
   const coreBonds = molecule.bonds.filter(([left, right]) => core.has(left) && core.has(right));
   const cycles = enumerateCoreCycles(atomIds, coreBonds);
   const maximumCycleLength = Math.max(0, ...cycles.map((cycle) => cycle.length));
   const mainRings = cycles.filter((cycle) => cycle.length === maximumCycleLength);
-  const candidates: TricyclicVonBaeyerCandidate[] = [];
+  const candidates: ZeroLengthBridgeVonBaeyerCandidate[] = [];
 
   for (const mainRing of mainRings) {
     const mainRingEdges = new Set(mainRing.map(
       (atomId, index) => edgeKey(atomId, mainRing[(index + 1) % mainRing.length]),
     ));
     const bridges = coreBonds.filter(([left, right]) => !mainRingEdges.has(edgeKey(left, right)));
-    // Every currently supported ortho-fused tricycle has a Hamiltonian main
-    // ring and two independent zero-length bridges.
-    if (mainRing.length !== atomIds.length || bridges.length !== 2) continue;
+    // The supported ortho-fused chains have a Hamiltonian main ring and one
+    // zero-length graph edge for the main bridge plus the secondary bridges.
+    if (mainRing.length !== atomIds.length || bridges.length !== bridgeCount) continue;
 
     for (let mainBridgeIndex = 0; mainBridgeIndex < bridges.length; mainBridgeIndex++) {
       const [left, right] = bridges[mainBridgeIndex];
-      const secondary = bridges[1 - mainBridgeIndex];
+      const secondary = bridges.filter((_bridge, index) => index !== mainBridgeIndex);
       const ringPaths = pathsAroundCycle(mainRing, left, right);
       const branchLengths = ringPaths.map((path) => path.length - 2);
       const longest = Math.max(...branchLengths);
@@ -258,10 +320,18 @@ function buildTricyclicVonBaeyerDescriptor(
           ];
           if (numbering.length !== atomIds.length || new Set(numbering).size !== atomIds.length) continue;
           const locants = new Map(numbering.map((atomId, index) => [atomId, index + 1]));
-          const secondaryLocants = [
-            locants.get(secondary[0])!,
-            locants.get(secondary[1])!,
-          ].sort((a, b) => a - b) as [number, number];
+          const secondaryBridges = secondary.map(([secondaryLeft, secondaryRight]) => ({
+            bridgeheads: [secondaryLeft, secondaryRight] as [number, number],
+            locants: [
+              locants.get(secondaryLeft)!,
+              locants.get(secondaryRight)!,
+            ].sort((a, b) => a - b) as [number, number],
+          })).sort((firstBridge, secondBridge) => (
+            compareNumberLists(firstBridge.locants, secondBridge.locants)
+          ));
+          const secondaryLocantSet = secondaryBridges
+            .flatMap((bridge) => bridge.locants)
+            .sort((a, b) => a - b);
           candidates.push({
             // P-23.2.1, P-23.2.4 and P-23.2.6.2: largest main ring,
             // longest main bridge, most symmetric division, then lowest
@@ -270,15 +340,16 @@ function buildTricyclicVonBaeyerDescriptor(
               -mainRing.length,
               0,
               symmetryDifference,
+              ...secondaryBridges.map(() => 0),
               0,
-              ...secondaryLocants,
+              ...secondaryLocantSet,
+              ...secondaryBridges.flatMap((bridge) => bridge.locants),
             ],
             numbering,
             mainRing: [...mainRing],
             mainBridgeheads: [left, right],
             branches: [first.slice(1, -1), second.slice(1, -1)],
-            secondaryBridgeheads: [secondary[0], secondary[1]],
-            secondaryLocants,
+            secondaryBridges,
           });
         }
       }
@@ -292,7 +363,11 @@ function buildTricyclicVonBaeyerDescriptor(
     compareCandidateScores(candidate.score, best.score) === 0
   ));
   const branchLengths = best.branches.map((branch) => branch.length) as [number, number];
-  const descriptor = `[${branchLengths[0]}.${branchLengths[1]}.0.0^{${best.secondaryLocants.join(",")}}]`;
+  const descriptor = `[${branchLengths[0]}.${branchLengths[1]}.0${best.secondaryBridges.map(
+    (bridge) => `.0^{${bridge.locants.join(",")}}`,
+  ).join("")}]`;
+  const descriptorAtomCount = branchLengths[0] + branchLengths[1] + 2;
+  if (descriptorAtomCount !== atomIds.length) return null;
   return {
     descriptor,
     numbering: best.numbering,
@@ -300,9 +375,28 @@ function buildTricyclicVonBaeyerDescriptor(
     mainRing: best.mainRing,
     mainBridgeheads: best.mainBridgeheads,
     branches: best.branches,
-    secondaryBridgeheads: best.secondaryBridgeheads,
-    secondaryLocants: best.secondaryLocants,
     candidates: equallyPreferred,
+  };
+}
+
+function buildTricyclicVonBaeyerDescriptor(
+  molecule: FusedRingMolecule,
+  atomIds: readonly number[],
+) {
+  const descriptor = buildZeroLengthBridgeVonBaeyerDescriptor(molecule, atomIds, 2);
+  const best = descriptor?.candidates[0];
+  const secondary = best?.secondaryBridges[0];
+  if (!descriptor || !best || !secondary) return null;
+  const candidates = descriptor.candidates.map((candidate) => ({
+    ...candidate,
+    secondaryBridgeheads: candidate.secondaryBridges[0].bridgeheads,
+    secondaryLocants: candidate.secondaryBridges[0].locants,
+  }));
+  return {
+    ...descriptor,
+    candidates,
+    secondaryBridgeheads: secondary.bridgeheads,
+    secondaryLocants: secondary.locants,
   };
 }
 
@@ -816,6 +910,240 @@ function hasValidCarbonValence(molecule: FusedRingMolecule) {
   return molecule.atoms.every((atom) => (
     (atom.element ?? "C") !== "C" || (bondOrderTotals.get(atom.id) ?? 0) <= 4
   ));
+}
+
+type OrthoFusedRingRelation = {
+  left: number;
+  right: number;
+  shared: [number, number];
+};
+
+function orthoFusedRingRelations(rings: readonly FusedRing[]) {
+  const adjacency = rings.map(() => new Set<number>());
+  const relations: OrthoFusedRingRelation[] = [];
+  for (let left = 0; left < rings.length; left++) {
+    for (let right = left + 1; right < rings.length; right++) {
+      const shared = rings[left].atomIds.filter((atomId) => rings[right].atomIds.includes(atomId));
+      if (!shared.length) continue;
+      if (
+        shared.length !== 2
+        || !hasRingBond(rings[left], shared[0], shared[1])
+        || !hasRingBond(rings[right], shared[0], shared[1])
+      ) return null;
+      adjacency[left].add(right);
+      adjacency[right].add(left);
+      relations.push({ left, right, shared: [shared[0], shared[1]] });
+    }
+  }
+  return { adjacency, relations };
+}
+
+function fusionEdgeIndex(ring: FusedRing, shared: readonly number[]) {
+  return ring.atomIds.findIndex((atomId, index) => {
+    const nextId = ring.atomIds[(index + 1) % ring.atomIds.length];
+    return shared.includes(atomId) && shared.includes(nextId);
+  });
+}
+
+/** Recognises four ortho-fused carbocycles whose ring-fusion graph is A-B-C-D. */
+export function getFusedTetracyclicSystem(
+  molecule: FusedRingMolecule,
+  detectedGroups: readonly FusedBicyclicFunctionalGroupInput[] = [],
+): FusedTetracyclicSystem | null {
+  const sourceRings = molecule.rings ?? [];
+  if (
+    sourceRings.length !== 4
+    || !sourceRings.every((ring) => isSupportedCarbocycle(molecule, ring))
+    || !hasValidCarbonValence(molecule)
+  ) return null;
+
+  const graph = orthoFusedRingRelations(sourceRings);
+  if (!graph || graph.relations.length !== 3) return null;
+  const degrees = graph.adjacency.map((neighbors) => neighbors.size).sort((left, right) => left - right);
+  if (degrees.join(",") !== "1,1,2,2") return null;
+
+  const endpoints = graph.adjacency
+    .map((neighbors, index) => ({ index, degree: neighbors.size }))
+    .filter(({ degree }) => degree === 1)
+    .map(({ index }) => index);
+  const walkFrom = (start: number) => {
+    const order = [start];
+    let previous = -1;
+    let current = start;
+    while (order.length < sourceRings.length) {
+      const next = [...graph.adjacency[current]].find((index) => index !== previous);
+      if (next === undefined || order.includes(next)) return null;
+      order.push(next);
+      previous = current;
+      current = next;
+    }
+    return order;
+  };
+  const relationBetween = (left: number, right: number) => graph.relations.find((relation) => (
+    relation.left === left && relation.right === right
+  ) || (
+    relation.left === right && relation.right === left
+  ));
+  const describeOrder = (order: number[]) => {
+    const junctionTopologies = ([1, 2] as const).map((position) => {
+      const ring = sourceRings[order[position]];
+      const previousRelation = relationBetween(order[position - 1], order[position]);
+      const nextRelation = relationBetween(order[position], order[position + 1]);
+      if (!previousRelation || !nextRelation) return null;
+      const firstIndex = fusionEdgeIndex(ring, previousRelation.shared);
+      const secondIndex = fusionEdgeIndex(ring, nextRelation.shared);
+      if (firstIndex < 0 || secondIndex < 0) return null;
+      const rawSeparation = Math.abs(firstIndex - secondIndex);
+      const edgeSeparation = Math.min(rawSeparation, ring.atomIds.length - rawSeparation);
+      if (edgeSeparation < 2) return null;
+      return {
+        topology: ring.atomIds.length % 2 === 0 && edgeSeparation === ring.atomIds.length / 2
+          ? "linear" as const
+          : "angular" as const,
+        edgeSeparation,
+      };
+    });
+    if (junctionTopologies.some((junction) => !junction)) return null;
+    const sizes = order.map((index) => sourceRings[index].atomIds.length);
+    const signature = `${sizes.join(",")}|${junctionTopologies.map((junction) => junction!.topology).join(",")}`;
+    return { order, sizes, junctionTopologies: junctionTopologies as NonNullable<typeof junctionTopologies[number]>[], signature };
+  };
+
+  const orientations = endpoints
+    .map(walkFrom)
+    .filter((order): order is number[] => Boolean(order))
+    .map(describeOrder)
+    .filter((description): description is NonNullable<typeof description> => Boolean(description))
+    .sort((left, right) => right.signature.localeCompare(left.signature, "en"));
+  const selected = orientations[0];
+  if (!selected) return null;
+  const ringSizeKey = selected.sizes.join(",");
+  if (!["6,6,6,6", "6,6,6,5", "6,6,5,6"].includes(ringSizeKey)) return null;
+
+  const labels: FusedTetracyclicRingLabel[] = ["A", "B", "C", "D"];
+  const labelBySourceIndex = new Map(selected.order.map((sourceIndex, index) => [sourceIndex, labels[index]]));
+  const orderedRings = selected.order.map((sourceIndex) => sourceRings[sourceIndex]);
+  const atomIds = [...new Set(orderedRings.flatMap((ring) => ring.atomIds))];
+  const core = new Set(atomIds);
+  const coreBondKeys = new Set(molecule.bonds.flatMap(([left, right]) => (
+    core.has(left) && core.has(right) ? [edgeKey(left, right)] : []
+  )));
+  const independentCycleCount = coreBondKeys.size - atomIds.length + 1;
+  if (independentCycleCount !== 4) return null;
+
+  const fusionBonds = graph.relations.map((relation) => {
+    const leftLabel = labelBySourceIndex.get(relation.left)!;
+    const rightLabel = labelBySourceIndex.get(relation.right)!;
+    const ringLabels = labels.indexOf(leftLabel) < labels.indexOf(rightLabel)
+      ? [leftLabel, rightLabel] as [FusedTetracyclicRingLabel, FusedTetracyclicRingLabel]
+      : [rightLabel, leftLabel] as [FusedTetracyclicRingLabel, FusedTetracyclicRingLabel];
+    const bond = molecule.bonds.find(([left, right]) => (
+      (left === relation.shared[0] && right === relation.shared[1])
+      || (left === relation.shared[1] && right === relation.shared[0])
+    ));
+    return { ringLabels, atomIds: relation.shared, order: bond?.[2] ?? 1 };
+  }).sort((left, right) => labels.indexOf(left.ringLabels[0]) - labels.indexOf(right.ringLabels[0]));
+
+  const externalAtomIds = molecule.atoms.map((atom) => atom.id).filter((atomId) => !core.has(atomId));
+  const externalAttachments = molecule.bonds.flatMap(([left, right, order = 1]) => {
+    if (core.has(left) === core.has(right)) return [];
+    return [{
+      coreAtomId: core.has(left) ? left : right,
+      externalAtomId: core.has(left) ? right : left,
+      order,
+    }];
+  });
+  const coreMultipleBonds = molecule.bonds.flatMap(([left, right, order = 1]) => (
+    core.has(left) && core.has(right) && (order === 2 || order === 3)
+      ? [{ atomIds: [left, right] as [number, number], order: order as 2 | 3 }]
+      : []
+  ));
+  const functionalGroups = findDirectFunctionalGroups(molecule, atomIds, detectedGroups);
+  if (!functionalGroups) return null;
+  const functionalHeteroAtomIds = new Set(functionalGroups.map((group) => group.heteroAtomId));
+  const substituents = findSimpleAlkylSubstituents(molecule, atomIds, functionalHeteroAtomIds);
+  if (!substituents) return null;
+  const vonBaeyer = buildZeroLengthBridgeVonBaeyerDescriptor(molecule, atomIds, 3);
+  const selectedCandidate = vonBaeyer?.candidates[0];
+  const parentRoot = iupacRootForCarbonCount(atomIds.length);
+  const parentName = vonBaeyer && parentRoot
+    ? `tetraciclo${vonBaeyer.descriptor}${parentRoot}ano`
+    : null;
+  const parentNameEn = parentName ? translateSpanishIupacToOpsin(parentName) : null;
+  const namesSupported = Boolean(
+    parentName
+    && selectedCandidate
+    && externalAtomIds.length === 0
+    && coreMultipleBonds.length === 0
+    && substituents.length === 0
+    && functionalGroups.length === 0
+  );
+
+  const topologyKinds = selected.junctionTopologies.map((junction) => junction.topology);
+  const topology = topologyKinds.every((value) => value === "linear")
+    ? "linear" as const
+    : topologyKinds.every((value) => value === "angular")
+      ? "angular" as const
+      : "mixed" as const;
+  const adjacency = Object.fromEntries(labels.map((label) => [label, []])) as Record<
+    FusedTetracyclicRingLabel,
+    FusedTetracyclicRingLabel[]
+  >;
+  for (const fusion of fusionBonds) {
+    adjacency[fusion.ringLabels[0]].push(fusion.ringLabels[1]);
+    adjacency[fusion.ringLabels[1]].push(fusion.ringLabels[0]);
+  }
+
+  return {
+    atomIds,
+    externalAtomIds,
+    ringSizes: selected.sizes as [number, number, number, number],
+    rings: orderedRings.map((ring, index) => ({
+      label: labels[index],
+      atomIds: [...ring.atomIds],
+      size: ring.atomIds.length,
+      adjacentLabels: [...adjacency[labels[index]]],
+    })),
+    fusionBonds,
+    fusionAtomIds: [...new Set(fusionBonds.flatMap((fusion) => fusion.atomIds))],
+    adjacency,
+    junctionTopologies: selected.junctionTopologies.map((junction, index) => ({
+      ringLabel: labels[index + 1] as "B" | "C",
+      ...junction,
+    })),
+    topology,
+    independentCycleCount,
+    externalAttachments,
+    coreMultipleBonds,
+    substituents,
+    functionalGroups,
+    numbering: selectedCandidate?.numbering ?? [],
+    numberingCandidates: vonBaeyer?.numberingCandidates ?? [],
+    vonBaeyerDescriptor: vonBaeyer?.descriptor ?? null,
+    mainRing: selectedCandidate?.mainRing ?? [],
+    mainBridge: selectedCandidate ? {
+      bridgeheads: selectedCandidate.mainBridgeheads,
+      atomIds: [],
+      length: 0,
+    } : null,
+    mainRingBranches: selectedCandidate ? [
+      { atomIds: selectedCandidate.branches[0], length: selectedCandidate.branches[0].length },
+      { atomIds: selectedCandidate.branches[1], length: selectedCandidate.branches[1].length },
+    ] : [
+      { atomIds: [], length: 0 },
+      { atomIds: [], length: 0 },
+    ],
+    secondaryBridges: (selectedCandidate?.secondaryBridges ?? []).map((bridge) => ({
+      bridgeheads: bridge.bridgeheads,
+      atomIds: [],
+      length: 0,
+      attachmentLocants: bridge.locants,
+    })),
+    parentName,
+    parentNameEn,
+    systematicName: namesSupported ? parentName : null,
+    systematicNameEn: namesSupported ? parentNameEn : null,
+  };
 }
 
 function unsaturatedParentName(
