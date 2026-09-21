@@ -395,10 +395,11 @@ function reflectComponentAcrossBond(
   });
 }
 
-export function toggleDoubleBondGeometry<T extends StereoMolecule>(
+export function setDoubleBondGeometry<T extends StereoMolecule>(
   molecule: T,
   leftAtomId: number,
   rightAtomId: number,
+  target: StereoConfiguration,
 ): StereoToggleResult<T> {
   const bond = findBond(molecule, leftAtomId, rightAtomId);
   if (!bond || bondOrder(bond) !== 2) {
@@ -435,8 +436,6 @@ export function toggleDoubleBondGeometry<T extends StereoMolecule>(
     rings: molecule.rings?.map((ring) => ({ ...ring, atomIds: [...ring.atomIds] })),
   } as T;
   const [leftPriorityAtomId, rightPriorityAtomId] = inspection.priorityAtomIds;
-  const target: StereoConfiguration = inspection.configuration === "Z" ? "E" : "Z";
-
   if (
     Math.abs(signedSide(next, leftAtomId, rightAtomId, leftPriorityAtomId)) < 0.0001
   ) {
@@ -469,6 +468,23 @@ export function toggleDoubleBondGeometry<T extends StereoMolecule>(
   }
 
   return { ok: true, molecule: next, configuration: target };
+}
+
+export function toggleDoubleBondGeometry<T extends StereoMolecule>(
+  molecule: T,
+  leftAtomId: number,
+  rightAtomId: number,
+): StereoToggleResult<T> {
+  const inspection = inspectDoubleBondStereochemistry(
+    molecule,
+    leftAtomId,
+    rightAtomId,
+  );
+  const target: StereoConfiguration = inspection.stereogenic
+    && inspection.configuration === "Z"
+    ? "E"
+    : "Z";
+  return setDoubleBondGeometry(molecule, leftAtomId, rightAtomId, target);
 }
 
 export function getMainChainStereoDescriptors(

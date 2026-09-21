@@ -9,7 +9,29 @@ import {
   toggleDoubleBondGeometry,
 } from "../app/double-bond-stereochemistry.ts";
 import { getBondInteractionHintActions } from "../app/bond-interaction-hints.ts";
-import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
+import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
+import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
+
+function alkeneBonds(molecule) {
+  return molecule.bonds.filter((bond) => (bond[2] ?? 1) === 2);
+}
+
+function displayedMolecule(molecule) {
+  const positions = calculateMolecule2DLayout(
+    molecule,
+    molecule.atoms.map((atom) => atom.id),
+  );
+  return {
+    ...molecule,
+    atoms: molecule.atoms.map((atom) => ({ ...atom, ...positions.get(atom.id) })),
+  };
+}
+
+function alkeneConfigurations(molecule) {
+  return alkeneBonds(molecule).map(([left, right]) =>
+    inspectDoubleBondStereochemistry(molecule, left, right).configuration,
+  );
+}
 
 function makeHex3EneE() {
   return {
@@ -140,6 +162,81 @@ test("reads the E geometry produced by OPSIN and OpenChemLib", () => {
   const inspection = inspectDoubleBondStereochemistry(converted.molecule, 3, 6);
   assert.equal(inspection.stereogenic, true);
   assert.equal(inspection.configuration, "E");
+});
+
+test("preserves distinct E/Z geometry in the displayed but-2-ene and pent-2-ene layouts", () => {
+  for (const [name, eSmiles, zSmiles] of [
+    ["but-2-ene", "C/C=C/C", "C/C=C\\C"],
+    ["pent-2-ene", "C/C=C/CC", "C/C=C\\CC"],
+  ]) {
+    const eResult = moleculeFromSmiles(eSmiles);
+    const zResult = moleculeFromSmiles(zSmiles);
+    assert.equal(eResult.ok, true, `${name} E import`);
+    assert.equal(zResult.ok, true, `${name} Z import`);
+    if (!eResult.ok || !zResult.ok) continue;
+
+    const eDisplay = displayedMolecule(eResult.molecule);
+    const zDisplay = displayedMolecule(zResult.molecule);
+    assert.deepEqual(alkeneConfigurations(eDisplay), ["E"]);
+    assert.deepEqual(alkeneConfigurations(zDisplay), ["Z"]);
+    assert.notDeepEqual(
+      eDisplay.atoms.map(({ x, y }) => [x, y]),
+      zDisplay.atoms.map(({ x, y }) => [x, y]),
+      `${name}: E and Z must not collapse to one drawing`,
+    );
+  }
+});
+
+test("preserves every stereogenic double bond in a diene display layout", () => {
+  const converted = moleculeFromSmiles("C/C=C/C=C\\C");
+  assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+  if (!converted.ok) return;
+  assert.deepEqual(alkeneConfigurations(converted.molecule), ["E", "Z"]);
+  assert.deepEqual(alkeneConfigurations(displayedMolecule(converted.molecule)), ["E", "Z"]);
+});
+
+test("uses CIP priorities rather than assuming methyl substituents", () => {
+  const converted = moleculeFromSmiles("Br/C(Cl)=C(F)/I");
+  assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+  if (!converted.ok) return;
+  const [left, right] = alkeneBonds(converted.molecule)[0];
+  const inspection = inspectDoubleBondStereochemistry(converted.molecule, left, right);
+  assert.equal(inspection.stereogenic, true);
+  assert.equal(inspection.configuration, "E");
+  assert.deepEqual(inspection.priorityAtomIds, [1, 6], "Br and I are the CIP-priority groups");
+});
+
+test("toggle, undo/redo snapshots and isomeric SMILES round-trip keep E/Z coherent", () => {
+  const imported = moleculeFromSmiles("C/C=C/C");
+  assert.equal(imported.ok, true, imported.ok ? undefined : imported.error);
+  if (!imported.ok) return;
+  const [left, right] = alkeneBonds(imported.molecule)[0];
+  const originalBonds = structuredClone(imported.molecule.bonds);
+
+  const toggled = toggleDoubleBondGeometry(imported.molecule, left, right);
+  assert.equal(toggled.ok, true, toggled.ok ? undefined : toggled.error);
+  if (!toggled.ok) return;
+  assert.equal(alkeneConfigurations(imported.molecule)[0], "E", "undo snapshot remains E");
+  assert.equal(alkeneConfigurations(toggled.molecule)[0], "Z", "redo snapshot is Z");
+  assert.deepEqual(toggled.molecule.bonds, originalBonds, "toggle changes geometry only");
+  assert.deepEqual(alkeneConfigurations(displayedMolecule(toggled.molecule)), ["Z"]);
+
+  const exported = moleculeToSmiles(toggled.molecule);
+  assert.equal(exported.ok, true, exported.ok ? undefined : exported.error);
+  if (!exported.ok) return;
+  assert.match(exported.smiles, /[\\/]/, "export must contain isomeric bond directions");
+  const restored = moleculeFromSmiles(exported.smiles);
+  assert.equal(restored.ok, true, restored.ok ? undefined : restored.error);
+  if (!restored.ok) return;
+  assert.deepEqual(alkeneConfigurations(restored.molecule), ["Z"]);
+  assert.deepEqual(
+    restored.molecule.bonds.map((bond) => bond[2] ?? 1).sort(),
+    originalBonds.map((bond) => bond[2] ?? 1).sort(),
+  );
+
+  const redone = toggleDoubleBondGeometry(toggled.molecule, left, right);
+  assert.equal(redone.ok, true, redone.ok ? undefined : redone.error);
+  if (redone.ok) assert.equal(redone.configuration, "E");
 });
 
 test("places stereodescriptors after the acid class name", () => {

@@ -1,3 +1,8 @@
+import {
+  inspectDoubleBondStereochemistry,
+  setDoubleBondGeometry,
+} from "./double-bond-stereochemistry.ts";
+
 export type SkeletalPoint = { x: number; y: number };
 
 type LayoutAtom = {
@@ -207,6 +212,39 @@ export function buildOpenChainSkeletalPositions(
     const centerX = (Math.min(...xValues) + Math.max(...xValues)) / 2;
     positions.forEach((point, atomId) => {
       positions.set(atomId, { ...point, x: centerX - (point.x - centerX) });
+    });
+  }
+
+  // The tidy open-chain layout is connectivity-driven, but E/Z is encoded in
+  // the editable coordinates. Restore every defined alkene configuration on
+  // the generated coordinates so E and Z never collapse to the same zigzag.
+  const stereoTargets = molecule.bonds.flatMap(([left, right, order = 1]) => {
+    if (order !== 2) return [];
+    const inspection = inspectDoubleBondStereochemistry(molecule, left, right);
+    return inspection.stereogenic && inspection.configuration
+      ? [{ left, right, configuration: inspection.configuration }]
+      : [];
+  });
+  if (stereoTargets.length) {
+    let displayedMolecule = {
+      ...molecule,
+      atoms: molecule.atoms.map((atom) => ({
+        ...atom,
+        ...(positions.get(atom.id) ?? { x: atom.x, y: atom.y }),
+      })),
+      bonds: molecule.bonds.map(([left, right, order = 1]) => [left, right, order] as [number, number, 1 | 2 | 3]),
+    };
+    for (const target of stereoTargets) {
+      const adjusted = setDoubleBondGeometry(
+        displayedMolecule,
+        target.left,
+        target.right,
+        target.configuration,
+      );
+      if (adjusted.ok) displayedMolecule = adjusted.molecule;
+    }
+    displayedMolecule.atoms.forEach((atom) => {
+      positions.set(atom.id, { x: atom.x, y: atom.y });
     });
   }
 
