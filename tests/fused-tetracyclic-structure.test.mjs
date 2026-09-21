@@ -114,6 +114,39 @@ function addAtom(molecule, carbonId, element, order = 1) {
   return next;
 }
 
+function addLinearAlkyl(molecule, anchorId, carbonCount) {
+  const next = structuredClone(molecule);
+  let previousId = anchorId;
+  let nextId = Math.max(...next.atoms.map((atom) => atom.id)) + 1;
+  for (let index = 0; index < carbonCount; index++, nextId++) {
+    next.atoms.push({ id: nextId, x: nextId * 7, y: -nextId * 5 });
+    next.bonds.push([previousId, nextId, 1]);
+    previousId = nextId;
+  }
+  return next;
+}
+
+function setCoreBondOrder(molecule, leftId, rightId, order) {
+  const next = structuredClone(molecule);
+  const bond = next.bonds.find(([left, right]) => (
+    (left === leftId && right === rightId) || (left === rightId && right === leftId)
+  ));
+  assert.ok(bond, `missing core bond ${leftId}-${rightId}`);
+  bond[2] = order;
+  return next;
+}
+
+function setBondOrderAtParentLocants(molecule, firstLocant, secondLocant, order) {
+  const parent = getFusedTetracyclicSystem(molecule);
+  assert.ok(parent);
+  return setCoreBondOrder(
+    molecule,
+    parent.numbering[firstLocant - 1],
+    parent.numbering[secondLocant - 1],
+    order,
+  );
+}
+
 function decoratedTetracycle() {
   let molecule = makeTetracycle([6, 6, 6, 6], ["angular", "linear"]);
   const system = getFusedTetracyclicSystem(molecule);
@@ -270,6 +303,229 @@ test("integrates the saturated parent name, visual numbering and bilingual expla
   assert.match(english.map((step) => step.explanation).join(" "), /tetracyclo\[8\.8\.0\.0\^\{3,8\}\.0\^\{12,17\}\]octadecane/);
 });
 
+test("names linear alkyl substituents across the three supported tetracyclic cores", () => {
+  const cases = [
+    {
+      sizes: [6, 6, 6, 6], dispositions: ["linear", "linear"], anchorId: 7, carbonCount: 1,
+      es: "2-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano",
+      en: "2-methyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane",
+    },
+    {
+      sizes: [6, 6, 6, 6], dispositions: ["linear", "linear"], anchorId: 4, carbonCount: 2,
+      es: "5-etiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano",
+      en: "5-ethyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane",
+    },
+    {
+      sizes: [6, 6, 6, 6], dispositions: ["linear", "linear"], anchorId: 16, carbonCount: 3,
+      es: "5-propiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano",
+      en: "5-propyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane",
+    },
+    {
+      sizes: [6, 6, 6, 5], dispositions: ["linear", "linear"], anchorId: 7, carbonCount: 4,
+      es: "2-butiltetraciclo[8.7.0.0^{3,8}.0^{12,16}]heptadecano",
+      en: "2-butyltetracyclo[8.7.0.0^{3,8}.0^{12,16}]heptadecane",
+    },
+    {
+      sizes: [6, 6, 5, 6], dispositions: ["angular", "angular"], anchorId: 4, carbonCount: 5,
+      es: "5-pentiltetraciclo[8.7.0.0^{2,7}.0^{12,17}]heptadecano",
+      en: "5-pentyltetracyclo[8.7.0.0^{2,7}.0^{12,17}]heptadecane",
+    },
+    {
+      sizes: [6, 6, 6, 5], dispositions: ["linear", "linear"], anchorId: 7, carbonCount: 6,
+      es: "2-hexiltetraciclo[8.7.0.0^{3,8}.0^{12,16}]heptadecano",
+      en: "2-hexyltetracyclo[8.7.0.0^{3,8}.0^{12,16}]heptadecane",
+    },
+  ];
+  for (const expected of cases) {
+    const parent = makeTetracycle(expected.sizes, expected.dispositions);
+    const molecule = addLinearAlkyl(parent, expected.anchorId, expected.carbonCount);
+    const system = getFusedTetracyclicSystem(molecule);
+    assert.equal(system?.systematicName, expected.es);
+    assert.equal(system?.systematicNameEn, expected.en);
+    assert.equal(system?.substituents[0].atomIds.length, expected.carbonCount);
+    assertDescriptorCoherent(molecule, system);
+  }
+});
+
+test("groups repeated alkyls and uses alphabetical order after a tied locant set", () => {
+  let dimethyl = makeTetracycle();
+  dimethyl = addLinearAlkyl(dimethyl, 7, 1);
+  dimethyl = addLinearAlkyl(dimethyl, 18, 1);
+  assert.equal(
+    getFusedTetracyclicSystem(dimethyl)?.systematicName,
+    "2,13-dimetiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano",
+  );
+
+  // The two admissible orientations give the same {3,8} locant set. Etil,
+  // cited before metil, receives locant 3 at the first point of difference.
+  let mixed = makeTetracycle();
+  mixed = addLinearAlkyl(mixed, 1, 2);
+  mixed = addLinearAlkyl(mixed, 2, 1);
+  const system = getFusedTetracyclicSystem(mixed);
+  assert.equal(
+    system?.systematicName,
+    "3-etil-8-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano",
+  );
+  assert.equal(
+    system?.systematicNameEn,
+    "3-ethyl-8-methyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane",
+  );
+  assert.deepEqual(system?.substituents.map(({ name, locant }) => ({ name, locant })), [
+    { name: "etil", locant: 3 },
+    { name: "metil", locant: 8 },
+  ]);
+});
+
+test("names a valid methyl substituent on a tetracyclic fusion carbon", () => {
+  const parent = makeTetracycle();
+  const parentSystem = getFusedTetracyclicSystem(parent);
+  assert.ok(parentSystem?.fusionAtomIds.includes(8));
+  const system = getFusedTetracyclicSystem(addLinearAlkyl(parent, 8, 1));
+  assert.equal(system?.systematicName, "1-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano");
+  assert.equal(system?.substituents[0].locant, 1);
+});
+
+test("integrates tetracyclic alkyl names, numbering and educational explanation", () => {
+  const molecule = addLinearAlkyl(makeTetracycle(), 7, 1);
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.name, "2-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano");
+  assert.equal(analysis.substituents[0].locant, 2);
+  assert.equal(analysis.numberedAtoms.size, 18);
+  const spanish = buildIupacReasoningSteps(molecule, analysis);
+  const english = buildEnglishReasoningSteps(spanish, molecule, analysis);
+  assert.match(spanish.map((step) => step.explanation).join(" "), /metil en C2/);
+  assert.match(spanish.map((step) => step.explanation).join(" "), /2-metiltetraciclo/);
+  assert.match(english.map((step) => step.explanation).join(" "), /methyl at C2/);
+  assert.match(english.map((step) => step.explanation).join(" "), /2-methyltetracyclo/);
+});
+
+test("names monoenes, dienes and trienes on a 6-6-6-6 tetracyclic core", () => {
+  const cases = [
+    {
+      bonds: [[7, 8]],
+      es: "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1-eno",
+      en: "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1-ene",
+    },
+    {
+      bonds: [[7, 8], [3, 4]],
+      es: "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadeca-1,6-dieno",
+      en: "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadeca-1,6-diene",
+    },
+    {
+      bonds: [[7, 8], [3, 4], [16, 17]],
+      es: "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadeca-1,6,14-trieno",
+      en: "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadeca-1,6,14-triene",
+    },
+  ];
+  for (const expected of cases) {
+    let molecule = makeTetracycle();
+    for (const [left, right] of expected.bonds) {
+      molecule = setCoreBondOrder(molecule, left, right, 2);
+    }
+    const system = getFusedTetracyclicSystem(molecule);
+    assert.equal(system?.systematicName, expected.es);
+    assert.equal(system?.systematicNameEn, expected.en);
+    assert.equal(system?.doubleBondLocations.length, expected.bonds.length);
+    assertDescriptorCoherent(molecule, system);
+  }
+});
+
+test("names a valid tetracyclic alkyne and an enyne", () => {
+  const alkyne = getFusedTetracyclicSystem(setCoreBondOrder(makeTetracycle(), 4, 5, 3));
+  assert.equal(alkyne?.systematicName, "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-5-ino");
+  assert.equal(alkyne?.systematicNameEn, "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-5-yne");
+
+  let enyneMolecule = setCoreBondOrder(makeTetracycle(), 7, 8, 2);
+  enyneMolecule = setCoreBondOrder(enyneMolecule, 4, 5, 3);
+  const enyne = getFusedTetracyclicSystem(enyneMolecule);
+  assert.equal(enyne?.systematicName, "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1-en-5-ino");
+  assert.equal(enyne?.systematicNameEn, "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1-en-5-yne");
+});
+
+test("uses a compound locant for a nonconsecutive fusion-bond alkene", () => {
+  const molecule = setCoreBondOrder(makeTetracycle(), 8, 9, 2);
+  const system = getFusedTetracyclicSystem(molecule);
+  assert.equal(system?.doubleBondLocations[0].compound, true);
+  assert.deepEqual(system?.doubleBondLocations[0].locants, [1, 10]);
+  assert.equal(system?.systematicName, "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1(10)-eno");
+  assert.equal(system?.systematicNameEn, "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1(10)-ene");
+});
+
+test("integrates compound unsaturation into visual numbering and bilingual reasoning", () => {
+  const molecule = setCoreBondOrder(makeTetracycle(), 8, 9, 2);
+  const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.name, "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1(10)-eno");
+  assert.deepEqual(analysis.doubleBondLocants, [1]);
+  assert.equal(analysis.numberedAtoms.get(8), 1);
+  assert.equal(analysis.numberedAtoms.get(9), 10);
+  const spanish = buildIupacReasoningSteps(molecule, analysis);
+  const english = buildEnglishReasoningSteps(spanish, molecule, analysis);
+  assert.match(spanish.map((step) => step.explanation).join(" "), /dobles enlaces en 1\(10\)/);
+  assert.match(spanish.map((step) => step.explanation).join(" "), /octadec-1\(10\)-eno/);
+  assert.match(english.map((step) => step.explanation).join(" "), /double bonds at 1\(10\)/);
+  assert.match(english.map((step) => step.explanation).join(" "), /octadec-1\(10\)-ene/);
+});
+
+test("combines alkyl prefixes with unsaturation after applying multiple-bond priority", () => {
+  let methyl = setCoreBondOrder(makeTetracycle(), 7, 8, 2);
+  methyl = addLinearAlkyl(methyl, 4, 1);
+  const methylSystem = getFusedTetracyclicSystem(methyl);
+  assert.equal(
+    methylSystem?.systematicName,
+    "6-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1-eno",
+  );
+  assert.equal(methylSystem?.substituents[0].locant, 6);
+
+  let ethyl = setCoreBondOrder(makeTetracycle(), 4, 5, 2);
+  ethyl = addLinearAlkyl(ethyl, 7, 2);
+  const ethylSystem = getFusedTetracyclicSystem(ethyl);
+  assert.equal(
+    ethylSystem?.systematicName,
+    "2-etiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-5-eno",
+  );
+  assert.equal(
+    ethylSystem?.systematicNameEn,
+    "2-ethyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-5-ene",
+  );
+});
+
+test("supports unsaturation on the 6-6-6-5 and 6-6-5-6 cores", () => {
+  const terminalFive = getFusedTetracyclicSystem(setCoreBondOrder(
+    makeTetracycle([6, 6, 6, 5], ["linear", "linear"]),
+    7, 8, 2,
+  ));
+  assert.equal(
+    terminalFive?.systematicName,
+    "tetraciclo[8.7.0.0^{3,8}.0^{12,16}]heptadec-1-eno",
+  );
+
+  const internalFive = getFusedTetracyclicSystem(setCoreBondOrder(
+    makeTetracycle([6, 6, 5, 6], ["angular", "angular"]),
+    1, 7, 2,
+  ));
+  assert.equal(
+    internalFive?.systematicName,
+    "tetraciclo[8.7.0.0^{2,7}.0^{12,17}]heptadec-1-eno",
+  );
+});
+
+test("keeps unsaturated names invariant when the fusion chain is built from the other end", () => {
+  const forward = setBondOrderAtParentLocants(
+    makeTetracycle([6, 6, 6, 5], ["linear", "linear"]), 1, 2, 2,
+  );
+  const reverse = setBondOrderAtParentLocants(
+    makeTetracycle([5, 6, 6, 6], ["linear", "linear"]), 1, 2, 2,
+  );
+  assert.equal(
+    getFusedTetracyclicSystem(reverse)?.systematicName,
+    getFusedTetracyclicSystem(forward)?.systematicName,
+  );
+});
+
+test("rejects a triple bond that exceeds fusion-carbon valence", () => {
+  assert.equal(getFusedTetracyclicSystem(setCoreBondOrder(makeTetracycle(), 8, 9, 3)), null);
+});
+
 test("preserves alkyl, direct alcohol, ketone and core-unsaturation recognition", () => {
   const molecule = decoratedTetracycle();
   const system = getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule));
@@ -303,6 +559,41 @@ test("is invariant under atom IDs, coordinates, construction records and orienta
   assert.deepEqual(structuralSummary(actual), structuralSummary(expected));
   assert.deepEqual(actual.substituents.map((item) => item.name), expected.substituents.map((item) => item.name));
   assert.deepEqual(actual.functionalGroups.map((item) => item.kind).sort(), expected.functionalGroups.map((item) => item.kind).sort());
+});
+
+test("keeps alkyl and unsaturation locants invariant under IDs, reflection and record order", () => {
+  const source = setCoreBondOrder(addLinearAlkyl(makeTetracycle(), 7, 3), 4, 5, 2);
+  const expected = getFusedTetracyclicSystem(source);
+  const ids = source.atoms.map((atom) => atom.id);
+  const remap = new Map(ids.map((id, index) => [id, 900 + (ids.length - index) * 17]));
+  const transformed = {
+    atoms: [...source.atoms].reverse().map((atom) => ({
+      ...atom,
+      id: remap.get(atom.id),
+      x: -atom.x + 83,
+      y: atom.y - 29,
+    })),
+    bonds: [...source.bonds].reverse().map(([left, right, order]) => [
+      remap.get(right), remap.get(left), order,
+    ]),
+    rings: [...source.rings].reverse().map((ring, index) => ({
+      ...ring,
+      id: 140 + index,
+      atomIds: [...ring.atomIds].reverse().map((id) => remap.get(id)),
+    })),
+  };
+  const actual = getFusedTetracyclicSystem(transformed);
+  assert.equal(actual?.systematicName, expected?.systematicName);
+  assert.equal(actual?.systematicNameEn, expected?.systematicNameEn);
+  assert.deepEqual(
+    actual?.substituents.map(({ name, locant }) => ({ name, locant })),
+    expected?.substituents.map(({ name, locant }) => ({ name, locant })),
+  );
+  assert.deepEqual(actual?.doubleBondLocations, expected?.doubleBondLocations.map((location) => ({
+    ...location,
+    atomIds: location.atomIds.map((atomId) => remap.get(atomId)),
+  })));
+  assert.deepEqual(actual?.secondaryBridges.map((bridge) => bridge.attachmentLocants), expected?.secondaryBridges.map((bridge) => bridge.attachmentLocants));
 });
 
 test("selects the same descriptor when the fusion chain is constructed from the opposite end", () => {

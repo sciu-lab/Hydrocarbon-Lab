@@ -153,8 +153,12 @@ export type FusedTetracyclicSystem = {
     atomIds: [number, number];
     order: 2 | 3;
   }[];
-  substituents: Omit<FusedBicyclicSubstituent, "locant">[];
+  substituents: FusedBicyclicSubstituent[];
   functionalGroups: Omit<FusedBicyclicFunctionalGroup, "locant">[];
+  doubleBondLocants: number[];
+  tripleBondLocants: number[];
+  doubleBondLocations: FusedMultipleBondLocant[];
+  tripleBondLocations: FusedMultipleBondLocant[];
   numbering: number[];
   numberingCandidates: number[][];
   vonBaeyerDescriptor: string | null;
@@ -1061,23 +1065,104 @@ export function getFusedTetracyclicSystem(
   const functionalGroups = findDirectFunctionalGroups(molecule, atomIds, detectedGroups);
   if (!functionalGroups) return null;
   const functionalHeteroAtomIds = new Set(functionalGroups.map((group) => group.heteroAtomId));
-  const substituents = findSimpleAlkylSubstituents(molecule, atomIds, functionalHeteroAtomIds);
-  if (!substituents) return null;
+  const unnumberedSubstituents = findSimpleAlkylSubstituents(
+    molecule,
+    atomIds,
+    functionalHeteroAtomIds,
+  );
+  if (!unnumberedSubstituents) return null;
   const vonBaeyer = buildZeroLengthBridgeVonBaeyerDescriptor(molecule, atomIds, 3);
-  const selectedCandidate = vonBaeyer?.candidates[0];
   const parentRoot = iupacRootForCarbonCount(atomIds.length);
   const parentName = vonBaeyer && parentRoot
     ? `tetraciclo${vonBaeyer.descriptor}${parentRoot}ano`
     : null;
-  const parentNameEn = parentName ? translateSpanishIupacToOpsin(parentName) : null;
-  const namesSupported = Boolean(
-    parentName
-    && selectedCandidate
-    && externalAtomIds.length === 0
-    && coreMultipleBonds.length === 0
-    && substituents.length === 0
-    && functionalGroups.length === 0
+  const rankedNumberings = vonBaeyer
+    ? vonBaeyer.candidates.flatMap((candidate) => {
+      const unsaturation = multipleBondLocations(molecule, atomIds, candidate.numbering);
+      if (!unsaturation) return [];
+      const locants = new Map(candidate.numbering.map((atomId, index) => [atomId, index + 1]));
+      const substituents = unnumberedSubstituents.map((substituent) => ({
+        ...substituent,
+        locant: locants.get(substituent.anchorId)!,
+      }));
+      const prefixLocants = substituents
+        .map((substituent) => substituent.locant)
+        .sort((left, right) => left - right);
+      const citationLocants = [...new Set(substituents.map((substituent) => substituent.name))]
+        .sort((left, right) => left.localeCompare(right, "es"))
+        .flatMap((name) => substituents
+          .filter((substituent) => substituent.name === name)
+          .map((substituent) => substituent.locant)
+          .sort((left, right) => left - right));
+      const combinedLocations = [
+        ...unsaturation.doubleBondLocations,
+        ...unsaturation.tripleBondLocations,
+      ];
+      const multipleLocants = combinedLocations
+        .map((location) => location.lower)
+        .sort((left, right) => left - right);
+      const doubleBondLocants = unsaturation.doubleBondLocations.map((location) => location.lower);
+      const tripleBondLocants = unsaturation.tripleBondLocations.map((location) => location.lower);
+      const allMultipleLocants = combinedLocations
+        .flatMap((location) => location.locants)
+        .sort((left, right) => left - right);
+      return [{
+        candidate,
+        substituents,
+        prefixLocants,
+        citationLocants,
+        multipleLocants,
+        doubleBondLocants,
+        tripleBondLocants,
+        allMultipleLocants,
+        compoundLocantCount: combinedLocations.filter((location) => location.compound).length,
+        ...unsaturation,
+      }];
+    }).sort((left, right) => (
+      // P-31.1.4: minimize compound locants, then all multiple-bond locants;
+      // double bonds win a remaining en/yne tie. Prefixes follow under P-14.5.
+      left.compoundLocantCount - right.compoundLocantCount
+      || compareNumberLists(left.multipleLocants, right.multipleLocants)
+      || compareNumberLists(left.doubleBondLocants, right.doubleBondLocants)
+      || compareNumberLists(left.allMultipleLocants, right.allMultipleLocants)
+      || compareNumberLists(left.prefixLocants, right.prefixLocants)
+      || compareNumberLists(left.citationLocants, right.citationLocants)
+    ))
+    : [];
+  const selectedNumbering = rankedNumberings[0];
+  const selectedCandidate = selectedNumbering?.candidate ?? vonBaeyer?.candidates[0];
+  const selectedLocants = new Map(
+    (selectedCandidate?.numbering ?? []).map((atomId, index) => [atomId, index + 1]),
   );
+  const substituents = selectedNumbering?.substituents ?? unnumberedSubstituents.map((substituent) => ({
+    ...substituent,
+    locant: selectedLocants.get(substituent.anchorId)!,
+  }));
+  const doubleBondLocations = selectedNumbering?.doubleBondLocations ?? [];
+  const tripleBondLocations = selectedNumbering?.tripleBondLocations ?? [];
+  const doubleBondLocants = selectedNumbering?.doubleBondLocants ?? [];
+  const tripleBondLocants = selectedNumbering?.tripleBondLocants ?? [];
+  const hydrocarbonParentName = vonBaeyer && parentRoot && selectedNumbering
+    ? unsaturatedParentName(
+      `tetraciclo${vonBaeyer.descriptor}`,
+      atomIds.length,
+      `${parentRoot}ano`,
+      doubleBondLocations.map(formatMultipleBondLocant),
+      tripleBondLocations.map(formatMultipleBondLocant),
+    )
+    : null;
+  const substituentPrefix = formatSubstituentPrefixes(substituents);
+  const alkylAtomCount = substituents.reduce((count, substituent) => count + substituent.atomIds.length, 0);
+  const namesSupported = Boolean(
+    hydrocarbonParentName
+    && selectedCandidate
+    && functionalGroups.length === 0
+    && alkylAtomCount === externalAtomIds.length
+    && substituentPrefix !== null
+  );
+  const systematicName = namesSupported
+    ? substituentPrefix ? `${substituentPrefix}${hydrocarbonParentName}` : hydrocarbonParentName
+    : null;
 
   const topologyKinds = selected.junctionTopologies.map((junction) => junction.topology);
   const topology = topologyKinds.every((value) => value === "linear")
@@ -1117,6 +1202,10 @@ export function getFusedTetracyclicSystem(
     coreMultipleBonds,
     substituents,
     functionalGroups,
+    doubleBondLocants,
+    tripleBondLocants,
+    doubleBondLocations,
+    tripleBondLocations,
     numbering: selectedCandidate?.numbering ?? [],
     numberingCandidates: vonBaeyer?.numberingCandidates ?? [],
     vonBaeyerDescriptor: vonBaeyer?.descriptor ?? null,
@@ -1139,10 +1228,10 @@ export function getFusedTetracyclicSystem(
       length: 0,
       attachmentLocants: bridge.locants,
     })),
-    parentName,
-    parentNameEn,
-    systematicName: namesSupported ? parentName : null,
-    systematicNameEn: namesSupported ? parentNameEn : null,
+    parentName: hydrocarbonParentName ?? parentName,
+    parentNameEn: translateSpanishIupacToOpsin(hydrocarbonParentName ?? parentName ?? "") || null,
+    systematicName,
+    systematicNameEn: systematicName ? translateSpanishIupacToOpsin(systematicName) : null,
   };
 }
 

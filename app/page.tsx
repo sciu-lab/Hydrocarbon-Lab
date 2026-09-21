@@ -3364,6 +3364,13 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
       if (fusedTetracyclic) {
         const primaryFunctionalGroup = selectPrimaryFunctionalGroup(groups);
         const hasSystematicName = Boolean(fusedTetracyclic.systematicName);
+        const substituents = fusedTetracyclic.substituents.map((substituent) => ({
+          locant: substituent.locant,
+          name: substituent.name,
+          sortName: substituent.name,
+          complex: false,
+          atomIds: substituent.atomIds,
+        }));
         const topologyLabel = fusedTetracyclic.topology === "linear"
           ? "lineal"
           : fusedTetracyclic.topology === "angular"
@@ -3375,12 +3382,12 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
           family: "polycyclic",
           mainChain: hasSystematicName ? [...fusedTetracyclic.numbering] : [],
           chainName: fusedTetracyclic.parentName ?? "",
-          substituents: [],
+          substituents,
           numberedAtoms: hasSystematicName
             ? new Map(fusedTetracyclic.numbering.map((atomId, index) => [atomId, index + 1] as const))
             : new Map(),
-          doubleBondLocants: [],
-          tripleBondLocants: [],
+          doubleBondLocants: fusedTetracyclic.doubleBondLocants,
+          tripleBondLocants: fusedTetracyclic.tripleBondLocants,
           functionalGroups: groups,
           primaryFunctionalGroup,
           primaryFunctionalLabel: primaryFunctionalGroup
@@ -3695,6 +3702,20 @@ export function buildIupacReasoningSteps(
     const secondaryBridgeText = system.secondaryBridges
       .map((bridge) => `longitud 0 en ${bridge.attachmentLocants.join(",")}`)
       .join(" y ");
+    const alkylText = [...system.substituents]
+      .sort((left, right) => left.locant - right.locant || left.name.localeCompare(right.name, "es"))
+      .map((substituent) => `${substituent.name} en C${substituent.locant}`)
+      .join(", ");
+    const doubleBondText = system.doubleBondLocations
+      .map((location) => location.compound ? `${location.lower}(${location.higher})` : String(location.lower))
+      .join(",");
+    const tripleBondText = system.tripleBondLocations
+      .map((location) => location.compound ? `${location.lower}(${location.higher})` : String(location.lower))
+      .join(",");
+    const unsaturationText = [
+      doubleBondText ? `dobles enlaces en ${doubleBondText}` : "",
+      tripleBondText ? `triples enlaces en ${tripleBondText}` : "",
+    ].filter(Boolean).join(" y ");
     return [
       {
         number: "01",
@@ -3714,10 +3735,10 @@ export function buildIupacReasoningSteps(
           : "No se emite un descriptor von Baeyer cuando la selección de puentes no es inequívoca.",
       },
       {
-        number: "04", title: system.systematicName ? "Nombre sistemático" : "Alcance de esta etapa",
+        number: "04", title: system.systematicName ? "Insaturaciones, sustituyentes y nombre" : "Alcance de esta etapa",
         explanation: system.systematicName
-          ? `Las numeraciones admisibles se comparan por simetría y por los localizadores de los puentes secundarios. Con ${system.atomIds.length} carbonos, el nombre resultante es ${system.systematicName}.`
-          : `El núcleo y sus candidatos de numeración se conservan, pero no se nombra porque contiene ${system.substituents.length} sustituyentes alquilo, ${system.functionalGroups.length} grupos funcionales o ${system.coreMultipleBonds.length} enlaces múltiples fuera del alcance de esta etapa.`,
+          ? `Las numeraciones von Baeyer equivalentes minimizan primero los localizadores compuestos y el conjunto de localizadores de insaturación; después se consideran los sustituyentes${unsaturationText ? `; se identifican ${unsaturationText}` : ""}${alkylText ? `; además, ${alkylText}` : ""}. Con ${system.atomIds.length} carbonos en el padre, el nombre resultante es ${system.systematicName}.`
+          : "El núcleo y sus candidatos de numeración se conservan, pero no se nombra porque contiene grupos funcionales o una combinación fuera del alcance de esta etapa.",
       },
     ];
   }
@@ -4105,6 +4126,20 @@ export function buildEnglishReasoningSteps(
     const secondaryBridgeText = system.secondaryBridges
       .map((bridge) => `length 0 at ${bridge.attachmentLocants.join(",")}`)
       .join(" and ");
+    const alkylText = [...system.substituents]
+      .sort((left, right) => left.locant - right.locant || left.name.localeCompare(right.name, "en"))
+      .map((substituent) => `${translateSpanishIupacToOpsin(substituent.name) || substituent.name} at C${substituent.locant}`)
+      .join(", ");
+    const doubleBondText = system.doubleBondLocations
+      .map((location) => location.compound ? `${location.lower}(${location.higher})` : String(location.lower))
+      .join(",");
+    const tripleBondText = system.tripleBondLocations
+      .map((location) => location.compound ? `${location.lower}(${location.higher})` : String(location.lower))
+      .join(",");
+    const unsaturationText = [
+      doubleBondText ? `double bonds at ${doubleBondText}` : "",
+      tripleBondText ? `triple bonds at ${tripleBondText}` : "",
+    ].filter(Boolean).join(" and ");
     return [
       {
         number: "01", title: "Fused tetracyclic system",
@@ -4123,10 +4158,10 @@ export function buildEnglishReasoningSteps(
           : "No von Baeyer descriptor is emitted when bridge selection is not unambiguous.",
       },
       {
-        number: "04", title: system.systematicNameEn ? "Systematic name" : "Current scope",
+        number: "04", title: system.systematicNameEn ? "Unsaturation, substituents and name" : "Current scope",
         explanation: system.systematicNameEn
-          ? `Admissible numberings are compared by symmetry and secondary-bridge locants. With ${system.atomIds.length} carbons, the resulting name is ${system.systematicNameEn}.`
-          : `The core and numbering candidates are retained, but no derivative name is emitted because it contains ${system.substituents.length} alkyl substituents, ${system.functionalGroups.length} functional groups, or ${system.coreMultipleBonds.length} multiple bonds outside this phase.`,
+          ? `Equivalent von Baeyer numberings first minimize compound locants and the multiple-bond locant set, followed by substituent locants${unsaturationText ? `; the structure contains ${unsaturationText}` : ""}${alkylText ? `; it also contains ${alkylText}` : ""}. With ${system.atomIds.length} parent carbons, the resulting name is ${system.systematicNameEn}.`
+          : "The core and numbering candidates are retained, but no derivative name is emitted because it contains functional groups or a combination outside this phase.",
       },
     ];
   }
