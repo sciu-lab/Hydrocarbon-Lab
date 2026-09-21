@@ -5,6 +5,7 @@ import {
   type NameStructureResolutionResult,
   resolveNameWithOpsin,
 } from "./opsin-name-resolver.ts";
+import { verifiedCommonNameQuery } from "./verified-common-name-equivalences.ts";
 
 const PUBCHEM_BASE_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound";
 const STEREO_WARNING = "La estructura contiene estereoquímica tetraédrica que el canvas no puede representar de forma inequívoca; se conserva la conectividad, pero no se afirma una identidad estereoquímica exacta.";
@@ -67,10 +68,17 @@ async function resolveNameWithPubChem(
   options: NameResolverOptions,
 ): Promise<PubChemResolutionResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const candidates = [...new Set([
+  const verifiedEquivalent = verifiedCommonNameQuery(originalName);
+  const candidates: Array<{ query: string; expectedInchiKey?: string }> = [...new Map([
     originalName.trim(),
     ...getOpsinNameCandidates(originalName),
-  ].filter(Boolean))];
+  ].filter(Boolean).map((query) => [query, { query }])).values()];
+  if (verifiedEquivalent && !candidates.some(({ query }) => query === verifiedEquivalent.query)) {
+    candidates.push(verifiedEquivalent);
+  } else if (verifiedEquivalent) {
+    const candidate = candidates.find(({ query }) => query === verifiedEquivalent.query);
+    if (candidate) Object.assign(candidate, verifiedEquivalent);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 9_000);
   let serviceReached = false;
@@ -79,7 +87,7 @@ async function resolveNameWithPubChem(
     for (const candidate of candidates) {
       const cidResponse = await fetchJson<PubChemCidPayload>(
         fetchImpl,
-        `${PUBCHEM_BASE_URL}/name/${encodeURIComponent(candidate)}/cids/JSON`,
+        `${PUBCHEM_BASE_URL}/name/${encodeURIComponent(candidate.query)}/cids/JSON`,
         controller.signal,
       );
       serviceReached ||= cidResponse.reached;
@@ -106,13 +114,15 @@ async function resolveNameWithPubChem(
         const smiles = pubChemSmiles(property);
         const molecularFormula = clean(property.MolecularFormula);
         const inspection = smiles ? inspectSmilesStructure(smiles) : null;
+        const inchiKey = clean(property.InChIKey).toLocaleUpperCase("en");
         if (
           !property.CID
           || !inspection?.ok
           || !molecularFormula
           || inspection.formula !== molecularFormula
+          || (candidate.expectedInchiKey && inchiKey !== candidate.expectedInchiKey)
         ) return [];
-        const identity = clean(property.InChIKey).toLocaleUpperCase("en")
+        const identity = inchiKey
           || `${inspection.canonicalConnectivity}|${molecularFormula}|${smiles}`;
         return [{ property, smiles, molecularFormula, inspection, identity }];
       });
@@ -134,7 +144,7 @@ async function resolveNameWithPubChem(
         ok: true,
         value: {
           originalName,
-          interpretedName: clean(selected.property.IUPACName) || candidate,
+          interpretedName: clean(selected.property.IUPACName) || candidate.query,
           smiles: selected.smiles,
           source: "PubChem",
           cid: selected.property.CID,

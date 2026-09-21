@@ -23,10 +23,6 @@ const BOND_LENGTH = 130;
 const X_SCALE = 130;
 const Y_SCALE = 106;
 const TURN_ANGLE = Math.PI / 3;
-// A raw importer coordinate is only trusted when it is clearly within the
-// free sector of a ring or fusion junction. A nearly perpendicular vector can
-// pass the old, permissive test while visually crossing the fused nucleus.
-const MIN_OUTWARD_COSINE = 0.5;
 
 function pointAt(origin: SkeletalPoint, angle: number): SkeletalPoint {
   return {
@@ -94,6 +90,41 @@ function candidateClearance(
       .map(([start, end]) => segmentDistance(origin, candidate, start, end)),
   );
   return Math.min(atomClearance, bondClearance * 1.35);
+}
+
+function pointInPolygon(point: SkeletalPoint, polygon: readonly SkeletalPoint[]) {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    if (
+      (currentPoint.y > point.y) !== (previousPoint.y > point.y)
+      && point.x < (previousPoint.x - currentPoint.x) * (point.y - currentPoint.y)
+        / (previousPoint.y - currentPoint.y) + currentPoint.x
+    ) inside = !inside;
+  }
+  return inside;
+}
+
+function attachmentCrossesRingInterior(
+  origin: SkeletalPoint,
+  candidate: SkeletalPoint,
+  rings: readonly { atomIds: readonly number[] }[],
+  positions: ReadonlyMap<number, SkeletalPoint>,
+) {
+  const polygons = rings.map((ring) => ring.atomIds.map((atomId) => positions.get(atomId)))
+    .filter((polygon): polygon is SkeletalPoint[] => polygon.every(Boolean));
+  // Sampling the full prospective bond catches both an endpoint inside a ring
+  // and a bond that enters a neighbouring polygon before leaving it again.
+  for (let step = 1; step <= 20; step += 1) {
+    const progress = step / 20;
+    const point = {
+      x: origin.x + (candidate.x - origin.x) * progress,
+      y: origin.y + (candidate.y - origin.y) * progress,
+    };
+    if (polygons.some((polygon) => pointInPolygon(point, polygon))) return true;
+  }
+  return false;
 }
 
 function getFusionJunctionExteriorAngle(
@@ -296,12 +327,22 @@ function buildRingAwarePositions(
             (rawChild.x - rawRingAtom.x) * X_SCALE,
           )
         : outwardAngle;
-      const exitsRing = Math.cos(rawAngle - outwardAngle) >= MIN_OUTWARD_COSINE;
+      // Preserve an importer's direction whenever the actual bond stays out of
+      // every ring polygon. The local free-valence vector is only a source of
+      // alternatives: at angular steroid junctions its sum can point into a
+      // neighbouring ring even when the imported methyl is already exterior.
       const angleCandidates = [
-        ...(exitsRing ? [rawAngle] : []),
+        rawAngle,
         outwardAngle,
+        outwardAngle + TURN_ANGLE / 2,
+        outwardAngle - TURN_ANGLE / 2,
         outwardAngle + TURN_ANGLE,
         outwardAngle - TURN_ANGLE,
+        outwardAngle + TURN_ANGLE * 1.5,
+        outwardAngle - TURN_ANGLE * 1.5,
+        outwardAngle + TURN_ANGLE * 2,
+        outwardAngle - TURN_ANGLE * 2,
+        outwardAngle + Math.PI,
       ];
       const rankedAngles = angleCandidates.map((angle, index) => {
         const point = pointAt(ringPoint, angle);
@@ -310,13 +351,17 @@ function buildRingAwarePositions(
           index,
           point,
           clearance: candidateClearance(point, ringPoint, positions, segments),
+          crossesRingInterior: attachmentCrossesRingInterior(ringPoint, point, rings, positions),
           rawDifference: Math.abs(Math.atan2(Math.sin(angle - rawAngle), Math.cos(angle - rawAngle))),
         };
       }).sort((left, right) => {
+        if (left.crossesRingInterior !== right.crossesRingInterior) {
+          return left.crossesRingInterior ? 1 : -1;
+        }
         const leftSafe = left.clearance >= BOND_LENGTH * 0.55;
         const rightSafe = right.clearance >= BOND_LENGTH * 0.55;
         if (leftSafe !== rightSafe) return leftSafe ? -1 : 1;
-        if (leftSafe && exitsRing) return left.rawDifference - right.rawDifference || left.index - right.index;
+        if (leftSafe) return left.rawDifference - right.rawDifference || left.index - right.index;
         return right.clearance - left.clearance || left.rawDifference - right.rawDifference || left.index - right.index;
       });
       const attachmentAngle = rankedAngles[0].angle;

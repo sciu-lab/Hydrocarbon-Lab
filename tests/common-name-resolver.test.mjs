@@ -9,18 +9,19 @@ import { inspectSmilesStructure, moleculeFromSmiles } from "../app/openchemlib-a
 
 const fixtures = [
   { cid: 180, names: ["acetona", "acetone"], formula: "C3H6O", smiles: "CC(=O)C", iupac: "propan-2-one" },
-  { cid: 3776, names: ["alcohol isopropílico", "isopropyl alcohol"], formula: "C3H8O", smiles: "CC(O)C", iupac: "propan-2-ol" },
+  { cid: 3776, names: ["alcohol isopropílico", "isopropyl alcohol"], formula: "C3H8O", smiles: "CC(O)C", iupac: "propan-2-ol", inchiKey: "KFZMGEQAYNKOFK-UHFFFAOYSA-N" },
   { cid: 176, names: ["acido acetico", "acetic acid"], formula: "C2H4O2", smiles: "CC(=O)O", iupac: "acetic acid" },
   { cid: 712, names: ["formaldehido", "formaldehyde"], formula: "CH2O", smiles: "C=O", iupac: "formaldehyde" },
   { cid: 177, names: ["acetaldehido", "acetaldehyde"], formula: "C2H4O", smiles: "CC=O", iupac: "acetaldehyde" },
-  { cid: 753, names: ["glicerina", "glycerin", "glycerol"], formula: "C3H8O3", smiles: "OCC(O)CO", iupac: "propane-1,2,3-triol" },
+  { cid: 753, names: ["glicerina", "glycerin", "glycerol"], formula: "C3H8O3", smiles: "OCC(O)CO", iupac: "propane-1,2,3-triol", inchiKey: "PEDCQBHIVMGVHV-UHFFFAOYSA-N" },
   { cid: 1140, names: ["tolueno", "toluene"], formula: "C7H8", smiles: "Cc1ccccc1", iupac: "toluene" },
   {
     cid: 6013,
-    names: ["testosterona", "testosterone"],
+    names: ["testosterona", "testosterone", "17-hidroxiandrost-4-en-3-ona", "17-hydroxyandrost-4-en-3-one"],
     formula: "C19H28O2",
     smiles: "C[C@]12CC[C@H]3[C@@H]([C@@H]1CC[C@@H]2O)CCC4=CC(=O)CC[C@]34C",
     iupac: "testosterone",
+    inchiKey: "MUMGGOZAMZWBJJ-DYKIIFRCSA-N",
   },
   {
     cid: 5997,
@@ -28,6 +29,7 @@ const fixtures = [
     formula: "C27H46O",
     smiles: "CC(C)CCC[C@@H](C)[C@H]1CC[C@@H]2[C@@H]3CC=C4C[C@@H](O)CC[C@]4(C)[C@H]3CC[C@]12C",
     iupac: "cholesterol",
+    inchiKey: "HVYWMOMLDIMFJA-DPAQBDIFSA-N",
   },
   {
     cid: 2519,
@@ -40,6 +42,56 @@ const fixtures = [
 
 function normalizeName(value) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("en");
+}
+
+function atomSignature(molecule, atomId) {
+  const atom = molecule.atoms.find((candidate) => candidate.id === atomId);
+  const orders = molecule.bonds.flatMap(([left, right, order = 1]) =>
+    left === atomId || right === atomId ? [order] : [],
+  ).sort();
+  return `${atom?.element ?? "C"}|${orders.join(",")}`;
+}
+
+function molecularGraphsAreIsomorphic(left, right) {
+  if (left.atoms.length !== right.atoms.length || left.bonds.length !== right.bonds.length) return false;
+  const adjacency = (molecule) => new Map(molecule.atoms.map((atom) => [
+    atom.id,
+    new Map(molecule.bonds.flatMap(([first, second, order = 1]) => {
+      if (first === atom.id) return [[second, order]];
+      if (second === atom.id) return [[first, order]];
+      return [];
+    })),
+  ]));
+  const leftAdjacency = adjacency(left);
+  const rightAdjacency = adjacency(right);
+  const candidates = new Map(left.atoms.map((atom) => [
+    atom.id,
+    right.atoms.filter((candidate) =>
+      atomSignature(left, atom.id) === atomSignature(right, candidate.id),
+    ).map((candidate) => candidate.id),
+  ]));
+  const order = left.atoms.map(({ id }) => id).sort((first, second) =>
+    candidates.get(first).length - candidates.get(second).length,
+  );
+  const mapping = new Map();
+  const used = new Set();
+  const visit = (index) => {
+    if (index === order.length) return true;
+    const leftId = order[index];
+    for (const rightId of candidates.get(leftId)) {
+      if (used.has(rightId)) continue;
+      if (![...mapping].every(([mappedLeft, mappedRight]) =>
+        leftAdjacency.get(leftId).get(mappedLeft) === rightAdjacency.get(rightId).get(mappedRight),
+      )) continue;
+      mapping.set(leftId, rightId);
+      used.add(rightId);
+      if (visit(index + 1)) return true;
+      mapping.delete(leftId);
+      used.delete(rightId);
+    }
+    return false;
+  };
+  return visit(0);
 }
 
 function json(value, status = 200) {
@@ -63,7 +115,10 @@ function mockedChemicalServices() {
     }
     const nameMatch = url.match(/\/name\/([^/]+)\/cids\/JSON/);
     if (nameMatch) {
-      const fixture = byName.get(normalizeName(decodeURIComponent(nameMatch[1])));
+      const requestedName = normalizeName(decodeURIComponent(nameMatch[1]));
+      // Mirrors the real PUG REST behavior observed for the Spanish spelling:
+      // /name/colesterol returns 404, while /name/cholesterol returns CID 5997.
+      const fixture = requestedName === "colesterol" ? undefined : byName.get(requestedName);
       return fixture
         ? json({ IdentifierList: { CID: [fixture.cid] } })
         : json({}, 404);
@@ -75,7 +130,7 @@ function mockedChemicalServices() {
         return fixture ? [{
           CID: fixture.cid,
           IUPACName: fixture.iupac,
-          InChIKey: `FIXTURE-${fixture.cid}`,
+          InChIKey: fixture.inchiKey ?? `FIXTURE-${fixture.cid}`,
           IsomericSMILES: fixture.smiles,
           CanonicalSMILES: fixture.smiles,
           MolecularFormula: fixture.formula,
@@ -89,7 +144,7 @@ function mockedChemicalServices() {
 }
 
 test("resolves the requested Spanish and English common names through validated PubChem records", async () => {
-  const { fetchImpl } = mockedChemicalServices();
+  const { calls, fetchImpl } = mockedChemicalServices();
   for (const fixture of fixtures.filter(({ iupac }) => !iupac.includes("purine"))) {
     const resolved = [];
     for (const name of fixture.names) {
@@ -107,6 +162,8 @@ test("resolves the requested Spanish and English common names through validated 
     }
     assert.equal(resolved[0], resolved[1], fixture.iupac);
   }
+  assert.ok(calls.some((url) => url.includes("/name/colesterol/cids/JSON")));
+  assert.ok(calls.some((url) => url.includes("/name/cholesterol/cids/JSON")));
 });
 
 test("warns when tetrahedral identity cannot be represented exactly", async () => {
@@ -125,44 +182,39 @@ test("warns when tetrahedral identity cannot be represented exactly", async () =
   );
 });
 
-function importedFusionAttachmentsPointOutward(molecule) {
-  const positions = calculateMolecule2DLayout(molecule, []);
-  const adjacency = new Map(molecule.atoms.map(({ id }) => [id, []]));
-  for (const [left, right] of molecule.bonds) {
-    adjacency.get(left).push(right);
-    adjacency.get(right).push(left);
-  }
-  let attachments = 0;
-  for (const atom of molecule.atoms) {
-    const rings = molecule.rings.filter((ring) => ring.atomIds.includes(atom.id));
-    if (rings.length < 2) continue;
-    const ringNeighborIds = new Set();
-    for (const ring of rings) {
-      const index = ring.atomIds.indexOf(atom.id);
-      ringNeighborIds.add(ring.atomIds[(index - 1 + ring.atomIds.length) % ring.atomIds.length]);
-      ringNeighborIds.add(ring.atomIds[(index + 1) % ring.atomIds.length]);
-    }
-    const origin = positions.get(atom.id);
-    const exterior = [...ringNeighborIds].reduce((sum, neighborId) => {
-      const neighbor = positions.get(neighborId);
-      const length = Math.hypot(origin.x - neighbor.x, origin.y - neighbor.y) || 1;
-      return { x: sum.x + (origin.x - neighbor.x) / length, y: sum.y + (origin.y - neighbor.y) / length };
-    }, { x: 0, y: 0 });
-    const exteriorLength = Math.hypot(exterior.x, exterior.y);
-    if (!exteriorLength) continue;
-    const nonRingNeighbors = adjacency.get(atom.id).filter((neighborId) => !ringNeighborIds.has(neighborId));
-    for (const neighborId of nonRingNeighbors) {
-      const neighbor = positions.get(neighborId);
-      const attachment = { x: neighbor.x - origin.x, y: neighbor.y - origin.y };
-      const attachmentLength = Math.hypot(attachment.x, attachment.y);
-      assert.ok(
-        exterior.x * attachment.x + exterior.y * attachment.y >= exteriorLength * attachmentLength * 0.5,
-        `imported attachment ${atom.id}-${neighborId} stays in the fusion exterior sector`,
-      );
-      attachments += 1;
+function pointInPolygon(point, polygon) {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const current = polygon[index];
+    const prior = polygon[previous];
+    if ((current.y > point.y) !== (prior.y > point.y)
+      && point.x < (prior.x - current.x) * (point.y - current.y) / (prior.y - current.y) + current.x) {
+      inside = !inside;
     }
   }
-  return attachments;
+  return inside;
+}
+
+function assertAngularMethylBondsOutsideRingPolygons(molecule, positions, label) {
+  const steroid = getSteroidLike6565System(molecule);
+  assert.ok(steroid?.numbering && steroid.angularMethyls, `${label}: steroid connectivity recognized`);
+  for (const [methylLocant, parentLocant] of [["C18", 13], ["C19", 10]]) {
+    const methylId = steroid.angularMethyls[methylLocant];
+    const parentId = steroid.numbering[parentLocant - 1];
+    const start = positions.get(parentId);
+    const end = positions.get(methylId);
+    for (const ring of molecule.rings) {
+      const polygon = ring.atomIds.map((atomId) => positions.get(atomId));
+      assert.equal(pointInPolygon(end, polygon), false, `${label}: ${methylLocant} endpoint is outside ring ${ring.id}`);
+      for (let step = 1; step <= 20; step += 1) {
+        const progress = step / 20;
+        assert.equal(pointInPolygon({
+          x: start.x + (end.x - start.x) * progress,
+          y: start.y + (end.y - start.y) * progress,
+        }, polygon), false, `${label}: ${methylLocant} bond does not traverse ring ${ring.id}`);
+      }
+    }
+  }
 }
 
 test("PubChem steroid imports preserve constitutional graphs and place angular fusion substituents outside", async () => {
@@ -173,7 +225,13 @@ test("PubChem steroid imports preserve constitutional graphs and place angular f
     const imported = moleculeFromSmiles(result.value.smiles);
     assert.equal(imported.ok, true, name);
     const snapshot = structuredClone(imported.molecule);
-    assert.ok(importedFusionAttachmentsPointOutward(imported.molecule) >= 2, name);
+    const importedPositions = new Map(imported.molecule.atoms.map((atom) => [atom.id, atom]));
+    assertAngularMethylBondsOutsideRingPolygons(imported.molecule, importedPositions, `${name} importer`);
+    assertAngularMethylBondsOutsideRingPolygons(
+      imported.molecule,
+      calculateMolecule2DLayout(imported.molecule, []),
+      `${name} final canvas layout`,
+    );
     assert.deepEqual(imported.molecule, snapshot, "layout is display-only");
     if (name.includes("testoster")) {
       assert.equal(
@@ -183,6 +241,45 @@ test("PubChem steroid imports preserve constitutional graphs and place angular f
       );
     }
   }
+});
+
+test("testosterone common and systematic names have equivalent connectivity and exterior final geometry", async () => {
+  const { fetchImpl } = mockedChemicalServices();
+  const results = [];
+  for (const name of ["testosterona", "17-hidroxiandrost-4-en-3-ona"]) {
+    const resolution = await resolveChemicalName(name, { fetchImpl });
+    assert.equal(resolution.ok, true, name);
+    const inspection = inspectSmilesStructure(resolution.value.smiles);
+    const imported = moleculeFromSmiles(resolution.value.smiles);
+    assert.equal(inspection.ok, true, name);
+    assert.equal(imported.ok, true, name);
+    assertAngularMethylBondsOutsideRingPolygons(
+      imported.molecule,
+      calculateMolecule2DLayout(imported.molecule, []),
+      name,
+    );
+    results.push(imported.molecule);
+  }
+  assert.equal(molecularGraphsAreIsomorphic(results[0], results[1]), true);
+});
+
+test("a verified Spanish equivalence is rejected if PubChem returns the wrong identity", async () => {
+  const result = await resolveChemicalName("colesterol", {
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.includes("ebi.ac.uk/opsin")) return json({ status: "FAILURE" }, 404);
+      if (url.includes("/name/colesterol/")) return json({}, 404);
+      if (url.includes("/name/cholesterol/")) return json({ IdentifierList: { CID: [5997] } });
+      return json({ PropertyTable: { Properties: [{
+        CID: 5997,
+        IUPACName: "wrong identity",
+        InChIKey: "AAAAAAAAAAAAAA-BBBBBBBBBB-C",
+        IsomericSMILES: fixtures.find(({ cid }) => cid === 5997).smiles,
+        MolecularFormula: "C27H46O",
+      }] } });
+    },
+  });
+  assert.equal(result.ok, false);
 });
 
 test("rejects caffeine safely because its fused heterocycle is outside current canvas coverage", async () => {
