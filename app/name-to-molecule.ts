@@ -1,4 +1,4 @@
-import { IUPAC_ROOT_ALIASES, IUPAC_ROOTS } from "./iupac-prefixes.ts";
+import { englishIupacRoot, IUPAC_ROOT_ALIASES, IUPAC_ROOTS } from "./iupac-prefixes.ts";
 import { normalizeTraditionalUnsaturationNotation } from "./iupac-name-normalization.ts";
 import { normalizeSubstituentAliasesForLocalParser } from "./substituent-aliases.ts";
 import { fuseRingOnBond } from "./fused-ring.ts";
@@ -608,6 +608,12 @@ type ParsedFusedVonBaeyerName = {
   bridgeLengths: number[];
   secondaryBridgeLocants: [number, number][];
   carbonCount: number;
+  language: "es" | "en";
+  alkylSubstituents: { locant: number; length: number }[];
+  hydroxyPrefixLocants: number[];
+  alcoholLocants: number[];
+  ketoneLocants: number[];
+  multipleBonds: { locants: [number, number?]; order: 2 | 3 }[];
   normalizedInput: string;
 };
 
@@ -635,20 +641,159 @@ function normalizeVonBaeyerSuperscripts(value: string) {
     ));
 }
 
-function saturatedParentCarbonCount(value: string, language: "es" | "en") {
-  const ending = language === "es" ? "ano" : "ane";
-  return IUPAC_ROOTS.findIndex((root, carbonCount) => (
-    carbonCount > 0 && `${root}${ending}` === value
-  ));
+const fusedPrefixMultiplierByCount = new Map(
+  Object.entries(multiplierCounts).map(([prefix, count]) => [count, prefix]),
+);
+
+function parseFusedLocants(value: string) {
+  const locants = value.split(",").map(Number);
+  return locants.length > 0
+    && locants.every((locant) => Number.isInteger(locant) && locant > 0)
+    ? locants
+    : null;
+}
+
+function parseFusedPrefixes(value: string, language: "es" | "en") {
+  const alkylSubstituents: { locant: number; length: number }[] = [];
+  const hydroxyPrefixLocants: number[] = [];
+  if (!value) return { alkylSubstituents, hydroxyPrefixLocants };
+
+  const components = value.split(/-(?=\d+(?:,\d+)*-)/);
+  for (const component of components) {
+    const match = component.match(/^(\d+(?:,\d+)*)-([a-z]+)$/);
+    if (!match) return null;
+    const locants = parseFusedLocants(match[1]);
+    if (!locants) return null;
+    const expectedMultiplier = locants.length === 1
+      ? ""
+      : fusedPrefixMultiplierByCount.get(locants.length);
+    if (expectedMultiplier === undefined) return null;
+
+    const hydroxy = language === "es" ? "hidroxi" : "hydroxy";
+    if (match[2] === `${expectedMultiplier}${hydroxy}`) {
+      hydroxyPrefixLocants.push(...locants);
+      continue;
+    }
+
+    const alkylLength = IUPAC_ROOTS.findIndex((root, carbonCount) => {
+      if (carbonCount < 1) return false;
+      const alkyl = language === "es" ? `${root}il` : `${englishIupacRoot(root)}yl`;
+      return match[2] === `${expectedMultiplier}${alkyl}`;
+    });
+    if (alkylLength < 1) return null;
+    alkylSubstituents.push(...locants.map((locant) => ({ locant, length: alkylLength })));
+  }
+  return { alkylSubstituents, hydroxyPrefixLocants };
+}
+
+function parseFusedMultipleLocant(value: string): [number, number?] | null {
+  const match = value.match(/^(\d+)(?:\((\d+)\))?$/);
+  if (!match) return null;
+  const first = Number(match[1]);
+  const second = match[2] ? Number(match[2]) : undefined;
+  if (first < 1 || (second !== undefined && (second < 1 || second === first))) return null;
+  return second === undefined ? [first] : [first, second];
+}
+
+const fusedUnsaturationTokens: Record<string, { order: 2 | 3; count: number; terminal: boolean }> = {
+  en: { order: 2, count: 1, terminal: false },
+  eno: { order: 2, count: 1, terminal: true },
+  ene: { order: 2, count: 1, terminal: true },
+  dien: { order: 2, count: 2, terminal: false },
+  dieno: { order: 2, count: 2, terminal: true },
+  diene: { order: 2, count: 2, terminal: true },
+  trien: { order: 2, count: 3, terminal: false },
+  trieno: { order: 2, count: 3, terminal: true },
+  triene: { order: 2, count: 3, terminal: true },
+  in: { order: 3, count: 1, terminal: false },
+  yn: { order: 3, count: 1, terminal: false },
+  ino: { order: 3, count: 1, terminal: true },
+  yne: { order: 3, count: 1, terminal: true },
+  diin: { order: 3, count: 2, terminal: false },
+  diyn: { order: 3, count: 2, terminal: false },
+  diino: { order: 3, count: 2, terminal: true },
+  diyne: { order: 3, count: 2, terminal: true },
+  triin: { order: 3, count: 3, terminal: false },
+  triyn: { order: 3, count: 3, terminal: false },
+  triino: { order: 3, count: 3, terminal: true },
+  triyne: { order: 3, count: 3, terminal: true },
+};
+
+function parseFusedUnsaturationStem(value: string, followedByFunction: boolean) {
+  const stem = value.startsWith("a-") ? value.slice(1) : value;
+  const pattern = /-((?:\d+(?:\(\d+\))?)(?:,\d+(?:\(\d+\))?)*)-(triyne|triino|triene|trieno|diyne|diino|diene|dieno|triyn|triin|trien|diyn|diin|dien|yne|ino|ene|eno|yn|in|en)/gy;
+  const matches = [...stem.matchAll(pattern)];
+  if (!matches.length || matches.map((match) => match[0]).join("") !== stem) return null;
+
+  const multipleBonds: { locants: [number, number?]; order: 2 | 3 }[] = [];
+  for (const [index, match] of matches.entries()) {
+    const token = fusedUnsaturationTokens[match[2]];
+    const citedLocants = match[1].split(",").map(parseFusedMultipleLocant);
+    if (!token || citedLocants.some((locant) => !locant) || citedLocants.length !== token.count) return null;
+    const shouldBeTerminal = !followedByFunction && index === matches.length - 1;
+    if (token.terminal !== shouldBeTerminal) return null;
+    multipleBonds.push(...(citedLocants as [number, number?][]).map((locants) => ({
+      locants,
+      order: token.order,
+    })));
+  }
+  return multipleBonds;
+}
+
+function parseFusedParentTail(value: string, language: "es" | "en") {
+  const roots = IUPAC_ROOTS.map((root, carbonCount) => ({
+    carbonCount,
+    root: language === "es" ? root : englishIupacRoot(root),
+  })).filter(({ carbonCount }) => carbonCount > 0)
+    .sort((left, right) => right.root.length - left.root.length);
+  const matchedRoot = roots.find(({ root }) => value.startsWith(root));
+  if (!matchedRoot) return null;
+
+  let stem = value.slice(matchedRoot.root.length);
+  let alcoholLocants: number[] = [];
+  let ketoneLocants: number[] = [];
+  const functionMatch = stem.match(/^(.*)-(\d+(?:,\d+)*)-(triol|diol|ol|diona|dione|ona|one)$/);
+  if (functionMatch) {
+    const locants = parseFusedLocants(functionMatch[2]);
+    if (!locants) return null;
+    const suffix = functionMatch[3];
+    const kind = suffix.endsWith("ol") ? "alcohol" : "ketone";
+    const expectedCount = suffix.startsWith("tri") ? 3 : suffix.startsWith("di") ? 2 : 1;
+    if (locants.length !== expectedCount) return null;
+    if (kind === "alcohol") alcoholLocants = locants;
+    else ketoneLocants = locants;
+    stem = functionMatch[1];
+  }
+
+  const saturatedStems = functionMatch
+    ? functionMatch[2].includes(",")
+      ? [language === "es" ? "ano" : "ane"]
+      : ["an"]
+    : [language === "es" ? "ano" : "ane"];
+  let multipleBonds: { locants: [number, number?]; order: 2 | 3 }[] = [];
+  if (!saturatedStems.includes(stem)) {
+    const parsedUnsaturation = parseFusedUnsaturationStem(stem, Boolean(functionMatch));
+    if (!parsedUnsaturation) return null;
+    multipleBonds = parsedUnsaturation;
+  }
+
+  return {
+    carbonCount: matchedRoot.carbonCount,
+    alcoholLocants,
+    ketoneLocants,
+    multipleBonds,
+  };
 }
 
 function parseFusedVonBaeyerName(name: string): FusedVonBaeyerParseResult {
   const normalized = normalizeVonBaeyerSuperscripts(name);
-  const prefix = normalized.match(/^(biciclo|bicyclo|triciclo|tricyclo|tetraciclo|tetracyclo)/)?.[1];
-  if (!prefix) return { matched: false };
+  const coreMatch = normalized.match(/(biciclo|bicyclo|triciclo|tricyclo|tetraciclo|tetracyclo)\[/);
+  if (!coreMatch || coreMatch.index === undefined) return { matched: false };
+  const prefixText = normalized.slice(0, coreMatch.index).replace(/-$/, "");
+  const core = normalized.slice(coreMatch.index);
 
-  const match = normalized.match(
-    /^(biciclo|bicyclo|triciclo|tricyclo|tetraciclo|tetracyclo)\[([^\]]+)\]([a-z]+)$/,
+  const match = core.match(
+    /^(biciclo|bicyclo|triciclo|tricyclo|tetraciclo|tetracyclo)\[([^\]]+)\]([a-z0-9,()\-]+)$/,
   );
   if (!match) {
     return { matched: true, error: "El descriptor von Baeyer está incompleto o malformado." };
@@ -656,13 +801,15 @@ function parseFusedVonBaeyerName(name: string): FusedVonBaeyerParseResult {
 
   const ringCount = match[1].startsWith("tetra") ? 4 : match[1].startsWith("tri") ? 3 : 2;
   const language = match[1].includes("cyclo") ? "en" : "es";
-  const carbonCount = saturatedParentCarbonCount(match[3], language);
-  if (carbonCount < 1) {
+  const prefixes = parseFusedPrefixes(prefixText, language);
+  const parentTail = parseFusedParentTail(match[3], language);
+  if (!prefixes || !parentTail) {
     return {
       matched: true,
-      error: "El progenitor von Baeyer debe ser un hidrocarburo saturado con terminación -ano o -ane.",
+      error: "El nombre del derivado von Baeyer contiene prefijos, localizadores o sufijos no admitidos.",
     };
   }
+  const { carbonCount } = parentTail;
 
   const descriptorMatch = match[2].match(
     /^(\d+)\.(\d+)\.(\d+)((?:\.\d+\^\{\d+,\d+\})*)$/,
@@ -713,6 +860,9 @@ function parseFusedVonBaeyerName(name: string): FusedVonBaeyerParseResult {
       bridgeLengths,
       secondaryBridgeLocants,
       carbonCount,
+      language,
+      ...prefixes,
+      ...parentTail,
       normalizedInput: normalized,
     },
   };
@@ -781,7 +931,11 @@ function numberedFusedGraph(
   };
 }
 
-function validateFusedDescriptorGraph(parsed: ParsedFusedVonBaeyerName, molecule: GeneratedMolecule) {
+function validateFusedDescriptorGraph(
+  parsed: ParsedFusedVonBaeyerName,
+  molecule: GeneratedMolecule,
+  requireCanonicalDescriptor = true,
+) {
   if (molecule.bonds.length - molecule.atoms.length + 1 !== parsed.ringCount) return false;
   const valences = new Map(molecule.atoms.map((atom) => [atom.id, 0]));
   molecule.bonds.forEach(([left, right, order = 1]) => {
@@ -792,12 +946,28 @@ function validateFusedDescriptorGraph(parsed: ParsedFusedVonBaeyerName, molecule
 
   if (parsed.ringCount === 2) {
     const system = getFusedBicyclicSystem(molecule);
-    return Boolean(system && `[${system.paths.join(".")}]` === parsed.descriptor);
+    return Boolean(system && (
+      !requireCanonicalDescriptor || `[${system.paths.join(".")}]` === parsed.descriptor
+    ));
   }
   if (parsed.ringCount === 3) {
-    return getFusedTricyclicSystem(molecule)?.vonBaeyerDescriptor === parsed.descriptor;
+    const system = getFusedTricyclicSystem(molecule);
+    return Boolean(system && (
+      !requireCanonicalDescriptor || system.vonBaeyerDescriptor === parsed.descriptor
+    ));
   }
-  return getFusedTetracyclicSystem(molecule)?.vonBaeyerDescriptor === parsed.descriptor;
+  const system = getFusedTetracyclicSystem(molecule);
+  return Boolean(system && (
+    !requireCanonicalDescriptor || system.vonBaeyerDescriptor === parsed.descriptor
+  ));
+}
+
+function hasFusedDerivatives(parsed: ParsedFusedVonBaeyerName) {
+  return parsed.alkylSubstituents.length > 0
+    || parsed.hydroxyPrefixLocants.length > 0
+    || parsed.alcoholLocants.length > 0
+    || parsed.ketoneLocants.length > 0
+    || parsed.multipleBonds.length > 0;
 }
 
 function sharedRegionEdge(left: readonly number[], right: readonly number[]) {
@@ -870,7 +1040,105 @@ function fusedLayoutFromRegions(regions: readonly number[][]) {
     previous = current;
     current = next;
   }
-  return molecule;
+  return { molecule, atomIdByLocant: generatedIdByLocant };
+}
+
+function validateConstructedFusedDerivative(molecule: GeneratedMolecule) {
+  const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
+  if (atomsById.size !== molecule.atoms.length) return false;
+  const valenceByAtom = new Map(molecule.atoms.map((atom) => [atom.id, 0]));
+  const adjacency = new Map(molecule.atoms.map((atom) => [atom.id, new Set<number>()]));
+  for (const [left, right, order = 1] of molecule.bonds) {
+    if (!atomsById.has(left) || !atomsById.has(right) || left === right || ![1, 2, 3].includes(order)) {
+      return false;
+    }
+    valenceByAtom.set(left, (valenceByAtom.get(left) ?? 0) + order);
+    valenceByAtom.set(right, (valenceByAtom.get(right) ?? 0) + order);
+    adjacency.get(left)!.add(right);
+    adjacency.get(right)!.add(left);
+  }
+  if ([...valenceByAtom].some(([atomId, valence]) => {
+    const element = atomsById.get(atomId)?.element ?? "C";
+    return valence > (element === "O" ? 2 : 4);
+  })) return false;
+
+  const visited = new Set<number>();
+  const pending = molecule.atoms.length ? [molecule.atoms[0].id] : [];
+  while (pending.length) {
+    const atomId = pending.pop()!;
+    if (visited.has(atomId)) continue;
+    visited.add(atomId);
+    adjacency.get(atomId)?.forEach((neighbor) => pending.push(neighbor));
+  }
+  return visited.size === molecule.atoms.length;
+}
+
+function applyFusedDerivative(
+  parsed: ParsedFusedVonBaeyerName,
+  molecule: GeneratedMolecule,
+  atomIdByLocant: ReadonlyMap<number, number>,
+) {
+  const coreParent: ParentDescription = {
+    kind: "ring",
+    size: parsed.carbonCount,
+    doubleLocants: [],
+    tripleLocants: [],
+  };
+  const atomId = (locant: number) => atomIdByLocant.get(locant);
+  const allFunctionalLocants = [
+    ...parsed.hydroxyPrefixLocants,
+    ...parsed.alcoholLocants,
+    ...parsed.ketoneLocants,
+  ];
+  if (
+    parsed.hydroxyPrefixLocants.length > 0 && parsed.ketoneLocants.length === 0
+    || new Set(allFunctionalLocants).size !== allFunctionalLocants.length
+    || [...allFunctionalLocants, ...parsed.alkylSubstituents.map(({ locant }) => locant)]
+      .some((locant) => !atomId(locant))
+  ) return "Los localizadores funcionales o de sustituyentes no son válidos para este policiclo.";
+
+  const changedBonds = new Set<number>();
+  for (const multipleBond of parsed.multipleBonds) {
+    const [firstLocant, citedSecond] = multipleBond.locants;
+    const secondLocant = citedSecond ?? firstLocant + 1;
+    const firstId = atomId(firstLocant);
+    const secondId = atomId(secondLocant);
+    if (!firstId || !secondId) {
+      return "Una insaturación cita un carbono inexistente en el descriptor von Baeyer.";
+    }
+    const bondIndex = molecule.bonds.findIndex(([left, right]) => (
+      (left === firstId && right === secondId) || (left === secondId && right === firstId)
+    ));
+    if (bondIndex < 0 || changedBonds.has(bondIndex)) {
+      return "Una insaturación no corresponde a un enlace único del núcleo policíclico.";
+    }
+    changedBonds.add(bondIndex);
+    molecule.bonds[bondIndex] = [firstId, secondId, multipleBond.order];
+  }
+
+  for (const locant of parsed.ketoneLocants) {
+    if (!attachCarbonylGroup(molecule, coreParent, atomId(locant)!, false)) {
+      return "No fue posible colocar el grupo funcional en el carbono indicado.";
+    }
+  }
+  const hydroxylAtomIds = [...parsed.alcoholLocants, ...parsed.hydroxyPrefixLocants]
+    .map((locant) => atomId(locant)!);
+  attachHydroxylGroups(molecule, coreParent, hydroxylAtomIds);
+
+  const slotsByAtom = new Map<number, number>();
+  parsed.alkylSubstituents.forEach(({ locant, length }) => {
+    const anchorId = atomId(locant)!;
+    const slot = slotsByAtom.get(anchorId) ?? 0;
+    attachSubstituent(molecule, coreParent, {
+      locant: anchorId,
+      substituent: { kind: "linear", length },
+    }, slot);
+    slotsByAtom.set(anchorId, slot + 1);
+  });
+
+  return validateConstructedFusedDerivative(molecule)
+    ? null
+    : "La combinación indicada produce una conectividad o valencia no válida.";
 }
 
 function buildFusedVonBaeyerParent(name: string): NameBuildResult | null {
@@ -888,24 +1156,36 @@ function buildFusedVonBaeyerParent(name: string): NameBuildResult | null {
     };
   }
   const numberedGraph = numberedFusedGraph(result.parsed, geometry.regions, geometry.chords);
-  if (!validateFusedDescriptorGraph(result.parsed, numberedGraph)) {
+  const requireCanonicalDescriptor = !hasFusedDerivatives(result.parsed);
+  if (!validateFusedDescriptorGraph(result.parsed, numberedGraph, requireCanonicalDescriptor)) {
     return {
       ok: false,
       error: "El descriptor von Baeyer no coincide con una topología policíclica soportada o no usa su numeración canónica.",
       inputFamily: "fused-von-baeyer",
     };
   }
-  const molecule = fusedLayoutFromRegions(geometry.regions);
-  if (!molecule || !validateFusedDescriptorGraph(result.parsed, molecule)) {
+  const layout = fusedLayoutFromRegions(geometry.regions);
+  if (
+    !layout
+    || !validateFusedDescriptorGraph(result.parsed, layout.molecule, requireCanonicalDescriptor)
+  ) {
     return {
       ok: false,
       error: "No fue posible reconstruir de forma coherente el grafo del policiclo indicado.",
       inputFamily: "fused-von-baeyer",
     };
   }
+  const derivativeError = applyFusedDerivative(
+    result.parsed,
+    layout.molecule,
+    layout.atomIdByLocant,
+  );
+  if (derivativeError) {
+    return { ok: false, error: derivativeError, inputFamily: "fused-von-baeyer" };
+  }
   return {
     ok: true,
-    molecule,
+    molecule: layout.molecule,
     normalizedInput: result.parsed.normalizedInput,
     enabledAliases: [],
     inputFamily: "fused-von-baeyer",

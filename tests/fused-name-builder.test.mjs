@@ -104,6 +104,64 @@ function molecularGraphsAreIsomorphic(left, right) {
   return visit(0);
 }
 
+function detectedOxygenGroups(molecule) {
+  return molecule.atoms.filter((atom) => atom.element === "O").flatMap((oxygen) => {
+    const bond = molecule.bonds.find(([left, right]) => left === oxygen.id || right === oxygen.id);
+    if (!bond) return [];
+    const carbonId = bond[0] === oxygen.id ? bond[1] : bond[0];
+    return [{
+      kind: (bond[2] ?? 1) === 2 ? "ketone" : "alcohol",
+      carbonId,
+      heteroAtomId: oxygen.id,
+      atomIds: [carbonId, oxygen.id],
+    }];
+  });
+}
+
+function fusedSystem(molecule) {
+  const groups = detectedOxygenGroups(molecule);
+  if (molecule.rings?.length === 2) return getFusedBicyclicSystem(molecule, groups);
+  if (molecule.rings?.length === 3) return getFusedTricyclicSystem(molecule, groups);
+  return getFusedTetracyclicSystem(molecule, groups);
+}
+
+function molecularFormula(molecule) {
+  const valence = new Map(molecule.atoms.map((atom) => [atom.id, 0]));
+  molecule.bonds.forEach(([left, right, order = 1]) => {
+    valence.set(left, valence.get(left) + order);
+    valence.set(right, valence.get(right) + order);
+  });
+  const carbons = molecule.atoms.filter((atom) => (atom.element ?? "C") === "C").length;
+  const oxygens = molecule.atoms.filter((atom) => atom.element === "O").length;
+  const hydrogens = molecule.atoms.reduce((total, atom) => (
+    total + Math.max(0, (atom.element === "O" ? 2 : 4) - valence.get(atom.id))
+  ), 0);
+  return `C${carbons}H${hydrogens}${oxygens ? `O${oxygens === 1 ? "" : oxygens}` : ""}`;
+}
+
+function remapMolecule(molecule) {
+  const remap = new Map(molecule.atoms.map((atom, index) => [
+    atom.id,
+    2000 + (molecule.atoms.length - index) * 19,
+  ]));
+  return {
+    atoms: [...molecule.atoms].reverse().map((atom) => ({
+      ...atom,
+      id: remap.get(atom.id),
+      x: atom.y,
+      y: -atom.x,
+    })),
+    bonds: [...molecule.bonds].reverse().map(([left, right, order]) => [
+      remap.get(right), remap.get(left), order,
+    ]),
+    rings: [...molecule.rings].reverse().map((ring, index) => ({
+      ...ring,
+      id: 80 + index,
+      atomIds: [...ring.atomIds].reverse().map((atomId) => remap.get(atomId)),
+    })),
+  };
+}
+
 function build(name) {
   const result = buildHydrocarbonFromIupacName(name);
   assert.equal(result.ok, true, result.ok ? undefined : `${name}: ${result.error}`);
@@ -142,6 +200,28 @@ function assertRoundTrip(source, spanishName, englishName) {
         : getFusedTetracyclicSystem(rebuilt)?.systematicName;
     assert.equal(reconstructedName, spanishName, name);
   }
+}
+
+function assertDerivedRoundTrip(spanishName, englishName, expectedFormula) {
+  const source = build(spanishName);
+  const system = fusedSystem(source);
+  assert.ok(system?.systematicName, spanishName);
+  assert.equal(system.systematicName, spanishName);
+  if ("systematicNameEn" in system) assert.equal(system.systematicNameEn, englishName);
+  assert.equal(molecularFormula(source), expectedFormula, spanishName);
+
+  const fromGeneratedName = build(system.systematicName);
+  const fromEnglish = build(englishName);
+  const fromUnicode = build(parenthesizedSuperscriptDescriptor(englishName));
+  assert.equal(molecularGraphsAreIsomorphic(source, fromGeneratedName), true, spanishName);
+  assert.equal(molecularGraphsAreIsomorphic(source, fromEnglish), true, englishName);
+  assert.equal(molecularGraphsAreIsomorphic(source, fromUnicode), true, `${englishName} unicode`);
+
+  const remapped = remapMolecule(source);
+  const remappedSystem = fusedSystem(remapped);
+  assert.equal(remappedSystem?.systematicName, spanishName);
+  assert.equal(molecularGraphsAreIsomorphic(remapped, fromGeneratedName), true, `${spanishName} remapped`);
+  assert.equal(new Set(system.numbering).size, system.atomIds.length);
 }
 
 test("round-trips the three supported fused bicyclic parents by graph isomorphism", () => {
@@ -221,6 +301,116 @@ test("returns editable ring metadata and finite layout coordinates", () => {
   assert.equal(edited.atoms.length, 13);
 });
 
+test("round-trips linear alkyl derivatives, including repeated and mixed substituents", () => {
+  const cases = [
+    [
+      "2-hexilbiciclo[4.4.0]decano",
+      "2-hexylbicyclo[4.4.0]decane",
+      "C16H30",
+    ],
+    [
+      "2,3-dimetilbiciclo[4.4.0]decano",
+      "2,3-dimethylbicyclo[4.4.0]decane",
+      "C12H22",
+    ],
+    [
+      "5-propiltriciclo[8.4.0.0^{3,8}]tetradecano",
+      "5-propyltricyclo[8.4.0.0^{3,8}]tetradecane",
+      "C17H30",
+    ],
+    [
+      "5-etil-6-metiltriciclo[8.4.0.0^{3,8}]tetradecano",
+      "5-ethyl-6-methyltricyclo[8.4.0.0^{3,8}]tetradecane",
+      "C17H30",
+    ],
+    [
+      "3-etil-8-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano",
+      "3-ethyl-8-methyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane",
+      "C21H36",
+    ],
+  ];
+  for (const expected of cases) assertDerivedRoundTrip(...expected);
+});
+
+test("accepts an equivalent valid numbering without requiring textual name equality", () => {
+  const preferred = build("2-metilbiciclo[4.4.0]decano");
+  const equivalent = build("10-metilbiciclo[4.4.0]decano");
+  assert.equal(molecularGraphsAreIsomorphic(preferred, equivalent), true);
+  assert.equal(fusedSystem(equivalent)?.systematicName, "2-metilbiciclo[4.4.0]decano");
+});
+
+test("round-trips simple and compound unsaturation, including a valid alkyne", () => {
+  const cases = [
+    [
+      "biciclo[4.4.0]deca-2,7-dieno",
+      "bicyclo[4.4.0]deca-2,7-diene",
+      "C10H14",
+    ],
+    [
+      "biciclo[4.4.0]dec-2-ino",
+      "bicyclo[4.4.0]dec-2-yne",
+      "C10H14",
+    ],
+    [
+      "biciclo[4.4.0]dec-2-en-7-ino",
+      "bicyclo[4.4.0]dec-2-en-7-yne",
+      "C10H12",
+    ],
+    [
+      "triciclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-trieno",
+      "tricyclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-triene",
+      "C14H18",
+    ],
+    [
+      "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1(10)-eno",
+      "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1(10)-ene",
+      "C18H28",
+    ],
+  ];
+  for (const expected of cases) assertDerivedRoundTrip(...expected);
+});
+
+test("round-trips alcohols, ketones and complete polycyclic combinations", () => {
+  const cases = [
+    [
+      "biciclo[4.4.0]decano-2,7-diol",
+      "bicyclo[4.4.0]decane-2,7-diol",
+      "C10H18O2",
+    ],
+    [
+      "triciclo[8.4.0.0^{3,8}]tetradecano-4,5,6-triol",
+      "tricyclo[8.4.0.0^{3,8}]tetradecane-4,5,6-triol",
+      "C14H24O3",
+    ],
+    [
+      "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano-2,13-diona",
+      "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane-2,13-dione",
+      "C18H26O2",
+    ],
+    [
+      "5-hidroxi-7-metilbiciclo[4.4.0]dec-3-en-2-ona",
+      "5-hydroxy-7-methylbicyclo[4.4.0]dec-3-en-2-one",
+      "C11H16O2",
+    ],
+    [
+      "5-hidroxi-6-metiltriciclo[8.4.0.0^{3,8}]tetradec-11-en-4-ona",
+      "5-hydroxy-6-methyltricyclo[8.4.0.0^{3,8}]tetradec-11-en-4-one",
+      "C15H22O2",
+    ],
+    [
+      "9-hidroxi-14-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-9-en-5-ona",
+      "9-hydroxy-14-methyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-9-en-5-one",
+      "C19H28O2",
+    ],
+    [
+      "triciclo[8.4.0.0^{3,8}]tetradec-1(10)-en-5-ona",
+      "tricyclo[8.4.0.0^{3,8}]tetradec-1(10)-en-5-one",
+      "C14H20O",
+    ],
+  ];
+  for (const expected of cases) assertDerivedRoundTrip(...expected);
+});
+
 test("rejects malformed, impossible, noncanonical and out-of-coverage von Baeyer parents clearly", () => {
   const invalid = [
     "triciclo[8.4.0.0^{3,8]tetradecano",
@@ -229,13 +419,21 @@ test("rejects malformed, impossible, noncanonical and out-of-coverage von Baeyer
     "triciclo[7.4.1.0^{2,6}]tetradecano",
     "tetraciclo[8.8.0.0^{3,12}.0^{8,17}]octadecano",
     "biciclo[3.2.1]octano",
-    "triciclo[8.4.0.0^{3,8}]tetradec-2-eno",
-    "2-metilbiciclo[4.4.0]decano",
+    "2,3,4-dimetilbiciclo[4.4.0]decano",
+    "3-hidroxibiciclo[4.4.0]decan-2-ol",
+    "biciclo[4.4.0]dec-10-eno",
+    "biciclo[4.4.0]dec-1(7)-eno",
+    "biciclo[4.4.0]decan-1-ona",
+    "2-fenilbiciclo[4.4.0]decano",
   ];
   for (const name of invalid) {
     const result = buildHydrocarbonFromIupacName(name);
     assert.equal(result.ok, false, name);
-    assert.match(result.error, /descriptor|progenitor|policiclo|puente|ortofusionada|cadena|ciclo/i, name);
+    assert.match(
+      result.error,
+      /descriptor|progenitor|policiclo|puente|ortofusionada|cadena|ciclo|nombre|localizador|insaturación|valencia|conectividad/i,
+      name,
+    );
   }
   assert.equal(
     dynamicUiText("en", "El descriptor von Baeyer está incompleto o malformado."),
@@ -244,5 +442,9 @@ test("rejects malformed, impossible, noncanonical and out-of-coverage von Baeyer
   assert.equal(
     dynamicUiText("en", "Un tetraciclo necesita 5 longitudes de puente en su descriptor."),
     "A tetracyclo descriptor requires 5 bridge lengths.",
+  );
+  assert.equal(
+    dynamicUiText("en", "La combinación indicada produce una conectividad o valencia no válida."),
+    "The specified combination produces invalid connectivity or valence.",
   );
 });
