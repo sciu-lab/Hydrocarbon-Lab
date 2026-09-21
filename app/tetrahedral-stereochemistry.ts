@@ -23,6 +23,15 @@ export type TetrahedralAssignmentSummary = {
   complete: boolean;
 };
 
+// SVG coordinates are scaled by the canvas viewBox. These values yield an
+// approximately 30–32 px visible badge and a 36–40 px pointer target in the
+// real editor viewport while keeping the marker clear of its carrier bond.
+export const TETRAHEDRAL_BADGE_RADIUS = 24;
+export const TETRAHEDRAL_BADGE_HIT_RADIUS = 30;
+export const TETRAHEDRAL_BADGE_DISTANCE = 48;
+
+export type TetrahedralBadgeExtent = { x: number; y: number; width: number; height: number };
+
 const atomicNumberByElement: Record<NonNullable<GeneratedAtom["element"]>, number> = {
   C: 6,
   N: 7,
@@ -176,6 +185,7 @@ export function sanitizeTetrahedralStereochemistry<T extends GeneratedMolecule>(
         || (right === atom.id && left === atom.tetrahedralBondTo)
       ),
     );
+    if (!atom.tetrahedralParity && atom.tetrahedralBondTo === undefined) return atom;
     if (atom.tetrahedralParity && validIds.has(atom.id) && carrierValid) return atom;
     const rest: GeneratedAtom = { ...atom };
     if (!atom.tetrahedralParity || !validIds.has(atom.id)) delete rest.tetrahedralParity;
@@ -304,7 +314,7 @@ function preferredStereoBondStyle(
 export function getTetrahedralBadgePosition(
   center: { x: number; y: number },
   neighbor: { x: number; y: number },
-  distance = 29,
+  distance = TETRAHEDRAL_BADGE_DISTANCE,
 ) {
   const deltaX = neighbor.x - center.x;
   const deltaY = neighbor.y - center.y;
@@ -313,6 +323,67 @@ export function getTetrahedralBadgePosition(
     x: center.x + deltaY / length * distance,
     y: center.y - deltaX / length * distance,
   };
+}
+
+function badgeIntersectsExtent(
+  point: { x: number; y: number },
+  radius: number,
+  extent: TetrahedralBadgeExtent,
+) {
+  const closestX = Math.max(extent.x, Math.min(point.x, extent.x + extent.width));
+  const closestY = Math.max(extent.y, Math.min(point.y, extent.y + extent.height));
+  return Math.hypot(point.x - closestX, point.y - closestY) < radius + 4;
+}
+
+/**
+ * Keeps the visual R/S labels readable without changing the carrier bond or
+ * the stored atom configuration. Candidate directions are relative to the
+ * carrier vector, so the result survives rotation and reflection.
+ */
+export function layoutTetrahedralBadgePositions(
+  descriptors: readonly TetrahedralStereoBond[],
+  positions: ReadonlyMap<number, { x: number; y: number }>,
+  scale = 1,
+  obstacles: readonly TetrahedralBadgeExtent[] = [],
+) {
+  const placed = new Map<number, { x: number; y: number }>();
+  const radius = TETRAHEDRAL_BADGE_RADIUS * scale;
+  const minimumSeparation = radius * 2 + 7 * scale;
+  const angleOffsets = [0, Math.PI, Math.PI / 3, -Math.PI / 3, Math.PI * 2 / 3, -Math.PI * 2 / 3];
+  const distanceFactors = [1, 1.4, 1.8];
+
+  for (const descriptor of descriptors) {
+    const center = positions.get(descriptor.atomId);
+    const neighbor = positions.get(descriptor.neighborAtomId);
+    if (!center || !neighbor) continue;
+    const carrierAngle = Math.atan2(neighbor.y - center.y, neighbor.x - center.x);
+    const preferredAngle = carrierAngle - Math.PI / 2;
+    const candidates = distanceFactors.flatMap((factor) => angleOffsets.map((offset, angleIndex) => {
+      const distance = TETRAHEDRAL_BADGE_DISTANCE * scale * factor;
+      const angle = preferredAngle + offset;
+      return {
+        x: center.x + Math.cos(angle) * distance,
+        y: center.y + Math.sin(angle) * distance,
+        preference: (factor - 1) * 20 + angleIndex * 2,
+      };
+    }));
+    const score = (candidate: { x: number; y: number; preference: number }) => {
+      const obstaclePenalty = obstacles.reduce(
+        (sum, obstacle) => sum + (badgeIntersectsExtent(candidate, radius, obstacle) ? 100_000 : 0),
+        0,
+      );
+      const badgePenalty = [...placed.values()].reduce((sum, prior) => {
+        const separation = Math.hypot(candidate.x - prior.x, candidate.y - prior.y);
+        return sum + (separation < minimumSeparation
+          ? 100_000 + (minimumSeparation - separation) * 1_000
+          : 0);
+      }, 0);
+      return obstaclePenalty + badgePenalty + candidate.preference;
+    };
+    candidates.sort((left, right) => score(left) - score(right));
+    placed.set(descriptor.atomId, candidates[0]);
+  }
+  return placed;
 }
 
 export function getTetrahedralStereoBonds(source: GeneratedMolecule): TetrahedralStereoBond[] {

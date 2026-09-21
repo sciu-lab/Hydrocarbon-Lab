@@ -48,7 +48,8 @@ export function layoutSteroidRingLabels(
     };
     const normal = { x: -axis.y, y: axis.x };
     const candidates = [
-      [0, 0], [0, 9], [0, -9], [9, 0], [-9, 0], [7, 7], [-7, 7], [7, -7], [-7, -7],
+      [0, 0], [0, 18], [0, -18], [18, 0], [-18, 0],
+      [14, 14], [-14, 14], [14, -14], [-14, -14],
     ].map(([along, across]) => ({
       x: centroid.x + axis.x * along + normal.x * across,
       y: centroid.y + axis.y * along + normal.y * across,

@@ -85,12 +85,14 @@ import {
   clearTetrahedralConfiguration,
   getMainChainTetrahedralDescriptors,
   getTetrahedralAssignmentSummary,
-  getTetrahedralBadgePosition,
   getTetrahedralCandidatesForBond,
+  layoutTetrahedralBadgePositions,
   getTetrahedralStereoBonds,
   getTetrahedralStereoCenters,
   sanitizeTetrahedralStereochemistry,
   setTetrahedralConfiguration,
+  TETRAHEDRAL_BADGE_HIT_RADIUS,
+  TETRAHEDRAL_BADGE_RADIUS,
   toggleTetrahedralConfiguration,
 } from "./tetrahedral-stereochemistry";
 import { layoutSteroidRingLabels } from "./steroid-ring-label-layout";
@@ -5722,7 +5724,9 @@ export default function Home() {
   const focusRingPicker = useCallback((element: HTMLDivElement | null) => {
     // Opening the contextual library is a consequence of selecting an atom;
     // it must not move the document away from the canvas.
-    element?.querySelector<HTMLButtonElement>(".ring-option:not(:disabled)")?.focus({ preventScroll: true });
+    element?.querySelector<HTMLButtonElement>(
+      ".bond-stereochemistry-actions button:not(:disabled), .ring-option:not(:disabled)",
+    )?.focus({ preventScroll: true });
   }, []);
   const [showFunctionalPalette, setShowFunctionalPalette] = useState(false);
   const [ringInsertMode, setRingInsertMode] = useState<RingInsertMode>("replace");
@@ -7049,9 +7053,10 @@ export default function Home() {
       : language === "en"
         ? `Tetrahedral configuration assigned as ${configuration}.`
         : `Configuración tetraédrica asignada como ${configuration}.`;
-    if (!commit(result.molecule, action)) return;
+    const committedMolecule = sanitizeTetrahedralStereochemistry(result.molecule);
+    if (!commit(committedMolecule, action)) return;
     setFusionSelection({
-      molecule: result.molecule,
+      molecule: committedMolecule,
       a: selectedFusionBond.a,
       b: selectedFusionBond.b,
     });
@@ -8492,13 +8497,59 @@ export default function Home() {
       height,
     }];
   });
-  const tetrahedralBadgeExtents = tetrahedralStereoBonds.flatMap((descriptor) => {
-    const center = displayPositions.get(descriptor.atomId);
-    const neighbor = displayPositions.get(descriptor.neighborAtomId);
-    if (!center || !neighbor) return [];
-    const badge = getTetrahedralBadgePosition(center, neighbor);
-    return [{ x: badge.x - 17, y: badge.y - 17, width: 34, height: 34 }];
+  const tetrahedralBadgeExtentsAtScale = (
+    scale: number,
+    positions: ReadonlyMap<number, { x: number; y: number }>,
+  ) => [...positions.values()].map((badge) => ({
+      x: badge.x - TETRAHEDRAL_BADGE_RADIUS * scale,
+      y: badge.y - TETRAHEDRAL_BADGE_RADIUS * scale,
+      width: TETRAHEDRAL_BADGE_RADIUS * 2 * scale,
+      height: TETRAHEDRAL_BADGE_RADIUS * 2 * scale,
+    }));
+  // The same SVG occupies a fixed-height canvas while its viewBox grows for
+  // large molecules. Counter-scale only the educational marker so its real
+  // screen diameter remains perceptible on steroids as well as short chains.
+  const baseTetrahedralBadgePositions = layoutTetrahedralBadgePositions(
+    tetrahedralStereoBonds,
+    displayPositions,
+    1,
+    [...numberingBadgeExtents, ...functionalLabelExtents],
+  );
+  const baseTetrahedralBadgeExtents = tetrahedralBadgeExtentsAtScale(1, baseTetrahedralBadgePositions);
+  const preliminarySteroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
+    ? layoutSteroidRingLabels(
+        analysis.steroidSystem.ringsByLabel,
+        displayPositions,
+        [...numberingBadgeExtents, ...functionalLabelExtents, ...baseTetrahedralBadgeExtents],
+      )
+    : [];
+  const preliminaryBounds = getMoleculeVisualBounds(displayPositions.values(), {
+    additionalExtents: [
+      ...numberingBadgeExtents,
+      ...functionalLabelExtents,
+      ...baseTetrahedralBadgeExtents,
+      ...preliminarySteroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 })),
+    ],
   });
+  const tetrahedralMarkerScale = Math.max(
+    1,
+    preliminaryBounds.width / 720,
+    preliminaryBounds.height / 455,
+  );
+  const tetrahedralBadgePositions = layoutTetrahedralBadgePositions(
+    tetrahedralStereoBonds,
+    displayPositions,
+    tetrahedralMarkerScale,
+    [
+      ...numberingBadgeExtents,
+      ...functionalLabelExtents,
+      ...preliminarySteroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 })),
+    ],
+  );
+  const tetrahedralBadgeExtents = tetrahedralBadgeExtentsAtScale(
+    tetrahedralMarkerScale,
+    tetrahedralBadgePositions,
+  );
   const steroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
     ? layoutSteroidRingLabels(
         analysis.steroidSystem.ringsByLabel,
@@ -10086,8 +10137,8 @@ export default function Home() {
                 const tetrahedralLength = Math.hypot(tetrahedralDeltaX, tetrahedralDeltaY) || 1;
                 const tetrahedralNormalX = -tetrahedralDeltaY / tetrahedralLength;
                 const tetrahedralNormalY = tetrahedralDeltaX / tetrahedralLength;
-                const tetrahedralMarkerPosition = tetrahedralCenterPosition && tetrahedralNeighborPosition
-                  ? getTetrahedralBadgePosition(tetrahedralCenterPosition, tetrahedralNeighborPosition)
+                const tetrahedralMarkerPosition = tetrahedralStereoBond
+                  ? tetrahedralBadgePositions.get(tetrahedralStereoBond.atomId) ?? null
                   : null;
                 const containingRings = molecule.rings?.filter((ring) => ringHasBond(ring, a, b)) ?? [];
                 const containingRing = containingRings[0];
@@ -10332,11 +10383,13 @@ export default function Home() {
                           }
                         }}
                       >
-                        <circle className="tetrahedral-center-hit-target" r="17" />
-                        <circle className="tetrahedral-center-badge" r="13" />
-                        <text textAnchor="middle" dominantBaseline="central">
-                          {tetrahedralStereoBond.configuration}
-                        </text>
+                        <g transform={`scale(${tetrahedralMarkerScale})`}>
+                          <circle className="tetrahedral-center-hit-target" r={TETRAHEDRAL_BADGE_HIT_RADIUS} />
+                          <circle className="tetrahedral-center-badge" r={TETRAHEDRAL_BADGE_RADIUS} />
+                          <text textAnchor="middle" dominantBaseline="central">
+                            {tetrahedralStereoBond.configuration}
+                          </text>
+                        </g>
                       </g>
                     )}
                     {stereoInteractionEnabled && (

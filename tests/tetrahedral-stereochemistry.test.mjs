@@ -23,13 +23,15 @@ import {
 import {
   clearTetrahedralConfiguration,
   getTetrahedralAssignmentSummary,
-  getTetrahedralBadgePosition,
   getTetrahedralCandidatesForBond,
   getMainChainTetrahedralDescriptors,
   getTetrahedralStereoBonds,
   getTetrahedralStereoCenters,
+  layoutTetrahedralBadgePositions,
   sanitizeTetrahedralStereochemistry,
   setTetrahedralConfiguration,
+  TETRAHEDRAL_BADGE_HIT_RADIUS,
+  TETRAHEDRAL_BADGE_RADIUS,
   toggleTetrahedralConfiguration,
 } from "../app/tetrahedral-stereochemistry.ts";
 
@@ -81,6 +83,16 @@ function constitution(molecule) {
     bonds: molecule.bonds.map(([left, right, order = 1]) => [left, right, order]),
   };
 }
+
+test("R/S badge geometry has a visibly larger face and 36–40 px target after canvas scaling", () => {
+  // The normal 720-unit viewBox renders at about 0.62 CSS px per SVG unit in
+  // the real canvas; keep the visual face near 30 px and the target near 38 px.
+  const observedCanvasScale = 0.62;
+  assert.ok(TETRAHEDRAL_BADGE_RADIUS * 2 * observedCanvasScale >= 29);
+  assert.ok(TETRAHEDRAL_BADGE_RADIUS * 2 * observedCanvasScale <= 32);
+  assert.ok(TETRAHEDRAL_BADGE_HIT_RADIUS * 2 * observedCanvasScale >= 36);
+  assert.ok(TETRAHEDRAL_BADGE_HIT_RADIUS * 2 * observedCanvasScale <= 40);
+});
 
 test("imports, names and draws (2R)- and (2S)-butan-2-ol as opposite configurations", () => {
   const r = imported("C[C@@H](O)CC");
@@ -163,6 +175,7 @@ test("a selected simple bond carries explicit S/R while configuration remains at
 
   const toS = setTetrahedralConfiguration(original, center.atomId, "S", neighborId);
   assert.equal(toS.ok, true);
+  assert.equal(sanitizeTetrahedralStereochemistry(toS.molecule), toS.molecule);
   assert.deepEqual(constitution(toS.molecule), constitution(original));
   assert.equal(toS.molecule.atoms.find((atom) => atom.id === center.atomId).tetrahedralBondTo, neighborId);
   assert.equal(getTetrahedralStereoBonds(displayedMolecule(toS.molecule))[0].neighborAtomId, neighborId);
@@ -180,6 +193,33 @@ test("a selected simple bond carries explicit S/R while configuration remains at
   const cleared = clearTetrahedralConfiguration(backToR.molecule, center.atomId);
   assert.equal(getTetrahedralStereoCenters(cleared).length, 0);
   assert.deepEqual(constitution(cleared), constitution(original));
+});
+
+test("R/S bond availability depends on CIP, not on having zero through four rings", () => {
+  const fixtures = [
+    [0, "CC(O)CC"],
+    [1, "CC1CCCCC1O"],
+    [2, "CC1CCC2CCCCC2C1O"],
+    [3, "CC1CCC2C1CCC1CCCCC12O"],
+    [4, "CC12CCC3C(C1CCC2O)CCC4=CC(=O)CCC34C"],
+  ];
+  for (const [expectedRingCount, smiles] of fixtures) {
+    const molecule = imported(smiles);
+    assert.equal(molecule.rings?.length ?? 0, expectedRingCount);
+    const candidateBond = molecule.bonds.find(([left, right, order = 1]) =>
+      order === 1 && getTetrahedralCandidatesForBond(molecule, left, right).length > 0,
+    );
+    assert.ok(candidateBond, `${expectedRingCount} rings: a valid simple carrier is available`);
+    const candidates = getTetrahedralCandidatesForBond(molecule, candidateBond[0], candidateBond[1]);
+    assert.ok(candidates.length > 0, `${expectedRingCount} rings: Shift+click candidates`);
+    const assigned = setTetrahedralConfiguration(
+      molecule,
+      candidates[0],
+      "R",
+      candidateBond[0] === candidates[0] ? candidateBond[1] : candidateBond[0],
+    );
+    assert.equal(assigned.ok, true, `${expectedRingCount} rings: R assignment`);
+  }
 });
 
 test("bond context omits false tetrahedral centers and double bonds without disturbing E/Z", () => {
@@ -325,13 +365,32 @@ test("testosterone and cholesterol preserve every imported tetrahedral center af
     const system = getSteroidLike6565System(molecule);
     assert.equal(system?.isGonaneTopology, true, `${name}: recognized steroid topology`);
     const positions = new Map(molecule.atoms.map((atom) => [atom.id, { x: atom.x, y: atom.y }]));
-    const stereoObstacles = getTetrahedralStereoBonds(molecule).map((descriptor) => {
-      const point = getTetrahedralBadgePosition(
-        positions.get(descriptor.atomId),
-        positions.get(descriptor.neighborAtomId),
-      );
-      return { x: point.x - 17, y: point.y - 17, width: 34, height: 34 };
+    const badgeScale = name === "testosterone" ? 1.35 : 1;
+    const badgePositions = layoutTetrahedralBadgePositions(
+      getTetrahedralStereoBonds(molecule),
+      positions,
+      badgeScale,
+    );
+    const stereoObstacles = [...badgePositions.values()].map((point) => {
+      return {
+        x: point.x - TETRAHEDRAL_BADGE_RADIUS * badgeScale,
+        y: point.y - TETRAHEDRAL_BADGE_RADIUS * badgeScale,
+        width: TETRAHEDRAL_BADGE_RADIUS * 2 * badgeScale,
+        height: TETRAHEDRAL_BADGE_RADIUS * 2 * badgeScale,
+      };
     });
+    for (let index = 0; index < stereoObstacles.length; index += 1) {
+      for (let other = index + 1; other < stereoObstacles.length; other += 1) {
+        const left = stereoObstacles[index];
+        const right = stereoObstacles[other];
+        assert.equal(
+          left.x < right.x + right.width && left.x + left.width > right.x
+            && left.y < right.y + right.height && left.y + left.height > right.y,
+          false,
+          `${name}: R/S badges do not overlap`,
+        );
+      }
+    }
     const heteroObstacles = molecule.atoms
       .filter((atom) => (atom.element ?? "C") !== "C")
       .map((atom) => ({ x: atom.x - 15, y: atom.y - 15, width: 30, height: 30 }));

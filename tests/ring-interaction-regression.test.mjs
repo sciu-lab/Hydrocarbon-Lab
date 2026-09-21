@@ -63,10 +63,17 @@ test("the shared bond context exposes atom-owned R/S controls without replacing 
   assert.match(page, /configureSelectedBondTetrahedralCenter\(atomId, null\)/);
   assert.match(page, /selectedBondCanFuse && \(/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(page, /className="tetrahedral-center-hit-target" r="17"/);
-  assert.match(page, /className="tetrahedral-center-badge" r="13"/);
+  assert.match(page, /className="tetrahedral-center-hit-target" r=\{TETRAHEDRAL_BADGE_HIT_RADIUS\}/);
+  assert.match(page, /className="tetrahedral-center-badge" r=\{TETRAHEDRAL_BADGE_RADIUS\}/);
   assert.match(css, /\.tetrahedral-center-hit-target \{[\s\S]*?pointer-events: all;/);
+  assert.match(css, /\.tetrahedral-center-marker text \{[\s\S]*?font-size: 22px;/);
   assert.match(css, /\.bond-stereochemistry-actions button \{[\s\S]*?min-width: 32px;[\s\S]*?min-height: 32px;/);
+});
+
+test("R/S context stays selected after assignment and receives focus before ring templates", () => {
+  assert.match(page, /\.bond-stereochemistry-actions button:not\(:disabled\), \.ring-option:not\(:disabled\)/);
+  assert.match(page, /const committedMolecule = sanitizeTetrahedralStereochemistry\(result\.molecule\)/);
+  assert.match(page, /setFusionSelection\(\{\s*molecule: committedMolecule,/s);
 });
 
 test("explicit fusion clears its temporary selection only after a successful commit", () => {
@@ -99,7 +106,7 @@ test("the traditional nomenclature card uses the name supplied by fused-ring ana
 });
 
 test("contextual selection focus preserves the page scroll and expanded SVG uses fitted bounds", () => {
-  assert.match(page, /\.ring-option:not\(:disabled\)"\)\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(page, /\.ring-option:not\(:disabled\)[\s\S]*?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(page, /const expandedFitBounds = getMoleculeVisualBounds\(displayPositions\.values\(\)/);
   assert.match(page, /const activeViewBounds = canvasExpanded/);
   assert.match(page, /setExpandedZoom\(1\)/);
