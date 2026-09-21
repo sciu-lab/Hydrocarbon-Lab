@@ -14,8 +14,10 @@ export type NameStructureResolution = {
   interpretedName: string;
   originalName: string;
   smiles: string;
-  source: "OPSIN" | "integrated-fallback";
+  source: "OPSIN" | "PubChem" | "integrated-fallback";
   warnings: string[];
+  cid?: number;
+  molecularFormula?: string;
 };
 
 export type NameStructureResolutionResult =

@@ -17,6 +17,15 @@ export type OpenChemLibSmilesExportResult =
   | { ok: true; smiles: string }
   | { ok: false; error: string };
 
+export type OpenChemLibSmilesInspectionResult =
+  | {
+      ok: true;
+      canonicalConnectivity: string;
+      formula: string;
+      hasTetrahedralStereo: boolean;
+    }
+  | { ok: false; error: string };
+
 export type PolycyclicTopology = "monocyclic" | "fused" | "bridged" | "spiro" | "other";
 
 export type PolycyclicTopologyInput = {
@@ -319,5 +328,31 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
       bonds,
       ...(rings.length ? { rings } : {}),
     },
+  };
+}
+
+/**
+ * Validates an externally resolved SMILES before it reaches the canvas.
+ * The exported SMILES is used only as a deterministic connectivity key;
+ * tetrahedral parity is reported separately because the editable graph has
+ * no wedge/hash bond representation.
+ */
+export function inspectSmilesStructure(smiles: string): OpenChemLibSmilesInspectionResult {
+  let formula: string;
+  let canonicalConnectivity: string;
+  try {
+    const parsed = new SmilesParser().parseMolecule(smiles);
+    formula = parsed.getMolecularFormula().formula;
+    canonicalConnectivity = parsed.toSmiles();
+  } catch {
+    return { ok: false, error: "OpenChemLib no pudo convertir la estructura recibida." };
+  }
+  const editable = moleculeFromSmiles(smiles);
+  if (!editable.ok) return editable;
+  return {
+    ok: true,
+    canonicalConnectivity,
+    formula,
+    hasTetrahedralStereo: /@/.test(smiles),
   };
 }

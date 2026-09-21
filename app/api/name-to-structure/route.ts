@@ -1,4 +1,4 @@
-import { resolveNameWithOpsin } from "../../opsin-name-resolver";
+import { resolveChemicalName } from "../../name-structure-resolver";
 
 const corsHeaders = {
   "access-control-allow-headers": "content-type",
@@ -29,12 +29,12 @@ export async function POST(request: Request) {
   }
 
   const name = typeof payload.name === "string" ? payload.name.trim() : "";
-  if (!name) return json({ error: "Escribe un nombre IUPAC." }, 400);
+  if (!name) return json({ error: "Escribe un nombre químico." }, 400);
   if (name.length > 220) {
     return json({ error: "El nombre es demasiado largo para este constructor." }, 400);
   }
 
-  const result = await resolveNameWithOpsin(name);
+  const result = await resolveChemicalName(name);
   if (result.ok) return json(result.value);
 
   return json(

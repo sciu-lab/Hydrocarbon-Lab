@@ -37,8 +37,8 @@ import {
 } from "./i18n";
 import {
   type NameStructureResolution,
-  resolveNameWithOpsin,
-} from "./opsin-name-resolver";
+  resolveChemicalName,
+} from "./name-structure-resolver";
 import {
   formatStereochemicalName,
   getMainChainStereoDescriptors,
@@ -4550,7 +4550,7 @@ async function resolveNameStructure(name: string): Promise<NameStructureResoluti
     }
   }
 
-  const directResult = await resolveNameWithOpsin(name);
+  const directResult = await resolveChemicalName(name);
   if (directResult.ok) return directResult.value;
   throw new Error(`${directResult.error}${directResult.detail ? ` ${directResult.detail}` : ""}`);
 }
@@ -6545,7 +6545,7 @@ export default function Home() {
     const submittedName = requestedName.trim();
     if (!submittedName) {
       setNameBuilderOpen(true);
-      setNameBuilderFeedback({ kind: "error", message: "Escribe un nombre IUPAC para crear la estructura." });
+      setNameBuilderFeedback({ kind: "error", message: "Escribe un nombre químico para crear la estructura." });
       return;
     }
 
@@ -6605,11 +6605,15 @@ export default function Home() {
           advancedNameResolved = true;
           if (data.source === "integrated-fallback") {
             engineLabel = "OpenChemLib y el respaldo integrado";
+          } else if (data.source === "PubChem") {
+            engineLabel = "PubChem + OpenChemLib";
           }
           normalizedInput = (data.interpretedName ?? submittedName)
             .toLocaleLowerCase("es")
             .replace(/\s+/g, "");
-          if (data.warnings?.length) serviceWarning = " OPSIN informó una posible ambigüedad del nombre.";
+          if (data.warnings?.length) {
+            serviceWarning = ` ${data.warnings.map((warning) => t(warning)).join(" ")}`;
+          }
         } catch (advancedError) {
           const localResult = buildHydrocarbonFromIupacName(submittedName);
           if (!localResult.ok) {
@@ -6684,7 +6688,7 @@ export default function Home() {
           ? COMPLEX_NAME_LIMIT_MESSAGE
           : error instanceof Error
             ? error.message
-            : "No pude interpretar ese nombre IUPAC.",
+            : "No pude interpretar ese nombre químico.",
       });
     } finally {
       setNameBuilderBusy(false);
@@ -9506,8 +9510,8 @@ export default function Home() {
               <div className="name-builder-intro">
                 <span className="name-builder-mark" aria-hidden="true">Aa</span>
                 <div>
-                  <strong>{t("Construir por nombre IUPAC")}</strong>
-                  <small>{t("OPSIN interpreta el nombre y OpenChemLib crea el objeto molecular que se dibuja en el canvas.")}</small>
+                  <strong>{t("Construir por nombre químico")}</strong>
+                  <small>{t("OPSIN interpreta nombres sistemáticos; PubChem resuelve sinónimos y OpenChemLib crea la estructura editable.")}</small>
                 </div>
                 <span className="name-builder-scope">{t("Motor químico avanzado")}</span>
               </div>
