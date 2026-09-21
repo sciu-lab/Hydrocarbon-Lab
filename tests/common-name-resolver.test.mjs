@@ -2,16 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { dynamicUiText } from "../app/i18n.ts";
+import { getSteroidLike6565System } from "../app/fused-ring-nomenclature.ts";
+import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
 import { resolveChemicalName } from "../app/name-structure-resolver.ts";
 import { inspectSmilesStructure, moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 
 const fixtures = [
   { cid: 180, names: ["acetona", "acetone"], formula: "C3H6O", smiles: "CC(=O)C", iupac: "propan-2-one" },
-  { cid: 3776, names: ["alcohol isopropilico", "isopropyl alcohol"], formula: "C3H8O", smiles: "CC(O)C", iupac: "propan-2-ol" },
+  { cid: 3776, names: ["alcohol isopropílico", "isopropyl alcohol"], formula: "C3H8O", smiles: "CC(O)C", iupac: "propan-2-ol" },
   { cid: 176, names: ["acido acetico", "acetic acid"], formula: "C2H4O2", smiles: "CC(=O)O", iupac: "acetic acid" },
   { cid: 712, names: ["formaldehido", "formaldehyde"], formula: "CH2O", smiles: "C=O", iupac: "formaldehyde" },
   { cid: 177, names: ["acetaldehido", "acetaldehyde"], formula: "C2H4O", smiles: "CC=O", iupac: "acetaldehyde" },
-  { cid: 753, names: ["glicerina", "glycerin"], formula: "C3H8O3", smiles: "OCC(O)CO", iupac: "propane-1,2,3-triol" },
+  { cid: 753, names: ["glicerina", "glycerin", "glycerol"], formula: "C3H8O3", smiles: "OCC(O)CO", iupac: "propane-1,2,3-triol" },
   { cid: 1140, names: ["tolueno", "toluene"], formula: "C7H8", smiles: "Cc1ccccc1", iupac: "toluene" },
   {
     cid: 6013,
@@ -121,6 +123,66 @@ test("warns when tetrahedral identity cannot be represented exactly", async () =
     dynamicUiText("en", "La estructura contiene estereoquímica tetraédrica que el canvas no puede representar de forma inequívoca; se conserva la conectividad, pero no se afirma una identidad estereoquímica exacta."),
     /exact stereochemical identity/i,
   );
+});
+
+function importedFusionAttachmentsPointOutward(molecule) {
+  const positions = calculateMolecule2DLayout(molecule, []);
+  const adjacency = new Map(molecule.atoms.map(({ id }) => [id, []]));
+  for (const [left, right] of molecule.bonds) {
+    adjacency.get(left).push(right);
+    adjacency.get(right).push(left);
+  }
+  let attachments = 0;
+  for (const atom of molecule.atoms) {
+    const rings = molecule.rings.filter((ring) => ring.atomIds.includes(atom.id));
+    if (rings.length < 2) continue;
+    const ringNeighborIds = new Set();
+    for (const ring of rings) {
+      const index = ring.atomIds.indexOf(atom.id);
+      ringNeighborIds.add(ring.atomIds[(index - 1 + ring.atomIds.length) % ring.atomIds.length]);
+      ringNeighborIds.add(ring.atomIds[(index + 1) % ring.atomIds.length]);
+    }
+    const origin = positions.get(atom.id);
+    const exterior = [...ringNeighborIds].reduce((sum, neighborId) => {
+      const neighbor = positions.get(neighborId);
+      const length = Math.hypot(origin.x - neighbor.x, origin.y - neighbor.y) || 1;
+      return { x: sum.x + (origin.x - neighbor.x) / length, y: sum.y + (origin.y - neighbor.y) / length };
+    }, { x: 0, y: 0 });
+    const exteriorLength = Math.hypot(exterior.x, exterior.y);
+    if (!exteriorLength) continue;
+    const nonRingNeighbors = adjacency.get(atom.id).filter((neighborId) => !ringNeighborIds.has(neighborId));
+    for (const neighborId of nonRingNeighbors) {
+      const neighbor = positions.get(neighborId);
+      const attachment = { x: neighbor.x - origin.x, y: neighbor.y - origin.y };
+      const attachmentLength = Math.hypot(attachment.x, attachment.y);
+      assert.ok(
+        exterior.x * attachment.x + exterior.y * attachment.y >= exteriorLength * attachmentLength * 0.5,
+        `imported attachment ${atom.id}-${neighborId} stays in the fusion exterior sector`,
+      );
+      attachments += 1;
+    }
+  }
+  return attachments;
+}
+
+test("PubChem steroid imports preserve constitutional graphs and place angular fusion substituents outside", async () => {
+  const { fetchImpl } = mockedChemicalServices();
+  for (const name of ["testosterona", "testosterone", "colesterol", "cholesterol"]) {
+    const result = await resolveChemicalName(name, { fetchImpl });
+    assert.equal(result.ok, true, name);
+    const imported = moleculeFromSmiles(result.value.smiles);
+    assert.equal(imported.ok, true, name);
+    const snapshot = structuredClone(imported.molecule);
+    assert.ok(importedFusionAttachmentsPointOutward(imported.molecule) >= 2, name);
+    assert.deepEqual(imported.molecule, snapshot, "layout is display-only");
+    if (name.includes("testoster")) {
+      assert.equal(
+        getSteroidLike6565System(imported.molecule)?.constitutionNameEs,
+        "17-hidroxiandrost-4-en-3-ona",
+        "the imported testosterone constitution matches the locally recognized steroid constitution",
+      );
+    }
+  }
 });
 
 test("rejects caffeine safely because its fused heterocycle is outside current canvas coverage", async () => {

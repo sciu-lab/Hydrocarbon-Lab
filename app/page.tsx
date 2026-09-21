@@ -6558,21 +6558,6 @@ export default function Home() {
       setNameBuilderFeedback({ kind: "error", message: localPreflight.error });
       return;
     }
-    const suggestedCorrection = fromSuggestion || localPreflight.ok || shouldTryAdvancedNameParserFirst(submittedName)
-      ? null
-      : findCommonNameSuggestion(submittedName, language);
-    if (suggestedCorrection) {
-      setNameBuilderOpen(true);
-      setNameSuggestion(suggestedCorrection);
-      setNameSuggestionPreview(null);
-      setNameSuggestionPreviewLoading(false);
-      setNameBuilderFeedback({
-        kind: "error",
-        message: "Revisa el nombre propuesto antes de crear la estructura.",
-      });
-      return;
-    }
-
     const preserveSourceName = preservesSourceName(submittedName);
 
     setNameBuilderBusy(true);
@@ -6681,7 +6666,12 @@ export default function Home() {
       });
     } catch (error) {
       setNameBuilderOpen(true);
-      setNameSuggestion(findCommonNameSuggestion(submittedName, language));
+      // A common-name match is a recovery aid, not a gate: PubChem can
+      // validate an exact synonym that the local suggestion table knows
+      // about, including aliases outside that table.
+      setNameSuggestion(fromSuggestion || localPreflight.ok || shouldTryAdvancedNameParserFirst(submittedName)
+        ? null
+        : findCommonNameSuggestion(submittedName, language));
       setNameBuilderFeedback({
         kind: "error",
         message: preserveSourceName

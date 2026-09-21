@@ -23,6 +23,10 @@ const BOND_LENGTH = 130;
 const X_SCALE = 130;
 const Y_SCALE = 106;
 const TURN_ANGLE = Math.PI / 3;
+// A raw importer coordinate is only trusted when it is clearly within the
+// free sector of a ring or fusion junction. A nearly perpendicular vector can
+// pass the old, permissive test while visually crossing the fused nucleus.
+const MIN_OUTWARD_COSINE = 0.5;
 
 function pointAt(origin: SkeletalPoint, angle: number): SkeletalPoint {
   return {
@@ -292,7 +296,7 @@ function buildRingAwarePositions(
             (rawChild.x - rawRingAtom.x) * X_SCALE,
           )
         : outwardAngle;
-      const exitsRing = Math.cos(rawAngle - outwardAngle) > 0.05;
+      const exitsRing = Math.cos(rawAngle - outwardAngle) >= MIN_OUTWARD_COSINE;
       const angleCandidates = [
         ...(exitsRing ? [rawAngle] : []),
         outwardAngle,
