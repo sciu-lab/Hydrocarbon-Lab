@@ -154,7 +154,8 @@ export type FusedTetracyclicSystem = {
     order: 2 | 3;
   }[];
   substituents: FusedBicyclicSubstituent[];
-  functionalGroups: Omit<FusedBicyclicFunctionalGroup, "locant">[];
+  functionalGroups: FusedBicyclicFunctionalGroup[];
+  primaryFunctionalGroup?: FusedBicyclicFunctionalKind;
   doubleBondLocants: number[];
   tripleBondLocants: number[];
   doubleBondLocations: FusedMultipleBondLocant[];
@@ -1062,9 +1063,11 @@ export function getFusedTetracyclicSystem(
       ? [{ atomIds: [left, right] as [number, number], order: order as 2 | 3 }]
       : []
   ));
-  const functionalGroups = findDirectFunctionalGroups(molecule, atomIds, detectedGroups);
-  if (!functionalGroups) return null;
-  const functionalHeteroAtomIds = new Set(functionalGroups.map((group) => group.heteroAtomId));
+  const unnumberedFunctionalGroups = findDirectFunctionalGroups(molecule, atomIds, detectedGroups);
+  if (!unnumberedFunctionalGroups) return null;
+  const functionalHeteroAtomIds = new Set(
+    unnumberedFunctionalGroups.map((group) => group.heteroAtomId),
+  );
   const unnumberedSubstituents = findSimpleAlkylSubstituents(
     molecule,
     atomIds,
@@ -1076,6 +1079,12 @@ export function getFusedTetracyclicSystem(
   const parentName = vonBaeyer && parentRoot
     ? `tetraciclo${vonBaeyer.descriptor}${parentRoot}ano`
     : null;
+  const primaryFunctionalGroup: FusedBicyclicFunctionalKind | undefined = unnumberedFunctionalGroups
+    .some((group) => group.kind === "ketone")
+    ? "ketone"
+    : unnumberedFunctionalGroups.some((group) => group.kind === "alcohol")
+      ? "alcohol"
+      : undefined;
   const rankedNumberings = vonBaeyer
     ? vonBaeyer.candidates.flatMap((candidate) => {
       const unsaturation = multipleBondLocations(molecule, atomIds, candidate.numbering);
@@ -1085,14 +1094,26 @@ export function getFusedTetracyclicSystem(
         ...substituent,
         locant: locants.get(substituent.anchorId)!,
       }));
-      const prefixLocants = substituents
-        .map((substituent) => substituent.locant)
+      const functionalGroups = unnumberedFunctionalGroups.map((group) => ({
+        ...group,
+        locant: locants.get(group.carbonId)!,
+      }));
+      const primaryLocants = functionalGroups
+        .filter((group) => group.kind === primaryFunctionalGroup)
+        .map((group) => group.locant)
         .sort((left, right) => left - right);
-      const citationLocants = [...new Set(substituents.map((substituent) => substituent.name))]
+      const functionalPrefixes: LocantedPrefix[] = functionalGroups
+        .filter((group) => group.kind !== primaryFunctionalGroup)
+        .map((group) => ({ name: "hidroxi", locant: group.locant }));
+      const prefixes: LocantedPrefix[] = [...substituents, ...functionalPrefixes];
+      const prefixLocants = prefixes
+        .map((prefix) => prefix.locant)
+        .sort((left, right) => left - right);
+      const citationLocants = [...new Set(prefixes.map((prefix) => prefix.name))]
         .sort((left, right) => left.localeCompare(right, "es"))
-        .flatMap((name) => substituents
-          .filter((substituent) => substituent.name === name)
-          .map((substituent) => substituent.locant)
+        .flatMap((name) => prefixes
+          .filter((prefix) => prefix.name === name)
+          .map((prefix) => prefix.locant)
           .sort((left, right) => left - right));
       const combinedLocations = [
         ...unsaturation.doubleBondLocations,
@@ -1109,6 +1130,9 @@ export function getFusedTetracyclicSystem(
       return [{
         candidate,
         substituents,
+        functionalGroups,
+        primaryLocants,
+        prefixes,
         prefixLocants,
         citationLocants,
         multipleLocants,
@@ -1119,9 +1143,10 @@ export function getFusedTetracyclicSystem(
         ...unsaturation,
       }];
     }).sort((left, right) => (
-      // P-31.1.4: minimize compound locants, then all multiple-bond locants;
-      // double bonds win a remaining en/yne tie. Prefixes follow under P-14.5.
-      left.compoundLocantCount - right.compoundLocantCount
+      // P-14.4 gives the principal suffix function first priority. P-31.1.4
+      // then ranks unsaturation; detachable prefixes follow under P-14.5.
+      compareNumberLists(left.primaryLocants, right.primaryLocants)
+      || left.compoundLocantCount - right.compoundLocantCount
       || compareNumberLists(left.multipleLocants, right.multipleLocants)
       || compareNumberLists(left.doubleBondLocants, right.doubleBondLocants)
       || compareNumberLists(left.allMultipleLocants, right.allMultipleLocants)
@@ -1138,6 +1163,11 @@ export function getFusedTetracyclicSystem(
     ...substituent,
     locant: selectedLocants.get(substituent.anchorId)!,
   }));
+  const functionalGroups = selectedNumbering?.functionalGroups ?? unnumberedFunctionalGroups.map((group) => ({
+    ...group,
+    locant: selectedLocants.get(group.carbonId)!,
+  }));
+  const primaryLocants = selectedNumbering?.primaryLocants ?? [];
   const doubleBondLocations = selectedNumbering?.doubleBondLocations ?? [];
   const tripleBondLocations = selectedNumbering?.tripleBondLocations ?? [];
   const doubleBondLocants = selectedNumbering?.doubleBondLocants ?? [];
@@ -1151,17 +1181,22 @@ export function getFusedTetracyclicSystem(
       tripleBondLocations.map(formatMultipleBondLocant),
     )
     : null;
-  const substituentPrefix = formatSubstituentPrefixes(substituents);
+  const functionalizedParentName = hydrocarbonParentName
+    ? functionalParentName(hydrocarbonParentName, primaryFunctionalGroup, primaryLocants)
+    : null;
+  const substituentPrefix = selectedNumbering && functionalizedParentName
+    ? formatSubstituentPrefixes(selectedNumbering.prefixes)
+    : null;
   const alkylAtomCount = substituents.reduce((count, substituent) => count + substituent.atomIds.length, 0);
+  const namedExternalAtomCount = alkylAtomCount + functionalHeteroAtomIds.size;
   const namesSupported = Boolean(
-    hydrocarbonParentName
+    functionalizedParentName
     && selectedCandidate
-    && functionalGroups.length === 0
-    && alkylAtomCount === externalAtomIds.length
+    && namedExternalAtomCount === externalAtomIds.length
     && substituentPrefix !== null
   );
   const systematicName = namesSupported
-    ? substituentPrefix ? `${substituentPrefix}${hydrocarbonParentName}` : hydrocarbonParentName
+    ? substituentPrefix ? `${substituentPrefix}${functionalizedParentName}` : functionalizedParentName
     : null;
 
   const topologyKinds = selected.junctionTopologies.map((junction) => junction.topology);
@@ -1202,6 +1237,7 @@ export function getFusedTetracyclicSystem(
     coreMultipleBonds,
     substituents,
     functionalGroups,
+    primaryFunctionalGroup,
     doubleBondLocants,
     tripleBondLocants,
     doubleBondLocations,
@@ -1228,8 +1264,10 @@ export function getFusedTetracyclicSystem(
       length: 0,
       attachmentLocants: bridge.locants,
     })),
-    parentName: hydrocarbonParentName ?? parentName,
-    parentNameEn: translateSpanishIupacToOpsin(hydrocarbonParentName ?? parentName ?? "") || null,
+    parentName: functionalizedParentName ?? hydrocarbonParentName ?? parentName,
+    parentNameEn: translateSpanishIupacToOpsin(
+      functionalizedParentName ?? hydrocarbonParentName ?? parentName ?? "",
+    ) || null,
     systematicName,
     systematicNameEn: systematicName ? translateSpanishIupacToOpsin(systematicName) : null,
   };

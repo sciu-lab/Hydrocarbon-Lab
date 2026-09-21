@@ -3362,7 +3362,8 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
     if (!steroidLike?.isGonaneTopology) {
       const fusedTetracyclic = getFusedTetracyclicSystem(molecule, groups);
       if (fusedTetracyclic) {
-        const primaryFunctionalGroup = selectPrimaryFunctionalGroup(groups);
+        const primaryFunctionalGroup = fusedTetracyclic.primaryFunctionalGroup
+          ?? selectPrimaryFunctionalGroup(groups);
         const hasSystematicName = Boolean(fusedTetracyclic.systematicName);
         const substituents = fusedTetracyclic.substituents.map((substituent) => ({
           locant: substituent.locant,
@@ -3716,6 +3717,19 @@ export function buildIupacReasoningSteps(
       doubleBondText ? `dobles enlaces en ${doubleBondText}` : "",
       tripleBondText ? `triples enlaces en ${tripleBondText}` : "",
     ].filter(Boolean).join(" y ");
+    const primaryFunctionalLocants = system.functionalGroups
+      .filter((group) => group.kind === system.primaryFunctionalGroup)
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const hydroxyLocants = system.functionalGroups
+      .filter((group) => group.kind === "alcohol" && system.primaryFunctionalGroup === "ketone")
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const functionalText = system.primaryFunctionalGroup === "ketone"
+      ? `cetona en ${carbonLocantsText(primaryFunctionalLocants)}${hydroxyLocants.length ? ` e hidroxi en ${carbonLocantsText(hydroxyLocants)}` : ""}`
+      : system.primaryFunctionalGroup === "alcohol"
+        ? `alcohol en ${carbonLocantsText(primaryFunctionalLocants)}`
+        : "";
     return [
       {
         number: "01",
@@ -3737,7 +3751,7 @@ export function buildIupacReasoningSteps(
       {
         number: "04", title: system.systematicName ? "Insaturaciones, sustituyentes y nombre" : "Alcance de esta etapa",
         explanation: system.systematicName
-          ? `Las numeraciones von Baeyer equivalentes minimizan primero los localizadores compuestos y el conjunto de localizadores de insaturación; después se consideran los sustituyentes${unsaturationText ? `; se identifican ${unsaturationText}` : ""}${alkylText ? `; además, ${alkylText}` : ""}. Con ${system.atomIds.length} carbonos en el padre, el nombre resultante es ${system.systematicName}.`
+          ? `Las numeraciones von Baeyer equivalentes minimizan primero los localizadores de la función principal, después los de insaturación y finalmente los prefijos${functionalText ? `; se identifica ${functionalText}` : ""}${unsaturationText ? `; también ${unsaturationText}` : ""}${alkylText ? `; además, ${alkylText}` : ""}. Con ${system.atomIds.length} carbonos en el padre, el nombre resultante es ${system.systematicName}.`
           : "El núcleo y sus candidatos de numeración se conservan, pero no se nombra porque contiene grupos funcionales o una combinación fuera del alcance de esta etapa.",
       },
     ];
@@ -4140,6 +4154,19 @@ export function buildEnglishReasoningSteps(
       doubleBondText ? `double bonds at ${doubleBondText}` : "",
       tripleBondText ? `triple bonds at ${tripleBondText}` : "",
     ].filter(Boolean).join(" and ");
+    const primaryFunctionalLocants = system.functionalGroups
+      .filter((group) => group.kind === system.primaryFunctionalGroup)
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const hydroxyLocants = system.functionalGroups
+      .filter((group) => group.kind === "alcohol" && system.primaryFunctionalGroup === "ketone")
+      .map((group) => group.locant)
+      .sort((left, right) => left - right);
+    const functionalText = system.primaryFunctionalGroup === "ketone"
+      ? `ketone at ${carbonLocantsText(primaryFunctionalLocants)}${hydroxyLocants.length ? ` and hydroxy at ${carbonLocantsText(hydroxyLocants)}` : ""}`
+      : system.primaryFunctionalGroup === "alcohol"
+        ? `alcohol at ${carbonLocantsText(primaryFunctionalLocants)}`
+        : "";
     return [
       {
         number: "01", title: "Fused tetracyclic system",
@@ -4160,7 +4187,7 @@ export function buildEnglishReasoningSteps(
       {
         number: "04", title: system.systematicNameEn ? "Unsaturation, substituents and name" : "Current scope",
         explanation: system.systematicNameEn
-          ? `Equivalent von Baeyer numberings first minimize compound locants and the multiple-bond locant set, followed by substituent locants${unsaturationText ? `; the structure contains ${unsaturationText}` : ""}${alkylText ? `; it also contains ${alkylText}` : ""}. With ${system.atomIds.length} parent carbons, the resulting name is ${system.systematicNameEn}.`
+          ? `Equivalent von Baeyer numberings first minimize principal-function locants, then multiple-bond locants, and finally prefix locants${functionalText ? `; the structure contains ${functionalText}` : ""}${unsaturationText ? `; it also contains ${unsaturationText}` : ""}${alkylText ? `; additionally, ${alkylText}` : ""}. With ${system.atomIds.length} parent carbons, the resulting name is ${system.systematicNameEn}.`
           : "The core and numbering candidates are retained, but no derivative name is emitted because it contains functional groups or a combination outside this phase.",
       },
     ];

@@ -114,6 +114,10 @@ function addAtom(molecule, carbonId, element, order = 1) {
   return next;
 }
 
+function addCoreOxygenFunction(molecule, carbonId, kind) {
+  return addAtom(molecule, carbonId, "O", kind === "ketone" ? 2 : 1);
+}
+
 function addLinearAlkyl(molecule, anchorId, carbonCount) {
   const next = structuredClone(molecule);
   let previousId = anchorId;
@@ -526,6 +530,173 @@ test("rejects a triple bond that exceeds fusion-carbon valence", () => {
   assert.equal(getFusedTetracyclicSystem(setCoreBondOrder(makeTetracycle(), 8, 9, 3)), null);
 });
 
+test("names tetracyclic alcohols and ketones on all supported cores", () => {
+  const cases = [
+    {
+      sizes: [6, 6, 6, 6], dispositions: ["linear", "linear"], kind: "alcohol", anchorId: 7,
+      es: "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecan-2-ol",
+      en: "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecan-2-ol",
+    },
+    {
+      sizes: [6, 6, 6, 6], dispositions: ["linear", "linear"], kind: "ketone", anchorId: 4,
+      es: "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecan-5-ona",
+      en: "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecan-5-one",
+    },
+    {
+      sizes: [6, 6, 6, 5], dispositions: ["linear", "linear"], kind: "alcohol", anchorId: 7,
+      es: "tetraciclo[8.7.0.0^{3,8}.0^{12,16}]heptadecan-2-ol",
+      en: "tetracyclo[8.7.0.0^{3,8}.0^{12,16}]heptadecan-2-ol",
+    },
+    {
+      sizes: [6, 6, 6, 5], dispositions: ["linear", "linear"], kind: "ketone", anchorId: 4,
+      es: "tetraciclo[8.7.0.0^{3,8}.0^{12,16}]heptadecan-5-ona",
+      en: "tetracyclo[8.7.0.0^{3,8}.0^{12,16}]heptadecan-5-one",
+    },
+    {
+      sizes: [6, 6, 5, 6], dispositions: ["angular", "angular"], kind: "alcohol", anchorId: 6,
+      es: "tetraciclo[8.7.0.0^{2,7}.0^{12,17}]heptadecan-3-ol",
+      en: "tetracyclo[8.7.0.0^{2,7}.0^{12,17}]heptadecan-3-ol",
+    },
+    {
+      sizes: [6, 6, 5, 6], dispositions: ["angular", "angular"], kind: "ketone", anchorId: 4,
+      es: "tetraciclo[8.7.0.0^{2,7}.0^{12,17}]heptadecan-5-ona",
+      en: "tetracyclo[8.7.0.0^{2,7}.0^{12,17}]heptadecan-5-one",
+    },
+  ];
+  for (const expected of cases) {
+    const molecule = addCoreOxygenFunction(
+      makeTetracycle(expected.sizes, expected.dispositions),
+      expected.anchorId,
+      expected.kind,
+    );
+    const system = getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule));
+    assert.equal(system?.systematicName, expected.es);
+    assert.equal(system?.systematicNameEn, expected.en);
+    assert.equal(system?.primaryFunctionalGroup, expected.kind);
+  }
+});
+
+test("names tetracyclic diols, triols and diones", () => {
+  let diol = addCoreOxygenFunction(makeTetracycle(), 7, "alcohol");
+  diol = addCoreOxygenFunction(diol, 18, "alcohol");
+  const diolSystem = getFusedTetracyclicSystem(diol, detectedOxygenGroups(diol));
+  assert.equal(
+    diolSystem?.systematicName,
+    "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano-2,13-diol",
+  );
+  assert.equal(
+    diolSystem?.systematicNameEn,
+    "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane-2,13-diol",
+  );
+
+  let triol = addCoreOxygenFunction(diol, 4, "alcohol");
+  const triolSystem = getFusedTetracyclicSystem(triol, detectedOxygenGroups(triol));
+  assert.equal(
+    triolSystem?.systematicName,
+    "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano-2,6,13-triol",
+  );
+
+  let dione = addCoreOxygenFunction(makeTetracycle(), 7, "ketone");
+  dione = addCoreOxygenFunction(dione, 18, "ketone");
+  const dioneSystem = getFusedTetracyclicSystem(dione, detectedOxygenGroups(dione));
+  assert.equal(
+    dioneSystem?.systematicName,
+    "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecano-2,13-diona",
+  );
+  assert.equal(
+    dioneSystem?.systematicNameEn,
+    "tetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecane-2,13-dione",
+  );
+});
+
+test("names diols and diones on the 6-6-6-5 and 6-6-5-6 cores", () => {
+  const cases = [
+    {
+      sizes: [6, 6, 6, 5], dispositions: ["linear", "linear"], anchors: [7, 16], kind: "alcohol",
+      name: "tetraciclo[8.7.0.0^{3,8}.0^{12,16}]heptadecano-2,14-diol",
+    },
+    {
+      sizes: [6, 6, 6, 5], dispositions: ["linear", "linear"], anchors: [7, 16], kind: "ketone",
+      name: "tetraciclo[8.7.0.0^{3,8}.0^{12,16}]heptadecano-2,14-diona",
+    },
+    {
+      sizes: [6, 6, 5, 6], dispositions: ["angular", "angular"], anchors: [6, 4], kind: "alcohol",
+      name: "tetraciclo[8.7.0.0^{2,7}.0^{12,17}]heptadecano-3,5-diol",
+    },
+    {
+      sizes: [6, 6, 5, 6], dispositions: ["angular", "angular"], anchors: [6, 4], kind: "ketone",
+      name: "tetraciclo[8.7.0.0^{2,7}.0^{12,17}]heptadecano-3,5-diona",
+    },
+  ];
+  for (const expected of cases) {
+    let molecule = makeTetracycle(expected.sizes, expected.dispositions);
+    for (const anchorId of expected.anchors) {
+      molecule = addCoreOxygenFunction(molecule, anchorId, expected.kind);
+    }
+    assert.equal(
+      getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule))?.systematicName,
+      expected.name,
+    );
+  }
+});
+
+test("uses ketone as suffix and alcohol as a hydroxy prefix", () => {
+  let molecule = addCoreOxygenFunction(makeTetracycle(), 4, "ketone");
+  molecule = addCoreOxygenFunction(molecule, 7, "alcohol");
+  const system = getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule));
+  assert.equal(
+    system?.systematicName,
+    "9-hidroxitetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadecan-5-ona",
+  );
+  assert.equal(
+    system?.systematicNameEn,
+    "9-hydroxytetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadecan-5-one",
+  );
+  assert.equal(system?.primaryFunctionalGroup, "ketone");
+});
+
+test("combines a principal function with alkyl and simple or compound unsaturation", () => {
+  let molecule = setCoreBondOrder(makeTetracycle(), 7, 8, 2);
+  molecule = addCoreOxygenFunction(molecule, 4, "ketone");
+  molecule = addLinearAlkyl(molecule, 16, 1);
+  const methylEnone = getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule));
+  assert.equal(
+    methylEnone?.systematicName,
+    "14-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-9-en-5-ona",
+  );
+
+  molecule = addCoreOxygenFunction(molecule, 7, "alcohol");
+  const complete = getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule));
+  assert.equal(
+    complete?.systematicName,
+    "9-hidroxi-14-metiltetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-9-en-5-ona",
+  );
+  assert.equal(
+    complete?.systematicNameEn,
+    "9-hydroxy-14-methyltetracyclo[8.8.0.0^{3,8}.0^{12,17}]octadec-9-en-5-one",
+  );
+
+  let compound = setCoreBondOrder(makeTetracycle(), 8, 9, 2);
+  compound = addCoreOxygenFunction(compound, 4, "ketone");
+  const compoundSystem = getFusedTetracyclicSystem(compound, detectedOxygenGroups(compound));
+  assert.equal(
+    compoundSystem?.systematicName,
+    "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-1(10)-en-5-ona",
+  );
+});
+
+test("gives the principal function priority over a lower alkene locant", () => {
+  let molecule = setCoreBondOrder(makeTetracycle(), 7, 8, 2);
+  molecule = addCoreOxygenFunction(molecule, 4, "ketone");
+  const system = getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule));
+  assert.equal(system?.functionalGroups[0].locant, 5);
+  assert.equal(system?.doubleBondLocations[0].lower, 9);
+  assert.equal(
+    system?.systematicName,
+    "tetraciclo[8.8.0.0^{3,8}.0^{12,17}]octadec-9-en-5-ona",
+  );
+});
+
 test("preserves alkyl, direct alcohol, ketone and core-unsaturation recognition", () => {
   const molecule = decoratedTetracycle();
   const system = getFusedTetracyclicSystem(molecule, detectedOxygenGroups(molecule));
@@ -558,7 +729,11 @@ test("is invariant under atom IDs, coordinates, construction records and orienta
   const actual = getFusedTetracyclicSystem(transformed, detectedOxygenGroups(transformed));
   assert.deepEqual(structuralSummary(actual), structuralSummary(expected));
   assert.deepEqual(actual.substituents.map((item) => item.name), expected.substituents.map((item) => item.name));
-  assert.deepEqual(actual.functionalGroups.map((item) => item.kind).sort(), expected.functionalGroups.map((item) => item.kind).sort());
+  assert.deepEqual(
+    actual.functionalGroups.map(({ kind, locant }) => ({ kind, locant })).sort((left, right) => left.locant - right.locant),
+    expected.functionalGroups.map(({ kind, locant }) => ({ kind, locant })).sort((left, right) => left.locant - right.locant),
+  );
+  assert.equal(actual.systematicNameEn, expected.systematicNameEn);
 });
 
 test("keeps alkyl and unsaturation locants invariant under IDs, reflection and record order", () => {
@@ -604,6 +779,45 @@ test("selects the same descriptor when the fusion chain is constructed from the 
   assert.deepEqual(reverse?.secondaryBridges.map((bridge) => bridge.attachmentLocants), forward?.secondaryBridges.map((bridge) => bridge.attachmentLocants));
 });
 
+test("keeps a principal-function name when the fusion chain is built from the opposite end", () => {
+  const functionalize = (molecule) => {
+    const parent = getFusedTetracyclicSystem(molecule);
+    assert.ok(parent);
+    return addCoreOxygenFunction(molecule, parent.numbering[3], "ketone");
+  };
+  const forward = functionalize(makeTetracycle([6, 6, 6, 5], ["linear", "linear"]));
+  const reverse = functionalize(makeTetracycle([5, 6, 6, 6], ["linear", "linear"]));
+  assert.equal(
+    getFusedTetracyclicSystem(reverse, detectedOxygenGroups(reverse))?.systematicName,
+    getFusedTetracyclicSystem(forward, detectedOxygenGroups(forward))?.systematicName,
+  );
+});
+
+test("rejects side-chain functions and unsupported direct functions safely", () => {
+  let sideChain = addLinearAlkyl(makeTetracycle(), 7, 2);
+  const sideChainTerminal = Math.max(...sideChain.atoms.map((atom) => atom.id));
+  sideChain = addCoreOxygenFunction(sideChain, sideChainTerminal, "alcohol");
+  assert.equal(
+    getFusedTetracyclicSystem(sideChain, detectedOxygenGroups(sideChain)),
+    null,
+  );
+
+  const unsupported = addAtom(makeTetracycle(), 6, "N", 1);
+  const nitrogenId = Math.max(...unsupported.atoms.map((atom) => atom.id));
+  assert.equal(getFusedTetracyclicSystem(unsupported, [{
+    kind: "amine",
+    carbonId: 6,
+    heteroAtomId: nitrogenId,
+    atomIds: [6, nitrogenId],
+  }]), null);
+
+  const invalidFusionKetone = addCoreOxygenFunction(makeTetracycle(), 8, "ketone");
+  assert.equal(
+    getFusedTetracyclicSystem(invalidFusionKetone, detectedOxygenGroups(invalidFusionKetone)),
+    null,
+  );
+});
+
 test("rejects spiro, externally connected and branched four-ring assemblies", () => {
   const spiroRings = Array.from({ length: 4 }, (_, ringIndex) => ({
     id: ringIndex + 1,
@@ -635,17 +849,23 @@ test("rejects spiro, externally connected and branched four-ring assemblies", ()
   assert.equal(getFusedTetracyclicSystem(branched), null);
 });
 
-test("integrates structural analysis bilingually without emitting a provisional name", () => {
+test("integrates the complete tetracyclic functional name and explanation bilingually", () => {
   const molecule = decoratedTetracycle();
   const analysis = analyzeMolecule(molecule);
   assert.ok(analysis.fusedTetracyclic);
-  assert.equal(analysis.name, "Nombre no disponible para estructuras complejas");
-  assert.equal(analysis.numberedAtoms.size, 0);
+  assert.equal(
+    analysis.name,
+    "14-hidroxi-16-metiltetraciclo[8.8.0.0^{2,7}.0^{12,17}]octadec-5-en-18-ona",
+  );
+  assert.equal(analysis.numberedAtoms.size, 18);
+  assert.equal(analysis.primaryFunctionalGroup, "ketone");
   assert.match(analysis.ringSystem, /Sistema tetracíclico fusionado 6-6-6-6/);
   const spanish = buildIupacReasoningSteps(molecule, analysis);
   const english = buildEnglishReasoningSteps(spanish, molecule, analysis);
-  assert.match(spanish.map((step) => step.explanation).join(" "), /no se nombra porque contiene/);
-  assert.match(english.map((step) => step.explanation).join(" "), /no derivative name is emitted/);
+  assert.match(spanish.map((step) => step.explanation).join(" "), /cetona en C18 e hidroxi en C14/);
+  assert.match(spanish.map((step) => step.explanation).join(" "), /metil en C16/);
+  assert.match(english.map((step) => step.explanation).join(" "), /ketone at C18 and hydroxy at C14/);
+  assert.match(english.map((step) => step.explanation).join(" "), /14-hydroxy-16-methyltetracyclo/);
 });
 
 test("preserves bicyclic, tricyclic and specialised steroid recognition", () => {
