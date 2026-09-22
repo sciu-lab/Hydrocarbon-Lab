@@ -5,15 +5,21 @@ import test from "node:test";
 const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
-test("display controls are visible again", () => {
-  const displayBlock = css.match(/\.display-options\s*\{([^}]*)\}/)?.[1] ?? "";
-  assert.match(displayBlock, /display:\s*flex;/);
-  assert.doesNotMatch(displayBlock, /display:\s*none;/);
+test("display preferences are available in Settings, not below the canvas", () => {
+  const settings = page.slice(page.indexOf('className="settings-panel"'), page.indexOf('settings-accessibility'));
+  assert.match(settings, /Mostrar hidrógenos implícitos/);
+  assert.match(settings, /Numerar anillo/);
+  assert.match(settings, /Tamaño de numeración/);
+  assert.match(settings, /Tamaño de grupos funcionales/);
+  assert.match(settings, /Tamaño de badges R\/S/);
+  assert.match(settings, /Mostrar etiquetas de anillos esteroideos/);
+  assert.match(settings, /Resaltar sustituyentes/);
+  assert.doesNotMatch(page, /className="display-options"/);
 });
 
 test("implicit-H toggle remains enabled in skeletal view", () => {
   assert.match(page, /const showHydrogenOnLabel = showHydrogens;/);
-  assert.match(page, /checked=\{showHydrogens\} onChange=/);
+  assert.match(page, /checked=\{showHydrogens\}/);
   assert.doesNotMatch(page, /checked=\{showHydrogens\} disabled=\{viewMode === "skeletal"\}/);
 });
 

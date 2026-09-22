@@ -192,7 +192,6 @@ const MAX_EXPORT_PIXELS = 8000;
 const compoundContextResolver = createCompoundContextResolver();
 const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
 const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v2";
-const KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY = "hydrocarbonLab.keepIupacNameVisible.v1";
 const NUMBERING_SCALE_STORAGE_KEY = "hydrocarbonLab.numberingScale.v1";
 const FUNCTIONAL_GROUP_SCALE_STORAGE_KEY = "hydrocarbonLab.functionalGroupScale.v1";
 const DEFAULT_FUNCTIONAL_GROUP_SCALE = 1;
@@ -5696,17 +5695,13 @@ export default function Home() {
   const [fusionSelection, setFusionSelection] = useState<{ molecule: Molecule; a: number; b: number } | null>(null);
   const selectedFusionBond = fusionSelection?.molecule === molecule ? fusionSelection : null;
   const [showIupacName, setShowIupacName] = useState(true);
-  const [keepIupacNameVisible, setKeepIupacNameVisible] = useState(true);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const [draggingPanelId, setDraggingPanelId] = useState<MovablePanelId | null>(null);
   const [raisedPanelId, setRaisedPanelId] = useState<MovablePanelId | null>(null);
   const [panelDraggingEnabled, setPanelDraggingEnabled] = useState(false);
   const [panelDragPreferenceReady, setPanelDragPreferenceReady] = useState(false);
-  const [keepIupacNameVisiblePreferenceReady, setKeepIupacNameVisiblePreferenceReady] = useState(false);
-  const [isNameResultVisible, setIsNameResultVisible] = useState(true);
   const panelPositionsRef = useRef<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const activePanelDragRef = useRef<ActivePanelDrag | null>(null);
-  const nameResultRef = useRef<HTMLDivElement | null>(null);
   const [compoundContext, setCompoundContext] = useState<CompoundContext | null>(null);
   const [compoundContextLoadingKey, setCompoundContextLoadingKey] = useState("");
   const [externalInfoSource, setExternalInfoSource] = useState<"wikipedia" | "pubchem">("wikipedia");
@@ -5754,6 +5749,7 @@ export default function Home() {
   const [notice, setNotice] = useState("Selecciona un carbono para añadir otro o toca un enlace para cambiar su orden.");
   const [valenceAlert, setValenceAlert] = useState<string | null>(null);
   const [nameBuilderOpen, setNameBuilderOpen] = useState(true);
+  const [iupacDockExpanded, setIupacDockExpanded] = useState(false);
   const [iupacInput, setIupacInput] = useState("");
   const [nameBuilderBusy, setNameBuilderBusy] = useState(false);
   const [nameBuilderFeedback, setNameBuilderFeedback] = useState<NameBuilderFeedback | null>(null);
@@ -5953,7 +5949,6 @@ export default function Home() {
     });
     return molecules;
   }, [formulaResult]);
-  const showStickyIupacName = keepIupacNameVisible && showIupacName && !isNameResultVisible;
 
   useEffect(() => {
     compoundLookupNamesRef.current = [canonicalIupacName];
@@ -5991,41 +5986,6 @@ export default function Home() {
     }
   }, [panelDragPreferenceReady, panelDraggingEnabled]);
 
-  useEffect(() => {
-    let enabled = true;
-    try {
-      enabled = window.localStorage.getItem(KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY) !== "off";
-    } catch {
-      // The default remains on when browser storage is unavailable.
-    }
-    const restore = window.setTimeout(() => {
-      setKeepIupacNameVisible(enabled);
-      setKeepIupacNameVisiblePreferenceReady(true);
-    }, 0);
-    return () => window.clearTimeout(restore);
-  }, []);
-
-  useEffect(() => {
-    if (!keepIupacNameVisiblePreferenceReady) return;
-    try {
-      window.localStorage.setItem(
-        KEEP_IUPAC_NAME_VISIBLE_STORAGE_KEY,
-        keepIupacNameVisible ? "on" : "off",
-      );
-    } catch {
-      // The preference remains usable for the current session without storage.
-    }
-  }, [keepIupacNameVisible, keepIupacNameVisiblePreferenceReady]);
-
-  useEffect(() => {
-    const nameResult = nameResultRef.current;
-    if (!nameResult || typeof IntersectionObserver === "undefined") return undefined;
-    const observer = new IntersectionObserver(([entry]) => {
-      setIsNameResultVisible(entry.isIntersecting);
-    }, { threshold: 0.01 });
-    observer.observe(nameResult);
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     if (!showIupacName || !compoundContextKey || !compoundIdentity) return undefined;
@@ -6750,6 +6710,7 @@ export default function Home() {
       setShowRingPalette(false);
       setShowFunctionalPalette(false);
       setIupacInput(submittedName);
+      setNameBuilderOpen(false);
       setNameBuilderFeedback({
         kind: "success",
         message: fromSuggestion
@@ -9104,24 +9065,35 @@ export default function Home() {
                 />
                 <i aria-hidden="true" />
               </label>
+              {analysis.steroidSystem?.numbering && (
+                <label className="settings-toggle">
+                  <span>{t("Mostrar etiquetas de anillos esteroideos")}</span>
+                  <input type="checkbox" checked={showSteroidRingLabels} onChange={(event) => setShowSteroidRingLabels(event.target.checked)} />
+                  <i aria-hidden="true" />
+                </label>
+              )}
+              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de numeración")}>
+                <strong>{t("Tamaño de numeración")}</strong>
+                <div className="settings-scale-actions">
+                  <input type="range" min={MIN_NUMBERING_SCALE} max={MAX_NUMBERING_SCALE} step={NUMBERING_SCALE_STEP} value={numberingScale} disabled={!automaticNumberingAvailable} onChange={(event) => updateNumberingScale(Number(event.target.value))} aria-label={t("Tamaño de numeración")} />
+                  <output aria-live="polite">{Math.round(numberingScale * 100)} %</output>
+                  <button type="button" disabled={numberingScale === DEFAULT_NUMBERING_SCALE} onClick={() => updateNumberingScale(DEFAULT_NUMBERING_SCALE)}>{t("Restablecer")}</button>
+                </div>
+              </div>
+              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de grupos funcionales")}>
+                <strong>{t("Tamaño de grupos funcionales")}</strong>
+                <div className="settings-scale-actions">
+                  <input type="range" min={MIN_FUNCTIONAL_GROUP_SCALE} max={MAX_FUNCTIONAL_GROUP_SCALE} step={FUNCTIONAL_GROUP_SCALE_STEP} value={functionalGroupScale} onChange={(event) => updateFunctionalGroupScale(Number(event.target.value))} aria-label={t("Tamaño de grupos funcionales")} />
+                  <output aria-live="polite">{Math.round(functionalGroupScale * 100)} %</output>
+                  <button type="button" disabled={functionalGroupScale === DEFAULT_FUNCTIONAL_GROUP_SCALE} onClick={() => updateFunctionalGroupScale(DEFAULT_FUNCTIONAL_GROUP_SCALE)}>{t("Restablecer")}</button>
+                </div>
+              </div>
               <label className="settings-toggle">
                 <span>{t("Recordar estereoquímica")}</span>
                 <input
                   type="checkbox"
                   checked={showStereochemistry}
                   onChange={(event) => setShowStereochemistry(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle settings-toggle-with-description">
-                <span>
-                  <strong>{t("Mantener nombre IUPAC visible al desplazarse")}</strong>
-                  <small>{t("Muestra una versión compacta del nombre IUPAC mientras trabajas más abajo en el canvas.")}</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={keepIupacNameVisible}
-                  onChange={(event) => setKeepIupacNameVisible(event.target.checked)}
                 />
                 <i aria-hidden="true" />
               </label>
@@ -9539,6 +9511,7 @@ export default function Home() {
           className={`builder-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "structure-panel" ? "is-raised" : ""} ${draggingPanelId === "structure-panel" ? "is-dragging" : ""}`}
           style={panelStyle("structure-panel")}
         >
+          <div className="construction-head">
           <div
             className="card-heading panel-drag-handle"
             onPointerDown={(event) => beginPanelDrag("structure-panel", event)}
@@ -9942,6 +9915,7 @@ export default function Home() {
             </section>
           )}
 
+          </div>
           <ViewportPortal active={canvasExpanded}>
             {canvasExpanded && (
               <button
@@ -11202,113 +11176,6 @@ export default function Home() {
             {localizedDynamicText(notice)}
           </div>
 
-          <div className="display-options">
-            <label title={t("Mostrar u ocultar hidrógenos implícitos, incluidos los unidos a heteroátomos")}>
-              <input type="checkbox" checked={showHydrogens} onChange={(event) => setShowHydrogens(event.target.checked)} />
-              <span /> {t("Mostrar H implícitos")}
-            </label>
-            <label
-              className={!automaticNumberingAvailable ? "option-disabled" : ""}
-              title={!automaticNumberingAvailable
-                ? t("La numeración automática se oculta para no atribuir localizadores de carbono a sustituyentes N-.")
-                : undefined}
-            >
-              <input
-                type="checkbox"
-                checked={effectiveShowNumbering}
-                disabled={!automaticNumberingAvailable}
-                onChange={(event) => setShowNumbering(event.target.checked)}
-              />
-              <span /> {automaticNumberingAvailable
-                ? `${t("Numerar")} ${isRingStructure ? t("anillo") : t("cadena principal")}`
-                : t("Numeración N- conservada en el nombre")}
-            </label>
-            {analysis.steroidSystem?.numbering && (
-              <label title={t("Muestra las letras A–D solo para el núcleo esteroideo reconocido")}>
-                <input
-                  type="checkbox"
-                  checked={showSteroidRingLabels}
-                  onChange={(event) => setShowSteroidRingLabels(event.target.checked)}
-                />
-                <span /> {t("Mostrar etiquetas de anillos esteroideos")}
-              </label>
-            )}
-            <div
-              className={`numbering-size-control ${!automaticNumberingAvailable ? "option-disabled" : ""}`}
-              role="group"
-              aria-label={t("Tamaño de numeración")}
-            >
-              <span className="numbering-size-label">{t("Tamaño de numeración")}</span>
-              <button
-                type="button"
-                disabled={!automaticNumberingAvailable || numberingScale <= MIN_NUMBERING_SCALE}
-                onClick={() => updateNumberingScale(numberingScale - NUMBERING_SCALE_STEP)}
-                aria-label={t("Reducir tamaño de numeración")}
-              >−</button>
-              <input
-                type="range"
-                min={MIN_NUMBERING_SCALE}
-                max={MAX_NUMBERING_SCALE}
-                step={NUMBERING_SCALE_STEP}
-                value={numberingScale}
-                disabled={!automaticNumberingAvailable}
-                onChange={(event) => updateNumberingScale(Number(event.target.value))}
-                aria-label={t("Tamaño de numeración")}
-              />
-              <button
-                type="button"
-                disabled={!automaticNumberingAvailable || numberingScale >= MAX_NUMBERING_SCALE}
-                onClick={() => updateNumberingScale(numberingScale + NUMBERING_SCALE_STEP)}
-                aria-label={t("Aumentar tamaño de numeración")}
-              >+</button>
-              <output aria-live="polite">{Math.round(numberingScale * 100)} %</output>
-            </div>
-            <div
-              className="numbering-size-control functional-group-size-control"
-              role="group"
-              aria-label={t("Tamaño de grupos funcionales")}
-            >
-              <span className="numbering-size-label">{t("Tamaño de grupos funcionales")}</span>
-              <button
-                type="button"
-                disabled={functionalGroupScale <= MIN_FUNCTIONAL_GROUP_SCALE}
-                onClick={() => updateFunctionalGroupScale(functionalGroupScale - FUNCTIONAL_GROUP_SCALE_STEP)}
-                aria-label={t("Reducir tamaño de grupos funcionales")}
-              >−</button>
-              <input
-                type="range"
-                min={MIN_FUNCTIONAL_GROUP_SCALE}
-                max={MAX_FUNCTIONAL_GROUP_SCALE}
-                step={FUNCTIONAL_GROUP_SCALE_STEP}
-                value={functionalGroupScale}
-                onChange={(event) => updateFunctionalGroupScale(Number(event.target.value))}
-                aria-label={t("Tamaño de grupos funcionales")}
-              />
-              <button
-                type="button"
-                disabled={functionalGroupScale >= MAX_FUNCTIONAL_GROUP_SCALE}
-                onClick={() => updateFunctionalGroupScale(functionalGroupScale + FUNCTIONAL_GROUP_SCALE_STEP)}
-                aria-label={t("Aumentar tamaño de grupos funcionales")}
-              >+</button>
-              <output aria-live="polite">{Math.round(functionalGroupScale * 100)} %</output>
-            </div>
-            <label>
-              <input
-                type="checkbox"
-                checked={highlightSubstituents}
-                onChange={(event) => {
-                  const enabled = event.target.checked;
-                  setHighlightSubstituents(enabled);
-                  setNotice(
-                    enabled
-                      ? "Sustituyentes resaltados en amarillo para diferenciarlos de la cadena principal."
-                      : "Color uniforme activado: cadena principal y sustituyentes comparten el mismo color.",
-                  );
-                }}
-              />
-              <span /> {t("Resaltar sustituyentes")}
-            </label>
-          </div>
             </div>
           </ViewportPortal>
         </section>
@@ -11442,7 +11309,6 @@ export default function Home() {
           </div>
 
           <div
-            ref={nameResultRef}
             className={`name-result ${showIupacName ? "" : "concealed"}`}
             aria-live={advancedScreenReaderEnabled ? "polite" : undefined}
           >
@@ -11521,14 +11387,6 @@ export default function Home() {
             </button>
           </div>
 
-          <div
-            className={`sticky-iupac-name ${showStickyIupacName ? "is-visible" : ""}`}
-            aria-hidden={!showStickyIupacName}
-          >
-            <span>IUPAC</span>
-            <strong><ChemicalNameText name={displayedIupacName} /></strong>
-            <small><b aria-hidden="true">✓</b> {t("Estructura válida")}</small>
-          </div>
 
           {analysis.functionalGroups.length > 0 && (
             <div className="functional-detection" aria-label={t("Grupos funcionales detectados")}>
@@ -11800,6 +11658,25 @@ export default function Home() {
           <small>{t("Química que se construye.")}</small>
         </div>
       </footer>
+        </div>
+      </div>
+      <div className={`iupac-dock ${iupacDockExpanded ? "is-expanded" : ""}`} role="region" aria-label={t("Nombre IUPAC")}>
+        {iupacDockExpanded && (
+          <div className="iupac-dock-detail" id="iupac-dock-detail">
+            <span>IUPAC · {nomenclatureConventionLabel(activeNomenclatureConvention, language)}</span>
+            <strong><ChemicalNameText name={showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
+          </div>
+        )}
+        <div className="iupac-dock-inner">
+          <span className="iupac-dock-label">IUPAC</span>
+          <strong className="iupac-dock-name"><ChemicalNameText name={showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
+          <button type="button" className="iupac-dock-expand" onClick={() => setIupacDockExpanded((expanded) => !expanded)} aria-expanded={iupacDockExpanded} aria-controls="iupac-dock-detail" title={t("Mostrar nombre completo")}>
+            {iupacDockExpanded ? "⌄" : "⌃"}
+          </button>
+          <button type="button" className="iupac-dock-copy" disabled={!showIupacName} onClick={() => {
+            navigator.clipboard?.writeText(displayedIupacName);
+            setNotice("Nombre copiado al portapapeles.");
+          }}>{t("Copiar")}</button>
         </div>
       </div>
     </main>

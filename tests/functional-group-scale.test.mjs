@@ -91,7 +91,7 @@ test("a 200% functional label contributes its full painted extent to the SVG fra
 
 test("the display control remains independent from numbering", () => {
   assert.match(page, /aria-label=\{t\("Tamaño de grupos funcionales"\)\}/);
-  assert.match(page, /updateFunctionalGroupScale\(functionalGroupScale - FUNCTIONAL_GROUP_SCALE_STEP\)/);
-  assert.match(page, /updateNumberingScale\(numberingScale - NUMBERING_SCALE_STEP\)/);
+  assert.match(page, /onChange=\{\(event\) => updateFunctionalGroupScale\(Number\(event\.target\.value\)\)\}/);
+  assert.match(page, /onChange=\{\(event\) => updateNumberingScale\(Number\(event\.target\.value\)\)\}/);
   assert.match(page, /\{Math\.round\(functionalGroupScale \* 100\)\} %/);
 });
