@@ -150,6 +150,50 @@ test("the Kekulé benzene template stores three alternating double bonds", () =>
   assert.deepEqual(benzene.bonds.map((bond) => bond[2] ?? 1), [2, 1, 2, 1, 2, 1]);
 });
 
+test("the existing pristine aromatic templates are complete and chemically named", () => {
+  const makeRing = action("makeRing");
+  const makeSubstitutedRing = action("makeSubstitutedRing", { makeRing });
+  const templates = [
+    [makeRing(6, "aromatic"), "C6H6", "benceno"],
+    [makeSubstitutedRing("aromatic", [{ ringIndex: 0, length: 1 }]), "C7H8", "metilbenceno"],
+    [makeSubstitutedRing("aromatic", [{ ringIndex: 0, length: 2 }]), "C8H10", "etilbenceno"],
+  ];
+  for (const [molecule, formula, name] of templates) {
+    const hydrogenCount = molecule.atoms.reduce((count, atom) => {
+      const valence = molecule.bonds.reduce((sum, bond) =>
+        sum + ((bond[0] === atom.id || bond[1] === atom.id) ? (bond[2] ?? 1) : 0), 0);
+      return count + 4 - valence;
+    }, 0);
+    assert.equal(`C${molecule.atoms.length}H${hydrogenCount}`, formula);
+    assert.ok(page.includes(`label: "${name === "benceno" ? "Benceno" : name === "metilbenceno" ? "Tolueno" : "Etilbenceno"}"`));
+  }
+  assert.match(page, /!isPristineInitialMolecule && ringLibraryContext === "attach"/);
+  assert.match(page, /!isPristineInitialMolecule && ringLibraryContext === "attach" \? "attach" : "replace"/);
+});
+
+test("the By name action refocuses without toggling off an open builder", () => {
+  assert.match(page, /useEffect\(\(\) => \{\s*if \(nameBuilderOpen\) nameInputRef\.current\?\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(page, /if \(nameBuilderOpen\) \{\s*nameInputRef\.current\?\.focus\(\{ preventScroll: true \}\);\s*return;/);
+  assert.match(page, /id="iupac-name-input"\s+ref=\{nameInputRef\}/);
+});
+
+test("formula input keeps ASCII state while mirroring subscript glyphs", () => {
+  assert.match(page, /value=\{formulaInput\}[\s\S]*?normalizeFormulaBuilderInput\(event\.target\.value\)/);
+  assert.match(page, /className="formula-builder-input-visual" aria-hidden="true"/);
+  assert.match(page, /generateFormulaIsomers\(formulaInput\)/);
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /input\.has-visual-formula[\s\S]*?color: transparent;[\s\S]*?caret-color:/);
+});
+
+test("functional groups share the contextual scroll and use at most three columns", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.construction-context-panel > \.functional-palette \{\s*max-height: none;\s*overflow: visible;/);
+  assert.doesNotMatch(css, /\.functional-halogen \.functional-grid \{\s*grid-template-columns: repeat\(4/);
+  assert.match(css, /\.construction-context-panel \.functional-grid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/);
+  assert.match(css, /@media \(max-width: 760px\) \{\s*\.construction-context-panel \.functional-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}\s*\}/);
+  assert.match(css, /@media \(max-width: 460px\) \{\s*\.construction-context-panel \.functional-grid \{ grid-template-columns: minmax\(0, 1fr\); \}\s*\}/);
+});
+
 test("SVG and PNG export share the live ring-double-bond geometry", () => {
   assert.match(page, /getSkeletalRingDoubleBondSegments\(/);
   assert.match(page, /skeletal-ring-double-bond ring-double-bond-\$\{segment\.role\}/);

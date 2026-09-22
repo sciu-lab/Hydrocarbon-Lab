@@ -2176,7 +2176,7 @@ button {
     grid-template-areas:
       "name smiles"
       "formula formula"
-      "view view"
+      "examples view"
       "history history";
     grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: flex-start;
@@ -2319,6 +2319,7 @@ button {
   grid-template-areas:
     "name smiles"
     "formula view"
+    "examples examples"
     "history history";
   grid-template-columns: max-content max-content;
   align-items: center;
@@ -2336,6 +2337,10 @@ button {
 
 .heading-actions > .formula-toggle {
   grid-area: formula;
+}
+
+.heading-actions > .name-builder-toggle.examples-toggle:not(.smiles-toggle):not(.formula-toggle) {
+  grid-area: examples;
 }
 
 .heading-actions > .view-mode-switch {
@@ -6944,6 +6949,12 @@ html[data-theme="dark"] .creator-credit strong {
   background: linear-gradient(145deg, #fbf9fc, #f8fbfa);
 }
 
+/* The contextual panel owns the only vertical scroll for this library. */
+.construction-context-panel > .functional-palette {
+  max-height: none;
+  overflow: visible;
+}
+
 .functional-priority-note {
   display: flex;
   align-items: center;
@@ -7005,10 +7016,6 @@ html[data-theme="dark"] .creator-credit strong {
   gap: 7px;
 }
 
-.functional-halogen .functional-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
 .functional-option {
   position: relative;
   display: flex;
@@ -7064,6 +7071,8 @@ html[data-theme="dark"] .creator-credit strong {
 
 .functional-copy {
   min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .functional-copy strong,
@@ -7080,6 +7089,8 @@ html[data-theme="dark"] .creator-credit strong {
   color: #8a7e8f;
   font-size: 8px;
   line-height: 1.25;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .functional-option em {
@@ -8053,6 +8064,7 @@ html[data-theme="dark"] .external-info-link:hover {
 }
 
 .formula-builder-input-group {
+  position: relative;
   display: flex;
   min-width: 0;
   gap: 7px;
@@ -8104,7 +8116,7 @@ html[data-theme="dark"] .external-info-link:hover {
   outline: none;
   background: rgba(255, 255, 255, 0.94);
   color: #203f4d;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -8294,6 +8306,46 @@ html[data-theme="dark"] .external-info-link:hover {
   overflow-wrap: anywhere;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 12px;
+}
+
+.formula-builder-input-group input.has-visual-formula {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: #203f4d;
+}
+
+.formula-builder-input-visual {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  z-index: 1;
+  overflow: hidden;
+  max-width: calc(100% - 170px);
+  transform: translateY(-50%);
+  color: #203f4d;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.formula-builder-input-visual .formula-builder-input-subscript {
+  display: inline-block;
+  width: 1ch;
+}
+
+.formula-builder-input-visual sub {
+  font-size: 0.72em;
+  line-height: 0;
+  vertical-align: sub;
+}
+
+.formula-builder-input-visual > span {
+  display: inline-block;
+  width: 1ch;
 }
 
 .isomer-card .history-molecule-preview {
@@ -8815,6 +8867,17 @@ html[data-theme="dark"] .sticky-iupac-name small {
   border: 0;
   border-radius: 18px;
   box-shadow: none;
+}
+.construction-context-panel .functional-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.construction-context-panel .functional-option { gap: 6px; padding: 7px; overflow: hidden; }
+.construction-context-panel .functional-formula { flex-basis: 58px; min-width: 0; }
+.construction-context-panel .functional-copy strong,
+.construction-context-panel .functional-copy small { overflow-wrap: normal; word-break: normal; }
+@media (max-width: 760px) {
+  .construction-context-panel .functional-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 460px) {
+  .construction-context-panel .functional-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .construction-context-panel .alkyl-palette-heading {
   position: sticky;

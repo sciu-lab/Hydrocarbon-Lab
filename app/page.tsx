@@ -5776,6 +5776,7 @@ export default function Home() {
   const [notice, setNotice] = useState("Selecciona un carbono para añadir otro o toca un enlace para cambiar su orden.");
   const [valenceAlert, setValenceAlert] = useState<string | null>(null);
   const [nameBuilderOpen, setNameBuilderOpen] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const [iupacDockExpanded, setIupacDockExpanded] = useState(false);
   const [iupacInput, setIupacInput] = useState("");
   const [nameBuilderBusy, setNameBuilderBusy] = useState(false);
@@ -5807,6 +5808,10 @@ export default function Home() {
   const expandedCanvasCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const expandedWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const compoundLookupNamesRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (nameBuilderOpen) nameInputRef.current?.focus({ preventScroll: true });
+  }, [nameBuilderOpen]);
 
   useEffect(() => {
     const grid = workspaceGridRef.current;
@@ -8271,7 +8276,6 @@ export default function Home() {
       const target = event.target as HTMLElement | null;
       const isEditable = Boolean(target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='textbox'], [role='searchbox']") || target?.isContentEditable);
       if (event.defaultPrevented || event.isComposing || event.key === "Process" || event.repeat) return;
-      if (isEditable) return;
 
       if (event.key === "Escape") {
         if (placementTool || showRingPalette || showAlkylPalette || showFunctionalPalette || typeof nameBuilderOpen !== "undefined" && nameBuilderOpen || typeof smilesPanelOpen !== "undefined" && smilesPanelOpen || typeof formulaPanelOpen !== "undefined" && formulaPanelOpen || typeof showExamplesPanel !== "undefined" && showExamplesPanel) {
@@ -8739,7 +8743,7 @@ export default function Home() {
       fuseSelectedBond(template.size as 5 | 6);
       return;
     }
-    setPlacementTool({ kind: "ring", template, mode: ringLibraryContext === "attach" ? "attach" : "replace" });
+    setPlacementTool({ kind: "ring", template, mode: !isPristineInitialMolecule && ringLibraryContext === "attach" ? "attach" : "replace" });
     setToolPointer(lastToolPointer.current);
     setShowRingPalette(false);
     setNotice(language === "en" ? `Click a carbon on the canvas to place ${template.label}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
@@ -9603,9 +9607,12 @@ export default function Home() {
               <button
                 className={`name-builder-toggle ${nameBuilderOpen ? "active" : ""}`}
                 onClick={() => {
-                  const next = !nameBuilderOpen;
+                  if (nameBuilderOpen) {
+                    nameInputRef.current?.focus({ preventScroll: true });
+                    return;
+                  }
                   closeContextualPanels();
-                  setNameBuilderOpen(next);
+                  setNameBuilderOpen(true);
                   setNameBuilderFeedback(null);
                 }}
                 aria-expanded={nameBuilderOpen}
@@ -9717,6 +9724,7 @@ export default function Home() {
                 <div className="name-builder-input-group">
                   <input
                     id="iupac-name-input"
+                    ref={nameInputRef}
                     type="text"
                     value={iupacInput}
                     onChange={(event) => {
@@ -9838,6 +9846,7 @@ export default function Home() {
                     <input
                       id="molecular-formula-input"
                       type="text"
+                      className={formulaInput ? "has-visual-formula" : ""}
                       value={formulaInput}
                       onChange={(event) => {
                         setFormulaInput(normalizeFormulaBuilderInput(event.target.value));
@@ -9849,23 +9858,20 @@ export default function Home() {
                       autoComplete="off"
                       spellCheck={false}
                     />
+                    {formulaInput && (
+                      <span className="formula-builder-input-visual" aria-hidden="true">
+                        {getFormulaDisplayTokens(formulaInput).flatMap((token, tokenIndex) =>
+                          [...token.text].map((character, characterIndex) => token.subscript
+                            ? <span className="formula-builder-input-subscript" key={`${tokenIndex}-${characterIndex}`}><sub>{character}</sub></span>
+                            : <span key={`${tokenIndex}-${characterIndex}`}>{character}</span>),
+                        )}
+                      </span>
+                    )}
                     <button type="submit">
                       <span aria-hidden="true">⌬</span>
                       {t("Generar isómeros")}
                     </button>
                   </div>
-                  {formulaInput && (
-                    <output className="formula-builder-preview" aria-label={t("Fórmula con formato químico")}>
-                      <span>{t("Vista química:")}</span>
-                      <strong>
-                        {getFormulaDisplayTokens(formulaInput).map((token, index) =>
-                          token.subscript
-                            ? <sub key={`${token.text}-${index}`}>{token.text}</sub>
-                            : <span key={`${token.text}-${index}`}>{token.text}</span>,
-                        )}
-                      </strong>
-                    </output>
-                  )}
                 </div>
               </form>
 
@@ -11098,7 +11104,7 @@ export default function Home() {
                 </div>
                 <div className="ring-grid aromatic-ring-grid">
                   {AROMATIC_TEMPLATES.map((template) => {
-                    const unavailable = ringLibraryContext === "fuse" || (ringLibraryContext === "attach"
+                    const unavailable = ringLibraryContext === "fuse" || (!isPristineInitialMolecule && ringLibraryContext === "attach"
                       && template.molecule.atoms.length !== template.size);
                     return (
                       <button
@@ -11107,7 +11113,7 @@ export default function Home() {
                         onClick={() => chooseRingFromLibrary(template)}
                         title={unavailable
                           ? ringLibraryContext === "fuse" ? t("La fusión aromática aún no está disponible.") : t("Este derivado se carga como ejemplo completo; usa Benceno para unir otro anillo")
-                          : `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}`}
+                          : `${!isPristineInitialMolecule && ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}`}
                         disabled={unavailable}
                       >
                         <span className="ring-preview aromatic-preview" aria-hidden="true">

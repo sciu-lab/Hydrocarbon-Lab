@@ -17,7 +17,7 @@ test("uses the two existing card roots as the only movable panels", () => {
   assert.match(pageSource, /Restablecer posición de paneles/);
   assert.match(pageSource, /onDoubleClick=\{\(event\) => resetPanelPosition\("structure-panel", event\)\}/);
   assert.match(pageSource, /onDoubleClick=\{\(event\) => resetPanelPosition\("analysis-panel", event\)\}/);
-  assert.match(styleSource, /grid-template-areas:\s*\n\s*"name smiles"\s*\n\s*"formula formula"\s*\n\s*"view view"/);
+  assert.match(styleSource, /grid-template-areas:\s*\n\s*"name smiles"\s*\n\s*"formula formula"\s*\n\s*"examples view"/);
   assert.match(styleSource, /\.movable-panel\.is-dragging/);
   assert.match(styleSource, /\.movable-panel\.is-drag-disabled \.panel-drag-handle/);
   assert.match(styleSource, /\.builder-card \.card-heading\s*\{\s*display: grid/);
@@ -29,10 +29,11 @@ test("keeps one live canvas in the sticky left card and all information in the r
   const leftStart = pageSource.indexOf('id="structure-panel"');
   const rightStart = pageSource.indexOf('className="information-column"');
   const analysisStart = pageSource.indexOf('id="analysis-panel"');
-  const examplesStart = pageSource.indexOf('className="examples-card"');
   const footerStart = pageSource.indexOf('<footer>');
   assert.ok(leftStart < rightStart && rightStart < analysisStart);
-  assert.ok(analysisStart < examplesStart && examplesStart < footerStart);
+  assert.ok(analysisStart < footerStart);
+  assert.doesNotMatch(pageSource, /className="examples-card"/);
+  assert.match(pageSource, /className="alkyl-palette examples-context-panel"/);
   assert.equal((pageSource.match(/className=\{`molecule-workspace/g) ?? []).length, 1);
   assert.ok(pageSource.indexOf('id="iupac-name-builder"') < rightStart);
   assert.ok(pageSource.indexOf('id="molecular-formula-builder"') < rightStart);
