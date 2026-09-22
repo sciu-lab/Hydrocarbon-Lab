@@ -5755,6 +5755,17 @@ export default function Home() {
     )?.focus({ preventScroll: true });
   }, []);
   const [showFunctionalPalette, setShowFunctionalPalette] = useState(false);
+  const [showExamplesPanel, setShowExamplesPanel] = useState(false);
+  const closeContextualPanels = () => {
+    setShowAlkylPalette(false);
+    setShowRingPalette(false);
+    setShowFunctionalPalette(false);
+    setNameBuilderOpen(false);
+    setSmilesPanelOpen(false);
+    setFormulaPanelOpen(false);
+    setShowExamplesPanel(false);
+  };
+
   const [toolPanelTarget, setToolPanelTarget] = useState<HTMLDivElement | null>(null);
   const toolPanelSlotRef = useCallback((element: HTMLDivElement | null) => setToolPanelTarget(element), []);
   const [ringInsertMode, setRingInsertMode] = useState<RingInsertMode>("replace");
@@ -5764,7 +5775,7 @@ export default function Home() {
   const [showCreatorCredit, setShowCreatorCredit] = useState(false);
   const [notice, setNotice] = useState("Selecciona un carbono para añadir otro o toca un enlace para cambiar su orden.");
   const [valenceAlert, setValenceAlert] = useState<string | null>(null);
-  const [nameBuilderOpen, setNameBuilderOpen] = useState(true);
+  const [nameBuilderOpen, setNameBuilderOpen] = useState(false);
   const [iupacDockExpanded, setIupacDockExpanded] = useState(false);
   const [iupacInput, setIupacInput] = useState("");
   const [nameBuilderBusy, setNameBuilderBusy] = useState(false);
@@ -6369,6 +6380,7 @@ export default function Home() {
             viewMode: data.draft.viewMode,
           });
           setMolecule(restored);
+          setIsPristineInitialMolecule(false);
           setSourceNameOverride(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setReasoningSourceName(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setSelectedId(restored.atoms[0].id);
@@ -6423,6 +6435,7 @@ export default function Home() {
             viewMode: data.draft.viewMode,
           });
           setMolecule(restored);
+          setIsPristineInitialMolecule(false);
           setSourceNameOverride(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setReasoningSourceName(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setSelectedId(restored.atoms[0].id);
@@ -8224,6 +8237,7 @@ export default function Home() {
     setFuturePristineStates([]);
     setMolecule(methane);
     setIsPristineInitialMolecule(true);
+    closeContextualPanels();
     setReasoningSourceName(null);
     setSourceNameOverride(null);
     setNotice("Molécula nueva: comienza desde un átomo de carbono.");
@@ -8260,12 +8274,16 @@ export default function Home() {
       if (isEditable) return;
 
       if (event.key === "Escape") {
-        if (placementTool || showRingPalette || showAlkylPalette || showFunctionalPalette) {
+        if (placementTool || showRingPalette || showAlkylPalette || showFunctionalPalette || typeof nameBuilderOpen !== "undefined" && nameBuilderOpen || typeof smilesPanelOpen !== "undefined" && smilesPanelOpen || typeof formulaPanelOpen !== "undefined" && formulaPanelOpen || typeof showExamplesPanel !== "undefined" && showExamplesPanel) {
           event.preventDefault();
           setPlacementTool(null);
           setShowRingPalette(false);
           setShowAlkylPalette(false);
           setShowFunctionalPalette(false);
+          if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
+          if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
+          if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+          if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
           setFusionSelection(null);
         } else if (pngExportOpen) {
           event.preventDefault();
@@ -8307,9 +8325,15 @@ export default function Home() {
         } else if (key === "r") {
           event.preventDefault();
           setPlacementTool(null);
+          if (!showRingPalette) {
+            setShowAlkylPalette(false);
+            setShowFunctionalPalette(false);
+            if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
+            if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
+            if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+            if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
+          }
           setShowRingPalette(!showRingPalette);
-          setShowAlkylPalette(false);
-          setShowFunctionalPalette(false);
           if (!selectedFusionBond) {
             setRingInsertMode(hasActiveSelection && isCarbonAtom(selectedAtom) ? "attach" : "replace");
           }
@@ -8318,6 +8342,10 @@ export default function Home() {
           setShowRingPalette(false);
           setShowAlkylPalette(false);
           setShowFunctionalPalette(false);
+          if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
+          if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
+          if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+          if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
           setToolPointer(lastToolPointer.current);
           setPlacementTool({ kind: "ring", template: AROMATIC_TEMPLATES[0], mode: molecule.rings?.length ? "attach" : "replace" });
         } else if (showRingPalette && /^[3-8]$/.test(key)) {
@@ -8332,6 +8360,13 @@ export default function Home() {
           }
         } else if (key === "m" || key === "e" || key === "p") {
           event.preventDefault();
+          setShowRingPalette(false);
+          setShowAlkylPalette(false);
+          setShowFunctionalPalette(false);
+          if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
+          if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
+          if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+          if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
           const id = key === "m" ? "methyl" : key === "e" ? "ethyl" : "propyl";
           const template = ALKYL_TEMPLATES.find((item) => item.id === id);
           setShowRingPalette(false);
@@ -8362,6 +8397,7 @@ export default function Home() {
         else void saveCurrentStructure();
       } else if (key === "i") {
         event.preventDefault();
+        closeContextualPanels();
         setNameBuilderOpen(false);
         setFormulaPanelOpen(false);
         setSmilesPanelOpen(true);
@@ -8371,14 +8407,12 @@ export default function Home() {
         newMolecule();
       } else if (key === "1") {
         event.preventDefault();
-        setSmilesPanelOpen(false);
-        setFormulaPanelOpen(false);
+        closeContextualPanels();
         setNameBuilderOpen(true);
         setNameBuilderFeedback(null);
       } else if (key === "2") {
         event.preventDefault();
-        setNameBuilderOpen(false);
-        setFormulaPanelOpen(false);
+        closeContextualPanels();
         setSmilesPanelOpen(true);
         setSmilesFeedback(null);
       } else if (key === "3") {
@@ -8394,6 +8428,11 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleGlobalShortcut);
   }, [
     historyOpen,
+    closeContextualPanels,
+    nameBuilderOpen,
+    smilesPanelOpen,
+    formulaPanelOpen,
+    showExamplesPanel,
     removeSelectedWithKeyboard,
     undo,
     redo,
@@ -9564,14 +9603,9 @@ export default function Home() {
               <button
                 className={`name-builder-toggle ${nameBuilderOpen ? "active" : ""}`}
                 onClick={() => {
-                  setNameBuilderOpen((open) => {
-                    const next = !open;
-                    if (next) {
-                      setSmilesPanelOpen(false);
-                      setFormulaPanelOpen(false);
-                    }
-                    return next;
-                  });
+                  const next = !nameBuilderOpen;
+                  closeContextualPanels();
+                  setNameBuilderOpen(next);
                   setNameBuilderFeedback(null);
                 }}
                 aria-expanded={nameBuilderOpen}
@@ -9583,14 +9617,9 @@ export default function Home() {
               <button
                 className={`name-builder-toggle smiles-toggle ${smilesPanelOpen ? "active" : ""}`}
                 onClick={() => {
-                  setSmilesPanelOpen((open) => {
-                    const next = !open;
-                    if (next) {
-                      setNameBuilderOpen(false);
-                      setFormulaPanelOpen(false);
-                    }
-                    return next;
-                  });
+                  const next = !smilesPanelOpen;
+                  closeContextualPanels();
+                  setSmilesPanelOpen(next);
                   setSmilesFeedback(null);
                 }}
                 aria-expanded={smilesPanelOpen}
@@ -9603,14 +9632,9 @@ export default function Home() {
               <button
                 className={`name-builder-toggle formula-toggle ${formulaPanelOpen ? "active" : ""}`}
                 onClick={() => {
-                  setFormulaPanelOpen((open) => {
-                    const next = !open;
-                    if (next) {
-                      setNameBuilderOpen(false);
-                      setSmilesPanelOpen(false);
-                    }
-                    return next;
-                  });
+                  const next = !formulaPanelOpen;
+                  closeContextualPanels();
+                  setFormulaPanelOpen(next);
                   setFormulaFeedback(null);
                 }}
                 aria-expanded={formulaPanelOpen}
@@ -9619,6 +9643,18 @@ export default function Home() {
               >
                 <span aria-hidden="true">Σ</span>
                 {language === "en" ? "Formula" : "Fórmula"}
+              </button>
+              <button
+                className={`name-builder-toggle examples-toggle ${showExamplesPanel ? "active" : ""}`}
+                onClick={() => {
+                  const next = !showExamplesPanel;
+                  closeContextualPanels();
+                  setShowExamplesPanel(next);
+                }}
+                aria-expanded={showExamplesPanel}
+                aria-controls="preset-examples"
+              >
+                {language === "en" ? "Examples" : "Ejemplos"}
               </button>
               <div className="view-mode-switch" role="group" aria-label={t("Tipo de representación molecular")}>
                 <button
@@ -9660,6 +9696,8 @@ export default function Home() {
           </div>
 
           {nameBuilderOpen && (
+            <ToolPanelPortal target={toolPanelTarget} expanded={canvasExpanded}>
+              <section className="construction-context-panel" aria-label={language === "en" ? "Build by name" : "Construir por nombre"}>
             <form
               id="iupac-name-builder"
               className="name-builder-panel"
@@ -9772,9 +9810,13 @@ export default function Home() {
                 </div>
               )}
             </form>
+              </section>
+            </ToolPanelPortal>
           )}
 
           {formulaPanelOpen && (
+            <ToolPanelPortal target={toolPanelTarget} expanded={canvasExpanded}>
+              <section className="construction-context-panel" aria-label={language === "en" ? "Build by formula" : "Construir por fórmula"}>
             <section
               id="molecular-formula-builder"
               className="formula-builder-panel"
@@ -9905,9 +9947,13 @@ export default function Home() {
                 </div>
               )}
             </section>
+              </section>
+            </ToolPanelPortal>
           )}
 
           {smilesPanelOpen && (
+            <ToolPanelPortal target={toolPanelTarget} expanded={canvasExpanded}>
+              <section className="construction-context-panel" aria-label="SMILES">
             <section id="smiles-interop-panel" className="smiles-interop-panel" aria-label={t("Compatibilidad SMILES")}>
               <div className="smiles-interop-intro">
                 <span className="smiles-interop-mark" aria-hidden="true">S</span>
@@ -9948,6 +9994,8 @@ export default function Home() {
                 </div>
               )}
             </section>
+              </section>
+            </ToolPanelPortal>
           )}
 
           </div>
@@ -10804,11 +10852,9 @@ export default function Home() {
               <button
                 className={`alkyl-button ${showAlkylPalette ? "active" : ""}`}
                 onClick={() => {
-                  setShowAlkylPalette(!showAlkylPalette);
-                  if (!showAlkylPalette) {
-                    setShowRingPalette(false);
-                    setShowFunctionalPalette(false);
-                  }
+                  const next = !showAlkylPalette;
+                  closeContextualPanels();
+                  setShowAlkylPalette(next);
                 }}
                 aria-expanded={showAlkylPalette}
                 aria-controls="alkyl-palette"
@@ -10820,10 +10866,9 @@ export default function Home() {
                 className={`ring-button ${showRingPalette ? "active" : ""}`}
                 onClick={() => {
                   const nextVisible = !showRingPalette;
+                  closeContextualPanels();
                   setShowRingPalette(nextVisible);
                   if (nextVisible) {
-                    setShowAlkylPalette(false);
-                    setShowFunctionalPalette(false);
                     if (!selectedFusionBond) {
                       setRingInsertMode(hasActiveSelection && isCarbonAtom(selectedAtom) ? "attach" : "replace");
                     }
@@ -10842,11 +10887,8 @@ export default function Home() {
                 className={`functional-button ${showFunctionalPalette ? "active" : ""}`}
                 onClick={() => {
                   const nextVisible = !showFunctionalPalette;
+                  closeContextualPanels();
                   setShowFunctionalPalette(nextVisible);
-                  if (nextVisible) {
-                    setShowAlkylPalette(false);
-                    setShowRingPalette(false);
-                  }
                 }}
                 aria-expanded={showFunctionalPalette}
                 aria-controls="functional-palette"
@@ -10861,7 +10903,7 @@ export default function Home() {
             </div>
           </div>
 
-          {(showAlkylPalette || showRingPalette || showFunctionalPalette) && (
+          {(showAlkylPalette || showRingPalette || showFunctionalPalette || showExamplesPanel) && (
             <ToolPanelPortal target={toolPanelTarget} expanded={canvasExpanded}>
               <section className="construction-context-panel" aria-label={language === "en" ? "Molecular tools" : "Herramientas moleculares"}>
           {showAlkylPalette && (
@@ -11215,6 +11257,26 @@ export default function Home() {
               <p className="alkyl-note functional-note">{t("Para aldehídos, ácidos, ésteres y amidas usa un carbono terminal. Para una cetona, selecciona un carbono interno de la cadena.")}</p>
             </div>
           )}
+          {showExamplesPanel && (
+            <div className="alkyl-palette examples-context-panel" id="preset-examples">
+              <div className="alkyl-palette-heading">
+                <div><strong>{language === "en" ? "Examples" : "Ejemplos"}</strong></div>
+                <button onClick={() => setShowExamplesPanel(false)} aria-label={language === "en" ? "Close examples" : "Cerrar ejemplos"}>×</button>
+              </div>
+              <div className="preset-list">
+                {PRESETS.map((preset) => (
+                  <button key={preset.label} onClick={() => {
+                    loadPreset(preset);
+                    closeContextualPanels();
+                  }}>
+                    <span className="preset-structure">{preset.molecule.atoms.filter(isCarbonAtom).length} C</span>
+                    <span>{localizedIupac(preset.label)}</span>
+                    <i>→</i>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
               </section>
             </ToolPanelPortal>
           )}
@@ -11241,7 +11303,7 @@ export default function Home() {
         <div className="construction-context-slot" ref={toolPanelSlotRef} />
         <aside
           id="analysis-panel"
-          className={`analysis-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
+          className={`analysis-card movable-panel ${isPristineInitialMolecule ? "is-pristine" : ""} ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
           style={panelStyle("analysis-panel")}
         >
           <div className="analysis-utility-bar" aria-label={t("Preferencias")}>
@@ -11311,6 +11373,11 @@ export default function Home() {
               {t("Hidrocarburos · grupos funcionales")}
             </div>
           </div>
+          {isPristineInitialMolecule && (
+            <div className="pristine-work-prompt" role="status">
+              {language === "en" ? "Start building a molecule" : "Empieza a construir una molécula"}
+            </div>
+          )}
           <div
             className="analysis-heading panel-drag-handle"
             onPointerDown={(event) => beginPanelDrag("analysis-panel", event)}
@@ -11567,21 +11634,7 @@ export default function Home() {
           </div>
         </aside>
 
-      <section className="examples-card">
-        <div>
-          <p className="eyebrow">{t("Explora estructuras conocidas")}</p>
-          <h2>{t("Ejemplos rápidos")}</h2>
-        </div>
-        <div className="preset-list">
-          {PRESETS.map((preset) => (
-            <button key={preset.label} onClick={() => loadPreset(preset)}>
-              <span className="preset-structure">{preset.molecule.atoms.filter(isCarbonAtom).length} C</span>
-              <span>{localizedIupac(preset.label)}</span>
-              <i>→</i>
-            </button>
-          ))}
-        </div>
-      </section>
+
 
       <footer>
         <p><strong>{t("Alcance actual:")}</strong> {t("hidrocarburos y nueve familias funcionales con O, N y halógenos.")}</p>
@@ -11620,7 +11673,7 @@ export default function Home() {
         </div>
       </div>
       <div className={`iupac-dock ${iupacDockExpanded ? "is-expanded" : ""}`} role="region" aria-label={t("Nombre IUPAC")}>
-        {iupacDockExpanded && (
+        {iupacDockExpanded && !isPristineInitialMolecule && (
           <div className="iupac-dock-detail" id="iupac-dock-detail">
             <div className="iupac-dock-detail-heading">
               <span>{nomenclatureVariants.find((variant) => variant.convention === activeNomenclatureConvention)?.label}</span>
@@ -11677,17 +11730,17 @@ export default function Home() {
             className="iupac-dock-profile"
             value={activeNomenclatureConvention}
             onChange={(event) => setNomenclatureConvention(event.target.value as NomenclatureConvention)}
-            disabled={simplifiedModeEnabled}
+            disabled={simplifiedModeEnabled || isPristineInitialMolecule}
             aria-label={language === "en" ? "Nomenclature profile" : "Perfil de nomenclatura"}
           >
             <option value="current">{language === "en" ? "IUPAC Suggested" : "IUPAC sugerido"}</option>
             <option value="traditional" disabled={!traditionalNomenclatureAvailable}>{language === "en" ? "Traditional" : "Tradicional"}</option>
           </select>
-          <strong className="iupac-dock-name"><ChemicalNameText name={showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
-          <button type="button" className="iupac-dock-expand" onClick={() => setIupacDockExpanded((expanded) => !expanded)} aria-expanded={iupacDockExpanded} aria-controls="iupac-dock-detail" title={t("Mostrar nombre completo")}>
+          <strong className="iupac-dock-name"><ChemicalNameText name={isPristineInitialMolecule ? "—" : showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
+          <button type="button" className="iupac-dock-expand" disabled={isPristineInitialMolecule} onClick={() => setIupacDockExpanded((expanded) => !expanded)} aria-expanded={iupacDockExpanded} aria-controls="iupac-dock-detail" title={t("Mostrar nombre completo")}>
             {iupacDockExpanded ? "⌄" : "⌃"}
           </button>
-          <button type="button" className="iupac-dock-copy" disabled={!showIupacName} onClick={() => {
+          <button type="button" className="iupac-dock-copy" disabled={!showIupacName || isPristineInitialMolecule} onClick={() => {
             navigator.clipboard?.writeText(displayedIupacName);
             setNotice("Nombre copiado al portapapeles.");
           }}>{t("Copiar")}</button>
