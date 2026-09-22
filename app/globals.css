@@ -853,6 +853,83 @@ button {
   background: #eaf5f0;
 }
 
+.settings-scale-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.9fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 9px 0;
+  border-top: 1px solid #e5eeea;
+  color: #2e5148;
+}
+
+.settings-scale-control strong,
+.settings-scale-control small {
+  display: block;
+}
+
+.settings-scale-control strong {
+  font-size: 14px;
+}
+
+.settings-scale-control small {
+  margin-top: 3px;
+  color: #71857e;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.settings-scale-actions {
+  display: grid;
+  grid-template-columns: minmax(78px, 1fr) 40px auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.settings-scale-actions input[type="range"] {
+  width: 100%;
+  accent-color: #398a74;
+}
+
+.settings-scale-actions output {
+  color: #39685c;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.settings-scale-actions button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #bfd4cd;
+  border-radius: 8px;
+  background: #f6faf8;
+  color: #2c7764;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.settings-scale-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.settings-scale-actions input:focus-visible,
+.settings-scale-actions button:focus-visible {
+  outline: 2px solid #225f72;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .settings-scale-control {
+    grid-template-columns: 1fr;
+  }
+}
+
 .png-export-color-controls > p {
   margin: -2px 0 12px;
   color: #70847e;

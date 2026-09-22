@@ -135,7 +135,7 @@ export function clipSkeletalBondSegment<
   segment: Segment,
   start: SkeletalPoint,
   end: SkeletalPoint,
-  startClearance = SKELETAL_BOND_END_CLEARANCE,
+  startClearance = 0,
   endClearance = startClearance,
 ): Segment {
   const deltaX = end.x - start.x;
@@ -229,8 +229,10 @@ export function clipSkeletalParallelBondSegments<
   end: SkeletalPoint,
   options: SkeletalParallelBondClipOptions = {},
 ): Segment[] {
-  let startClearance = SKELETAL_BOND_END_CLEARANCE;
-  let endClearance = SKELETAL_BOND_END_CLEARANCE;
+  // A line-angle carbon is a vertex, not a painted node. Reserve endpoint
+  // space only for an actual visible obstacle (number or heteroatom label).
+  let startClearance = 0;
+  let endClearance = 0;
 
   if (options.startObstacle) {
     startClearance = Math.max(

@@ -197,7 +197,7 @@ const distanceFromPointToSegment = (point, segment) => {
   );
 };
 
-test("clips both open-chain double-bond strokes by the node radius plus buffer", () => {
+test("skeletal double-bond strokes reach implicit-carbon vertices without a visible obstacle", () => {
   const start = { x: 102, y: -32 };
   const end = { x: 232, y: 32 };
   const length = Math.hypot(end.x - start.x, end.y - start.y);
@@ -217,12 +217,34 @@ test("clips both open-chain double-bond strokes by the node radius plus buffer",
     const clipped = clipSkeletalBondSegment(segment, start, end);
     const clearance = projectedEndpointClearance(clipped, start, end);
 
-    assert.ok(Math.abs(clearance.start - SKELETAL_BOND_END_CLEARANCE) < 1e-9);
-    assert.ok(Math.abs(clearance.end - SKELETAL_BOND_END_CLEARANCE) < 1e-9);
+    assert.ok(Math.abs(clearance.start) < 1e-9);
+    assert.ok(Math.abs(clearance.end) < 1e-9);
   }
 
   assert.deepEqual(start, originalStart);
   assert.deepEqual(end, originalEnd);
+});
+
+test("both strokes of an open-chain carbonyl reach the carbon vertex while clearing a visible oxygen", () => {
+  const carbon = { x: 0, y: 0 };
+  const oxygen = { x: 130, y: 0 };
+  const rawSegments = [-5, 5].map((offset) => ({
+    x: carbon.x,
+    y: carbon.y + offset,
+    x2: oxygen.x,
+    y2: oxygen.y + offset,
+    role: null,
+  }));
+  const clipped = clipSkeletalParallelBondSegments(rawSegments, carbon, oxygen, {
+    endObstacle: { center: oxygen, radius: 22 },
+  });
+
+  for (const segment of clipped) {
+    const clearance = projectedEndpointClearance(segment, carbon, oxygen);
+    assert.ok(Math.abs(clearance.start) < 1e-9, "the implicit C endpoint is not clipped");
+    assert.ok(clearance.end > 0, "the visible O label keeps its required clearance");
+    assert.ok(distanceFromPointToSegment(oxygen, segment) >= 22 - 1e-9);
+  }
 });
 
 test("aligns the outer ring stroke with a simple edge while keeping the inner cap", () => {

@@ -199,6 +199,11 @@ const DEFAULT_FUNCTIONAL_GROUP_SCALE = 1;
 const MIN_FUNCTIONAL_GROUP_SCALE = 0.6;
 const MAX_FUNCTIONAL_GROUP_SCALE = 2;
 const FUNCTIONAL_GROUP_SCALE_STEP = 0.1;
+const TETRAHEDRAL_BADGE_SCALE_STORAGE_KEY = "hydrocarbonLab.tetrahedralBadgeScale.v1";
+const DEFAULT_TETRAHEDRAL_BADGE_SCALE = 1;
+const MIN_TETRAHEDRAL_BADGE_SCALE = 0.75;
+const MAX_TETRAHEDRAL_BADGE_SCALE = 2;
+const TETRAHEDRAL_BADGE_SCALE_STEP = 0.05;
 
 function normalizeFunctionalGroupScale(value: unknown) {
   const numericValue = typeof value === "number" ? value : Number(value);
@@ -208,6 +213,16 @@ function normalizeFunctionalGroupScale(value: unknown) {
     return DEFAULT_FUNCTIONAL_GROUP_SCALE;
   }
   return Math.round(stepped * 10) / 10;
+}
+
+function normalizeTetrahedralBadgeScale(value: unknown) {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numericValue)) return DEFAULT_TETRAHEDRAL_BADGE_SCALE;
+  const stepped = Math.round(numericValue / TETRAHEDRAL_BADGE_SCALE_STEP) * TETRAHEDRAL_BADGE_SCALE_STEP;
+  if (stepped < MIN_TETRAHEDRAL_BADGE_SCALE || stepped > MAX_TETRAHEDRAL_BADGE_SCALE) {
+    return DEFAULT_TETRAHEDRAL_BADGE_SCALE;
+  }
+  return Math.round(stepped * 100) / 100;
 }
 
 type MovablePanelId = "structure-panel" | "analysis-panel";
@@ -5673,6 +5688,8 @@ export default function Home() {
   const [numberingScalePreferenceReady, setNumberingScalePreferenceReady] = useState(false);
   const [functionalGroupScale, setFunctionalGroupScale] = useState(DEFAULT_FUNCTIONAL_GROUP_SCALE);
   const [functionalGroupScalePreferenceReady, setFunctionalGroupScalePreferenceReady] = useState(false);
+  const [tetrahedralBadgeScale, setTetrahedralBadgeScale] = useState(DEFAULT_TETRAHEDRAL_BADGE_SCALE);
+  const [tetrahedralBadgeScalePreferenceReady, setTetrahedralBadgeScalePreferenceReady] = useState(false);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("condensed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
@@ -6309,6 +6326,31 @@ export default function Home() {
     }
   }, [functionalGroupScale, functionalGroupScalePreferenceReady]);
 
+  useEffect(() => {
+    const restorePreference = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(TETRAHEDRAL_BADGE_SCALE_STORAGE_KEY);
+        setTetrahedralBadgeScale(stored === null
+          ? DEFAULT_TETRAHEDRAL_BADGE_SCALE
+          : normalizeTetrahedralBadgeScale(stored));
+      } catch {
+        setTetrahedralBadgeScale(DEFAULT_TETRAHEDRAL_BADGE_SCALE);
+      } finally {
+        setTetrahedralBadgeScalePreferenceReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(restorePreference);
+  }, []);
+
+  useEffect(() => {
+    if (!tetrahedralBadgeScalePreferenceReady) return;
+    try {
+      window.localStorage.setItem(TETRAHEDRAL_BADGE_SCALE_STORAGE_KEY, String(tetrahedralBadgeScale));
+    } catch {
+      // The current session still keeps the chosen scale when storage is unavailable.
+    }
+  }, [tetrahedralBadgeScale, tetrahedralBadgeScalePreferenceReady]);
+
   useEffect(() => () => {
     if (nomenclatureHintTimer.current !== null) {
       window.clearTimeout(nomenclatureHintTimer.current);
@@ -6872,6 +6914,11 @@ export default function Home() {
   const updateFunctionalGroupScale = (value: number) => {
     const clamped = Math.min(MAX_FUNCTIONAL_GROUP_SCALE, Math.max(MIN_FUNCTIONAL_GROUP_SCALE, value));
     setFunctionalGroupScale(normalizeFunctionalGroupScale(clamped));
+  };
+
+  const updateTetrahedralBadgeScale = (value: number) => {
+    const clamped = Math.min(MAX_TETRAHEDRAL_BADGE_SCALE, Math.max(MIN_TETRAHEDRAL_BADGE_SCALE, value));
+    setTetrahedralBadgeScale(normalizeTetrahedralBadgeScale(clamped));
   };
 
   const addCarbon = (dx: number, dy: number) => {
@@ -8512,10 +8559,13 @@ export default function Home() {
   const baseTetrahedralBadgePositions = layoutTetrahedralBadgePositions(
     tetrahedralStereoBonds,
     displayPositions,
-    1,
+    tetrahedralBadgeScale,
     [...numberingBadgeExtents, ...functionalLabelExtents],
   );
-  const baseTetrahedralBadgeExtents = tetrahedralBadgeExtentsAtScale(1, baseTetrahedralBadgePositions);
+  const baseTetrahedralBadgeExtents = tetrahedralBadgeExtentsAtScale(
+    tetrahedralBadgeScale,
+    baseTetrahedralBadgePositions,
+  );
   const preliminarySteroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
     ? layoutSteroidRingLabels(
         analysis.steroidSystem.ringsByLabel,
@@ -8536,10 +8586,11 @@ export default function Home() {
     preliminaryBounds.width / 720,
     preliminaryBounds.height / 455,
   );
+  const effectiveTetrahedralBadgeScale = tetrahedralMarkerScale * tetrahedralBadgeScale;
   const tetrahedralBadgePositions = layoutTetrahedralBadgePositions(
     tetrahedralStereoBonds,
     displayPositions,
-    tetrahedralMarkerScale,
+    effectiveTetrahedralBadgeScale,
     [
       ...numberingBadgeExtents,
       ...functionalLabelExtents,
@@ -8547,7 +8598,7 @@ export default function Home() {
     ],
   );
   const tetrahedralBadgeExtents = tetrahedralBadgeExtentsAtScale(
-    tetrahedralMarkerScale,
+    effectiveTetrahedralBadgeScale,
     tetrahedralBadgePositions,
   );
   const steroidRingLabels = showSteroidRingLabels && analysis.steroidSystem?.ringsByLabel
@@ -9166,6 +9217,29 @@ export default function Home() {
                 />
                 <i aria-hidden="true" />
               </label>
+              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de badges R/S")}>
+                <div>
+                  <strong>{t("Tamaño de badges R/S")}</strong>
+                  <small>{t("Ajusta el círculo y la letra de los centros tetraédricos")}</small>
+                </div>
+                <div className="settings-scale-actions">
+                  <input
+                    type="range"
+                    min={MIN_TETRAHEDRAL_BADGE_SCALE}
+                    max={MAX_TETRAHEDRAL_BADGE_SCALE}
+                    step={TETRAHEDRAL_BADGE_SCALE_STEP}
+                    value={tetrahedralBadgeScale}
+                    onChange={(event) => updateTetrahedralBadgeScale(Number(event.target.value))}
+                    aria-label={t("Tamaño de badges R/S")}
+                  />
+                  <output aria-live="polite">{Math.round(tetrahedralBadgeScale * 100)} %</output>
+                  <button
+                    type="button"
+                    disabled={tetrahedralBadgeScale === DEFAULT_TETRAHEDRAL_BADGE_SCALE}
+                    onClick={() => updateTetrahedralBadgeScale(DEFAULT_TETRAHEDRAL_BADGE_SCALE)}
+                  >{t("Restablecer")}</button>
+                </div>
+              </div>
               <button
                 className="settings-panel-reset"
                 type="button"
@@ -10384,11 +10458,16 @@ export default function Home() {
                         }}
                       >
                         <g transform={`scale(${tetrahedralMarkerScale})`}>
-                          <circle className="tetrahedral-center-hit-target" r={TETRAHEDRAL_BADGE_HIT_RADIUS} />
-                          <circle className="tetrahedral-center-badge" r={TETRAHEDRAL_BADGE_RADIUS} />
-                          <text textAnchor="middle" dominantBaseline="central">
-                            {tetrahedralStereoBond.configuration}
-                          </text>
+                          <circle
+                            className="tetrahedral-center-hit-target"
+                            r={TETRAHEDRAL_BADGE_HIT_RADIUS * Math.max(1, tetrahedralBadgeScale)}
+                          />
+                          <g transform={`scale(${tetrahedralBadgeScale})`}>
+                            <circle className="tetrahedral-center-badge" r={TETRAHEDRAL_BADGE_RADIUS} />
+                            <text textAnchor="middle" dominantBaseline="central">
+                              {tetrahedralStereoBond.configuration}
+                            </text>
+                          </g>
                         </g>
                       </g>
                     )}
