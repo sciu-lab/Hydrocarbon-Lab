@@ -57,7 +57,27 @@ test("uses a page scroll, contextual constructors, right-side display settings a
   assert.match(styleSource, /\.builder-card \{[\s\S]*?overflow: visible;/);
   assert.match(styleSource, /\.iupac-dock \{ position: fixed;/);
   assert.match(styleSource, /\.app-shell \{ padding-bottom: calc\(var\(--iupac-dock-height\)/);
-  assert.match(styleSource, /\.name-result \.nomenclature-variants button strong span \{ display: inline; \}/);
+  assert.doesNotMatch(pageSource, /className=\{`name-result/);
+  assert.match(pageSource, /className="iupac-dock-profile"/);
+  assert.match(pageSource, /option value="traditional" disabled=\{!traditionalNomenclatureAvailable\}/);
+  assert.match(pageSource, /className="iupac-dock-variants"/);
+  assert.match(styleSource, /--editor-top-offset/);
+  assert.match(pageSource, /grid\.style\.setProperty\("--editor-top-offset"/);
+  assert.match(styleSource, /\.iupac-dock-name wbr \{ display: none; \}/);
+});
+
+test("tool libraries share one right context panel and keep graph placement on the canvas", () => {
+  assert.match(pageSource, /<ToolPanelPortal target=\{toolPanelTarget\} expanded=\{canvasExpanded\}>/);
+  assert.match(pageSource, /className="construction-context-slot" ref=\{toolPanelSlotRef\}/);
+  assert.match(pageSource, /className="construction-context-panel"/);
+  assert.match(pageSource, /setPlacementTool\(\{ kind: "alkyl", template \}\)/);
+  assert.match(pageSource, /setPlacementTool\(\{ kind: "ring", template, mode:/);
+  assert.match(pageSource, /setPlacementTool\(\{ kind: "functional", template \}\)/);
+  assert.match(pageSource, /addFunctionalGroup\(placementTool\.template, atom\.id\)/);
+  assert.match(styleSource, /\.construction-context-slot \{ position: sticky;/);
+  assert.match(styleSource, /\.construction-context-panel \{[\s\S]*?overflow-y: auto/);
+  assert.match(styleSource, /@media \(max-width: 760px\) \{[\s\S]*?\.construction-context-panel \{[\s\S]*?position: fixed/);
+  assert.match(styleSource, /max-height: min\(30dvh, 250px\)/);
 });
 
 test("keeps Wikipedia and PubChem in one alternate, source-attributed card", () => {

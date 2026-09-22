@@ -8761,3 +8761,126 @@ html[data-theme="dark"] .sticky-iupac-name small {
 @media (prefers-reduced-motion: reduce) {
   .builder-click-ripple { animation-duration: 1ms; visibility: hidden; }
 }
+
+/* Workspace 2.1: keep drawing space, controls and tool options independent. */
+/* At page start the editor sits below the 72px site masthead and 24px shell
+   inset. Keep its editing row above the fixed dock even at 720px height. */
+@media (min-width: 761px) {
+  .builder-card { height: calc(100dvh - var(--iupac-dock-height) - var(--editor-top-offset, 96px) - env(safe-area-inset-bottom)); }
+  .builder-card .name-builder-panel { padding: 9px 11px 8px; }
+  .builder-card .name-builder-intro { margin-bottom: 7px; }
+  .builder-card .name-builder-mark { flex-basis: 28px; width: 28px; height: 28px; }
+  .builder-card .name-builder-input-group input { height: 38px; }
+  .builder-card .name-builder-input-group > button { min-height: 38px; }
+  .builder-card .name-builder-footer { margin-top: 5px; }
+  .builder-card .name-builder-examples button { padding: 2px 6px; }
+}
+.builder-card .card-heading { padding: 7px 10px 6px; }
+.builder-card .heading-actions { gap: 4px; }
+.builder-card .heading-actions button { min-height: 29px; }
+.builder-card .name-builder-toggle { gap: 4px; padding-right: 5px; padding-left: 5px; }
+.builder-card .view-mode-switch button { gap: 3px; padding-right: 4px; padding-left: 4px; }
+.builder-card .view-mode-switch .line-angle-icon { width: 22px; }
+@media (min-width: 761px) and (max-width: 1350px) {
+  .builder-card .view-mode-switch .line-angle-icon { display: none; }
+}
+.builder-card .history-controls { gap: 3px; }
+.builder-card .history-controls button { min-width: 29px; height: 29px; }
+.builder-card .history-controls .new-button { padding-right: 8px; padding-left: 8px; }
+.builder-card .builder-toolbar { gap: 4px 8px; padding: 5px 10px 4px; }
+.builder-card .bond-order-picker > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.builder-card .bond-order-picker button { min-height: 28px; }
+.builder-card .structure-actions button { min-height: 30px; }
+.builder-card .notice { margin: 0 10px 6px; }
+.construction-context-slot { position: sticky; top: 10px; z-index: 22; align-self: start; min-width: 0; }
+.construction-context-slot:empty { display: none; }
+.construction-context-panel {
+  max-height: calc(100dvh - var(--iupac-dock-height) - 20px - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: 0 15px 38px rgba(9, 37, 31, .19);
+  scrollbar-width: thin;
+}
+.construction-context-panel > .alkyl-palette {
+  margin: 0;
+  border: 0;
+  border-radius: 18px;
+  box-shadow: none;
+}
+.construction-context-panel .alkyl-palette-heading {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-bottom: 7px;
+  background: inherit;
+}
+.construction-context-panel .ring-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.construction-context-panel .ring-option,
+.construction-context-panel .functional-option { min-width: 0; }
+.molecule-workspace.is-expanded .construction-context-panel {
+  position: absolute;
+  z-index: 25;
+  top: 66px;
+  right: 20px;
+  width: min(360px, 38%);
+  max-height: calc(100dvh - 170px);
+}
+.iupac-dock-profile {
+  flex: 0 0 auto;
+  max-width: 175px;
+  min-height: 34px;
+  padding: 0 28px 0 9px;
+  border: 1px solid #5d9989;
+  border-radius: 9px;
+  background: #254e43;
+  color: #eafff8;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.iupac-dock-profile:disabled { opacity: .6; cursor: default; }
+.iupac-dock-name { display: block; max-height: 1.3em; }
+.iupac-dock-name .chemical-name-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iupac-dock-name wbr { display: none; }
+.iupac-dock-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.iupac-dock-detail-heading > span { color: #96c9bb; font-size: 10px; font-weight: 850; text-transform: uppercase; }
+.iupac-dock-detail-heading > button { min-height: 28px; padding: 3px 8px; }
+.iupac-dock-detail > strong { font-size: 19px; }
+.iupac-dock-variants { display: grid; gap: 7px; margin-top: 12px; }
+.iupac-dock-variants > button { display: grid; gap: 3px; min-width: 0; padding: 8px 10px; text-align: left; }
+.iupac-dock-variants > button.active { border-color: #a0dcc7; background: #34735f; }
+.iupac-dock-variants > button > span,
+.iupac-dock-legacy > span { color: #a8d8ca; font-size: 10px; font-weight: 800; }
+.iupac-dock-variants > button > strong,
+.iupac-dock-legacy > strong { display: block; min-width: 0; overflow-wrap: break-word; font-size: 14px; }
+.iupac-dock-variants > button > strong span,
+.iupac-dock-legacy > strong span { display: inline; }
+.iupac-dock-variants p { margin: 0; color: #bddfd3; font-size: 12px; }
+.iupac-dock-legacy { display: grid; gap: 3px; padding: 8px 10px; border: 1px dashed #5d9989; border-radius: 9px; }
+.iupac-dock-detail .nomenclature-aliases { margin-top: 10px; }
+@media (max-width: 760px) {
+  .construction-context-slot { position: static; }
+  .construction-context-panel {
+    position: fixed;
+    z-index: 1300;
+    right: 12px;
+    bottom: calc(var(--iupac-dock-height) + 8px + env(safe-area-inset-bottom));
+    left: 12px;
+    max-height: min(30dvh, 250px);
+    box-shadow: 0 -12px 32px rgba(9, 37, 31, .3);
+  }
+  .iupac-dock-inner { gap: 6px; }
+  .iupac-dock-label { display: none; }
+  .iupac-dock-profile { max-width: 130px; min-width: 0; padding-right: 19px; padding-left: 5px; font-size: 10px; }
+  .iupac-dock-name { font-size: 14px; }
+  .iupac-dock-copy { padding: 3px 6px; }
+}

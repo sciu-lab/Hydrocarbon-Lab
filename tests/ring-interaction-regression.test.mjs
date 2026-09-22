@@ -99,10 +99,12 @@ test("expanded workspace wraps the live canvas and construction controls", () =>
   assert.doesNotMatch(css, /\.molecule-stage\.is-expanded/);
 });
 
-test("the traditional nomenclature card uses the name supplied by fused-ring analysis", () => {
-  assert.match(page, /const traditionalName = analysis\.steroidSystem[\s\S]*: analysis\.fusedBicyclic/);
+test("the dock only offers a genuine traditional result, separate from legacy English", () => {
+  assert.match(page, /const traditionalCandidate = analysis\.steroidSystem[\s\S]*: analysis\.fusedBicyclic/);
   assert.match(page, /fusedBicyclicTraditionalDisplayName\(analysis\.fusedBicyclic, language\)/);
-  assert.match(page, /name: convention === "traditional"\s*\? traditionalName/s);
+  assert.match(page, /traditionalCandidate\.trim\(\)\.toLocaleLowerCase\(language\) !== suggestedName/);
+  assert.match(page, /legacyEnglishResult\.name !== "-" && !nomenclatureVariants\.some/);
+  assert.match(page, /IUPAC 1979 Legacy English ·/);
 });
 
 test("contextual selection focus preserves the page scroll and expanded SVG uses fitted bounds", () => {

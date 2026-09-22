@@ -54,8 +54,6 @@ import {
 import {
   applyNomenclatureConvention,
   type NomenclatureConvention,
-  nextNomenclatureConvention,
-  nomenclatureConventionLabel,
   stripStereochemicalDescriptors,
 } from "./nomenclature-conventions";
 import {
@@ -237,6 +235,14 @@ type PanelPositions = Record<MovablePanelId, PanelPosition>;
 function ViewportPortal({ active, children }: { active: boolean; children: React.ReactNode }) {
   if (active && typeof document !== "undefined") return createPortal(children, document.body);
   return <>{children}</>;
+}
+
+function ToolPanelPortal({ target, expanded, children }: {
+  target: HTMLDivElement | null;
+  expanded: boolean;
+  children: React.ReactNode;
+}) {
+  return !expanded && target ? createPortal(children, target) : <>{children}</>;
 }
 
 type ActivePanelDrag = {
@@ -5464,7 +5470,13 @@ function MoleculeHistoryPreview({
 }
 
 export default function Home() {
-  const [language, setLanguage] = useState<AppLanguage>(() => detectInitialLanguage());
+  // Match the server's first render; restore the route/preference after hydration.
+  const [language, setLanguage] = useState<AppLanguage>("es");
+  useEffect(() => {
+    const initialLanguage = detectInitialLanguage();
+    const restore = window.setTimeout(() => setLanguage(initialLanguage), 0);
+    return () => window.clearTimeout(restore);
+  }, []);
   const t = (spanish: string) => uiText(language, spanish);
   const localizedIupac = (name: string) => {
     if (name === COMPLEX_NAME_UNAVAILABLE_MESSAGE) return t(COMPLEX_NAME_UNAVAILABLE_MESSAGE);
@@ -5717,14 +5729,13 @@ export default function Home() {
   const [simplifiedModeEnabled, setSimplifiedModeEnabled] = useState(false);
   const [highlightInteractivesEnabled, setHighlightInteractivesEnabled] = useState(false);
   const [stereochemistryPreferenceReady, setStereochemistryPreferenceReady] = useState(false);
-  const [hasUsedNomenclatureToggle, setHasUsedNomenclatureToggle] = useState(false);
-  const [showNomenclatureHint, setShowNomenclatureHint] = useState(false);
   const [showReasoningHelp, setShowReasoningHelp] = useState(true);
   const [showAlkylPalette, setShowAlkylPalette] = useState(false);
   const [showRingPalette, setShowRingPalette] = useState(false);
   const [placementTool, setPlacementTool] = useState<
     { kind: "ring"; template: RingTemplate; mode: RingInsertMode }
     | { kind: "alkyl"; template: AlkylTemplate }
+    | { kind: "functional"; template: FunctionalGroupTemplate }
     | null
   >(null);
   const [draggedRingTemplate, setDraggedRingTemplate] = useState<RingTemplate | null>(null);
@@ -5741,6 +5752,8 @@ export default function Home() {
     )?.focus({ preventScroll: true });
   }, []);
   const [showFunctionalPalette, setShowFunctionalPalette] = useState(false);
+  const [toolPanelTarget, setToolPanelTarget] = useState<HTMLDivElement | null>(null);
+  const toolPanelSlotRef = useCallback((element: HTMLDivElement | null) => setToolPanelTarget(element), []);
   const [ringInsertMode, setRingInsertMode] = useState<RingInsertMode>("replace");
   const [commonAlkylNameSelections, setCommonAlkylNameSelections] = useState<string[]>([]);
   const [themePreference, setThemePreference] = useState<ThemePreference>("auto");
@@ -5774,12 +5787,30 @@ export default function Home() {
   const skippedBondOrder = useRef(new Map<string, BondOrder>());
   const suppressBondClickAfterDrop = useRef(false);
   const suppressRingPickerClickAfterDrag = useRef(false);
-  const nomenclatureHintTimer = useRef<number | null>(null);
   const moleculeSvgRef = useRef<SVGSVGElement | null>(null);
+  const workspaceGridRef = useRef<HTMLDivElement | null>(null);
   const canvasExpandButtonRef = useRef<HTMLButtonElement | null>(null);
   const expandedCanvasCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const expandedWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const compoundLookupNamesRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    const grid = workspaceGridRef.current;
+    if (!grid) return;
+    const updateEditorHeight = () => {
+      // Follow the masthead out of view without ever placing the editing row
+      // beneath the fixed name dock. This only changes available CSS space.
+      const top = Math.max(20, Math.ceil(grid.getBoundingClientRect().top));
+      grid.style.setProperty("--editor-top-offset", `${top}px`);
+    };
+    updateEditorHeight();
+    window.addEventListener("scroll", updateEditorHeight, { passive: true });
+    window.addEventListener("resize", updateEditorHeight);
+    return () => {
+      window.removeEventListener("scroll", updateEditorHeight);
+      window.removeEventListener("resize", updateEditorHeight);
+    };
+  }, []);
 
   const closeExpandedCanvas = useCallback(() => {
     setCanvasExpanded(false);
@@ -5884,30 +5915,34 @@ export default function Home() {
     ),
     [analysis, molecule, nameWithSelectedStereochemistry],
   );
-  const activeNomenclatureConvention = simplifiedModeEnabled
-    ? "current"
-    : nomenclatureConvention;
-  const nomenclatureVariants = useMemo(() => {
-    const localizedName = localizedIupac(nameWithSelectedStereochemistry);
-    // Recognized fused-ring common names are supplied by the naming engine.
-    // Prefer them over the generic formatter, which has no fused-ring lexicon.
-    const traditionalName = analysis.steroidSystem?.constitutionNameEs
-      ? uiText(language, "Sin nombre tradicional reconocido")
+  const nomenclatureVariants = (() => {
+    const suggestedName = applyNomenclatureConvention(
+      localizedIupac(nameWithSelectedStereochemistry), "current", language,
+    );
+    // A genuine traditional result comes from the structural traditional
+    // generator or a recognized common name, never the English 1979 formatter.
+    const traditionalCandidate = analysis.steroidSystem?.constitutionNameEs
+      ? null
       : analysis.fusedBicyclic
         ? fusedBicyclicTraditionalDisplayName(analysis.fusedBicyclic, language)
         : analysis.commonName
         ? translateCommonName(language, analysis.commonName)
-        : language === "es"
-          ? localizedIupac(structuralTraditionalName)
-          : legacyEnglishResult.name;
-    return (["current", "traditional"] as const).map((convention) => ({
-      convention,
-      label: nomenclatureConventionLabel(convention, language),
-      name: convention === "traditional"
-        ? traditionalName
-        : applyNomenclatureConvention(localizedName, convention, language),
-    }));
-  }, [analysis.commonName, analysis.fusedBicyclic, analysis.steroidSystem, language, legacyEnglishResult.name, nameWithSelectedStereochemistry, structuralTraditionalName]);
+        : localizedIupac(structuralTraditionalName);
+    const traditionalAvailable = Boolean(traditionalCandidate
+      && traditionalCandidate !== "-"
+      && traditionalCandidate !== uiText(language, "Sin nombre tradicional reconocido")
+      && traditionalCandidate.trim().toLocaleLowerCase(language) !== suggestedName.trim().toLocaleLowerCase(language));
+    return [
+      { convention: "current" as const, label: language === "en" ? "IUPAC Suggested" : "IUPAC sugerido", name: suggestedName },
+      ...(traditionalAvailable
+        ? [{ convention: "traditional" as const, label: language === "en" ? "Traditional" : "Tradicional", name: traditionalCandidate! }]
+        : []),
+    ];
+  })();
+  const traditionalNomenclatureAvailable = nomenclatureVariants.some((variant) => variant.convention === "traditional");
+  const activeNomenclatureConvention = !simplifiedModeEnabled && nomenclatureConvention === "traditional" && traditionalNomenclatureAvailable
+    ? "traditional"
+    : "current";
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
@@ -6311,11 +6346,6 @@ export default function Home() {
     }
   }, [tetrahedralBadgeScale, tetrahedralBadgeScalePreferenceReady]);
 
-  useEffect(() => () => {
-    if (nomenclatureHintTimer.current !== null) {
-      window.clearTimeout(nomenclatureHintTimer.current);
-    }
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -7117,18 +7147,19 @@ export default function Home() {
     setSelectedId(idMap[0]);
   };
 
-  const addFunctionalGroup = (template: FunctionalGroupTemplate) => {
-    if (!hasActiveSelection || !isCarbonAtom(selectedAtom)) {
+  const addFunctionalGroup = (template: FunctionalGroupTemplate, anchorId = selectedId) => {
+    const targetAtom = molecule.atoms.find((atom) => atom.id === anchorId);
+    if (!targetAtom || !isCarbonAtom(targetAtom)) {
       setNotice("Los grupos funcionales de la biblioteca se incorporan desde un carbono seleccionado.");
       return;
     }
 
-    const carbonNeighbors = atomNeighbors(selectedAtom.id, molecule)
+    const carbonNeighbors = atomNeighbors(targetAtom.id, molecule)
       .filter((neighbor) => {
         const atom = getAtom(neighbor.atomId, molecule);
         return atom && isCarbonAtom(atom);
       });
-    const heteroNeighbors = atomNeighbors(selectedAtom.id, molecule)
+    const heteroNeighbors = atomNeighbors(targetAtom.id, molecule)
       .filter((neighbor) => {
         const atom = getAtom(neighbor.atomId, molecule);
         return atom && !isCarbonAtom(atom);
@@ -7157,7 +7188,7 @@ export default function Home() {
     }
     const functionalGroupViolation = getAtomValenceViolation(
       molecule,
-      selectedAtom.id,
+      targetAtom.id,
       incomingValence,
     );
     if (functionalGroupViolation) {
@@ -7169,7 +7200,7 @@ export default function Home() {
 
     const placement = placeAttachmentTemplate(
       molecule,
-      selectedAtom.id,
+      targetAtom.id,
       template.atoms,
       template.bonds.map(([from, to, order]) => [
         from === 0 ? -1 : from - 1,
@@ -7192,7 +7223,7 @@ export default function Home() {
       ...(template.atoms[index].charge ? { charge: template.atoms[index].charge } : {}),
     }));
     const addedBonds = template.bonds.map(([from, to, order]) => [
-      from === 0 ? selectedAtom.id : idMap[from - 1],
+      from === 0 ? targetAtom.id : idMap[from - 1],
       idMap[to - 1],
       order,
     ] as Bond);
@@ -7201,11 +7232,12 @@ export default function Home() {
       atoms: [...molecule.atoms, ...addedAtoms],
       bonds: [...molecule.bonds, ...addedBonds],
     };
-    commit(
+    if (!commit(
       next,
       `${template.label} añadido (${template.shortFormula}). Fórmula, grupo principal y nombre recalculados.`,
-    );
-    previousSelectedId.current = selectedAtom.id;
+    )) return;
+    setPlacementTool(null);
+    previousSelectedId.current = targetAtom.id;
     setSelectedId(idMap[0]);
     setShowFunctionalPalette(false);
   };
@@ -8625,7 +8657,7 @@ export default function Home() {
     : [];
   const ringLibraryContext: RingLibraryContext = selectedBondCanFuse
     ? "fuse"
-    : hasActiveSelection && isCarbonAtom(selectedAtom)
+    : ringInsertMode === "attach" || hasActiveSelection && isCarbonAtom(selectedAtom)
       ? "attach"
       : "replace";
   const ringFusionOptionError = (template: RingTemplate) => {
@@ -8647,7 +8679,10 @@ export default function Home() {
       fuseSelectedBond(template.size as 5 | 6);
       return;
     }
-    loadRingTemplate(template, ringLibraryContext === "attach" ? "attach" : "replace");
+    setPlacementTool({ kind: "ring", template, mode: ringLibraryContext === "attach" ? "attach" : "replace" });
+    setToolPointer(lastToolPointer.current);
+    setShowRingPalette(false);
+    setNotice(language === "en" ? `Click a carbon on the canvas to place ${template.label}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
   };
   const canvasScaleClass = carbonCount <= 10
     ? "chain-short"
@@ -8693,25 +8728,6 @@ export default function Home() {
     : themePreference === "dark"
       ? t("Oscuro")
       : t("Claro");
-  const cycleNomenclatureConvention = () => {
-    if (simplifiedModeEnabled) return;
-    setNomenclatureConvention((current) => nextNomenclatureConvention(
-      current,
-      language,
-    ));
-    if (hasUsedNomenclatureToggle) return;
-
-    setHasUsedNomenclatureToggle(true);
-    setShowNomenclatureHint(true);
-    if (nomenclatureHintTimer.current !== null) {
-      window.clearTimeout(nomenclatureHintTimer.current);
-    }
-    nomenclatureHintTimer.current = window.setTimeout(() => {
-      setShowNomenclatureHint(false);
-      nomenclatureHintTimer.current = null;
-    }, 3600);
-  };
-
   const toggleSubstituentAlias = (selectionKey: string, systematic: string) => {
     const alias = getSubstituentAlias(systematic);
     if (!alias) return;
@@ -8737,9 +8753,8 @@ export default function Home() {
         simplifiedModeEnabled && "a11y-simplified-mode",
         highlightInteractivesEnabled && "a11y-highlight-interactives",
       ].filter(Boolean).join(" ")}
-      onPointerDownCapture={(event) => {
+      onPointerDownCapture={() => {
         dismissValenceAlert();
-        if (!(event.target as Element).closest("#ring-palette, .ring-button")) setShowRingPalette(false);
       }}
     >
       <header className="site-header">
@@ -9505,7 +9520,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="workspace-grid">
+      <div className="workspace-grid" ref={workspaceGridRef}>
         <section
           id="structure-panel"
           className={`builder-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "structure-panel" ? "is-raised" : ""} ${draggingPanelId === "structure-panel" ? "is-dragging" : ""}`}
@@ -9583,7 +9598,7 @@ export default function Home() {
                 title={t("Generar isómeros desde una fórmula molecular")}
               >
                 <span aria-hidden="true">Σ</span>
-                {t("Por fórmula molecular")}
+                {language === "en" ? "Formula" : "Fórmula"}
               </button>
               <div className="view-mode-switch" role="group" aria-label={t("Tipo de representación molecular")}>
                 <button
@@ -9984,7 +9999,11 @@ export default function Home() {
             onPointerDown={(event) => event.currentTarget.focus({ preventScroll: true })}
           >
             {placementTool && toolPointer && <span className="construction-tool-badge" style={{ left: toolPointer.x, top: toolPointer.y }}>
-              {placementTool.kind === "alkyl" ? ({ methyl: "Methyl", ethyl: "Ethyl", propyl: "Propyl" }[placementTool.template.id] ?? "Alkyl") : placementTool.template.id === "benzene" ? "Benzene" : `${placementTool.template.size}-membered ring`}
+              {placementTool.kind === "alkyl"
+                ? ({ methyl: "Methyl", ethyl: "Ethyl", propyl: "Propyl" }[placementTool.template.id] ?? "Alkyl")
+                : placementTool.kind === "functional"
+                  ? t(placementTool.template.label)
+                  : placementTool.template.id === "benzene" ? "Benzene" : `${placementTool.template.size}-membered ring`}
             </span>}
             {clickRipples.map((ripple) => <span key={ripple.id} className="builder-click-ripple" style={{ left: ripple.x, top: ripple.y }} onAnimationEnd={() => setClickRipples((items) => items.filter((item) => item.id !== ripple.id))} />)}
             <div className="canvas-toolbar-left" role="group" aria-label={t("Acciones del canvas")}>
@@ -10456,6 +10475,7 @@ export default function Home() {
                       if (placementTool) {
                         event.stopPropagation();
                         if (placementTool.kind === "alkyl") addAlkylGroup(placementTool.template, atom.id);
+                        else if (placementTool.kind === "functional") addFunctionalGroup(placementTool.template, atom.id);
                         else loadRingTemplate(placementTool.template, placementTool.mode, atom.id);
                         return;
                       }
@@ -10821,12 +10841,15 @@ export default function Home() {
             </div>
           </div>
 
+          {(showAlkylPalette || showRingPalette || showFunctionalPalette) && (
+            <ToolPanelPortal target={toolPanelTarget} expanded={canvasExpanded}>
+              <section className="construction-context-panel" aria-label={language === "en" ? "Molecular tools" : "Herramientas moleculares"}>
           {showAlkylPalette && (
             <div className="alkyl-palette" id="alkyl-palette" onClickCapture={() => setPlacementTool(null)}>
               <div className="alkyl-palette-heading">
                 <div>
-                  <strong>{t("Añadir al carbono seleccionado")}</strong>
-                  <p>{t("Elige un grupo completo; se colocará automáticamente en un espacio libre.")}</p>
+                  <strong>{language === "en" ? "Alkyl groups" : "Grupos alquilo"}</strong>
+                  <p>{language === "en" ? "Choose a group, then click a carbon on the canvas." : "Elige un grupo y después pulsa un carbono del canvas."}</p>
                 </div>
                 <button onClick={() => setShowAlkylPalette(false)} aria-label={t("Cerrar grupos alquilo")}>×</button>
               </div>
@@ -10835,8 +10858,12 @@ export default function Home() {
                   <button
                     key={template.id}
                     className="alkyl-option"
-                    onClick={() => addAlkylGroup(template)}
-                    disabled={!hasActiveSelection}
+                    onClick={() => {
+                      setPlacementTool({ kind: "alkyl", template });
+                      setToolPointer(lastToolPointer.current);
+                      setShowAlkylPalette(false);
+                      setNotice(language === "en" ? `Click a carbon on the canvas to place ${template.label}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
+                    }}
                     title={`Add ${localizedCommonAlkylName(template.label)}${({ methyl: " — Shortcut: M", ethyl: " — Shortcut: E", propyl: " — Shortcut: P" }[template.id] ?? "")}`}
                   >
                     <span className="alkyl-formula">{template.formula}</span>
@@ -10948,8 +10975,6 @@ export default function Home() {
                     setRingInsertMode("attach");
                   }}
                   aria-pressed={ringLibraryContext === "attach"}
-                  disabled={!hasActiveSelection || !isCarbonAtom(selectedAtom) || selectedValence >= 4}
-                  title={!hasActiveSelection || !isCarbonAtom(selectedAtom) || selectedValence >= 4 ? t("Selecciona un carbono con una valencia libre") : undefined}
                 >
                   <span aria-hidden="true">＋</span>
                   {t("Unir al C seleccionado")}
@@ -10987,7 +11012,7 @@ export default function Home() {
                       onClick={() => {
                         if (!suppressRingPickerClickAfterDrag.current) chooseRingFromLibrary(template);
                       }}
-                      disabled={Boolean(ringFusionOptionError(template)) || (ringLibraryContext === "attach" && !hasActiveSelection)}
+                      disabled={Boolean(ringFusionOptionError(template))}
                       title={ringFusionOptionError(template) ?? `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}${template.size === 5 || template.size === 6 ? ". Arrastra sobre un enlace de anillo para fusionar." : ""}`}
                     >
                       <span className="ring-preview" aria-hidden="true">
@@ -11021,7 +11046,7 @@ export default function Home() {
                         title={unavailable
                           ? ringLibraryContext === "fuse" ? t("La fusión aromática aún no está disponible.") : t("Este derivado se carga como ejemplo completo; usa Benceno para unir otro anillo")
                           : `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}`}
-                        disabled={unavailable || (ringLibraryContext === "attach" && !hasActiveSelection)}
+                        disabled={unavailable}
                       >
                         <span className="ring-preview aromatic-preview" aria-hidden="true">
                           <svg viewBox="0 0 48 48">
@@ -11054,7 +11079,7 @@ export default function Home() {
                         key={template.id}
                         className="ring-option aromatic-option"
                         onClick={() => chooseRingFromLibrary(template)}
-                        disabled={ringLibraryContext === "fuse" || (ringLibraryContext === "attach" && !hasActiveSelection)}
+                        disabled={ringLibraryContext === "fuse"}
                         title={ringLibraryContext === "fuse" ? t("La fusión de heterociclos aún no está disponible.") : `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedRingTemplateName(template).toLowerCase()}`}
                       >
                         <span className="ring-preview aromatic-preview heterocycle-preview" aria-hidden="true">
@@ -11088,7 +11113,7 @@ export default function Home() {
                         key={template.id}
                         className="ring-option"
                         onClick={() => chooseRingFromLibrary(template)}
-                        disabled={ringLibraryContext === "fuse" || (ringLibraryContext === "attach" && !hasActiveSelection)}
+                        disabled={ringLibraryContext === "fuse"}
                         title={ringLibraryContext === "fuse" ? t("La fusión de heterociclos aún no está disponible.") : `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedRingTemplateName(template).toLowerCase()}`}
                       >
                         <span className="ring-preview heterocycle-preview" aria-hidden="true">
@@ -11118,7 +11143,7 @@ export default function Home() {
               <div className="alkyl-palette-heading">
                 <div>
                   <strong>{t("Biblioteca de grupos funcionales")}</strong>
-                  <p>{t("Selecciona primero el carbono que llevará el grupo. La valencia y el nombre se validan automáticamente.")}</p>
+                  <p>{language === "en" ? "Choose a group, then click its carbon on the canvas. Valence and name are checked." : "Elige un grupo y después pulsa su carbono en el canvas. Se validan valencia y nombre."}</p>
                 </div>
                 <button onClick={() => setShowFunctionalPalette(false)} aria-label={t("Cerrar grupos funcionales")}>×</button>
               </div>
@@ -11145,8 +11170,12 @@ export default function Home() {
                         <button
                           className="functional-option"
                           key={template.id}
-                          onClick={() => addFunctionalGroup(template)}
-                          disabled={!hasActiveSelection}
+                          onClick={() => {
+                            setPlacementTool({ kind: "functional", template });
+                            setToolPointer(lastToolPointer.current);
+                            setShowFunctionalPalette(false);
+                            setNotice(language === "en" ? `Click a carbon on the canvas to place ${t(template.label)}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
+                          }}
                           title={language === "en" ? `Add ${t(template.label).toLowerCase()}: ${t(template.detail)}` : `Añadir ${template.label.toLowerCase()}: ${template.detail}`}
                         >
                           <span className="functional-formula">{template.shortFormula}</span>
@@ -11165,6 +11194,9 @@ export default function Home() {
 
               <p className="alkyl-note functional-note">{t("Para aldehídos, ácidos, ésteres y amidas usa un carbono terminal. Para una cetona, selecciona un carbono interno de la cadena.")}</p>
             </div>
+          )}
+              </section>
+            </ToolPanelPortal>
           )}
 
           <div
@@ -11186,6 +11218,7 @@ export default function Home() {
           <div><span className="step-number">2</span><p><strong>{t("Añade")}</strong> {t("C, enlaces y grupos funcionales")}</p></div>
           <div><span className="step-number">3</span><p><strong>{t("Analiza")}</strong> {t("el nombre IUPAC")}</p></div>
         </section>
+        <div className="construction-context-slot" ref={toolPanelSlotRef} />
         <aside
           id="analysis-panel"
           className={`analysis-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
@@ -11268,7 +11301,7 @@ export default function Home() {
           >
             <div>
               <p className="eyebrow">{t("Análisis en tiempo real")}</p>
-              <h2>{t("Nombre IUPAC sugerido")}</h2>
+              <h2>{language === "en" ? "Molecular analysis" : "Análisis molecular"}</h2>
             </div>
             <div className="panel-heading-end">
               <div className="analysis-status">
@@ -11289,104 +11322,10 @@ export default function Home() {
                   {t("Estereoquímica")}
                 </button>
               )}
-              <button
-                className="name-visibility-button"
-                onClick={() => {
-                  setShowIupacName((visible) => !visible);
-                  setNotice(
-                    showIupacName
-                      ? "Nombre IUPAC oculto: formula tu respuesta antes de mostrarlo."
-                      : "Nombre IUPAC visible nuevamente.",
-                  );
-                }}
-                aria-pressed={!showIupacName}
-              >
-                {showIupacName ? t("Ocultar") : t("Mostrar")}
-              </button>
               </div>
               <span className="drag-indicator" title={t("Arrastrar panel")} aria-hidden="true">⠿</span>
             </div>
           </div>
-
-          <div
-            className={`name-result ${showIupacName ? "" : "concealed"}`}
-            aria-live={advancedScreenReaderEnabled ? "polite" : undefined}
-          >
-            <div className="name-copy">
-              <p>
-                {showIupacName && !simplifiedModeEnabled ? (
-                  <button
-                    className="nomenclature-name-toggle"
-                    type="button"
-                    onClick={cycleNomenclatureConvention}
-                    aria-label={t("Toca el nombre para cambiar la nomenclatura")}
-                    title={t("Toca el nombre para cambiar la nomenclatura")}
-                  >
-                    <ChemicalNameText name={displayedIupacName} />
-                  </button>
-                ) : showIupacName ? (
-                  <span className="nomenclature-name-static"><ChemicalNameText name={displayedIupacName} /></span>
-                ) : t("Respuesta oculta")}
-              </p>
-              {showIupacName && !simplifiedModeEnabled && (
-                <div className="nomenclature-variants" aria-label={t("Sistemas de nomenclatura disponibles")}>
-                  {nomenclatureVariants.map((variant) => (
-                    <button
-                      type="button"
-                      key={variant.convention}
-                      className={variant.convention === activeNomenclatureConvention ? "active" : ""}
-                      aria-pressed={variant.convention === activeNomenclatureConvention}
-                      onClick={() => setNomenclatureConvention(variant.convention)}
-                    >
-                      <span>{variant.label}</span>
-                      <strong><ChemicalNameText name={variant.name} /></strong>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {showIupacName && !simplifiedModeEnabled && (
-                <small className="nomenclature-mode-label">
-                  {nomenclatureConventionLabel(activeNomenclatureConvention, language)}
-                </small>
-              )}
-              {showIupacName && !simplifiedModeEnabled && availableSubstituentAliases.length > 0 && (
-                <div className="nomenclature-aliases" aria-label={t("Nombres alternativos de sustituyentes")}>
-                  {availableSubstituentAliases.map(({ alias, selectionKey }) => {
-                    const active = commonAlkylNameSelections.includes(alias.systematic)
-                      || commonAlkylNameSelections.includes(selectionKey);
-                    return (
-                      <button
-                        type="button"
-                        key={selectionKey}
-                        aria-pressed={active}
-                        onClick={() => toggleSubstituentAlias(selectionKey, alias.systematic)}
-                        title={t("Cambiar el nombre de este sustituyente")}
-                      >
-                        {active ? localizedCommonAlkylName(alias.common) : localizedIupac(alias.systematic)}
-                        <span aria-hidden="true"> ↔ </span>
-                        {active ? localizedIupac(alias.systematic) : localizedCommonAlkylName(alias.common)}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {showIupacName && !simplifiedModeEnabled && showNomenclatureHint && (
-                <small className="nomenclature-name-help">{t("Toca el nombre para cambiar la nomenclatura")}</small>
-              )}
-            </div>
-            <button
-              title={showIupacName ? t("Copiar nombre") : t("Muestra el nombre antes de copiarlo")}
-              aria-label={t("Copiar nombre IUPAC")}
-              disabled={!showIupacName}
-              onClick={() => {
-                navigator.clipboard?.writeText(displayedIupacName);
-                setNotice("Nombre copiado al portapapeles.");
-              }}
-            >
-              ⧉
-            </button>
-          </div>
-
 
           {analysis.functionalGroups.length > 0 && (
             <div className="functional-detection" aria-label={t("Grupos funcionales detectados")}>
@@ -11663,12 +11602,67 @@ export default function Home() {
       <div className={`iupac-dock ${iupacDockExpanded ? "is-expanded" : ""}`} role="region" aria-label={t("Nombre IUPAC")}>
         {iupacDockExpanded && (
           <div className="iupac-dock-detail" id="iupac-dock-detail">
-            <span>IUPAC · {nomenclatureConventionLabel(activeNomenclatureConvention, language)}</span>
+            <div className="iupac-dock-detail-heading">
+              <span>{nomenclatureVariants.find((variant) => variant.convention === activeNomenclatureConvention)?.label}</span>
+              <button type="button" onClick={() => setShowIupacName((visible) => !visible)}>
+                {showIupacName ? t("Ocultar") : t("Mostrar")}
+              </button>
+            </div>
             <strong><ChemicalNameText name={showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
+            {showIupacName && !simplifiedModeEnabled && (
+              <div className="iupac-dock-variants" aria-label={t("Sistemas de nomenclatura disponibles")}>
+                {nomenclatureVariants.filter((variant) => variant.convention !== activeNomenclatureConvention).map((variant) => (
+                  <button
+                    type="button"
+                    key={variant.convention}
+                    className={variant.convention === activeNomenclatureConvention ? "active" : ""}
+                    aria-pressed={variant.convention === activeNomenclatureConvention}
+                    onClick={() => setNomenclatureConvention(variant.convention)}
+                  >
+                    <span>{variant.label}</span>
+                    <strong><ChemicalNameText name={variant.name} /></strong>
+                  </button>
+                ))}
+                {!traditionalNomenclatureAvailable && (
+                  <p>{language === "en" ? "No distinct traditional name is available for this structure." : "No hay un nombre tradicional diferente disponible para esta estructura."}</p>
+                )}
+                {language === "en" && legacyEnglishResult.name !== "-" && !nomenclatureVariants.some((variant) => variant.name === legacyEnglishResult.name) && (
+                  <div className="iupac-dock-legacy">
+                    <span>IUPAC 1979 Legacy English · {language === "en" ? "separate convention" : "convención distinta"}</span>
+                    <strong><ChemicalNameText name={legacyEnglishResult.name} /></strong>
+                  </div>
+                )}
+              </div>
+            )}
+            {showIupacName && !simplifiedModeEnabled && availableSubstituentAliases.length > 0 && (
+              <div className="nomenclature-aliases" aria-label={t("Nombres alternativos de sustituyentes")}>
+                {availableSubstituentAliases.map(({ alias, selectionKey }) => {
+                  const active = commonAlkylNameSelections.includes(alias.systematic)
+                    || commonAlkylNameSelections.includes(selectionKey);
+                  return (
+                    <button type="button" key={selectionKey} aria-pressed={active} onClick={() => toggleSubstituentAlias(selectionKey, alias.systematic)}>
+                      {active ? localizedCommonAlkylName(alias.common) : localizedIupac(alias.systematic)}
+                      <span aria-hidden="true"> ↔ </span>
+                      {active ? localizedIupac(alias.systematic) : localizedCommonAlkylName(alias.common)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
         <div className="iupac-dock-inner">
           <span className="iupac-dock-label">IUPAC</span>
+          <select
+            className="iupac-dock-profile"
+            value={activeNomenclatureConvention}
+            onChange={(event) => setNomenclatureConvention(event.target.value as NomenclatureConvention)}
+            disabled={simplifiedModeEnabled}
+            aria-label={language === "en" ? "Nomenclature profile" : "Perfil de nomenclatura"}
+          >
+            <option value="current">{language === "en" ? "IUPAC Suggested" : "IUPAC sugerido"}</option>
+            <option value="traditional" disabled={!traditionalNomenclatureAvailable}>{language === "en" ? "Traditional" : "Tradicional"}</option>
+          </select>
           <strong className="iupac-dock-name"><ChemicalNameText name={showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
           <button type="button" className="iupac-dock-expand" onClick={() => setIupacDockExpanded((expanded) => !expanded)} aria-expanded={iupacDockExpanded} aria-controls="iupac-dock-detail" title={t("Mostrar nombre completo")}>
             {iupacDockExpanded ? "⌄" : "⌃"}
