@@ -2042,9 +2042,50 @@ button {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(350px, 0.85fr);
+  grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
   gap: 18px;
-  align-items: stretch;
+  align-items: start;
+}
+
+.information-column {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+  padding-bottom: calc(100dvh - 130px);
+}
+
+.information-column .intro-strip {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 14px;
+}
+
+.information-column .intro-strip > div {
+  flex: 1 1 130px;
+  min-width: 0;
+}
+
+.information-column .intro-strip p {
+  font-size: 11px;
+}
+
+.information-column .examples-card {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 0;
+}
+
+.information-column .preset-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.information-column footer {
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 0 8px;
 }
 
 /* Panels keep their grid slots; only their visual layer is translated. */
@@ -2091,17 +2132,38 @@ button {
 /* The constructor's action grid can be wider than its half of the desktop
    workspace. Let the actions take their own line rather than clipping them. */
 .builder-card .card-heading {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px 16px 10px;
 }
 
 .builder-card .panel-heading-end {
-  flex: 0 1 390px;
-  justify-content: flex-end;
+  width: 100%;
+  justify-content: stretch;
 }
 
 .builder-card .heading-actions {
-  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   min-width: 0;
+}
+
+.builder-card .heading-actions > .history-controls {
+  margin-left: auto;
+}
+
+.builder-card :is(.name-builder-panel, .formula-builder-panel, .smiles-interop-panel) {
+  max-height: clamp(142px, 24dvh, 185px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.builder-card .name-builder-panel {
+  max-height: 215px;
 }
 
 @media (max-width: 640px) {
@@ -2113,7 +2175,8 @@ button {
     display: grid;
     grid-template-areas:
       "name smiles"
-      "formula view"
+      "formula formula"
+      "view view"
       "history history";
     grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: flex-start;
@@ -2134,6 +2197,7 @@ button {
 
   .builder-card .heading-actions > .history-controls {
     justify-self: start;
+    margin-left: 0;
   }
 }
 
@@ -2184,8 +2248,32 @@ button {
 }
 
 .builder-card {
+  position: sticky;
+  top: 12px;
+  height: calc(100dvh - 24px);
   min-width: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+}
+
+.analysis-utility-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 15px 18px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.analysis-utility-bar .personal-history-control {
+  flex: 1 1 138px;
+  min-width: 0;
+}
+
+.analysis-utility-bar .scope-pill {
+  max-width: 100%;
 }
 
 .card-heading,
@@ -2376,8 +2464,10 @@ button {
   --structure-main: #4d8c94;
   --structure-branch: #d5a254;
   --structure-functional: #8a6ca0;
-  position: relative;
-  height: clamp(390px, 45vh, 520px);
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  height: clamp(300px, calc(100dvh - 390px), 620px);
   margin: 0 18px;
   overflow: hidden;
   border: 1px solid #dfe8e5;
@@ -4812,15 +4902,43 @@ button:focus-visible,
   filter: drop-shadow(0 0 4px rgba(34, 118, 101, 0.52));
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1000px) {
   .workspace-grid {
     grid-template-columns: 1fr;
+  }
+
+  .information-column {
+    padding-bottom: 0;
+  }
+
+  .builder-card {
+    position: relative;
+    top: auto;
+    height: auto;
+    overflow: hidden;
+    overscroll-behavior-y: auto;
+  }
+
+  .builder-card :is(.name-builder-panel, .formula-builder-panel, .smiles-interop-panel) {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .molecule-stage {
+    position: relative;
+    top: auto;
+    z-index: auto;
+    height: clamp(390px, 45vh, 520px);
   }
 
   .analysis-card {
     display: grid;
     grid-template-columns: 1fr 1fr;
     padding-bottom: 0;
+  }
+
+  .analysis-utility-bar {
+    grid-column: 1 / -1;
   }
 
   .analysis-heading,
@@ -6688,6 +6806,23 @@ html[data-theme="dark"] .creator-credit strong {
   grid-template-columns: minmax(185px, 1fr) minmax(190px, 0.8fr) auto minmax(210px, 0.8fr);
 }
 
+@media (min-width: 1001px) {
+  .builder-card .builder-toolbar {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 1fr) auto;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .builder-card .structure-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .builder-card .structure-actions .remove-button {
+    grid-column: auto;
+  }
+}
+
 .functional-button {
   display: flex;
   min-height: 40px;
@@ -7238,7 +7373,7 @@ html[data-theme="dark"] .valence-alert > span {
   background: #9f5f50;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1000px) {
   .analysis-heading,
   .name-result,
   .functional-detection,
@@ -7821,7 +7956,7 @@ html[data-theme="dark"] .external-info-link:hover {
   color: #c1f0df;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1000px) {
   .real-world-context {
     grid-column: 1;
   }

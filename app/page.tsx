@@ -8789,89 +8789,6 @@ export default function Home() {
           <p>{t("Laboratorio interactivo")}</p>
           <h1>{t("Laboratorio de Hidrocarburos")}</h1>
         </div>
-        <div className="header-actions">
-          <button
-            className="personal-history-control"
-            onClick={() => {
-              setLibrarySection("history");
-              setHistoryQuery("");
-              setHistoryOpen(true);
-            }}
-            aria-label={language === "en" ? `Open my history. ${historyEntries.length} recent versions` : `Abrir mi historial. ${historyEntries.length} versiones recientes`}
-            aria-haspopup="dialog"
-          >
-            <span className="personal-history-icon" aria-hidden="true">↺</span>
-            <span className="personal-history-copy">
-              {t("Historial")}
-              <small>{historySyncState === "saving" ? t("Guardando…") : t("Siempre disponible")}</small>
-            </span>
-            <strong>{historyEntries.length}</strong>
-          </button>
-          <button
-            className="personal-history-control personal-saved-control"
-            onClick={() => {
-              setLibrarySection("saved");
-              setHistoryQuery("");
-              setHistoryOpen(true);
-            }}
-            aria-label={language === "en" ? `Open Saved. ${savedEntries.length} selected structures` : `Abrir Guardados. ${savedEntries.length} estructuras elegidas`}
-            aria-haspopup="dialog"
-          >
-            <span className="personal-history-icon" aria-hidden="true">★</span>
-            <span className="personal-history-copy">
-              {t("Guardados")}
-              <small>{t("Elegidos por ti")}</small>
-            </span>
-            <strong>{savedEntries.length}</strong>
-          </button>
-          <div className="language-switch" role="group" aria-label={language === "en" ? "Language" : "Idioma"}>
-            <button
-              type="button"
-              className={language === "es" ? "active" : ""}
-              aria-pressed={language === "es"}
-              onClick={() => setLanguage("es")}
-              title="Español"
-            >
-              ES
-            </button>
-            <button
-              type="button"
-              className={language === "en" ? "active" : ""}
-              aria-pressed={language === "en"}
-              onClick={() => setLanguage("en")}
-              title="English"
-            >
-              EN
-            </button>
-          </div>
-          <button
-            className="theme-control"
-            onClick={cycleTheme}
-            aria-label={language === "en" ? `Theme ${themeModeLabel}. Change color mode` : `Tema ${themeModeLabel}. Cambiar modo de color`}
-            title={t("Alternar entre automático, claro y oscuro")}
-          >
-            <span className="theme-icon" aria-hidden="true">{isDarkTheme ? "☾" : "☀"}</span>
-            <span>{t("Tema")} <strong>{themeModeLabel}</strong></span>
-          </button>
-          <button
-            type="button"
-            className="settings-control"
-            onClick={() => {
-              setHistoryOpen(false);
-              setSettingsOpen(true);
-            }}
-            aria-label={t("Abrir configuración")}
-            aria-expanded={settingsOpen}
-            aria-haspopup="dialog"
-            title={t("Configuración")}
-          >
-            <span aria-hidden="true">⚙</span>
-          </button>
-          <div className="scope-pill">
-            <span className="status-dot" />
-            {t("Hidrocarburos · grupos funcionales")}
-          </div>
-        </div>
       </header>
 
       {historyOpen && (
@@ -9615,23 +9532,6 @@ export default function Home() {
           </section>
         </div>
       )}
-
-      <section className="intro-strip" aria-label={t("Instrucciones breves")}>
-        <div>
-          <span className="step-number">1</span>
-          <p><strong>{t("Selecciona")}</strong> {t("un carbono")}</p>
-        </div>
-        <div className="step-line" />
-        <div>
-          <span className="step-number">2</span>
-          <p><strong>{t("Añade")}</strong> {t("C, enlaces y grupos funcionales")}</p>
-        </div>
-        <div className="step-line" />
-        <div>
-          <span className="step-number">3</span>
-          <p><strong>{t("Analiza")}</strong> {t("el nombre IUPAC")}</p>
-        </div>
-      </section>
 
       <div className="workspace-grid">
         <section
@@ -11413,11 +11313,84 @@ export default function Home() {
           </ViewportPortal>
         </section>
 
+        <div className="information-column">
+        <section className="intro-strip" aria-label={t("Instrucciones breves")}>
+          <div><span className="step-number">1</span><p><strong>{t("Selecciona")}</strong> {t("un carbono")}</p></div>
+          <div><span className="step-number">2</span><p><strong>{t("Añade")}</strong> {t("C, enlaces y grupos funcionales")}</p></div>
+          <div><span className="step-number">3</span><p><strong>{t("Analiza")}</strong> {t("el nombre IUPAC")}</p></div>
+        </section>
         <aside
           id="analysis-panel"
           className={`analysis-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
           style={panelStyle("analysis-panel")}
         >
+          <div className="analysis-utility-bar" aria-label={t("Preferencias")}>
+            <button
+              className="personal-history-control"
+              onClick={() => {
+                setLibrarySection("history");
+                setHistoryQuery("");
+                setHistoryOpen(true);
+              }}
+              aria-label={language === "en" ? `Open my history. ${historyEntries.length} recent versions` : `Abrir mi historial. ${historyEntries.length} versiones recientes`}
+              aria-haspopup="dialog"
+            >
+              <span className="personal-history-icon" aria-hidden="true">↺</span>
+              <span className="personal-history-copy">
+                {t("Historial")}
+                <small>{historySyncState === "saving" ? t("Guardando…") : t("Siempre disponible")}</small>
+              </span>
+              <strong>{historyEntries.length}</strong>
+            </button>
+            <button
+              className="personal-history-control personal-saved-control"
+              onClick={() => {
+                setLibrarySection("saved");
+                setHistoryQuery("");
+                setHistoryOpen(true);
+              }}
+              aria-label={language === "en" ? `Open Saved. ${savedEntries.length} selected structures` : `Abrir Guardados. ${savedEntries.length} estructuras elegidas`}
+              aria-haspopup="dialog"
+            >
+              <span className="personal-history-icon" aria-hidden="true">★</span>
+              <span className="personal-history-copy">
+                {t("Guardados")}
+                <small>{t("Elegidos por ti")}</small>
+              </span>
+              <strong>{savedEntries.length}</strong>
+            </button>
+            <div className="language-switch" role="group" aria-label={language === "en" ? "Language" : "Idioma"}>
+              <button type="button" className={language === "es" ? "active" : ""} aria-pressed={language === "es"} onClick={() => setLanguage("es")} title="Español">ES</button>
+              <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"} onClick={() => setLanguage("en")} title="English">EN</button>
+            </div>
+            <button
+              className="theme-control"
+              onClick={cycleTheme}
+              aria-label={language === "en" ? `Theme ${themeModeLabel}. Change color mode` : `Tema ${themeModeLabel}. Cambiar modo de color`}
+              title={t("Alternar entre automático, claro y oscuro")}
+            >
+              <span className="theme-icon" aria-hidden="true">{isDarkTheme ? "☾" : "☀"}</span>
+              <span>{t("Tema")} <strong>{themeModeLabel}</strong></span>
+            </button>
+            <button
+              type="button"
+              className="settings-control"
+              onClick={() => {
+                setHistoryOpen(false);
+                setSettingsOpen(true);
+              }}
+              aria-label={t("Abrir configuración")}
+              aria-expanded={settingsOpen}
+              aria-haspopup="dialog"
+              title={t("Configuración")}
+            >
+              <span aria-hidden="true">⚙</span>
+            </button>
+            <div className="scope-pill">
+              <span className="status-dot" />
+              {t("Hidrocarburos · grupos funcionales")}
+            </div>
+          </div>
           <div
             className="analysis-heading panel-drag-handle"
             onPointerDown={(event) => beginPanelDrag("analysis-panel", event)}
@@ -11776,7 +11749,6 @@ export default function Home() {
             </div>
           </div>
         </aside>
-      </div>
 
       <section className="examples-card">
         <div>
@@ -11828,6 +11800,8 @@ export default function Home() {
           <small>{t("Química que se construye.")}</small>
         </div>
       </footer>
+        </div>
+      </div>
     </main>
   );
 }

@@ -63,7 +63,7 @@ test("the shared bond context exposes atom-owned R/S controls without replacing 
   assert.match(page, /configureSelectedBondTetrahedralCenter\(atomId, null\)/);
   assert.match(page, /selectedBondCanFuse && \(/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(page, /className="tetrahedral-center-hit-target" r=\{TETRAHEDRAL_BADGE_HIT_RADIUS\}/);
+  assert.match(page, /className="tetrahedral-center-hit-target"[\s\S]*?r=\{TETRAHEDRAL_BADGE_HIT_RADIUS \* Math\.max\(1, tetrahedralBadgeScale\)\}/);
   assert.match(page, /className="tetrahedral-center-badge" r=\{TETRAHEDRAL_BADGE_RADIUS\}/);
   assert.match(css, /\.tetrahedral-center-hit-target \{[\s\S]*?pointer-events: all;/);
   assert.match(css, /\.tetrahedral-center-marker text \{[\s\S]*?font-size: 22px;/);
