@@ -24,6 +24,8 @@ let server;
 let analyzeMolecule;
 let getSubstituentAliasSelectionKey;
 let localNamerCannotSafelyName;
+let externalCandidateNeedsNeutralLocalName;
+let externalCandidateLocalDisplayName;
 
 before(async () => {
   server = await createServer({
@@ -38,6 +40,8 @@ before(async () => {
     analyzeMolecule,
     getSubstituentAliasSelectionKey,
     localNamerCannotSafelyName,
+    externalCandidateNeedsNeutralLocalName,
+    externalCandidateLocalDisplayName,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
@@ -62,6 +66,26 @@ test("supported fused bicyclic editing remains analyzable after opening a ring",
   assert.equal(localNamerCannotSafelyName(fused, analysis), false);
   const opened = removeFusedRingAtom(fused, fused.atoms.at(-2).id);
   assert.doesNotThrow(() => analyzeMolecule(opened));
+});
+
+test("external polyhydroxylated heterocycles do not expose an incomplete local name", () => {
+  // PubChem CID 5793 (D-glucose) record structure. The editor round-trips its
+  // stereochemistry, while the current local analysis omits four oxygen atoms.
+  const result = moleculeFromSmiles("C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O");
+  assert.equal(result.ok, true, result.ok ? undefined : result.error);
+  const analysis = analyzeMolecule(result.molecule);
+  assert.equal(analysis.formula, "C₆H₁₂O₆");
+  assert.equal(analysis.name, "2-etiltetrahidropirano");
+  assert.equal(localNamerCannotSafelyName(result.molecule, analysis), false);
+  assert.equal(externalCandidateNeedsNeutralLocalName(result.molecule, analysis), true);
+  assert.equal(externalCandidateLocalDisplayName(result.molecule, analysis, "es"), "Nombre IUPAC local no disponible para esta estructura");
+  assert.equal(externalCandidateLocalDisplayName(result.molecule, analysis, "en"), "Local IUPAC name unavailable for this structure");
+
+  const supported = moleculeFromSmiles("OCC");
+  assert.equal(supported.ok, true, supported.ok ? undefined : supported.error);
+  const supportedAnalysis = analyzeMolecule(supported.molecule);
+  assert.equal(externalCandidateNeedsNeutralLocalName(supported.molecule, supportedAnalysis), false);
+  assert.equal(externalCandidateLocalDisplayName(supported.molecule, supportedAnalysis, "es"), supportedAnalysis.name);
 });
 
 function graphSignature(molecule) {

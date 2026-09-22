@@ -4680,6 +4680,30 @@ export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysi
   });
 }
 
+/**
+ * External records can contain heteroatom-rich structures outside the local
+ * naming grammar. Keep this conservative check scoped to externally sourced
+ * candidates so already-supported local names retain their current behavior.
+ */
+export function externalCandidateNeedsNeutralLocalName(molecule: Molecule, analysis: Analysis) {
+  if (localNamerCannotSafelyName(molecule, analysis)) return true;
+  const representedAtomIds = new Set([
+    ...analysis.mainChain,
+    ...analysis.substituents.flatMap((substituent) => substituent.atomIds),
+    ...analysis.functionalGroups.flatMap((group) => group.atomIds),
+  ]);
+  return molecule.atoms.some((atom) => atom.element && atom.element !== "C" && !representedAtomIds.has(atom.id));
+}
+
+export function externalCandidateLocalDisplayName(molecule: Molecule, analysis: Analysis, language: AppLanguage) {
+  if (externalCandidateNeedsNeutralLocalName(molecule, analysis)) {
+    return language === "en"
+      ? "Local IUPAC name unavailable for this structure"
+      : "Nombre IUPAC local no disponible para esta estructura";
+  }
+  return stripStereochemicalDescriptors(analysis.name);
+}
+
 function usesNitrogenLocants(value: string) {
   const normalized = value
     .normalize("NFD")
@@ -5495,6 +5519,7 @@ export default function Home() {
   const t = (spanish: string) => uiText(language, spanish);
   const localizedIupac = (name: string) => {
     if (name === COMPLEX_NAME_UNAVAILABLE_MESSAGE) return t(COMPLEX_NAME_UNAVAILABLE_MESSAGE);
+    if (name === "Local IUPAC name unavailable for this structure") return name;
     const steroidName = localizeSupportedSteroidConstitutionName(name, language);
     if (steroidName) return steroidName;
     return language === "en"
@@ -5807,7 +5832,7 @@ export default function Home() {
   const formulaInputRef = useRef(formulaInput);
   const formulaPanelOpenRef = useRef(false);
   const formulaCandidateResolverRef = useRef<ReturnType<typeof createFormulaCandidateResolver> | null>(null);
-  if (!formulaCandidateResolverRef.current) {
+  if (formulaCandidateResolverRef.current === null) {
     formulaCandidateResolverRef.current = createFormulaCandidateResolver();
   }
   const cancelFormulaCandidateSearch = (showCancelled = false) => {
@@ -5847,6 +5872,7 @@ export default function Home() {
   };
   const [reasoningSourceName, setReasoningSourceName] = useState<string | null>(null);
   const [sourceNameOverride, setSourceNameOverride] = useState<string | null>(null);
+  const [loadedPubChemFormulaCandidate, setLoadedPubChemFormulaCandidate] = useState<Pick<FormulaCandidate, "cid" | "iupacName" | "molecularFormula" | "smiles"> | null>(null);
   const lastPersistedSignature = useRef("");
   const previousSelectedId = useRef<number | null>(null);
   const valenceAlertTimer = useRef<number | null>(null);
@@ -5975,8 +6001,17 @@ export default function Home() {
     "--structure-branch": exportColors.substituent,
     "--structure-functional": exportColors.functional,
   }) as CSSProperties, [exportColors]);
+  const activeLoadedPubChemFormulaCandidate = useMemo(() => {
+    if (!loadedPubChemFormulaCandidate) return null;
+    const currentSmiles = moleculeToSmiles(molecule);
+    return currentSmiles.ok && currentSmiles.smiles === loadedPubChemFormulaCandidate.smiles
+      ? loadedPubChemFormulaCandidate
+      : null;
+  }, [loadedPubChemFormulaCandidate, molecule]);
+  const externalCandidateNameUnavailable = Boolean(activeLoadedPubChemFormulaCandidate
+    && externalCandidateNeedsNeutralLocalName(molecule, calculatedAnalysis));
   const localSuggestedNameUnavailable = sourceNameOverride === null
-    && localNamerCannotSafelyName(molecule, calculatedAnalysis);
+    && (localNamerCannotSafelyName(molecule, calculatedAnalysis) || externalCandidateNameUnavailable);
   const analysis = useMemo(
     () => sourceNameOverride
       ? { ...calculatedAnalysis, name: sourceNameOverride }
@@ -5990,9 +6025,11 @@ export default function Home() {
   const mainChainSet = useMemo(() => new Set(analysis.mainChain), [analysis.mainChain]);
   const pinName = useMemo(
     () => localSuggestedNameUnavailable
-      ? COMPLEX_NAME_UNAVAILABLE_MESSAGE
+      ? externalCandidateNameUnavailable
+        ? externalCandidateLocalDisplayName(molecule, calculatedAnalysis, language)
+        : COMPLEX_NAME_UNAVAILABLE_MESSAGE
       : stripStereochemicalDescriptors(analysis.name),
-    [analysis.name, localSuggestedNameUnavailable],
+    [analysis.name, calculatedAnalysis, externalCandidateNameUnavailable, localSuggestedNameUnavailable, language, molecule],
   );
   const stereochemistryAvailable = useMemo(
     () => getMainChainStereoDescriptors(molecule, analysis.mainChain).length > 0
@@ -6036,7 +6073,8 @@ export default function Home() {
         : analysis.commonName
         ? translateCommonName(language, analysis.commonName)
         : localizedIupac(structuralTraditionalName);
-    const traditionalAvailable = Boolean(traditionalCandidate
+    const traditionalAvailable = Boolean(!externalCandidateNameUnavailable
+      && traditionalCandidate
       && traditionalCandidate !== "-"
       && traditionalCandidate !== uiText(language, "Sin nombre tradicional reconocido")
       && traditionalCandidate.trim().toLocaleLowerCase(language) !== suggestedName.trim().toLocaleLowerCase(language));
@@ -6973,11 +7011,19 @@ export default function Home() {
       || !latestFormula.ok
       || latestFormula.asciiFormula !== candidate.molecularFormula) return;
 
+    const candidateNameUnavailable = externalCandidateNeedsNeutralLocalName(
+      candidate.molecule,
+      analyzeMolecule(candidate.molecule),
+    );
     const committed = commit(
       candidate.molecule,
-      language === "en"
-        ? `PubChem CID ${candidate.cid} loaded. Hydrocarbon Lab's name is calculated from the structure.`
-        : `Estructura PubChem CID ${candidate.cid} cargada. El nombre de Hydrocarbon Lab se calcula desde la estructura.`,
+      candidateNameUnavailable
+        ? language === "en"
+          ? `PubChem CID ${candidate.cid} structure loaded. Local IUPAC naming is unavailable for this structure.`
+          : `Estructura PubChem CID ${candidate.cid} cargada. No hay un nombre IUPAC local disponible para esta estructura.`
+        : language === "en"
+          ? `PubChem CID ${candidate.cid} loaded. Hydrocarbon Lab's name is calculated from the structure.`
+          : `Estructura PubChem CID ${candidate.cid} cargada. El nombre de Hydrocarbon Lab se calcula desde la estructura.`,
     );
     if (!committed) {
       setFormulaFeedback({
@@ -6989,6 +7035,12 @@ export default function Home() {
       return;
     }
     setSelectedId(candidate.molecule.atoms[0]?.id ?? null);
+    setLoadedPubChemFormulaCandidate({
+      cid: candidate.cid,
+      ...(candidate.iupacName ? { iupacName: candidate.iupacName } : {}),
+      molecularFormula: candidate.molecularFormula,
+      smiles: candidate.smiles,
+    });
     setSourceNameOverride(null);
     setReasoningSourceName(null);
     setCommonAlkylNameSelections([]);
@@ -6997,8 +7049,8 @@ export default function Home() {
     setFormulaFeedback({
       kind: "success",
       message: language === "en"
-        ? `PubChem CID ${candidate.cid} loaded. The IUPAC name below is generated by Hydrocarbon Lab.`
-        : `PubChem CID ${candidate.cid} cargado. El nombre IUPAC inferior lo calcula Hydrocarbon Lab.`,
+        ? `PubChem identity: ${candidate.iupacName ?? `PubChem compound ${candidate.cid}`} · CID ${candidate.cid} · ${candidate.molecularFormula}. ${candidateNameUnavailable ? "Local IUPAC name unavailable for this structure." : "Hydrocarbon Lab's local name is calculated separately from the structure."}`
+        : `Identidad PubChem: ${candidate.iupacName ?? `Compuesto PubChem ${candidate.cid}`} · CID ${candidate.cid} · ${candidate.molecularFormula}. ${candidateNameUnavailable ? "Nombre IUPAC local no disponible para esta estructura." : "El nombre local de Hydrocarbon Lab se calcula por separado desde la estructura."}`,
     });
   };
 
@@ -11988,7 +12040,7 @@ export default function Home() {
                 {!traditionalNomenclatureAvailable && (
                   <p>{language === "en" ? "No distinct traditional name is available for this structure." : "No hay un nombre tradicional diferente disponible para esta estructura."}</p>
                 )}
-                {language === "en" && legacyEnglishResult.name !== "-" && !nomenclatureVariants.some((variant) => variant.name === legacyEnglishResult.name) && (
+                {language === "en" && !externalCandidateNameUnavailable && legacyEnglishResult.name !== "-" && !nomenclatureVariants.some((variant) => variant.name === legacyEnglishResult.name) && (
                   <div className="iupac-dock-legacy">
                     <span>IUPAC 1979 Legacy English · {language === "en" ? "separate convention" : "convención distinta"}</span>
                     <strong><ChemicalNameText name={legacyEnglishResult.name} /></strong>

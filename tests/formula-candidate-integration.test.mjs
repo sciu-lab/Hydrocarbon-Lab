@@ -34,7 +34,17 @@ test("selection commits the verified candidate graph and only reports success af
   assert.match(page, /formulaCandidateResult\.formula !== candidate\.molecularFormula/);
   assert.match(page, /const committed = commit\(\s*candidate\.molecule,/);
   assert.match(page, /if \(!committed\) \{[\s\S]*?the current molecule was kept[\s\S]*?return;/);
-  assert.match(page, /PubChem CID \$\{candidate\.cid\} cargado\. El nombre IUPAC inferior lo calcula Hydrocarbon Lab\./);
+  assert.match(page, /PubChem identity: \$\{candidate\.iupacName \?\? `PubChem compound \$\{candidate\.cid\}`\} · CID \$\{candidate\.cid\} · \$\{candidate\.molecularFormula\}/);
+  assert.match(page, /Identidad PubChem: \$\{candidate\.iupacName \?\? `Compuesto PubChem \$\{candidate\.cid\}`\} · CID \$\{candidate\.cid\} · \$\{candidate\.molecularFormula\}/);
+});
+
+test("external name safeguards follow the exact loaded graph and suppress unsupported local variants", () => {
+  assert.match(page, /currentSmiles\.ok && currentSmiles\.smiles === loadedPubChemFormulaCandidate\.smiles/);
+  assert.match(page, /Boolean\(activeLoadedPubChemFormulaCandidate\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)\)/);
+  assert.match(page, /const traditionalAvailable = Boolean\(!externalCandidateNameUnavailable/);
+  assert.match(page, /language === "en" && !externalCandidateNameUnavailable && legacyEnglishResult\.name/);
+  assert.match(page, /setMolecule\(cloneMolecule\(previous\)\)/);
+  assert.match(page, /setMolecule\(cloneMolecule\(next\)\)/);
 });
 
 test("candidate cards retain PubChem attribution and use a neutral label if the record has no name", () => {
