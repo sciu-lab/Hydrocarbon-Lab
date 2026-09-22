@@ -8338,6 +8338,72 @@ html[data-theme="dark"] .external-info-link:hover {
   font-size: 12px;
 }
 
+.formula-pubchem-results {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.formula-pubchem-search {
+  justify-self: start;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #8bb6c7;
+  border-radius: 10px;
+  background: #eaf5f9;
+  color: #275e74;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.formula-pubchem-search:disabled {
+  cursor: wait;
+  opacity: .72;
+}
+
+.formula-pubchem-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #c5dce5;
+  border-radius: 10px;
+  background: #f0f8fb;
+  color: #426d7b;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.formula-pubchem-status.error {
+  border-color: #e3c3be;
+  background: #fff3f1;
+  color: #8f4c46;
+}
+
+.formula-pubchem-status button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.formula-external-isomers { margin-top: 0; }
+.external-formula-candidate { overflow-wrap: anywhere; }
+@media (max-width: 460px) {
+  .formula-pubchem-status { align-items: flex-start; flex-direction: column; }
+  .formula-pubchem-status button { align-self: flex-start; }
+}
+
 .formula-builder-input-group input.has-visual-formula {
   color: transparent;
   -webkit-text-fill-color: transparent;
@@ -8517,6 +8583,24 @@ html[data-theme="dark"] .formula-builder-feedback {
   border-color: #3b5d6a;
   background: #1b3038;
   color: #a9d1df;
+}
+
+html[data-theme="dark"] .formula-pubchem-search {
+  border-color: #477080;
+  background: #203b45;
+  color: #b6dce9;
+}
+
+html[data-theme="dark"] .formula-pubchem-status {
+  border-color: #3b5d6a;
+  background: #1b3038;
+  color: #a9d1df;
+}
+
+html[data-theme="dark"] .formula-pubchem-status.error {
+  border-color: #6e4542;
+  background: #382523;
+  color: #e0aaa4;
 }
 
 html[data-theme="dark"] .formula-results {

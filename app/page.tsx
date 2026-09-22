@@ -135,6 +135,11 @@ import {
   normalizeMolecularFormulaCapitalization,
 } from "./formula-isomers";
 import {
+  createFormulaCandidateResolver,
+  type FormulaCandidate,
+  type FormulaCandidateSearchResult,
+} from "./formula-candidate-resolver";
+import {
   compareParentCandidates,
   FUNCTIONAL_GROUP_FORMS,
   generateLegacyEnglishName,
@@ -5768,16 +5773,6 @@ export default function Home() {
   }, []);
   const [showFunctionalPalette, setShowFunctionalPalette] = useState(false);
   const [showExamplesPanel, setShowExamplesPanel] = useState(false);
-  const closeContextualPanels = () => {
-    setShowAlkylPalette(false);
-    setShowRingPalette(false);
-    setShowFunctionalPalette(false);
-    setNameBuilderOpen(false);
-    setSmilesPanelOpen(false);
-    setFormulaPanelOpen(false);
-    setShowExamplesPanel(false);
-  };
-
   const [toolPanelTarget, setToolPanelTarget] = useState<HTMLDivElement | null>(null);
   const toolPanelSlotRef = useCallback((element: HTMLDivElement | null) => setToolPanelTarget(element), []);
   const [ringInsertMode, setRingInsertMode] = useState<RingInsertMode>("replace");
@@ -5804,6 +5799,52 @@ export default function Home() {
   const [formulaFeedback, setFormulaFeedback] = useState<FormulaBuilderFeedback | null>(null);
   const [formulaResult, setFormulaResult] = useState<FormulaIsomerGeneration | null>(null);
   const [selectedFormulaIsomer, setSelectedFormulaIsomer] = useState<string | null>(null);
+  const [formulaCandidateResult, setFormulaCandidateResult] = useState<FormulaCandidateSearchResult | null>(null);
+  const [formulaCandidateLoading, setFormulaCandidateLoading] = useState(false);
+  const formulaSearchControllerRef = useRef<AbortController | null>(null);
+  const formulaSearchGenerationRef = useRef(0);
+  const formulaSearchFormulaRef = useRef<string | null>(null);
+  const formulaInputRef = useRef(formulaInput);
+  const formulaPanelOpenRef = useRef(false);
+  const formulaCandidateResolverRef = useRef<ReturnType<typeof createFormulaCandidateResolver> | null>(null);
+  if (!formulaCandidateResolverRef.current) {
+    formulaCandidateResolverRef.current = createFormulaCandidateResolver();
+  }
+  const cancelFormulaCandidateSearch = (showCancelled = false) => {
+    formulaSearchGenerationRef.current += 1;
+    const formula = formulaSearchFormulaRef.current;
+    const hadActiveRequest = formulaSearchControllerRef.current !== null;
+    formulaSearchControllerRef.current?.abort();
+    formulaSearchControllerRef.current = null;
+    formulaSearchFormulaRef.current = null;
+    setFormulaCandidateLoading(false);
+    if (showCancelled && hadActiveRequest && formula) {
+      setFormulaCandidateResult({
+        status: "cancelled",
+        formula,
+        receivedRecords: 0,
+        acceptedCount: 0,
+        rejectedCount: 0,
+        candidates: [],
+      });
+    } else if (hadActiveRequest || !showCancelled) {
+      setFormulaCandidateResult(null);
+    }
+  };
+  const closeFormulaPanel = () => {
+    formulaPanelOpenRef.current = false;
+    cancelFormulaCandidateSearch();
+    setFormulaPanelOpen(false);
+  };
+  const closeContextualPanels = () => {
+    setShowAlkylPalette(false);
+    setShowRingPalette(false);
+    setShowFunctionalPalette(false);
+    setNameBuilderOpen(false);
+    setSmilesPanelOpen(false);
+    closeFormulaPanel();
+    setShowExamplesPanel(false);
+  };
   const [reasoningSourceName, setReasoningSourceName] = useState<string | null>(null);
   const [sourceNameOverride, setSourceNameOverride] = useState<string | null>(null);
   const lastPersistedSignature = useRef("");
@@ -5831,6 +5872,12 @@ export default function Home() {
       }
     }, 0);
     return () => window.clearTimeout(restoreDismissedHints);
+  }, []);
+
+  useEffect(() => () => {
+    formulaSearchGenerationRef.current += 1;
+    formulaSearchControllerRef.current?.abort();
+    formulaSearchControllerRef.current = null;
   }, []);
 
   const dismissCanvasHint = (hint: "skeletal" | "bond") => {
@@ -6841,8 +6888,11 @@ export default function Home() {
 
   const generateIsomersFromFormula = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    cancelFormulaCandidateSearch();
+    formulaInputRef.current = formulaInput;
     const result = generateFormulaIsomers(formulaInput);
     setSelectedFormulaIsomer(null);
+    setFormulaCandidateResult(null);
     if (!result.ok) {
       setFormulaResult(null);
       setFormulaFeedback({
@@ -6872,6 +6922,83 @@ export default function Home() {
         : language === "en"
           ? `${result.isomers.length} representative structures were found for ${result.formula}. The list is not intended to be exhaustive.`
           : `Se encontraron ${result.isomers.length} estructuras representativas para ${result.formula}. La lista no pretende ser exhaustiva.`,
+    });
+  };
+
+  const searchPubChemFormulaCandidates = async () => {
+    const localResult = generateFormulaIsomers(formulaInputRef.current);
+    if (!formulaPanelOpenRef.current || !localResult.ok || localResult.isomers.length > 0) return;
+
+    cancelFormulaCandidateSearch();
+    const generation = ++formulaSearchGenerationRef.current;
+    const controller = new AbortController();
+    formulaSearchControllerRef.current = controller;
+    formulaSearchFormulaRef.current = localResult.asciiFormula;
+    setFormulaCandidateResult(null);
+    setFormulaCandidateLoading(true);
+
+    try {
+      const result = await formulaCandidateResolverRef.current!.search(localResult.asciiFormula, controller.signal);
+      const latestFormula = generateFormulaIsomers(formulaInputRef.current);
+      if (generation !== formulaSearchGenerationRef.current
+        || !formulaPanelOpenRef.current
+        || !latestFormula.ok
+        || latestFormula.asciiFormula !== localResult.asciiFormula) return;
+      setFormulaCandidateResult(result);
+    } catch {
+      if (generation !== formulaSearchGenerationRef.current) return;
+      setFormulaCandidateResult({
+        status: "service-error",
+        formula: localResult.asciiFormula,
+        receivedRecords: 0,
+        acceptedCount: 0,
+        rejectedCount: 0,
+        candidates: [],
+        message: "PubChem could not complete the search.",
+      });
+    } finally {
+      if (generation === formulaSearchGenerationRef.current) {
+        formulaSearchControllerRef.current = null;
+        formulaSearchFormulaRef.current = null;
+        setFormulaCandidateLoading(false);
+      }
+    }
+  };
+
+  const selectPubChemFormulaCandidate = (candidate: FormulaCandidate) => {
+    const latestFormula = generateFormulaIsomers(formulaInputRef.current);
+    if (!formulaPanelOpenRef.current
+      || formulaCandidateResult?.status !== "success"
+      || formulaCandidateResult.formula !== candidate.molecularFormula
+      || !latestFormula.ok
+      || latestFormula.asciiFormula !== candidate.molecularFormula) return;
+
+    const committed = commit(
+      candidate.molecule,
+      language === "en"
+        ? `PubChem CID ${candidate.cid} loaded. Hydrocarbon Lab's name is calculated from the structure.`
+        : `Estructura PubChem CID ${candidate.cid} cargada. El nombre de Hydrocarbon Lab se calcula desde la estructura.`,
+    );
+    if (!committed) {
+      setFormulaFeedback({
+        kind: "error",
+        message: language === "en"
+          ? `PubChem CID ${candidate.cid} could not pass the canvas valence checks; the current molecule was kept.`
+          : `PubChem CID ${candidate.cid} no superó las comprobaciones de valencia del canvas; se conservó la molécula actual.`,
+      });
+      return;
+    }
+    setSelectedId(candidate.molecule.atoms[0]?.id ?? null);
+    setSourceNameOverride(null);
+    setReasoningSourceName(null);
+    setCommonAlkylNameSelections([]);
+    setShowIupacName(true);
+    setRingInsertMode("replace");
+    setFormulaFeedback({
+      kind: "success",
+      message: language === "en"
+        ? `PubChem CID ${candidate.cid} loaded. The IUPAC name below is generated by Hydrocarbon Lab.`
+        : `PubChem CID ${candidate.cid} cargado. El nombre IUPAC inferior lo calcula Hydrocarbon Lab.`,
     });
   };
 
@@ -8328,7 +8455,7 @@ export default function Home() {
           setShowFunctionalPalette(false);
           if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
           if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
-          if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+          if (typeof closeFormulaPanel === "function") closeFormulaPanel();
           if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
           setFusionSelection(null);
         } else if (pngExportOpen) {
@@ -8376,7 +8503,7 @@ export default function Home() {
             setShowFunctionalPalette(false);
             if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
             if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
-            if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+            if (typeof closeFormulaPanel === "function") closeFormulaPanel();
             if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
           }
           setShowRingPalette(!showRingPalette);
@@ -8390,7 +8517,7 @@ export default function Home() {
           setShowFunctionalPalette(false);
           if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
           if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
-          if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+          if (typeof closeFormulaPanel === "function") closeFormulaPanel();
           if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
           setToolPointer(lastToolPointer.current);
           setPlacementTool({ kind: "ring", template: AROMATIC_TEMPLATES[0], mode: molecule.rings?.length ? "attach" : "replace" });
@@ -8411,7 +8538,7 @@ export default function Home() {
           setShowFunctionalPalette(false);
           if (typeof setNameBuilderOpen === "function") setNameBuilderOpen(false);
           if (typeof setSmilesPanelOpen === "function") setSmilesPanelOpen(false);
-          if (typeof setFormulaPanelOpen === "function") setFormulaPanelOpen(false);
+          if (typeof closeFormulaPanel === "function") closeFormulaPanel();
           if (typeof setShowExamplesPanel === "function") setShowExamplesPanel(false);
           const id = key === "m" ? "methyl" : key === "e" ? "ethyl" : "propyl";
           const template = ALKYL_TEMPLATES.find((item) => item.id === id);
@@ -8445,7 +8572,7 @@ export default function Home() {
         event.preventDefault();
         closeContextualPanels();
         setNameBuilderOpen(false);
-        setFormulaPanelOpen(false);
+        closeFormulaPanel();
         setSmilesPanelOpen(true);
         setSmilesFeedback(null);
       } else if (key === "n") {
@@ -8475,6 +8602,7 @@ export default function Home() {
   }, [
     historyOpen,
     closeContextualPanels,
+    closeFormulaPanel,
     nameBuilderOpen,
     smilesPanelOpen,
     formulaPanelOpen,
@@ -9683,6 +9811,7 @@ export default function Home() {
                 onClick={() => {
                   const next = !formulaPanelOpen;
                   closeContextualPanels();
+                  formulaPanelOpenRef.current = next;
                   setFormulaPanelOpen(next);
                   setFormulaFeedback(null);
                 }}
@@ -9892,7 +10021,10 @@ export default function Home() {
                         className={formulaInput ? "has-visual-formula" : ""}
                         value={formulaInput}
                         onChange={(event) => {
-                          setFormulaInput(normalizeFormulaBuilderInput(event.target.value));
+                          const nextFormula = normalizeFormulaBuilderInput(event.target.value);
+                          formulaInputRef.current = nextFormula;
+                          cancelFormulaCandidateSearch();
+                          setFormulaInput(nextFormula);
                           setFormulaFeedback(null);
                           setFormulaResult(null);
                           setSelectedFormulaIsomer(null);
@@ -9926,6 +10058,8 @@ export default function Home() {
                     type="button"
                     key={formula}
                     onClick={() => {
+                      formulaInputRef.current = formula;
+                      cancelFormulaCandidateSearch();
                       setFormulaInput(formula);
                       setFormulaFeedback(null);
                       setFormulaResult(null);
@@ -9994,6 +10128,89 @@ export default function Home() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {formulaResult?.ok && formulaResult.isomers.length === 0 && (
+                <div className="formula-pubchem-results" aria-label={language === "en" ? "PubChem formula search" : "Búsqueda de fórmula en PubChem"}>
+                  {!formulaCandidateLoading && (!formulaCandidateResult
+                    || formulaCandidateResult.status === "service-error"
+                    || formulaCandidateResult.status === "invalid-response"
+                    || formulaCandidateResult.status === "cancelled") && (
+                    <button
+                      type="button"
+                      className="formula-pubchem-search"
+                      disabled={formulaCandidateLoading}
+                      onClick={() => { void searchPubChemFormulaCandidates(); }}
+                    >
+                      {formulaCandidateLoading
+                        ? (language === "en" ? "Searching PubChem…" : "Buscando en PubChem…")
+                        : (language === "en" ? "Search PubChem" : "Buscar en PubChem")}
+                    </button>
+                  )}
+
+                  {formulaCandidateLoading && (
+                    <div className="formula-pubchem-status" role="status" aria-live="polite">
+                      <span>{language === "en" ? "Searching PubChem candidates…" : "Buscando candidatos en PubChem…"}</span>
+                      <button type="button" onClick={() => cancelFormulaCandidateSearch(true)}>
+                        {language === "en" ? "Cancel search" : "Cancelar búsqueda"}
+                      </button>
+                    </div>
+                  )}
+
+                  {formulaCandidateResult
+                    && "formula" in formulaCandidateResult
+                    && formulaCandidateResult.formula === formulaResult.asciiFormula && (
+                    <>
+                      <div
+                        className={`formula-pubchem-status ${formulaCandidateResult.status === "service-error" || formulaCandidateResult.status === "invalid-response" ? "error" : ""}`}
+                        role={formulaCandidateResult.status === "service-error" || formulaCandidateResult.status === "invalid-response" ? "alert" : "status"}
+                        aria-live="polite"
+                      >
+                        {formulaCandidateResult.status === "success"
+                          ? (language === "en"
+                            ? `PubChem returned ${formulaCandidateResult.acceptedCount} verified candidate${formulaCandidateResult.acceptedCount === 1 ? "" : "s"} from at most five records. The results are not an exhaustive isomer list.`
+                            : `PubChem devolvió ${formulaCandidateResult.acceptedCount} candidato${formulaCandidateResult.acceptedCount === 1 ? " verificado" : "s verificados"} de un máximo de cinco registros. No es una lista exhaustiva de isómeros.`)
+                          : formulaCandidateResult.status === "no-records"
+                            ? (language === "en" ? `PubChem returned no records for ${formulaCandidateResult.formula}. The formula is still valid.` : `PubChem no devolvió registros para ${formulaCandidateResult.formula}. La fórmula sigue siendo válida.`)
+                            : formulaCandidateResult.status === "no-compatible-candidates"
+                              ? (language === "en" ? `PubChem returned ${formulaCandidateResult.receivedRecords} record(s), but none passed the structure checks.` : `PubChem devolvió ${formulaCandidateResult.receivedRecords} registro(s), pero ninguno superó las comprobaciones estructurales.`)
+                              : formulaCandidateResult.status === "service-error"
+                                ? (language === "en" ? "PubChem could not be reached or returned a service error. The formula remains valid; try again later." : "No se pudo conectar con PubChem o el servicio devolvió un error. La fórmula sigue siendo válida; inténtalo más tarde.")
+                                : formulaCandidateResult.status === "cancelled"
+                                  ? (language === "en" ? "PubChem search cancelled." : "Búsqueda en PubChem cancelada.")
+                                  : formulaCandidateResult.status === "invalid-response"
+                                    ? (language === "en" ? "PubChem returned an invalid response. No candidates were shown." : "PubChem devolvió una respuesta no válida. No se muestran candidatos.")
+                                    : formulaCandidateResult.message}
+                      </div>
+
+                      {formulaCandidateResult.status === "success" && (
+                        <div className="isomers-grid formula-external-isomers">
+                          {formulaCandidateResult.candidates.map((candidate) => (
+                            <button
+                              type="button"
+                              className="isomer-card external-formula-candidate"
+                              key={`${candidate.cid}-${candidate.structureKey}`}
+                              onClick={() => selectPubChemFormulaCandidate(candidate)}
+                            >
+                              <span className="isomer-card-topline">
+                                <span className="isomer-type">PubChem · CID {candidate.cid}</span>
+                              </span>
+                              <strong>{candidate.iupacName ?? (language === "en" ? `PubChem compound ${candidate.cid}` : `Compuesto PubChem ${candidate.cid}`)}</strong>
+                              <MoleculeHistoryPreview
+                                molecule={candidate.molecule}
+                                width={170}
+                                height={78}
+                                ariaLabel={`${language === "en" ? "PubChem structure" : "Estructura de PubChem"} CID ${candidate.cid}`}
+                              />
+                              <small>{candidate.molecularFormula}</small>
+                              <span className="isomer-load-label">{t("Cargar en el canvas")} →</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </section>
