@@ -58,6 +58,38 @@ const ISOMER_CATALOG: Record<string, { complete: boolean; isomers: FormulaIsomer
     complete: true,
     isomers: [iso("ethane", "etano", "ethane", "CC", "Alcano", "Alkane")],
   },
+  C2H4: {
+    complete: false,
+    isomers: [iso("ethene", "eteno", "ethene", "C=C", "Alqueno", "Alkene")],
+  },
+  C2H2: {
+    complete: false,
+    isomers: [iso("ethyne", "etino", "ethyne", "C#C", "Alquino", "Alkyne")],
+  },
+  C6H6: {
+    complete: false,
+    isomers: [iso("benzene", "benceno", "benzene", "c1ccccc1", "Aromático", "Aromatic")],
+  },
+  C6H12: {
+    complete: false,
+    isomers: [
+      iso("cyclohexane", "ciclohexano", "cyclohexane", "C1CCCCC1", "Cicloalcano", "Cycloalkane"),
+      iso("hex-1-ene", "hex-1-eno", "hex-1-ene", "C=CCCCC", "Alqueno", "Alkene"),
+    ],
+  },
+  C7H8: {
+    complete: false,
+    isomers: [iso("toluene", "tolueno", "toluene", "Cc1ccccc1", "Aromático", "Aromatic")],
+  },
+  C8H10: {
+    complete: false,
+    isomers: [
+      iso("ethylbenzene", "etilbenceno", "ethylbenzene", "CCc1ccccc1", "Aromático", "Aromatic"),
+      iso("1-2-dimethylbenzene", "1,2-dimetilbenceno", "1,2-dimethylbenzene", "Cc1ccccc1C", "Aromático", "Aromatic"),
+      iso("1-3-dimethylbenzene", "1,3-dimetilbenceno", "1,3-dimethylbenzene", "Cc1cccc(C)c1", "Aromático", "Aromatic"),
+      iso("1-4-dimethylbenzene", "1,4-dimetilbenceno", "1,4-dimethylbenzene", "Cc1ccc(C)cc1", "Aromático", "Aromatic"),
+    ],
+  },
   C3H8: {
     complete: true,
     isomers: [iso("propane", "propano", "propane", "CCC", "Alcano", "Alkane")],
@@ -241,14 +273,26 @@ for (const halogen of MONOHALOALKANE_CATALOGS) {
   };
 }
 
-function normalizeFormulaSource(input: string): string {
+function capitalizeFormulaElementSymbols(input: string): string {
   return input
-    .trim()
-    .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => SUBSCRIPT_TO_ASCII[digit])
-    .replace(/\s+/g, "")
     .replace(/cl/gi, "Cl")
     .replace(/br/gi, "Br")
     .replace(/[chonfi]/gi, (element) => element.toUpperCase());
+}
+
+export function normalizeMolecularFormulaCapitalization(input: string): string {
+  const asciiInput = input.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => SUBSCRIPT_TO_ASCII[digit]);
+  const capitalized = capitalizeFormulaElementSymbols(asciiInput);
+  const parsed = parseMolecularFormula(asciiInput);
+  if (parsed.ok || /^(cl|br)$/i.test(asciiInput)) return capitalized;
+  return asciiInput;
+}
+
+function normalizeFormulaSource(input: string): string {
+  return capitalizeFormulaElementSymbols(input
+    .trim()
+    .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => SUBSCRIPT_TO_ASCII[digit])
+    .replace(/\s+/g, ""));
 }
 
 function formatFormula(atoms: MolecularFormulaAtoms, unicode: boolean): string {

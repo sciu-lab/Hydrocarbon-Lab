@@ -132,6 +132,7 @@ import {
   type FormulaIsomer,
   type FormulaIsomerGeneration,
   generateFormulaIsomers,
+  normalizeMolecularFormulaCapitalization,
 } from "./formula-isomers";
 import {
   compareParentCandidates,
@@ -336,6 +337,11 @@ type HistoryTransferNotice = {
 
 type NameBuilderFeedback = {
   kind: "success" | "error";
+  message: string;
+};
+
+type FormulaBuilderFeedback = {
+  kind: "success" | "error" | "info";
   message: string;
 };
 
@@ -564,7 +570,9 @@ const subscriptToAsciiDigits: Record<string, string> = Object.fromEntries(
 
 /** Keeps the formula model keyboard- and parser-friendly, including pasted subscripts. */
 export const normalizeFormulaBuilderInput = (value: string) =>
-  value.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => subscriptToAsciiDigits[digit] ?? digit);
+  normalizeMolecularFormulaCapitalization(
+    value.replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => subscriptToAsciiDigits[digit] ?? digit),
+  );
 
 export type FormulaDisplayToken = { text: string; subscript: boolean };
 
@@ -5793,7 +5801,7 @@ export default function Home() {
   const [smilesFeedback, setSmilesFeedback] = useState<HistoryTransferNotice | null>(null);
   const [formulaPanelOpen, setFormulaPanelOpen] = useState(false);
   const [formulaInput, setFormulaInput] = useState("");
-  const [formulaFeedback, setFormulaFeedback] = useState<NameBuilderFeedback | null>(null);
+  const [formulaFeedback, setFormulaFeedback] = useState<FormulaBuilderFeedback | null>(null);
   const [formulaResult, setFormulaResult] = useState<FormulaIsomerGeneration | null>(null);
   const [selectedFormulaIsomer, setSelectedFormulaIsomer] = useState<string | null>(null);
   const [reasoningSourceName, setReasoningSourceName] = useState<string | null>(null);
@@ -6847,10 +6855,10 @@ export default function Home() {
     setFormulaResult(result);
     if (!result.isomers.length) {
       setFormulaFeedback({
-        kind: "error",
+        kind: "info",
         message: language === "en"
-          ? `The formula ${result.formula} is valid (DoU ${result.idh}), but it does not yet have a verifiable catalog in the builder.`
-          : `La fórmula ${result.formula} es válida (IDH ${result.idh}), pero todavía no tiene un catálogo verificable en el constructor.`,
+          ? "Valid molecular formula, but no verified structures are available in the catalog yet."
+          : "La fórmula molecular es válida, pero todavía no hay estructuras verificadas disponibles en el catálogo.",
       });
       return;
     }
@@ -9931,7 +9939,7 @@ export default function Home() {
 
               {formulaFeedback && (
                 <div className={`formula-builder-feedback ${formulaFeedback.kind}`} role={formulaFeedback.kind === "error" ? "alert" : "status"}>
-                  <span aria-hidden="true">{formulaFeedback.kind === "success" ? "✓" : "!"}</span>
+                  <span aria-hidden="true">{formulaFeedback.kind === "success" ? "✓" : formulaFeedback.kind === "info" ? "i" : "!"}</span>
                   <p>{localizedDynamicText(formulaFeedback.message)}</p>
                 </div>
               )}
