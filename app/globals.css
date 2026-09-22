@@ -8884,3 +8884,34 @@ html[data-theme="dark"] .sticky-iupac-name small {
   .iupac-dock-name { font-size: 14px; }
   .iupac-dock-copy { padding: 3px 6px; }
 }
+
+/* Compact brand header; keep the existing logo and controls accessible. */
+.site-header { min-height: 56px; gap: 11px; }
+.brand-mark { width: 48px; height: 44px; border-radius: 12px; }
+.brand-mark img { width: 40px; }
+.brand-copy h1 { font-size: clamp(20px, 2vw, 25px); }
+.brand-copy p { display: none; }
+.alkyl-formula { clip-path: none; }
+.construction-context-panel .alkyl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.construction-context-panel .alkyl-option { min-width: 0; }
+.construction-context-panel .alkyl-copy { min-width: 0; overflow-wrap: normal; word-break: normal; }
+.construction-context-panel .alkyl-copy strong,
+.construction-context-panel .alkyl-copy small { white-space: normal; overflow-wrap: normal; word-break: normal; }
+.construction-context-panel .alkyl-copy small { height: auto; text-overflow: clip; }
+@media (max-width: 760px) {
+  .site-header { min-height: 52px; }
+  .brand-mark { width: 42px; height: 40px; }
+  .brand-mark img { width: 35px; }
+  .brand-copy h1 { font-size: 19px; }
+  .construction-context-panel .alkyl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .construction-context-panel .alkyl-option { gap: 6px; padding: 6px; }
+  .construction-context-panel .alkyl-formula { flex-basis: 48px; }
+}
+@keyframes sciu-eye-blink-once {
+  0%, 24%, 38%, 100% { transform: scaleY(1); }
+  30% { transform: scaleY(.12); }
+}
+.site-header .brand-mark img { transform-origin: center; animation: sciu-eye-blink-once 560ms ease-in-out 1; }
+@media (prefers-reduced-motion: reduce) {
+  .site-header .brand-mark img { animation: none; }
+}

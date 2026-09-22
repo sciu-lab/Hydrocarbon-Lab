@@ -5652,9 +5652,12 @@ export default function Home() {
   const localizedRingTemplateDetail = (template: RingTemplate) =>
     language === "en" && template.detailEn ? template.detailEn : localizedDetail(template.detail);
   const [molecule, setMolecule] = useState<Molecule>(() =>
-    cloneMolecule(PRESETS.find((preset) => preset.label === "2-metilpropano")!.molecule),
+    makeChain(1),
   );
-  const [selectedId, setSelectedId] = useState<number | null>(2);
+  const [isPristineInitialMolecule, setIsPristineInitialMolecule] = useState(true);
+  const [undoPristineStates, setUndoPristineStates] = useState<boolean[]>([]);
+  const [futurePristineStates, setFuturePristineStates] = useState<boolean[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(1);
   const [undoStack, setUndoStack] = useState<Molecule[]>([]);
   const [future, setFuture] = useState<Molecule[]>([]);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
@@ -6612,8 +6615,11 @@ export default function Home() {
     }
     setPlacementTool(null);
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
+    setUndoPristineStates((items) => [...items, isPristineInitialMolecule]);
     setFuture([]);
+    setFuturePristineStates([]);
     setMolecule(sanitizedNext);
+    setIsPristineInitialMolecule(false);
     if (!preserveName) {
       setReasoningSourceName(null);
       setSourceNameOverride(null);
@@ -7449,8 +7455,11 @@ export default function Home() {
     const previous = undoStack.at(-1);
     if (!previous) return;
     setFuture((items) => [cloneMolecule(molecule), ...items]);
+    setFuturePristineStates((items) => [isPristineInitialMolecule, ...items]);
     setUndoStack((items) => items.slice(0, -1));
+    setUndoPristineStates((items) => items.slice(0, -1));
     setMolecule(cloneMolecule(previous));
+    setIsPristineInitialMolecule(undoPristineStates.at(-1) ?? false);
     setReasoningSourceName(null);
     setSourceNameOverride(null);
     setSelectedId(previous.atoms[0].id);
@@ -7462,8 +7471,11 @@ export default function Home() {
     const next = future[0];
     if (!next) return;
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
+    setUndoPristineStates((items) => [...items, isPristineInitialMolecule]);
     setFuture((items) => items.slice(1));
+    setFuturePristineStates((items) => items.slice(1));
     setMolecule(cloneMolecule(next));
+    setIsPristineInitialMolecule(futurePristineStates[0] ?? false);
     setReasoningSourceName(null);
     setSourceNameOverride(null);
     setSelectedId(next.atoms[0].id);
@@ -8146,6 +8158,7 @@ export default function Home() {
   };
 
   const loadRingTemplate = (template: RingTemplate, mode = ringInsertMode, anchorId = selectedId) => {
+    if (isPristineInitialMolecule) mode = "replace";
     const selectedAtom = molecule.atoms.find((atom) => atom.id === anchorId);
     if (mode === "attach") {
       if (!selectedAtom || !isCarbonAtom(selectedAtom)) {
@@ -8205,7 +8218,15 @@ export default function Home() {
 
   const newMolecule = () => {
     const methane = makeChain(1);
-    commit(methane, "Molécula nueva: comienza desde un átomo de carbono.");
+    setUndoStack((items) => [...items, cloneMolecule(molecule)]);
+    setUndoPristineStates((items) => [...items, isPristineInitialMolecule]);
+    setFuture([]);
+    setFuturePristineStates([]);
+    setMolecule(methane);
+    setIsPristineInitialMolecule(true);
+    setReasoningSourceName(null);
+    setSourceNameOverride(null);
+    setNotice("Molécula nueva: comienza desde un átomo de carbono.");
     setSelectedId(1);
     setNomenclatureConvention("current");
     setShowStereochemistry(false);
@@ -8762,7 +8783,6 @@ export default function Home() {
           <img src="../sciu-eye.png" alt="Sciu Science" />
         </div>
         <div className="brand-copy">
-          <p>{t("Laboratorio interactivo")}</p>
           <h1>{t("Laboratorio de Hidrocarburos")}</h1>
         </div>
       </header>
