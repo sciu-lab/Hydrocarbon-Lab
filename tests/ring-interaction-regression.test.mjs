@@ -180,9 +180,28 @@ test("the By name action refocuses without toggling off an open builder", () => 
 test("formula input keeps ASCII state while mirroring subscript glyphs", () => {
   assert.match(page, /value=\{formulaInput\}[\s\S]*?normalizeFormulaBuilderInput\(event\.target\.value\)/);
   assert.match(page, /className="formula-builder-input-visual" aria-hidden="true"/);
+  assert.match(page, /className="formula-builder-visual-field"[\s\S]*?id="molecular-formula-input"[\s\S]*?className="formula-builder-input-visual"/);
   assert.match(page, /generateFormulaIsomers\(formulaInput\)/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /input\.has-visual-formula[\s\S]*?color: transparent;[\s\S]*?caret-color:/);
+  assert.match(css, /\.formula-builder-input-visual \{[\s\S]*?overflow-x: clip;\s*overflow-y: visible;/);
+  assert.match(css, /\.formula-builder-input-visual \{[\s\S]*?pointer-events: none;/);
+  assert.match(css, /\.formula-builder-visual-field \{\s*position: relative;/);
+});
+
+test("canvas guidance can be dismissed and remembers the choice for the tab session", () => {
+  assert.match(page, /const SKELETAL_HINT_DISMISSED_STORAGE_KEY = "hydrocarbonLab\.skeletalHintDismissed\.v1"/);
+  assert.match(page, /const BOND_HINT_DISMISSED_STORAGE_KEY = "hydrocarbonLab\.bondHintDismissed\.v1"/);
+  assert.match(page, /setShowSkeletalHint\(window\.sessionStorage\.getItem\(SKELETAL_HINT_DISMISSED_STORAGE_KEY\) !== "true"\)/);
+  assert.match(page, /setShowBondInteractionHint\(window\.sessionStorage\.getItem\(BOND_HINT_DISMISSED_STORAGE_KEY\) !== "true"\)/);
+  assert.match(page, /showBondInteractionHint && \(/);
+  assert.match(page, /viewMode === "skeletal" && showSkeletalHint && \(/);
+  assert.equal((page.match(/className="canvas-hint-dismiss"/g) ?? []).length, 2);
+  assert.match(page, /dismissCanvasHint\("bond"\)/);
+  assert.match(page, /dismissCanvasHint\("skeletal"\)/);
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.skeletal-hint \{[\s\S]*?pointer-events: auto;/);
+  assert.match(css, /\.bond-touch-hint \{[\s\S]*?pointer-events: auto;/);
 });
 
 test("functional groups share the contextual scroll and use at most three columns", () => {

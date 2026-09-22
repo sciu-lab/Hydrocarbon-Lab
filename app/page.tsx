@@ -190,6 +190,8 @@ const MAX_EXPORT_PIXELS = 8000;
 const compoundContextResolver = createCompoundContextResolver();
 const PANEL_STORAGE_KEY = "hydrocarbonLab.panelPositions.v1";
 const PANEL_DRAG_ENABLED_STORAGE_KEY = "hydrocarbonLab.panelDragEnabled.v2";
+const SKELETAL_HINT_DISMISSED_STORAGE_KEY = "hydrocarbonLab.skeletalHintDismissed.v1";
+const BOND_HINT_DISMISSED_STORAGE_KEY = "hydrocarbonLab.bondHintDismissed.v1";
 const NUMBERING_SCALE_STORAGE_KEY = "hydrocarbonLab.numberingScale.v1";
 const FUNCTIONAL_GROUP_SCALE_STORAGE_KEY = "hydrocarbonLab.functionalGroupScale.v1";
 const DEFAULT_FUNCTIONAL_GROUP_SCALE = 1;
@@ -5733,6 +5735,8 @@ export default function Home() {
   const [highlightInteractivesEnabled, setHighlightInteractivesEnabled] = useState(false);
   const [stereochemistryPreferenceReady, setStereochemistryPreferenceReady] = useState(false);
   const [showReasoningHelp, setShowReasoningHelp] = useState(true);
+  const [showSkeletalHint, setShowSkeletalHint] = useState(true);
+  const [showBondInteractionHint, setShowBondInteractionHint] = useState(true);
   const [showAlkylPalette, setShowAlkylPalette] = useState(false);
   const [showRingPalette, setShowRingPalette] = useState(false);
   const [placementTool, setPlacementTool] = useState<
@@ -5808,6 +5812,36 @@ export default function Home() {
   const expandedCanvasCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const expandedWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const compoundLookupNamesRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    const restoreDismissedHints = window.setTimeout(() => {
+      try {
+        setShowSkeletalHint(window.sessionStorage.getItem(SKELETAL_HINT_DISMISSED_STORAGE_KEY) !== "true");
+        setShowBondInteractionHint(window.sessionStorage.getItem(BOND_HINT_DISMISSED_STORAGE_KEY) !== "true");
+      } catch {
+        // The hints remain visible by default when session storage is unavailable.
+      }
+    }, 0);
+    return () => window.clearTimeout(restoreDismissedHints);
+  }, []);
+
+  const dismissCanvasHint = (hint: "skeletal" | "bond") => {
+    if (hint === "skeletal") {
+      setShowSkeletalHint(false);
+      try {
+        window.sessionStorage.setItem(SKELETAL_HINT_DISMISSED_STORAGE_KEY, "true");
+      } catch {
+        // Dismissal still applies for the current render when storage is unavailable.
+      }
+      return;
+    }
+    setShowBondInteractionHint(false);
+    try {
+      window.sessionStorage.setItem(BOND_HINT_DISMISSED_STORAGE_KEY, "true");
+    } catch {
+      // Dismissal still applies for the current render when storage is unavailable.
+    }
+  };
 
   useEffect(() => {
     if (nameBuilderOpen) nameInputRef.current?.focus({ preventScroll: true });
@@ -9843,30 +9877,32 @@ export default function Home() {
                 <label htmlFor="molecular-formula-input">{t("Fórmula molecular")}</label>
                 <div className="formula-builder-field">
                   <div className="formula-builder-input-group">
-                    <input
-                      id="molecular-formula-input"
-                      type="text"
-                      className={formulaInput ? "has-visual-formula" : ""}
-                      value={formulaInput}
-                      onChange={(event) => {
-                        setFormulaInput(normalizeFormulaBuilderInput(event.target.value));
-                        setFormulaFeedback(null);
-                        setFormulaResult(null);
-                        setSelectedFormulaIsomer(null);
-                      }}
-                      placeholder={t("Ej.: C6H12O o C₄H₁₀O")}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    {formulaInput && (
-                      <span className="formula-builder-input-visual" aria-hidden="true">
-                        {getFormulaDisplayTokens(formulaInput).flatMap((token, tokenIndex) =>
-                          [...token.text].map((character, characterIndex) => token.subscript
-                            ? <span className="formula-builder-input-subscript" key={`${tokenIndex}-${characterIndex}`}><sub>{character}</sub></span>
-                            : <span key={`${tokenIndex}-${characterIndex}`}>{character}</span>),
-                        )}
-                      </span>
-                    )}
+                    <div className="formula-builder-visual-field">
+                      <input
+                        id="molecular-formula-input"
+                        type="text"
+                        className={formulaInput ? "has-visual-formula" : ""}
+                        value={formulaInput}
+                        onChange={(event) => {
+                          setFormulaInput(normalizeFormulaBuilderInput(event.target.value));
+                          setFormulaFeedback(null);
+                          setFormulaResult(null);
+                          setSelectedFormulaIsomer(null);
+                        }}
+                        placeholder={t("Ej.: C6H12O o C₄H₁₀O")}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      {formulaInput && (
+                        <span className="formula-builder-input-visual" aria-hidden="true">
+                          {getFormulaDisplayTokens(formulaInput).flatMap((token, tokenIndex) =>
+                            [...token.text].map((character, characterIndex) => token.subscript
+                              ? <span className="formula-builder-input-subscript" key={`${tokenIndex}-${characterIndex}`}><sub>{character}</sub></span>
+                              : <span key={`${tokenIndex}-${characterIndex}`}>{character}</span>),
+                          )}
+                        </span>
+                      )}
+                    </div>
                     <button type="submit">
                       <span aria-hidden="true">⌬</span>
                       {t("Generar isómeros")}
@@ -10750,8 +10786,8 @@ export default function Home() {
               {structureFamilyLabel}
             </div>
 
-            {visibleBondInteractionHintActions.length > 0 && (
-              <div className="bond-touch-hint" aria-hidden="true">
+            {visibleBondInteractionHintActions.length > 0 && showBondInteractionHint && (
+              <div className="bond-touch-hint">
                 <span>↻</span>
                 <div className="bond-touch-hint-actions">
                   {visibleBondInteractionHintActions.map((action) => (
@@ -10764,13 +10800,35 @@ export default function Home() {
                     </small>
                   ))}
                 </div>
+                <button
+                  type="button"
+                  className="canvas-hint-dismiss"
+                  aria-label={language === "en" ? "Close bond editing hint" : "Cerrar ayuda de edición de enlace"}
+                  title={language === "en" ? "Close hint" : "Cerrar ayuda"}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dismissCanvasHint("bond");
+                  }}
+                >×</button>
               </div>
             )}
 
-            {viewMode === "skeletal" && (
+            {viewMode === "skeletal" && showSkeletalHint && (
               <div className="skeletal-hint">
                 <span aria-hidden="true"><i /><i /></span>
                 {t("Cada extremo y vértice representa un C; los H están implícitos.")}
+                <button
+                  type="button"
+                  className="canvas-hint-dismiss"
+                  aria-label={language === "en" ? "Close skeletal view hint" : "Cerrar ayuda de vista esquelética"}
+                  title={language === "en" ? "Close hint" : "Cerrar ayuda"}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dismissCanvasHint("skeletal");
+                  }}
+                >×</button>
               </div>
             )}
 

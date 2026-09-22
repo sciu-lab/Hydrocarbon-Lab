@@ -2709,7 +2709,7 @@ button {
   background: rgba(250, 253, 252, 0.9);
   box-shadow: 0 5px 16px rgba(26, 72, 62, 0.08);
   color: #53736b;
-  pointer-events: none;
+  pointer-events: auto;
   backdrop-filter: blur(5px);
 }
 
@@ -2739,6 +2739,30 @@ button {
   display: block;
   font-size: 9px;
   font-weight: 700;
+}
+
+.canvas-hint-dismiss {
+  display: grid;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(83, 126, 115, 0.3);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.78);
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: auto;
+}
+
+.canvas-hint-dismiss:hover,
+.canvas-hint-dismiss:focus-visible {
+  border-color: currentColor;
+  background: #ffffff;
 }
 
 .bond {
@@ -8064,10 +8088,16 @@ html[data-theme="dark"] .external-info-link:hover {
 }
 
 .formula-builder-input-group {
-  position: relative;
   display: flex;
   min-width: 0;
   gap: 7px;
+}
+
+.formula-builder-visual-field {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .formula-builder-field {
@@ -8319,8 +8349,9 @@ html[data-theme="dark"] .external-info-link:hover {
   top: 50%;
   left: 14px;
   z-index: 1;
-  overflow: hidden;
-  max-width: calc(100% - 170px);
+  overflow-x: clip;
+  overflow-y: visible;
+  max-width: calc(100% - 27px);
   transform: translateY(-50%);
   color: #203f4d;
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -8793,8 +8824,21 @@ html[data-theme="dark"] .sticky-iupac-name small {
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: auto;
 }
+
+.skeletal-hint .canvas-hint-dismiss { margin-left: auto; }
+
+html[data-theme="dark"] .formula-builder-input-visual { color: #dae9ee; }
+
+html[data-theme="dark"] .canvas-hint-dismiss {
+  border-color: rgba(129, 165, 153, 0.45);
+  background: rgba(24, 42, 37, 0.92);
+  color: #b8ddd2;
+}
+
+html[data-theme="dark"] .canvas-hint-dismiss:hover,
+html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35; }
 .builder-click-ripple {
   position: absolute;
   z-index: 11;
