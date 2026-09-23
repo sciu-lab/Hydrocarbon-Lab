@@ -6,13 +6,13 @@ import {
 } from "./iupac-name-normalization.ts";
 import { englishIupacRoot, IUPAC_ROOTS } from "./iupac-prefixes.ts";
 
-export type NomenclatureConvention = "current" | "traditional" | "iupac-1979-es";
+export type NomenclatureConvention = "current" | "traditional" | "iupac-1979-es" | "iupac-1979-legacy-en";
 
 type ConventionCycle = readonly NomenclatureConvention[];
 
 const conventionCycles: Record<AppLanguage, ConventionCycle> = {
   es: ["current", "iupac-1979-es"],
-  en: ["current", "traditional"],
+  en: ["current", "traditional", "iupac-1979-legacy-en"],
 };
 const stereoPrefix = /^(\((?:\d+[EZRS](?:,\d+[EZRS])*)\)-)(.+)$/;
 const pureAlkaneNames = new Set(
@@ -276,8 +276,9 @@ export function nextNomenclatureConvention(
   language: AppLanguage,
 ): NomenclatureConvention {
   const cycle = conventionCycles[language];
-  const historicalSelected = current === "traditional" || current === "iupac-1979-es";
-  return historicalSelected ? "current" : cycle[1];
+  const currentIndex = cycle.indexOf(current);
+  if (currentIndex >= 0) return cycle[(currentIndex + 1) % cycle.length];
+  return cycle[0];
 }
 
 export function nomenclatureConventionLabel(
@@ -285,7 +286,9 @@ export function nomenclatureConventionLabel(
   language: AppLanguage,
 ) {
   if (language === "en") {
-    return convention === "traditional" ? "IUPAC 1979 Legacy English" : "IUPAC Preferred";
+    if (convention === "iupac-1979-legacy-en") return "IUPAC 1979 Legacy English";
+    if (convention === "traditional") return "Traditional";
+    return "IUPAC Suggested";
   }
   return convention === "iupac-1979-es" ? "IUPAC 1979" : "IUPAC Preferido";
 }

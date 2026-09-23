@@ -5,6 +5,7 @@ import {
   compoundIdentityKey,
   createCompoundContextResolver,
 } from "../app/compound-context.ts";
+import { verifiedPubChemCommonName } from "../app/verified-common-name-equivalences.ts";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -133,16 +134,30 @@ test("keeps a PubChem CID 5793 systematic name and record title as distinct sour
     throw new Error(`Unexpected request: ${url}`);
   };
 
-  const context = await createCompoundContextResolver({ fetchImpl }).resolve({
+  const resolver = createCompoundContextResolver({ fetchImpl });
+  const identity = {
     cid: 5793,
     inchiKey: "WQZGKKKJIJFFOK-GASJEMHNSA-N",
     canonicalSmiles: "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O",
-  }, "en");
+  };
+  const context = await resolver.resolve(identity, "en");
+  const spanishContext = await resolver.resolve(identity, "es");
   assert.equal(context.pubchem?.iupacName, "(3R,4S,5S,6R)-6-(hydroxymethyl)oxane-2,3,4,5-tetrol");
   assert.equal(context.pubchem?.recordTitle, "D-Glucose");
   assert.equal(context.pubchem?.molecularFormula, "C6H12O6");
   assert.equal(context.pubchem?.inchiKey, "WQZGKKKJIJFFOK-GASJEMHNSA-N");
+  assert.equal(spanishContext.pubchem?.iupacName, context.pubchem?.iupacName);
+  assert.equal(calls.filter((url) => url.includes("/property/")).length, 1, "language changes reuse the cached PubChem record");
   assert.ok(calls.every((url) => !url.includes("synonym")), "no broad synonym request is made");
+});
+
+test("the D-glucose bilingual name is pinned to the exact PubChem identity, not C6H12O6", () => {
+  const glucoseIdentity = { cid: 5793, inchiKey: "WQZGKKKJIJFFOK-GASJEMHNSA-N" };
+  assert.equal(verifiedPubChemCommonName(glucoseIdentity, "en"), "D-Glucose");
+  assert.equal(verifiedPubChemCommonName(glucoseIdentity, "es"), "D-glucosa");
+  assert.equal(verifiedPubChemCommonName({ cid: 5793, inchiKey: "OTHER-STEREO-KEY" }, "es"), null);
+  assert.equal(verifiedPubChemCommonName({ cid: 100, inchiKey: glucoseIdentity.inchiKey }, "es"), null);
+  assert.equal(verifiedPubChemCommonName({}, "es"), null);
 });
 
 test("keeps a PubChem CID link when Wikipedia has no matching article", async () => {

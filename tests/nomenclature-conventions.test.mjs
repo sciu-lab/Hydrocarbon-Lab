@@ -5,6 +5,7 @@ import {
   applyNomenclatureConvention,
   formatIupac1979SpanishName,
   getCuratedCommonName,
+  nomenclatureConventionLabel,
   nextNomenclatureConvention,
   stripStereochemicalDescriptors,
 } from "../app/nomenclature-conventions.ts";
@@ -203,8 +204,12 @@ test("preserves E/Z independently from the preferred convention", () => {
 test("uses the language-specific convention cycle", () => {
   assert.equal(nextNomenclatureConvention("current", "es"), "iupac-1979-es");
   assert.equal(nextNomenclatureConvention("current", "en"), "traditional");
-  assert.equal(nextNomenclatureConvention("traditional", "en"), "current");
+  assert.equal(nextNomenclatureConvention("traditional", "en"), "iupac-1979-legacy-en");
+  assert.equal(nextNomenclatureConvention("iupac-1979-legacy-en", "en"), "current");
   assert.equal(nextNomenclatureConvention("iupac-1979-es", "es"), "current");
+  assert.equal(nomenclatureConventionLabel("iupac-1979-legacy-en", "en"), "IUPAC 1979 Legacy English");
+  assert.equal(nomenclatureConventionLabel("traditional", "en"), "Traditional");
+  assert.equal(nomenclatureConventionLabel("iupac-1979-es", "es"), "IUPAC 1979");
 });
 
 test("never displays E/Z for benzene-derived aromatic rings", () => {

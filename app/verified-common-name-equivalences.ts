@@ -30,6 +30,14 @@ const VERIFIED_COMMON_NAME_EQUIVALENCES: readonly VerifiedCommonNameEquivalence[
   },
 ];
 
+const VERIFIED_PUBCHEM_COMMON_NAMES = [
+  {
+    cid: 5793,
+    inchiKey: "WQZGKKKJIJFFOK-GASJEMHNSA-N",
+    names: { es: "D-glucosa", en: "D-Glucose" },
+  },
+] as const;
+
 function normalizeExactAlias(value: string) {
   return value
     .normalize("NFD")
@@ -47,4 +55,16 @@ export function verifiedCommonNameQuery(value: string) {
   return equivalence
     ? { query: equivalence.pubChemQuery, expectedInchiKey: equivalence.inchiKey }
     : null;
+}
+
+/** Exact biochemical display names; both CID and stereochemical InChIKey must match. */
+export function verifiedPubChemCommonName(
+  identity: { cid?: number; inchiKey?: string },
+  language: "es" | "en",
+) {
+  const inchiKey = identity.inchiKey?.trim().toLocaleUpperCase("en");
+  const match = VERIFIED_PUBCHEM_COMMON_NAMES.find((entry) =>
+    identity.cid === entry.cid && inchiKey === entry.inchiKey,
+  );
+  return match?.names[language] ?? null;
 }

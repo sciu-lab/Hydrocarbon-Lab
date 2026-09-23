@@ -105,8 +105,8 @@ test("the dock offers verified locale-specific historical variants separate from
   assert.match(page, /historicalCandidate = language === "es"[\s\S]*applyNomenclatureConvention\(nameWithSelectedStereochemistry, "iupac-1979-es", "es"\)/);
   assert.match(page, /normalizeNomenclatureDisplayName\(historicalCandidate\) !== normalizeNomenclatureDisplayName\(suggestedName\)/);
   assert.match(page, /label: language === "en" \? "Traditional" : "IUPAC 1979"/);
-  assert.match(page, /legacyEnglishResult\.name !== "-" && !nomenclatureVariants\.some/);
-  assert.match(page, /IUPAC 1979 Legacy English ·/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*legacyEnglishResult\.name !== "-"/);
+  assert.match(page, /label: "IUPAC 1979 Legacy English"/);
 });
 
 test("contextual selection focus preserves the page scroll and expanded SVG uses fitted bounds", () => {

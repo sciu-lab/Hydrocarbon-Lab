@@ -124,6 +124,7 @@ import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
 import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
+import { verifiedPubChemCommonName } from "./verified-common-name-equivalences";
 import {
   compoundIdentityKey,
   createCompoundContextResolver,
@@ -6100,7 +6101,7 @@ export default function Home() {
     if (externalNameIsPrimary) {
       return [{
         convention: "current" as const,
-        label: language === "en" ? "Systematic name · PubChem" : "Nombre sistemático · PubChem",
+        label: language === "en" ? "Systematic name · PubChem" : "Nombre sistemático · PubChem (inglés)",
         name: pubChemIupacName!,
       }];
     }
@@ -6125,6 +6126,13 @@ export default function Home() {
       && historicalCandidate !== "-"
       && historicalCandidate !== uiText(language, "Sin nombre tradicional reconocido")
       && normalizeNomenclatureDisplayName(historicalCandidate) !== normalizeNomenclatureDisplayName(suggestedName));
+    const legacyEnglishVariantAvailable = language === "en"
+      && !localSuggestedNameUnavailable
+      && legacyEnglishResult.name !== "-"
+      && ![
+        suggestedName,
+        ...(traditionalAvailable && historicalCandidate ? [historicalCandidate] : []),
+      ].some((name) => normalizeNomenclatureDisplayName(name) === normalizeNomenclatureDisplayName(legacyEnglishResult.name));
     return [
       { convention: "current" as const, label: localSuggestedNameUnavailable
         ? language === "en" ? "Local IUPAC unavailable" : "IUPAC local no disponible"
@@ -6132,13 +6140,14 @@ export default function Home() {
       ...(traditionalAvailable
         ? [{ convention: historicalConvention, label: language === "en" ? "Traditional" : "IUPAC 1979", name: historicalCandidate! }]
         : []),
+      ...(legacyEnglishVariantAvailable
+        ? [{ convention: "iupac-1979-legacy-en" as const, label: "IUPAC 1979 Legacy English", name: legacyEnglishResult.name }]
+        : []),
     ];
   })();
-  const historicalNomenclatureConvention = language === "es" ? "iupac-1979-es" : "traditional";
-  const traditionalNomenclatureAvailable = nomenclatureVariants.some((variant) => variant.convention === historicalNomenclatureConvention);
-  const historicalConventionSelected = nomenclatureConvention === "traditional" || nomenclatureConvention === "iupac-1979-es";
-  const activeNomenclatureConvention = !simplifiedModeEnabled && historicalConventionSelected && traditionalNomenclatureAvailable
-    ? historicalNomenclatureConvention
+  const activeNomenclatureConvention = !simplifiedModeEnabled
+    && nomenclatureVariants.some((variant) => variant.convention === nomenclatureConvention)
+    ? nomenclatureConvention
     : "current";
   const displayedIupacName = nomenclatureVariants.find(
     (variant) => variant.convention === activeNomenclatureConvention,
@@ -6149,16 +6158,26 @@ export default function Home() {
     : calculatedAnalysis.commonName
       ? translateCommonName(language, calculatedAnalysis.commonName)
       : getCuratedCommonName(calculatedAnalysis.name, language);
-  const visibleCommonName = verifiedLocalCommonName
-    && !nomenclatureVariants.some((variant) => normalizeNomenclatureDisplayName(variant.name) === normalizeNomenclatureDisplayName(verifiedLocalCommonName))
-    ? verifiedLocalCommonName
+  const verifiedExternalCommonName = activePubChemIdentity
+    ? verifiedPubChemCommonName(activePubChemIdentity, language)
     : null;
+  const commonNameToPresent = verifiedExternalCommonName ?? verifiedLocalCommonName;
+  const visibleCommonName = commonNameToPresent
+    && !nomenclatureVariants.some((variant) => normalizeNomenclatureDisplayName(variant.name) === normalizeNomenclatureDisplayName(commonNameToPresent))
+    ? commonNameToPresent
+    : null;
+  const commonNameIsPubChemTitle = Boolean(verifiedExternalCommonName
+    && currentCompoundContext?.pubchem?.recordTitle
+    && normalizeNomenclatureDisplayName(verifiedExternalCommonName) === normalizeNomenclatureDisplayName(currentCompoundContext.pubchem.recordTitle));
+  const commonNameLabel = verifiedExternalCommonName
+    ? commonNameIsPubChemTitle
+      ? language === "en" ? "PubChem record title · verified biochemical name" : "Título PubChem · nombre bioquímico verificado"
+      : language === "en" ? "Verified biochemical name" : "Nombre bioquímico verificado"
+    : language === "en" ? "Also known as" : "También conocido como";
   const pubChemRecordTitle = currentCompoundContext?.pubchem?.recordTitle;
   const showPubChemRecordTitle = Boolean(pubChemRecordTitle && ![
     ...nomenclatureVariants.map((variant) => variant.name),
-    verifiedLocalCommonName ?? "",
-    getCuratedCommonName(calculatedAnalysis.name, "es") ?? "",
-    getCuratedCommonName(calculatedAnalysis.name, "en") ?? "",
+    commonNameToPresent ?? "",
     activePubChemIdentity?.iupacName ?? "",
   ].some((name) => name && normalizeNomenclatureDisplayName(name) === normalizeNomenclatureDisplayName(pubChemRecordTitle)));
   const availableSubstituentAliases = useMemo(() => {
@@ -12110,7 +12129,7 @@ export default function Home() {
                   </button>
                 ))}
                 {visibleCommonName && (
-                  <p className="iupac-dock-origin"><span>{language === "en" ? "Also known as" : "También conocido como"}</span><strong>{visibleCommonName}</strong></p>
+                  <p className="iupac-dock-origin"><span>{commonNameLabel}</span><strong>{visibleCommonName}</strong></p>
                 )}
                 {activePubChemIdentity && (activePubChemIdentity.cid || activePubChemIdentity.molecularFormula) && (
                   <p className="iupac-dock-origin">
@@ -12127,17 +12146,8 @@ export default function Home() {
                 {showPubChemRecordTitle && pubChemRecordTitle && (
                   <p className="iupac-dock-origin"><span>{language === "en" ? "PubChem record title" : "Título del registro PubChem"}</span><strong><ChemicalNameText name={pubChemRecordTitle} /></strong></p>
                 )}
-                {!traditionalNomenclatureAvailable && !externalNameIsPrimary && (
-                  <p>{language === "en" ? "No distinct Traditional variant is available for this structure." : "No hay una variante IUPAC 1979 verificada para esta estructura."}</p>
-                )}
                 {localSuggestedNameUnavailable && !externalNameIsPrimary && (
                   <p>{language === "en" ? "Local IUPAC name unavailable for this structure." : "Nombre IUPAC local no disponible para esta estructura."}</p>
-                )}
-                {language === "en" && !externalCandidateNameUnavailable && legacyEnglishResult.name !== "-" && !nomenclatureVariants.some((variant) => variant.name === legacyEnglishResult.name) && (
-                  <div className="iupac-dock-legacy">
-                    <span>IUPAC 1979 Legacy English · {language === "en" ? "separate convention" : "convención distinta"}</span>
-                    <strong><ChemicalNameText name={legacyEnglishResult.name} /></strong>
-                  </div>
                 )}
               </div>
             )}
@@ -12172,7 +12182,9 @@ export default function Home() {
               : localSuggestedNameUnavailable
                 ? language === "en" ? "Local IUPAC unavailable" : "IUPAC local no disponible"
                 : language === "en" ? "IUPAC Suggested" : "IUPAC sugerido"}</option>
-            <option value={historicalNomenclatureConvention} disabled={!traditionalNomenclatureAvailable}>{language === "en" ? "Traditional" : "IUPAC 1979"}</option>
+            {nomenclatureVariants.filter((variant) => variant.convention !== "current").map((variant) => (
+              <option value={variant.convention} key={variant.convention}>{variant.label}</option>
+            ))}
           </select>
           <strong className="iupac-dock-name"><ChemicalNameText name={isPristineInitialMolecule ? "—" : showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
           <button type="button" className="iupac-dock-expand" disabled={isPristineInitialMolecule} onClick={() => setIupacDockExpanded((expanded) => !expanded)} aria-expanded={iupacDockExpanded} aria-controls="iupac-dock-detail" title={t("Mostrar nombre completo")}>

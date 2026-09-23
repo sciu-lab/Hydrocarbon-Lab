@@ -43,9 +43,9 @@ test("external name safeguards follow the exact loaded graph and suppress unsupp
   assert.match(page, /const activePubChemIdentity = !isPristineInitialMolecule/);
   assert.match(page, /Boolean\(activePubChemIdentity\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)\)/);
   assert.match(page, /const traditionalAvailable = Boolean\(!localSuggestedNameUnavailable/);
-  assert.match(page, /language === "en" && !externalCandidateNameUnavailable && legacyEnglishResult\.name/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*!localSuggestedNameUnavailable[\s\S]*legacyEnglishResult\.name !== "-"/);
   assert.match(page, /Systematic name · PubChem/);
-  assert.match(page, /Nombre sistemático · PubChem/);
+  assert.match(page, /Nombre sistemático · PubChem \(inglés\)/);
   assert.match(page, /Local IUPAC name unavailable for this structure/);
   assert.match(page, /Nombre IUPAC local no disponible para esta estructura/);
   assert.match(page, /setLoadedPubChemIdentity\(\{[\s\S]*?candidate\.inchiKey[\s\S]*?candidate\.smiles/);
@@ -68,19 +68,23 @@ test("external identity is keyed to the exact isomeric editor graph, not its for
 test("local traditional names remain available only when the local nomenclator supports them", () => {
   assert.match(page, /getCuratedCommonName\(calculatedAnalysis\.name, language\)/);
   assert.match(page, /traditionalAvailable = Boolean\(!localSuggestedNameUnavailable/);
-  assert.match(page, /!externalCandidateNameUnavailable && legacyEnglishResult\.name/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*!localSuggestedNameUnavailable/);
   assert.match(page, /disabled=\{!showIupacName \|\| isPristineInitialMolecule \|\| !displayedNameCopyable\}/);
 });
 
 test("dock selects the locale's historical profile, copies the visible variant and deduplicates labels", () => {
-  assert.match(page, /language === "es" \? "iupac-1979-es" : "traditional"/);
-  assert.match(page, /nomenclatureConvention === "traditional" \|\| nomenclatureConvention === "iupac-1979-es"/);
+  assert.match(page, /convention: "iupac-1979-legacy-en" as const, label: "IUPAC 1979 Legacy English"/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"/);
+  assert.match(page, /nomenclatureVariants\.some\(\(variant\) => variant\.convention === nomenclatureConvention\)/);
+  assert.match(page, /nomenclatureVariants\.filter\(\(variant\) => variant\.convention !== "current"\)\.map/);
+  assert.doesNotMatch(page, /No hay una variante IUPAC 1979 verificada para esta estructura/);
   assert.match(page, /onChange=\{\(event\) => setNomenclatureConvention\(event\.target\.value as NomenclatureConvention\)\}/);
   assert.match(page, /navigator\.clipboard\?\.writeText\(displayedIupacName\)/);
-  assert.match(page, /const visibleCommonName = verifiedLocalCommonName\s*&&\s*!nomenclatureVariants\.some/);
+  assert.match(page, /const visibleCommonName = commonNameToPresent\s*&&\s*!nomenclatureVariants\.some/);
   assert.match(page, /const showPubChemRecordTitle = Boolean\(pubChemRecordTitle && !\[/);
-  assert.match(page, /activePubChemIdentity\?\.iupacName \?\? ""/);
-  assert.match(page, /!localSuggestedNameUnavailable[\s\S]*historicalCandidate/);
+  assert.match(page, /verifiedPubChemCommonName\(activePubChemIdentity, language\)/);
+  assert.match(page, /Nombre sistemático · PubChem \(inglés\)/);
+  assert.match(page, /!localSuggestedNameUnavailable[\s\S]*legacyEnglishVariantAvailable/);
 });
 
 test("candidate cards retain PubChem attribution and use a neutral label if the record has no name", () => {

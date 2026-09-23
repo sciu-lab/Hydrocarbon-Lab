@@ -101,6 +101,10 @@ test("Spanish 1979 variant is derived from the local analysis of the loaded mole
   assert.equal(applyNomenclatureConvention(analysis.name, "iupac-1979-es", "es"), "propanona");
 });
 
+test("IUPAC 1979 Legacy English names acetone systematically as propanone", () => {
+  assert.equal(legacyName(fromSmiles("CC(=O)C")).name, "propanone");
+});
+
 test("compares locant sets lexicographically instead of by sum", () => {
   assert.ok(compareLocantSets([2, 3, 7], [2, 4, 5]) < 0);
   assert.ok(compareNumberings({
