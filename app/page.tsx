@@ -2135,38 +2135,43 @@ function heterocycleRing(molecule: Molecule) {
   }));
 }
 
+function heterocycleRingTopologySignatures(molecule: Molecule, ring: RingInfo) {
+  const bondOrders = new Map(
+    molecule.bonds.map((bond) => [bondKey(bond[0], bond[1]), getBondOrder(bond)]),
+  );
+  return new Set(orientedRingPaths(ring).map((path) => JSON.stringify(path.map((atomId, index) => {
+    const nextAtomId = path[(index + 1) % path.length];
+    const atom = getAtom(atomId, molecule);
+    const order = ring.kind === "aromatic" ? 1 : bondOrders.get(bondKey(atomId, nextAtomId)) ?? 1;
+    return [atom ? getElement(atom) : "C", order];
+  }))));
+}
+
+const REGISTERED_HETEROCYCLE_RING_SIGNATURES = HETEROCYCLE_DEFINITIONS.flatMap((definition) => {
+  const converted = moleculeFromSmiles(definition.smiles);
+  const ring = converted.ok ? heterocycleRing(converted.molecule) : undefined;
+  return ring
+    ? [{ definition, signatures: heterocycleRingTopologySignatures(converted.molecule, ring) }]
+    : [];
+});
+
+/** Matches a registered parent by its cyclic atom and bond graph, independent of traversal. */
+export function registeredHeterocycleParentForRing(molecule: Molecule, ring: RingInfo) {
+  const signatures = heterocycleRingTopologySignatures(molecule, ring);
+  return REGISTERED_HETEROCYCLE_RING_SIGNATURES.find(({ definition, signatures: registered }) =>
+    definition.kind === ring.kind
+      && definition.size === ring.atomIds.length
+      && [...signatures].some((signature) => registered.has(signature)),
+  )?.definition;
+}
+
 function moleculeContainsHeterocycle(molecule: Molecule) {
   return Boolean(heterocycleRing(molecule));
 }
 
 function heterocycleParentName(molecule: Molecule, ring: RingInfo) {
-  const elements = ring.atomIds.map((atomId) => {
-    const atom = getAtom(atomId, molecule);
-    return atom ? getElement(atom) : "C";
-  });
-  const count = (element: ChemicalElement) => elements.filter((value) => value === element).length;
-  const size = ring.atomIds.length;
-
-  if (ring.kind === "aromatic") {
-    if (size === 5 && count("N") === 1 && count("O") === 0 && count("S") === 0) return "pirrol";
-    if (size === 5 && count("O") === 1 && count("N") === 0 && count("S") === 0) return "furano";
-    if (size === 5 && count("S") === 1 && count("N") === 0 && count("O") === 0) return "tiofeno";
-    if (size === 6 && count("N") === 1 && count("O") === 0 && count("S") === 0) return "piridina";
-  } else {
-    if (size === 3 && count("O") === 1) return "oxirano";
-    if (size === 3 && count("N") === 1) return "aziridina";
-    if (size === 4 && count("O") === 1) return "oxetano";
-    if (size === 4 && count("N") === 1) return "azetidina";
-    if (size === 5 && count("N") === 1 && count("O") === 0) return "pirrolidina";
-    if (size === 5 && count("O") === 1 && count("N") === 0) return "tetrahidrofurano";
-    if (size === 5 && count("O") === 2) return "1,3-dioxolano";
-    if (size === 6 && count("N") === 1 && count("O") === 0) return "piperidina";
-    if (size === 6 && count("O") === 1 && count("N") === 0) return "tetrahidropirano";
-    if (size === 6 && count("O") === 1 && count("N") === 1) return "morfolina";
-    if (size === 6 && count("O") === 2) return "1,4-dioxano";
-  }
-
-  return `heterociclo de ${size} miembros`;
+  const name = registeredHeterocycleParentForRing(molecule, ring)?.name.es;
+  return name?.toLocaleLowerCase("es") ?? "heterociclo no reconocido";
 }
 
 function heterocycleNumberedPaths(molecule: Molecule, ring: RingInfo) {
@@ -4694,6 +4699,8 @@ const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 
 export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysis) {
   if (heterocycleHasUnrepresentedHydroxylGroups(molecule)) return true;
+  const heterocycle = heterocycleRing(molecule);
+  if (heterocycle && !registeredHeterocycleParentForRing(molecule, heterocycle)) return true;
   // Recognised fused parents with a complete graph-based descriptor are safe;
   // other shared-ring topologies remain deliberately unsupported.
   if (hasSharedRingAtoms(molecule)) {

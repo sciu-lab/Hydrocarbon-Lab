@@ -9,6 +9,7 @@ import {
   getOpsinNameCandidates,
   localizeChemicalNameForDisplay,
   normalizeChemicalNameForParser,
+  translateSpanishIupacToOpsin,
 } from "../app/iupac-name-normalization.ts";
 import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
 import {
@@ -36,6 +37,7 @@ let externalCandidateNeedsNeutralLocalName;
 let externalCandidateLocalDisplayName;
 let heterocycleHasUnrepresentedHydroxylGroups;
 let legacyEnglishProfileIsSupportedForMolecule;
+let registeredHeterocycleParentForRing;
 let buildLegacyEnglishNameModel;
 let pubChemIdentityForNomenclature;
 
@@ -56,6 +58,7 @@ before(async () => {
     externalCandidateLocalDisplayName,
     heterocycleHasUnrepresentedHydroxylGroups,
     legacyEnglishProfileIsSupportedForMolecule,
+    registeredHeterocycleParentForRing,
     buildLegacyEnglishNameModel,
     pubChemIdentityForNomenclature,
   } = await server.ssrLoadModule("/app/page.tsx"));
@@ -114,6 +117,56 @@ test("oxygenated heterocycles with external hydroxyl groups are outside local na
     assert.equal(externalCandidateNeedsNeutralLocalName(converted.molecule, analysis), false);
     assert.equal(legacyEnglishProfileIsSupportedForMolecule(converted.molecule), false,
       "the existing Legacy formatter treats heterocycle atom counts as carbons");
+  }
+});
+
+test("heterocycle parent recognition matches cyclic connectivity, not composition", () => {
+  const analyze = (smiles) => {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    const ring = converted.molecule.rings?.find((candidate) => candidate.atomIds.some((atomId) => {
+      const atom = converted.molecule.atoms.find((entry) => entry.id === atomId);
+      return atom && atom.element !== "C";
+    }));
+    assert.ok(ring, `${smiles} should contain a heterocycle`);
+    return { molecule: converted.molecule, ring, analysis: analyzeMolecule(converted.molecule) };
+  };
+
+  const morpholineForms = ["O1CCNCC1", "N1CCOCC1"];
+  for (const smiles of morpholineForms) {
+    const { molecule, ring, analysis } = analyze(smiles);
+    assert.equal(registeredHeterocycleParentForRing(molecule, ring)?.id, "morpholine");
+    assert.equal(analysis.name, "morfolina");
+    assert.equal(translateSpanishIupacToOpsin(analysis.name), "morpholine");
+    assert.equal(localNamerCannotSafelyName(molecule, analysis), false);
+  }
+
+  const morpholineIsomer = analyze("O1CNCCC1");
+  assert.equal(morpholineIsomer.analysis.formula, "C₄H₉NO");
+  assert.equal(registeredHeterocycleParentForRing(morpholineIsomer.molecule, morpholineIsomer.ring), undefined);
+  assert.notEqual(morpholineIsomer.analysis.name, "morfolina");
+  assert.equal(localNamerCannotSafelyName(morpholineIsomer.molecule, morpholineIsomer.analysis), true);
+  assert.equal(externalCandidateLocalDisplayName(morpholineIsomer.molecule, morpholineIsomer.analysis, "es"), "Nombre IUPAC local no disponible para esta estructura");
+  assert.equal(externalCandidateLocalDisplayName(morpholineIsomer.molecule, morpholineIsomer.analysis, "en"), "Local IUPAC name unavailable for this structure");
+
+  for (const [smiles, expectedId, expectedEs, expectedEn] of [
+    ["O1CC1", "oxirane", "oxirano", "oxirane"],
+    ["O1COCC1", "dioxolane", "1,3-dioxolano", "1,3-dioxolane"],
+    ["O1CCOC1", "dioxolane", "1,3-dioxolano", "1,3-dioxolane"],
+    ["O1CCOCC1", "dioxane", "1,4-dioxano", "1,4-dioxane"],
+    ["N1CCCCC1", "piperidine", "piperidina", "piperidine"],
+  ]) {
+    const { molecule, ring, analysis } = analyze(smiles);
+    assert.equal(registeredHeterocycleParentForRing(molecule, ring)?.id, expectedId, smiles);
+    assert.equal(analysis.name, expectedEs, smiles);
+    assert.equal(translateSpanishIupacToOpsin(analysis.name), expectedEn, smiles);
+    assert.equal(localNamerCannotSafelyName(molecule, analysis), false, smiles);
+  }
+
+  for (const smiles of ["O1COCCC1"]) {
+    const { molecule, ring, analysis } = analyze(smiles);
+    assert.equal(registeredHeterocycleParentForRing(molecule, ring), undefined, smiles);
+    assert.equal(localNamerCannotSafelyName(molecule, analysis), true, smiles);
   }
 });
 
