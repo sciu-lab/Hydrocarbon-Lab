@@ -5,7 +5,7 @@ import {
   compoundIdentityKey,
   createCompoundContextResolver,
 } from "../app/compound-context.ts";
-import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent } from "../app/verified-common-name-equivalences.ts";
+import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifiedPubChemSystematicDisplayName } from "../app/verified-common-name-equivalences.ts";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -162,6 +162,19 @@ test("the D-glucose bilingual name is pinned to the exact PubChem identity, not 
   assert.equal(verifiedPubChemRecordTitleEquivalent(glucoseIdentity, "D-Glucose", "D-glucosa"), true);
   assert.equal(verifiedPubChemRecordTitleEquivalent({ ...glucoseIdentity, inchiKey: "OTHER" }, "D-Glucose", "D-glucosa"), false);
   assert.equal(verifiedPubChemRecordTitleEquivalent(glucoseIdentity, "Another title", "D-glucosa"), false);
+});
+
+test("TNT aliases and localized systematic text require exact CID and InChIKey", () => {
+  const tnt = { cid: 8376, inchiKey: "SPSSULHKWOKEEL-UHFFFAOYSA-N" };
+  assert.equal(verifiedPubChemCommonName(tnt, "es"), "TNT · 2,4,6-trinitrotolueno");
+  assert.equal(verifiedPubChemCommonName(tnt, "en"), "TNT · 2,4,6-trinitrotoluene");
+  assert.equal(verifiedPubChemSystematicDisplayName(tnt, "es"), "2-metil-1,3,5-trinitrobenceno");
+  assert.equal(verifiedPubChemSystematicDisplayName(tnt, "en"), "2-methyl-1,3,5-trinitrobenzene");
+  assert.equal(verifiedPubChemRecordTitleEquivalent(tnt, "2,4,6-Trinitrotoluene", "TNT · 2,4,6-trinitrotoluene"), true);
+  for (const wrong of [{ ...tnt, cid: 8377 }, { ...tnt, inchiKey: "OTHER-STEREO-KEY" }, {}]) {
+    assert.equal(verifiedPubChemCommonName(wrong, "es"), null);
+    assert.equal(verifiedPubChemSystematicDisplayName(wrong, "es"), null);
+  }
 });
 
 test("suppresses Toluene record-title repetition only for its verified CID and InChIKey", () => {

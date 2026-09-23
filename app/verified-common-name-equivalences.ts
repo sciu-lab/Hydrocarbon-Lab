@@ -36,6 +36,11 @@ const VERIFIED_PUBCHEM_COMMON_NAMES = [
     inchiKey: "WQZGKKKJIJFFOK-GASJEMHNSA-N",
     names: { es: "D-glucosa", en: "D-Glucose" },
   },
+  {
+    cid: 8376,
+    inchiKey: "SPSSULHKWOKEEL-UHFFFAOYSA-N",
+    names: { es: "TNT · 2,4,6-trinitrotolueno", en: "TNT · 2,4,6-trinitrotoluene" },
+  },
 ] as const;
 
 const VERIFIED_PUBCHEM_RECORD_EQUIVALENCES = [
@@ -49,7 +54,23 @@ const VERIFIED_PUBCHEM_RECORD_EQUIVALENCES = [
     inchiKey: "YXFVVABEGXRONW-UHFFFAOYSA-N",
     names: ["tolueno", "Toluene"],
   },
+  {
+    cid: 8376,
+    inchiKey: "SPSSULHKWOKEEL-UHFFFAOYSA-N",
+    names: ["TNT", "2,4,6-trinitrotolueno", "2,4,6-trinitrotoluene"],
+  },
 ] as const;
+
+/** Localized display text only for an exact PubChem compound identity. */
+export function verifiedPubChemSystematicDisplayName(
+  identity: { cid?: number; inchiKey?: string },
+  language: "es" | "en",
+) {
+  if (identity.cid !== 8376 || identity.inchiKey?.trim().toLocaleUpperCase("en") !== "SPSSULHKWOKEEL-UHFFFAOYSA-N") {
+    return null;
+  }
+  return language === "es" ? "2-metil-1,3,5-trinitrobenceno" : "2-methyl-1,3,5-trinitrobenzene";
+}
 
 function normalizeExactAlias(value: string) {
   return value
@@ -95,6 +116,7 @@ export function verifiedPubChemRecordTitleEquivalent(
     identity.cid === entry.cid
     && inchiKey === entry.inchiKey
     && entry.names.some((name) => normalizeExactAlias(name) === normalizeExactAlias(recordTitle))
-    && entry.names.some((name) => normalizeExactAlias(name) === normalizeExactAlias(displayedName)),
+    && displayedName.split(" · ").some((alias) =>
+      entry.names.some((name) => normalizeExactAlias(name) === normalizeExactAlias(alias))),
   );
 }

@@ -26,6 +26,7 @@ import { createFormulaCandidateResolver } from "../app/formula-candidate-resolve
 import { compoundIdentityKey, createCompoundContextResolver } from "../app/compound-context.ts";
 import { sanitizeTetrahedralStereochemistry } from "../app/tetrahedral-stereochemistry.ts";
 import { verifiedPubChemCommonName } from "../app/verified-common-name-equivalences.ts";
+import { curatedCommonNameForSmiles } from "../app/curated-common-name-display.ts";
 import { uiText } from "../app/i18n.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -80,6 +81,18 @@ function build(name) {
   assert.equal(result.ok, true, result.ok ? undefined : `${name}: ${result.error}`);
   return result;
 }
+
+test("the exact TNT graph retains its suggested IUPAC name and curated aliases", () => {
+  const parsed = moleculeFromSmiles("CC1=C(C=C(C=C1[N+](=O)[O-])[N+](=O)[O-])[N+](=O)[O-]");
+  assert.equal(parsed.ok, true);
+  const analysis = analyzeMolecule(parsed.molecule);
+  assert.equal(analysis.name, "2-metil-1,3,5-trinitrobenceno");
+  assert.equal(translateSpanishIupacToOpsin(analysis.name), "2-methyl-1,3,5-trinitrobenzene");
+  const exported = moleculeToSmiles(parsed.molecule);
+  assert.equal(exported.ok, true);
+  assert.equal(curatedCommonNameForSmiles(exported.smiles, "es"), "TNT · 2,4,6-trinitrotolueno");
+  assert.equal(curatedCommonNameForSmiles(exported.smiles, "en"), "TNT · 2,4,6-trinitrotoluene");
+});
 
 test("supported fused bicyclic editing remains analyzable after opening a ring", () => {
   const original = build("ciclohexano").molecule;
@@ -244,7 +257,7 @@ test("CID 5793 remains protected before local profiles are selected", () => {
   // UI must gate every locally generated profile when this external structure
   // is active, while keeping the exact PubChem identity as the primary name.
   assert.match(pageSource, /localSuggestedNameUnavailable\s*\|\|\s*!legacyEnglishProfileIsSupportedForMolecule\(molecule\)\s*\?\s*"-"\s*:\s*generateLegacyEnglishName/);
-  assert.match(pageSource, /if \(externalNameIsPrimary\)\s*\{\s*return \[\{[\s\S]*?name: pubChemIupacName!/);
+  assert.match(pageSource, /const suggestedName = externalNameIsPrimary\s*\? verifiedPubChemSystematicDisplayName\(namingPubChemIdentity!, language\) \?\? pubChemIupacName!/);
   assert.match(pageSource, /\|\| heterocycleHydroxylNameUnavailable/,
     "the heterocycle coverage guard also applies when a source name override exists");
   assert.match(pageSource, /localSuggestedNameUnavailable \|\| !legacyEnglishProfileIsSupportedForMolecule\(molecule\)/,

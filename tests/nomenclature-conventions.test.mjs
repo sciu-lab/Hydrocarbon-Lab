@@ -5,8 +5,10 @@ import {
   applyNomenclatureConvention,
   formatIupac1979SpanishName,
   getCuratedCommonName,
+  migrateNomenclatureConvention,
   nomenclatureConventionLabel,
   nextNomenclatureConvention,
+  selectableNomenclatureConventions,
   stripStereochemicalDescriptors,
 } from "../app/nomenclature-conventions.ts";
 import {
@@ -202,14 +204,24 @@ test("preserves E/Z independently from the preferred convention", () => {
 });
 
 test("uses the language-specific convention cycle", () => {
+  assert.deepEqual(selectableNomenclatureConventions("es"), ["current", "iupac-1979-es"]);
+  assert.deepEqual(selectableNomenclatureConventions("en"), ["current", "iupac-1979-legacy-en"]);
   assert.equal(nextNomenclatureConvention("current", "es"), "iupac-1979-es");
-  assert.equal(nextNomenclatureConvention("current", "en"), "traditional");
-  assert.equal(nextNomenclatureConvention("traditional", "en"), "iupac-1979-legacy-en");
+  assert.equal(nextNomenclatureConvention("current", "en"), "iupac-1979-legacy-en");
+  assert.equal(nextNomenclatureConvention("traditional", "en"), "current");
   assert.equal(nextNomenclatureConvention("iupac-1979-legacy-en", "en"), "current");
   assert.equal(nextNomenclatureConvention("iupac-1979-es", "es"), "current");
-  assert.equal(nomenclatureConventionLabel("iupac-1979-legacy-en", "en"), "IUPAC 1979 Legacy English");
-  assert.equal(nomenclatureConventionLabel("traditional", "en"), "Traditional");
-  assert.equal(nomenclatureConventionLabel("iupac-1979-es", "es"), "IUPAC 1979");
+  assert.equal(nomenclatureConventionLabel("current", "es"), "IUPAC sugerido (Blue Book 2013+)");
+  assert.equal(nomenclatureConventionLabel("current", "en"), "IUPAC Suggested (Blue Book 2013+)");
+  assert.equal(nomenclatureConventionLabel("iupac-1979-legacy-en", "en"), "IUPAC 1979 (Legacy)");
+  assert.equal(nomenclatureConventionLabel("iupac-1979-es", "es"), "IUPAC 1979 (Legacy)");
+  for (const language of ["es", "en"]) {
+    assert.equal(migrateNomenclatureConvention("traditional", language), "current");
+    assert.equal(migrateNomenclatureConvention("Traditional", language), "current");
+    assert.equal(migrateNomenclatureConvention("iupac-1979-legacy-en", language), language === "en" ? "iupac-1979-legacy-en" : "iupac-1979-es");
+    assert.equal(migrateNomenclatureConvention("IUPAC 1979 Legacy English", language), language === "en" ? "iupac-1979-legacy-en" : "iupac-1979-es");
+    assert.equal(migrateNomenclatureConvention("iupac-1979-es", language), language === "en" ? "iupac-1979-legacy-en" : "iupac-1979-es");
+  }
 });
 
 test("never displays E/Z for benzene-derived aromatic rings", () => {

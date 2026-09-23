@@ -485,6 +485,10 @@ test("existing chemistry document and SMILES round trips preserve fused topology
   const structure = { molecule, name: "Fusionado", formula: "C10H18", family: "polycyclic", viewMode: "skeletal", atomCount: 10, createdAt: "today", updatedAt: "today" };
   const restored = read(JSON.parse(JSON.stringify({ format: "laboratorio-quimica-organica", version: 1, kind: "structure", structure })))[0];
   assert.deepEqual(restored.molecule, molecule);
+  for (const oldProfile of ["traditional", "iupac-1979-legacy-en"]) {
+    const olderFile = { format: "laboratorio-quimica-organica", version: 1, kind: "structure", profile: oldProfile, structure };
+    assert.deepEqual(read(JSON.parse(JSON.stringify(olderFile)))[0].molecule, molecule);
+  }
   const exported = moleculeToSmiles(molecule);
   assert.equal(exported.ok, true);
   const imported = moleculeFromSmiles(exported.smiles);
