@@ -14,12 +14,17 @@ import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
 import {
   classifyPolycyclicTopology,
   moleculeFromSmiles,
+  moleculeToSmiles,
 } from "../app/openchemlib-adapter.ts";
 import { resolveNameWithOpsin } from "../app/opsin-name-resolver.ts";
 import { getAutoPlacedCarbonPosition } from "../app/manual-layout.ts";
 import { fuseRingOnBond, removeFusedRingAtom } from "../app/fused-ring.ts";
 import { orientCarbonylTemplateOutsideRing } from "../app/functional-group-layout.ts";
 import { generateLegacyEnglishName } from "../app/legacy-english-nomenclature.ts";
+import { createFormulaCandidateResolver } from "../app/formula-candidate-resolver.ts";
+import { compoundIdentityKey, createCompoundContextResolver } from "../app/compound-context.ts";
+import { sanitizeTetrahedralStereochemistry } from "../app/tetrahedral-stereochemistry.ts";
+import { verifiedPubChemCommonName } from "../app/verified-common-name-equivalences.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -30,6 +35,7 @@ let localNamerCannotSafelyName;
 let externalCandidateNeedsNeutralLocalName;
 let externalCandidateLocalDisplayName;
 let buildLegacyEnglishNameModel;
+let pubChemIdentityForNomenclature;
 
 before(async () => {
   server = await createServer({
@@ -47,6 +53,7 @@ before(async () => {
     externalCandidateNeedsNeutralLocalName,
     externalCandidateLocalDisplayName,
     buildLegacyEnglishNameModel,
+    pubChemIdentityForNomenclature,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
@@ -92,12 +99,83 @@ test("external polyhydroxylated heterocycles do not expose an incomplete local n
   // is active, while keeping the exact PubChem identity as the primary name.
   assert.match(pageSource, /localSuggestedNameUnavailable\s*\?\s*"-"\s*:\s*generateLegacyEnglishName/);
   assert.match(pageSource, /if \(externalNameIsPrimary\)\s*\{\s*return \[\{[\s\S]*?name: pubChemIupacName!/);
+  assert.match(pageSource, /sourceNameOverride === null\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)/,
+    "the incomplete local name stays hidden while the external context loads after Undo");
 
   const supported = moleculeFromSmiles("OCC");
   assert.equal(supported.ok, true, supported.ok ? undefined : supported.error);
   const supportedAnalysis = analyzeMolecule(supported.molecule);
   assert.equal(externalCandidateNeedsNeutralLocalName(supported.molecule, supportedAnalysis), false);
   assert.equal(externalCandidateLocalDisplayName(supported.molecule, supportedAnalysis, "es"), supportedAnalysis.name);
+  for (const smiles of ["CC(=O)C", "Cc1ccccc1"]) {
+    const ordinary = moleculeFromSmiles(smiles);
+    assert.equal(ordinary.ok, true);
+    assert.equal(externalCandidateNeedsNeutralLocalName(ordinary.molecule, analyzeMolecule(ordinary.molecule)), false);
+  }
+});
+
+test("CID 5793 formula selection and verified canvas context use the same safe naming identity", async () => {
+  const originalSmiles = "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O";
+  const iupacName = "(3R,4S,5S,6R)-6-(hydroxymethyl)oxane-2,3,4,5-tetrol";
+  const inchiKey = "WQZGKKKJIJFFOK-GASJEMHNSA-N";
+  const json = (body) => new Response(JSON.stringify(body), { status: 200 });
+  const fetchImpl = async (input) => {
+    const url = String(input);
+    if (url.includes("/fastformula/") || url.includes("/cids/JSON")) {
+      return json({ IdentifierList: { CID: [5793] } });
+    }
+    if (url.includes("/property/")) return json({ PropertyTable: { Properties: [{
+      CID: 5793, MolecularFormula: "C6H12O6", IUPACName: iupacName,
+      InChIKey: inchiKey, IsomericSMILES: originalSmiles,
+    }] } });
+    if (url.includes("/description/")) return json({ InformationList: { Information: [{ Title: "D-Glucose" }] } });
+    return json({});
+  };
+
+  const search = await createFormulaCandidateResolver({ fetchImpl }).search("C6H12O6");
+  assert.equal(search.status, "success");
+  const candidate = search.candidates[0];
+  assert.equal(candidate.cid, 5793);
+  assert.equal(candidate.inchiKey, inchiKey);
+  const committed = sanitizeTetrahedralStereochemistry(candidate.molecule);
+  const exported = moleculeToSmiles(committed);
+  assert.equal(exported.ok, true);
+  assert.equal(exported.smiles, candidate.smiles, "the selected record still matches the committed graph");
+  const selectedIdentity = {
+    cid: candidate.cid, inchiKey: candidate.inchiKey,
+    molecularFormula: candidate.molecularFormula, iupacName: candidate.iupacName,
+    smiles: candidate.smiles,
+  };
+  const direct = pubChemIdentityForNomenclature(exported.smiles, selectedIdentity, null);
+  assert.equal(direct?.iupacName, iupacName);
+
+  const analysis = analyzeMolecule(committed);
+  assert.equal(externalCandidateNeedsNeutralLocalName(committed, analysis), true);
+  const identity = { canonicalSmiles: exported.smiles };
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve(identity, "en");
+  assert.equal(context.identityKey, compoundIdentityKey(identity));
+  assert.equal(context.pubchem?.cid, 5793);
+  assert.equal(context.pubchem?.recordTitle, "D-Glucose");
+  const fromContext = pubChemIdentityForNomenclature(exported.smiles, null, context);
+  assert.equal(fromContext?.iupacName, iupacName, "the verified context protects the dock without constructor state");
+  assert.equal(verifiedPubChemCommonName(fromContext, "es"), "D-glucosa");
+  assert.equal(verifiedPubChemCommonName(fromContext, "en"), "D-Glucose");
+  assert.equal(pubChemIdentityForNomenclature(exported.smiles, selectedIdentity, context)?.iupacName, iupacName);
+
+  const other = moleculeFromSmiles("C([C@@H]1[C@@H]([C@@H]([C@H](C(O1)O)O)O)O)O");
+  assert.equal(other.ok, true);
+  const otherSmiles = moleculeToSmiles(other.molecule);
+  assert.equal(otherSmiles.ok, true);
+  assert.notEqual(otherSmiles.smiles, exported.smiles);
+  assert.equal(pubChemIdentityForNomenclature(otherSmiles.smiles, selectedIdentity, context), null,
+    "an edited graph or another C6H12O6 isomer cannot inherit D-Glucose");
+  assert.equal(pubChemIdentityForNomenclature(exported.smiles, selectedIdentity, context)?.cid, 5793,
+    "Undo to the original graph restores its identity");
+  const methane = moleculeFromSmiles("C");
+  assert.equal(methane.ok, true);
+  const methaneSmiles = moleculeToSmiles(methane.molecule);
+  assert.equal(methaneSmiles.ok, true);
+  assert.equal(pubChemIdentityForNomenclature(methaneSmiles.smiles, selectedIdentity, context), null);
 });
 
 function graphSignature(molecule) {
