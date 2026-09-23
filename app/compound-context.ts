@@ -141,6 +141,18 @@ function shortSentences(value: string | undefined, maximumSentences: number) {
   return `${summary.slice(0, MAX_CONTEXT_CHARACTERS - 1).trimEnd()}…`;
 }
 
+function cleanWikipediaLayoutReferences(value: string | undefined) {
+  const text = cleanText(value);
+  // Only remove a self-contained aside that explicitly points to an image,
+  // figure, table, or diagram in Wikipedia's layout. Direction words alone
+  // may be part of the chemistry and must remain untouched.
+  const layoutAside = /^(?:(?:(?:cuya|en la|la)\s+)?(?:imagen|figura|tabla|diagrama)\s+(?:(?:se\s+)?(?:muestra|ve|presenta)\s+)?(?:(?:a|en)\s+la\s+(?:parte\s+)?)?(?:derecha|izquierda|superior|inferior)|(?:shown|pictured|depicted|illustrated)\s+(?:(?:on|to)\s+the\s+)?(?:right|left|above|below)|(?:in\s+the\s+)?(?:image|figure|table|diagram)\s+(?:(?:on|to)\s+the\s+)?(?:right|left|above|below))$/i;
+  return text
+    .replace(/,\s*([^,.;!?()]{1,100}),/g, (match, aside: string) => layoutAside.test(aside.trim()) ? "" : match)
+    .replace(/\s*\(([^().;!?]{1,100})\)/g, (match, aside: string) => layoutAside.test(aside.trim()) ? "" : match)
+    .replace(/\s{2,}/g, " ");
+}
+
 /**
  * Keeps the UI's "Uso" label truthful: a description is shown there only
  * when PubChem itself explicitly contains a use/application statement.
@@ -249,7 +261,7 @@ async function fetchWikipediaPage(
   if (expectedQid && page && page.pageprops?.wikibase_item !== expectedQid) {
     return { status: "identity-mismatch" as const };
   }
-  const summary = shortSentences(page?.extract, 2);
+  const summary = shortSentences(cleanWikipediaLayoutReferences(page?.extract), 2);
   const url = cleanText(page?.fullurl);
   const resolvedTitle = cleanText(page?.title);
   if (!summary || !url || !resolvedTitle) return { status: "no-article" as const };

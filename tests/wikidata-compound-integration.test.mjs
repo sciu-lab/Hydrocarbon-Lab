@@ -58,7 +58,7 @@ function fixtureFetch(record, options = {}) {
         pages: { "1": {
           title,
           fullurl: `https://${language}.wikipedia.org/wiki/${encodeURIComponent(title.replaceAll(" ", "_"))}`,
-          extract: `${title} is a chemical compound. The page describes its properties.`,
+          extract: options.extract?.[language] ?? `${title} is a chemical compound. The page describes its properties.`,
           ...(options.pageQid === null ? {} : { pageprops: { wikibase_item: options.pageQid ?? record.qid } }),
         } },
       } });
@@ -86,6 +86,47 @@ test("verified PubChem graph, Wikidata item and final page identify morpholine i
   assert.equal(en.language, "en");
   assert.equal(calls.filter(({ url }) => url.hostname === "www.wikidata.org").length, 3, "verified identity is reused on locale change");
   assert.equal(calls.filter(({ url }) => url.pathname.includes("/property/")).length, 1);
+});
+
+test("removes Wikipedia's layout aside from the Spanish morpholine extract before summarizing", async () => {
+  const extract = "La morfolina es un compuesto químico orgánico de fórmula O(CH2CH2)2NH. Este heterociclo, cuya imagen se muestra a la derecha, contiene tanto el grupo funcional amino como el éter.";
+  const { fetchImpl } = fixtureFetch(cases.morpholine, { extract: { es: extract } });
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve(identity(cases.morpholine), "es");
+
+  assert.equal(context.wikipedia?.summary, "La morfolina es un compuesto químico orgánico de fórmula O(CH2CH2)2NH. Este heterociclo contiene tanto el grupo funcional amino como el éter.");
+  assert.equal(context.wikipedia?.url, "https://es.wikipedia.org/wiki/Morfolina");
+});
+
+test("removes equivalent English and vertical image asides without changing chemistry", async () => {
+  const extract = "Morpholine has the formula O(CH2CH2)2NH. This heterocycle, pictured on the left, contains both amine and ether groups.";
+  const { fetchImpl } = fixtureFetch(cases.morpholine, { extract: { en: extract } });
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve(identity(cases.morpholine), "en");
+  assert.equal(context.wikipedia?.summary, "Morpholine has the formula O(CH2CH2)2NH. This heterocycle contains both amine and ether groups.");
+  assert.equal(context.wikipedia?.url, "https://en.wikipedia.org/wiki/Morpholine");
+
+  for (const [language, aside] of [["es", "en la imagen superior"], ["es", "en la imagen inferior"], ["en", "shown on the right"]]) {
+    const sentence = language === "es"
+      ? `El compuesto, ${aside}, contiene oxígeno.`
+      : `The compound, ${aside}, contains oxygen.`;
+    const { fetchImpl: verticalFetch } = fixtureFetch(cases.morpholine, { extract: { [language]: sentence } });
+    const vertical = await createCompoundContextResolver({ fetchImpl: verticalFetch }).resolve(identity(cases.morpholine), language);
+    assert.equal(vertical.wikipedia?.summary, language === "es" ? "El compuesto contiene oxígeno." : "The compound contains oxygen.");
+  }
+});
+
+test("keeps plain extracts and scientific direction words while respecting the summary limit", async () => {
+  const plain = "El enlace de la derecha conserva su orientación. El sustituyente, a la derecha del carbono central, mantiene la fórmula O(CH2CH2)2NH.";
+  const { fetchImpl } = fixtureFetch(cases.morpholine, { extract: { es: plain } });
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve(identity(cases.morpholine), "es");
+  assert.equal(context.wikipedia?.summary, plain);
+
+  const longExtract = `Morpholine, shown on the right, has formula O(CH2CH2)2NH and ${"chemical properties ".repeat(35)}. A third sentence is excluded.`;
+  const { fetchImpl: longFetch } = fixtureFetch(cases.morpholine, { extract: { en: longExtract } });
+  const long = await createCompoundContextResolver({ fetchImpl: longFetch }).resolve(identity(cases.morpholine), "en");
+  assert.ok(long.wikipedia?.summary.startsWith("Morpholine has formula O(CH2CH2)2NH"));
+  assert.ok(long.wikipedia?.summary.length <= 420);
+  assert.ok(long.wikipedia?.summary.endsWith("…"));
+  assert.ok(!long.wikipedia?.summary.includes("A third sentence"));
 });
 
 test("oxirane uses its verified Spanish title and a redirected page with the same QID", async () => {
