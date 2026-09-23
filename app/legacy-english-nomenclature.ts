@@ -163,6 +163,23 @@ export function getAlphabetizationKey(name: string) {
     .replace(/^(?:sec|tert)/, "");
 }
 
+/** A historical option is useful only when it adds a distinct, supported name. */
+export function legacyEnglishVariantIsAvailable(
+  suggestedName: string,
+  legacyName: string,
+  profileSupported = true,
+) {
+  const normalize = (value: string) => value.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("en");
+  return profileSupported
+    && Boolean(legacyName.trim())
+    && legacyName !== "-"
+    && normalize(suggestedName) !== normalize(legacyName);
+}
+
 const fixedPrefixTranslations: Readonly<Record<string, string>> = {
   amino: "amino", bromo: "bromo", ciano: "cyano", cloro: "chloro", fluoro: "fluoro",
   formil: "formyl", hidroxi: "hydroxy", isobutil: "isobutyl", isopropil: "isopropyl",

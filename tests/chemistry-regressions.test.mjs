@@ -234,7 +234,7 @@ test("CID 5793 remains protected before local profiles are selected", () => {
   assert.equal(analysis.formula, "C₆H₁₂O₆");
   assert.equal(analysis.name, "2-etiltetrahidropirano");
   const legacy = generateLegacyEnglishName(buildLegacyEnglishNameModel(result.molecule, analysis));
-  assert.equal(legacy.name, "2-ethylcyclohexane");
+  assert.equal(legacy.name, "Local IUPAC name unavailable for this structure");
   assert.equal(heterocycleHasUnrepresentedHydroxylGroups(result.molecule), true);
   assert.equal(localNamerCannotSafelyName(result.molecule, analysis), true);
   assert.equal(externalCandidateNeedsNeutralLocalName(result.molecule, analysis), true);

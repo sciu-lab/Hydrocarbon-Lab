@@ -146,6 +146,7 @@ import {
   FUNCTIONAL_GROUP_FORMS,
   generateLegacyEnglishName,
   IUPAC_1979_LEGACY_ENGLISH_PROFILE,
+  legacyEnglishVariantIsAvailable,
   numberParent,
   selectParent,
   type LegacyEnglishNameModel,
@@ -2827,22 +2828,56 @@ export function buildLegacyEnglishNameModel(
   displayedSourceName = analysis.name,
 ): LegacyEnglishNameModel {
   const skeleton = carbonSkeleton(molecule);
-  const parentKind: LegacyEnglishNameModel["parent"]["kind"] = analysis.family === "acyclic"
-    ? "chain"
-    : analysis.family === "cycloalkane"
+  const heterocycle = heterocycleRing(molecule);
+  const rings = molecule.rings ?? [];
+  const ringsAreSeparate = rings.length === 2
+    && rings[0].atomIds.every((atomId) => !rings[1].atomIds.includes(atomId))
+    && molecule.atoms.every((atom) => rings.some((ring) => ring.atomIds.includes(atom.id)))
+    && molecule.bonds.filter(([left, right]) => (
+      (rings[0].atomIds.includes(left) && rings[1].atomIds.includes(right))
+      || (rings[1].atomIds.includes(left) && rings[0].atomIds.includes(right))
+    )).length === 1;
+  const linkedRingParent = ringsAreSeparate
+    ? rings.find((ring) => ring.atomIds.every((atomId) => analysis.mainChain.includes(atomId)))
+    : undefined;
+  const parentAtomIds = heterocycle
+    ? [...heterocycle.atomIds]
+    : linkedRingParent
+      ? [...linkedRingParent.atomIds]
+      : [...analysis.mainChain];
+  const parentKind: LegacyEnglishNameModel["parent"]["kind"] = heterocycle
+    ? "heterocycle"
+    : linkedRingParent
       ? "ring"
-      : analysis.family;
+      : analysis.family === "acyclic"
+        ? "chain"
+        : analysis.family === "cycloalkane"
+          ? "ring"
+          : analysis.family;
+  const unsupportedHeterocycleLocalName = Boolean(
+    heterocycle && localNamerCannotSafelyName(molecule, analysis),
+  );
+  const parentFallbackName = heterocycle
+    ? unsupportedHeterocycleLocalName
+      ? "Local IUPAC name unavailable for this structure"
+      : translateSpanishIupacToOpsin(stripStereochemicalDescriptors(analysis.chainName))
+    : parentKind === "polycyclic"
+      ? translateSpanishIupacToOpsin(stripStereochemicalDescriptors(displayedSourceName))
+      : undefined;
   return {
     profile: IUPAC_1979_LEGACY_ENGLISH_PROFILE,
     parent: {
       kind: parentKind,
-      carbonCount: analysis.mainChain.length,
-      atomIds: [...analysis.mainChain],
-      fallbackName: translateSpanishIupacToOpsin(stripStereochemicalDescriptors(displayedSourceName)),
+      carbonCount: parentAtomIds.filter((atomId) => {
+        const atom = getAtom(atomId, molecule);
+        return atom ? isCarbonAtom(atom) : false;
+      }).length,
+      atomIds: parentAtomIds,
+      fallbackName: parentFallbackName,
     },
     doubleBondLocants: [...analysis.doubleBondLocants],
     tripleBondLocants: [...analysis.tripleBondLocants],
-    functionalGroups: analysis.functionalGroups.map((group) => ({
+    functionalGroups: (unsupportedHeterocycleLocalName ? [] : analysis.functionalGroups).map((group) => ({
       kind: group.kind,
       locant: locantForGroup(group, analysis.mainChain)
         ?? anchorLocantForGroup(group, analysis.mainChain, skeleton)
@@ -2854,12 +2889,14 @@ export function buildLegacyEnglishNameModel(
           : "alquil"
         : undefined,
     })),
-    substituents: analysis.substituents.map((substituent) => ({
+    substituents: (unsupportedHeterocycleLocalName ? [] : analysis.substituents).map((substituent) => ({
       locant: substituent.locant,
       systematicName: substituent.name,
       complex: substituent.complex,
     })),
-    stereochemicalPrefix: traditionalStereochemicalPrefix(displayedSourceName),
+    stereochemicalPrefix: unsupportedHeterocycleLocalName
+      ? undefined
+      : traditionalStereochemicalPrefix(displayedSourceName),
   };
 }
 
@@ -6267,8 +6304,11 @@ export default function Home() {
         && normalizeNomenclatureDisplayName(historicalCandidate) === normalizeNomenclatureDisplayName(legacyEnglishName)));
     const legacyEnglishVariantAvailable = language === "en"
       && !localSuggestedNameUnavailable
-      && legacyEnglishName !== "-"
-      && normalizeNomenclatureDisplayName(suggestedName) !== normalizeNomenclatureDisplayName(legacyEnglishName);
+      && legacyEnglishVariantIsAvailable(
+        suggestedName,
+        legacyEnglishName,
+        legacyEnglishProfileIsSupportedForMolecule(molecule),
+      );
     return [
       { convention: "current" as const, label: localSuggestedNameUnavailable
         ? language === "en" ? "Local IUPAC unavailable" : "IUPAC local no disponible"

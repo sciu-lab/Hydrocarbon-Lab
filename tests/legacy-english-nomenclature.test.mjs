@@ -14,6 +14,7 @@ import {
   generateLegacyEnglishName,
   getAlphabetizationKey,
   IUPAC_1979_LEGACY_ENGLISH_PROFILE,
+  legacyEnglishVariantIsAvailable,
   nameSubstituents,
   resolveFunctionalHierarchy,
 } from "../app/legacy-english-nomenclature.ts";
@@ -22,6 +23,7 @@ const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
 let buildLegacyEnglishNameModel;
+let legacyEnglishProfileIsSupportedForMolecule;
 
 before(async () => {
   server = await createServer({
@@ -32,7 +34,7 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, buildLegacyEnglishNameModel } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ analyzeMolecule, buildLegacyEnglishNameModel, legacyEnglishProfileIsSupportedForMolecule } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => server?.close());
@@ -104,6 +106,80 @@ test("Spanish 1979 variant is derived from the local analysis of the loaded mole
 
 test("IUPAC 1979 Legacy English names acetone systematically as propanone", () => {
   assert.equal(legacyName(fromSmiles("CC(=O)C")).name, "propanone");
+});
+
+test("Legacy English preserves registered heterocycle parents and gates unsupported profiles", () => {
+  for (const [smiles, expectedName, expectedCarbons] of [
+    ["O1CC1", "oxirane", 2],
+    ["O1CCNCC1", "morpholine", 4],
+    ["N1CCOCC1", "morpholine", 4],
+  ]) {
+    const molecule = fromSmiles(smiles);
+    const analysis = analyzeMolecule(molecule);
+    const model = buildLegacyEnglishNameModel(molecule, analysis);
+    const generated = generateLegacyEnglishName(model).name;
+    assert.equal(model.parent.kind, "heterocycle", smiles);
+    assert.equal(model.parent.carbonCount, expectedCarbons, smiles);
+    assert.equal(generated, expectedName, smiles);
+    assert.equal(legacyEnglishProfileIsSupportedForMolecule(molecule), false, smiles);
+    assert.equal(legacyEnglishVariantIsAvailable(expectedName, generated, false), false, smiles);
+    assert.doesNotMatch(generated, /cyclopropane|cyclohexane/, smiles);
+  }
+
+  const unregistered = fromSmiles("O1CNCCC1");
+  const unregisteredAnalysis = analyzeMolecule(unregistered);
+  const unregisteredLegacy = legacyName(unregistered).name;
+  assert.notEqual(unregisteredAnalysis.name, "morfolina");
+  assert.equal(unregisteredLegacy, "Local IUPAC name unavailable for this structure");
+  assert.equal(legacyEnglishProfileIsSupportedForMolecule(unregistered), false);
+
+  for (const smiles of [
+    "O1C(O)C1",
+    "O1C(CO)C1",
+    "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O",
+  ]) {
+    const molecule = fromSmiles(smiles);
+    const analysis = analyzeMolecule(molecule);
+    assert.equal(legacyEnglishProfileIsSupportedForMolecule(molecule), false, smiles);
+    assert.equal(legacyEnglishVariantIsAvailable(
+      translateSpanishIupacToOpsin(analysis.name),
+      legacyName(molecule).name,
+      legacyEnglishProfileIsSupportedForMolecule(molecule),
+    ), false, smiles);
+  }
+});
+
+test("unfused linked cyclohexanes use one ring parent and one cyclohexyl substituent", () => {
+  const molecule = fromSmiles("C1CCCCC1C2CCCCC2");
+  const analysis = analyzeMolecule(molecule);
+  const model = buildLegacyEnglishNameModel(molecule, analysis);
+  const generated = generateLegacyEnglishName(model).name;
+  const suggestedEnglish = translateSpanishIupacToOpsin(analysis.name);
+
+  assert.equal(analysis.name, "ciclohexilciclohexano");
+  assert.equal(model.parent.kind, "ring");
+  assert.equal(model.parent.carbonCount, 6);
+  assert.equal(model.substituents.length, 1);
+  assert.equal(model.substituents[0].systematicName, "ciclohexil");
+  assert.equal(generated, "cyclohexylcyclohexane");
+  assert.equal(generated, suggestedEnglish);
+  assert.equal(legacyEnglishVariantIsAvailable(suggestedEnglish, generated), false);
+
+  const fused = fromSmiles("C1CCC2CCCCC2C1");
+  const fusedAnalysis = analyzeMolecule(fused);
+  const fusedModel = buildLegacyEnglishNameModel(fused, fusedAnalysis);
+  assert.ok(fusedAnalysis.fusedBicyclic);
+  assert.equal(fusedModel.parent.kind, "polycyclic");
+  assert.equal(fusedModel.parent.carbonCount, 10);
+  assert.equal(generateLegacyEnglishName(fusedModel).name, "bicyclo[4.4.0]decane");
+});
+
+test("Legacy English remains selectable only for a distinct supported name", () => {
+  assert.equal(legacyEnglishVariantIsAvailable("pent-2-ene", "2-pentene"), true);
+  assert.equal(legacyEnglishVariantIsAvailable("penta-2,3-diene", "2,3-pentadiene"), true);
+  assert.equal(legacyEnglishVariantIsAvailable("propan-2-one", "propanone"), true);
+  assert.equal(legacyEnglishVariantIsAvailable("oxirane", "oxirane", false), false);
+  assert.equal(legacyEnglishVariantIsAvailable("cyclohexylcyclohexane", "cyclohexylcyclohexane"), false);
 });
 
 test("compares locant sets lexicographically instead of by sum", () => {
