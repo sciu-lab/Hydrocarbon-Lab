@@ -2214,6 +2214,11 @@ function heterocycleRingCompositionText(molecule: Molecule, ring: RingInfo, lang
 /** The analysis card mixes functional classes with a hydrocarbon fallback; keep its structural fallback truthful. */
 export function principalGroupAnalysisLabel(molecule: Molecule, analysis: Analysis) {
   if (analysis.primaryFunctionalLabel) return analysis.primaryFunctionalLabel;
+  if (analysis.family === "aromatic"
+    && analysis.functionalGroups.length > 0
+    && analysis.functionalGroups.every((group) => group.kind === "nitro")) {
+    return "Sin grupo de sufijo";
+  }
   if (analysis.functionalGroups[0]?.label) return analysis.functionalGroups[0].label;
   if (heterocycleRing(molecule)) return "Heterociclo";
   return molecule.atoms.every(isCarbonAtom) ? "Hidrocarburo" : null;
@@ -3757,6 +3762,32 @@ function normalizeLocants(locants: number[]) {
   return [...new Set(locants)].sort((left, right) => left - right);
 }
 
+function aromaticPrefixLocantsText(substituents: NamedSubstituent[], language: AppLanguage) {
+  const groups = new Map<string, number[]>();
+  substituents.forEach((substituent) => {
+    const locants = groups.get(substituent.name) ?? [];
+    locants.push(substituent.locant);
+    groups.set(substituent.name, locants);
+  });
+  return [...groups.entries()]
+    .sort(([left], [right]) => compareAlphabeticalNames(left, right))
+    .map(([name, locants]) => {
+      const label = language === "en"
+        ? translateSpanishIupacToOpsin(name) || name
+        : name;
+      const sorted = normalizeLocants(locants);
+      const joinedLocants = language === "en"
+        ? sorted.length < 2
+          ? String(sorted[0] ?? "")
+          : `${sorted.slice(0, -1).join(", ")}, and ${sorted.at(-1)}`
+        : joinSpanishList(sorted.map(String));
+      return language === "en"
+        ? `${label} at C${joinedLocants}`
+        : `${label} en C${joinedLocants}`;
+    })
+    .join(language === "en" ? "; " : "; ");
+}
+
 function reverseAtomLocants(locants: number[], chainLength: number) {
   return normalizeLocants(locants.map((locant) => chainLength + 1 - locant));
 }
@@ -4149,6 +4180,9 @@ export function buildIupacReasoningSteps(
     (name) => !normalizedResultName.includes(name),
   );
   const primaryKind = analysis.primaryFunctionalGroup;
+  const aromaticNitroGroups = analysis.family === "aromatic"
+    ? analysis.functionalGroups.filter((group) => group.kind === "nitro")
+    : [];
   const exocyclicRingFunction = exocyclicRingCarbonFunction(molecule, analysis);
   const primaryGroups = primaryKind
     ? analysis.functionalGroups.filter((group) => group.kind === primaryKind)
@@ -4165,7 +4199,9 @@ export function buildIupacReasoningSteps(
   ]);
 
   if (primaryKind && analysis.primaryFunctionalLabel) {
-    const detectedLabels = [...new Set(analysis.functionalGroups.map((group) => group.label.toLowerCase()))];
+    const detectedLabels = [...new Set(analysis.functionalGroups
+      .filter((group) => suffixFunctionalGroups.has(group.kind))
+      .map((group) => group.label.toLowerCase()))];
     const priorityLead = detectedLabels.length > 1
       ? `Entre ${joinSpanishList(detectedLabels)}, ${analysis.primaryFunctionalLabel.toLowerCase()} tiene la prioridad más alta.`
       : `Se identifica ${analysis.primaryFunctionalLabel.toLowerCase()} como el grupo de mayor prioridad.`;
@@ -4184,7 +4220,13 @@ export function buildIupacReasoningSteps(
     steps.push({
       number: "01",
       title: "Grupo funcional principal",
-      explanation: `${priorityLead} Aporta el sufijo del nombre. ${positionRule}`,
+      explanation: `${priorityLead} Aporta el sufijo del nombre. ${positionRule}${aromaticNitroGroups.length ? " Los grupos nitro se expresan con el prefijo nitro- y no desplazan esta función de sufijo." : ""}`,
+    });
+  } else if (aromaticNitroGroups.length) {
+    steps.push({
+      number: "01",
+      title: "Grupo funcional principal",
+      explanation: "Se detecta el grupo nitro, pero en esta estructura se expresa como prefijo nitro-. No aporta un sufijo y no se clasifica como grupo funcional principal.",
     });
   }
 
@@ -4193,7 +4235,7 @@ export function buildIupacReasoningSteps(
   if (heterocycleParentRing) {
     parentExplanation = `${heterocycleRingCompositionText(molecule, heterocycleParentRing, "es")} El nombre del padre es ${analysis.chainName}; el nombre IUPAC completo es ${analysis.name}.`;
   } else if (analysis.family === "aromatic") {
-    parentExplanation = `Se elige el anillo aromático de ${chainLength} carbonos que contiene la función prioritaria cuando existe. La elección se hace por conectividad, no por la orientación visual del dibujo, y aporta el nombre base ${analysis.chainName}.`;
+    parentExplanation = `Se elige como progenitor el anillo aromático de ${chainLength} carbonos${primaryKind ? " que contiene la función de sufijo prioritaria" : ""}. La conectividad y las reglas de nomenclatura determinan la elección, independientemente de la orientación visual del dibujo; el nombre base es ${analysis.chainName}.`;
   } else if (analysis.family === "polycyclic") {
     parentExplanation = `Se comparan los anillos del sistema y se elige como principal el que conserva la función prioritaria y el mayor número de conexiones. El esqueleto seleccionado aporta ${analysis.chainName}.`;
   } else if (analysis.family === "cycloalkane" && exocyclicRingFunction) {
@@ -4235,7 +4277,15 @@ export function buildIupacReasoningSteps(
     const explanationParts = [
       "Se comparan ambos extremos en este orden: primero la función principal, después los enlaces múltiples y, solo si continúa el empate, los sustituyentes.",
     ];
-    if (isRingStructure) {
+    if (analysis.family === "aromatic") {
+      const assignedPrefixLocants = aromaticPrefixLocantsText(analysis.substituents, "es");
+      explanationParts[0] = primaryKind
+        ? `En el anillo aromático, la función de sufijo conserva la prioridad de numeración; después se consideran los localizadores de los prefijos.`
+        : `En el anillo aromático se comparan las numeraciones admisibles según los localizadores de los grupos citados como prefijos.`;
+      if (assignedPrefixLocants) {
+        explanationParts.push(`La numeración asignada sitúa ${assignedPrefixLocants}.`);
+      }
+    } else if (isRingStructure) {
       explanationParts.push(
         `En el anillo se eligen el punto de inicio y el sentido que respetan esa jerarquía${primaryLocants.length ? `; la función principal queda en ${carbonLocantsText(primaryLocants)}` : ""}.`,
       );
@@ -4311,7 +4361,11 @@ export function buildIupacReasoningSteps(
   }
 
   if (localizedSubstituents.length) {
-    const hierarchyReminder = primaryKind || hasMultipleBonds
+    const hierarchyReminder = analysis.family === "aromatic"
+      ? primaryKind
+        ? "La función con sufijo tiene prioridad; los grupos citados como prefijos se consideran después."
+        : "Al no haber una función de sufijo, los grupos citados como prefijos guían la numeración del anillo."
+      : primaryKind || hasMultipleBonds
       ? "Se consideran después de la función principal y de los enlaces múltiples; solo rompen un empate previo."
       : "Al no existir una función principal ni enlaces múltiples, este conjunto define el sentido de numeración.";
     steps.push({
@@ -4565,6 +4619,9 @@ export function buildEnglishReasoningSteps(
   const primaryLabel = analysis.primaryFunctionalLabel
     ? uiText("en", analysis.primaryFunctionalLabel)
     : undefined;
+  const aromaticNitroGroups = analysis.family === "aromatic"
+    ? analysis.functionalGroups.filter((group) => group.kind === "nitro")
+    : [];
   const substituentList = analysis.substituents
     .map((item) => `${item.locant}-${translateSpanishIupacToOpsin(item.name) || item.name}`)
     .join(", ");
@@ -4580,8 +4637,10 @@ export function buildEnglishReasoningSteps(
         ? exocyclicRingFunction
           ? primaryLabel + " has the highest naming priority and determines the suffix. Its functional carbon is outside the ring and is attached at C"
             + exocyclicRingFunction.attachmentLocant + "."
-          : `${primaryLabel} has the highest naming priority among the detected functional groups. It determines the suffix, and the parent skeleton is numbered to give this function the lowest permitted locant.`
-        : "Functional-group priority is checked before the parent skeleton is numbered.";
+          : `${primaryLabel} has the highest naming priority among the suffix functional groups. It determines the suffix, and the parent skeleton is numbered to give this function the lowest permitted locant.${aromaticNitroGroups.length ? " Nitro groups are cited with the nitro- prefix and do not displace this suffix function." : ""}`
+        : aromaticNitroGroups.length
+          ? "The nitro group is detected, but here it is cited with the prefix nitro-. It does not provide a suffix and is not classified as the principal functional group."
+          : "Functional-group priority is checked before the parent skeleton is numbered.";
     } else if (step.number === "02") {
       const heterocycleParentRing = heterocycleRing(molecule);
       if (exocyclicRingFunction) {
@@ -4607,7 +4666,9 @@ export function buildEnglishReasoningSteps(
       const unsaturation = multipleBonds.length
         ? ` Multiple bonds are located at ${multipleBonds.join(", ")}.`
         : "";
-      explanation = primaryLabel
+      explanation = analysis.family === "aromatic"
+        ? `${primaryLabel ? `The suffix function (${primaryLabel}) keeps its numbering priority; prefix locants are considered afterward.` : "Admissible aromatic-ring numberings are compared using the locants of the groups cited as prefixes."}${aromaticPrefixLocantsText(analysis.substituents, "en") ? ` The assigned numbering places ${aromaticPrefixLocantsText(analysis.substituents, "en")}.` : ""}`
+        : primaryLabel
         ? `Numbering is chosen to give the principal group (${primaryLabel}) the lowest permitted locant. If both directions remain equivalent, multiple bonds are considered next, followed by substituents at the first point of difference.${unsaturation}`
         : `Numbering is chosen from the end that gives the lowest locant at the first point of difference. Multiple bonds are considered before substituents.${unsaturation}`;
     } else if (step.number === "04") {
@@ -11847,7 +11908,7 @@ export default function Home() {
 
               <div className="functional-priority-note">
                 <span aria-hidden="true">⇧</span>
-                <p><strong>{t("La prioridad importa:")}</strong> {t("el grupo principal define el sufijo y recibe el localizador más bajo.")}</p>
+                <p><strong>{t("La prioridad importa:")}</strong> {t("Cuando hay una función de sufijo, esta define el sufijo y recibe prioridad en la numeración. Nitro se expresa como prefijo.")}</p>
               </div>
 
               {([

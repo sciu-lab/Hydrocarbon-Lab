@@ -12,6 +12,7 @@ let server;
 let analyzeMolecule;
 let buildIupacReasoningSteps;
 let buildEnglishReasoningSteps;
+let principalGroupAnalysisLabel;
 
 before(async () => {
   server = await createServer({
@@ -22,7 +23,7 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, buildIupacReasoningSteps, buildEnglishReasoningSteps } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ analyzeMolecule, buildIupacReasoningSteps, buildEnglishReasoningSteps, principalGroupAnalysisLabel } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => {
@@ -66,6 +67,67 @@ test("functional priority appears before the parent and substituent rules", () =
   assert.deepEqual(steps.map((step) => step.number), ["01", "02", "03", "04"]);
   assert.match(steps[0].explanation, /ácido carboxílico/i);
   assert.match(steps[0].explanation, /se fija como C1/i);
+});
+
+test("aromatic nitro groups are explained as prefixes, not principal suffix groups", () => {
+  const cases = [
+    ["benzene", "c1ccccc1"],
+    ["methylbenzene", "Cc1ccccc1"],
+    ["nitrobenzene", "O=[N+]([O-])c1ccccc1"],
+    ["TNT", "CC1=C(C=C(C=C1[N+](=O)[O-])[N+](=O)[O-])[N+](=O)[O-]"],
+    ["aromatic multiple substituents", "Cc1cc([N+](=O)[O-])cc(C)c1"],
+    ["nitro plus a suffix group", "O=C(O)c1ccc([N+](=O)[O-])cc1"],
+  ];
+
+  for (const [label, smiles] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, `${label}: ${converted.ok ? "" : converted.error}`);
+    const analysis = analyzeMolecule(converted.molecule);
+    const spanish = buildIupacReasoningSteps(converted.molecule, analysis);
+    const english = buildEnglishReasoningSteps(spanish, converted.molecule, analysis);
+    const spanishText = spanish.map((step) => step.explanation).join(" ");
+    const englishText = english.map((step) => step.explanation).join(" ");
+
+    if (analysis.functionalGroups.some((group) => group.kind === "nitro")) {
+      assert.match(spanishText, /prefijo nitro-/i, label);
+      assert.match(englishText, /(?:prefix nitro-|nitro- prefix)/i, label);
+    }
+    assert.match(spanishText, /anillo aromático/i, label);
+    assert.match(englishText, /aromatic ring/i, label);
+    assert.doesNotMatch(spanishText, /no contiene dobles ni triples enlaces/i, label);
+    assert.doesNotMatch(englishText, /contains no double or triple bonds/i, label);
+  }
+
+  const tnt = moleculeFromSmiles(cases.find(([label]) => label === "TNT")[1]);
+  const tntAnalysis = analyzeMolecule(tnt.molecule);
+  assert.equal(tntAnalysis.name, "2-metil-1,3,5-trinitrobenceno");
+  assert.equal(tntAnalysis.primaryFunctionalGroup, undefined);
+  assert.equal(principalGroupAnalysisLabel(tnt.molecule, tntAnalysis), "Sin grupo de sufijo");
+  const tntSpanish = buildIupacReasoningSteps(tnt.molecule, tntAnalysis);
+  const tntEnglish = buildEnglishReasoningSteps(tntSpanish, tnt.molecule, tntAnalysis);
+  assert.match(tntSpanish.find((step) => step.number === "03").explanation, /nitro en C1, 3 y 5/i);
+  assert.match(tntSpanish.find((step) => step.number === "03").explanation, /metil en C2/i);
+  assert.match(tntEnglish.find((step) => step.number === "03").explanation, /nitro at C1, 3, and 5/i);
+  assert.match(tntEnglish.find((step) => step.number === "03").explanation, /methyl at C2/i);
+  assert.match(tntSpanish.find((step) => step.number === "05").explanation, /metil → nitro/i);
+  assert.match(tntEnglish.find((step) => step.number === "05").explanation, /methyl → nitro/i);
+
+  const nitroAcid = moleculeFromSmiles(cases.find(([label]) => label === "nitro plus a suffix group")[1]);
+  const nitroAcidAnalysis = analyzeMolecule(nitroAcid.molecule);
+  assert.equal(nitroAcidAnalysis.primaryFunctionalGroup, "carboxylicAcid");
+  assert.match(buildIupacReasoningSteps(nitroAcid.molecule, nitroAcidAnalysis)[0].explanation, /grupos nitro se expresan con el prefijo nitro-/i);
+
+  for (const [label, smiles, expectedName] of [
+    ["alkene", "C=CC", "prop-1-eno"],
+    ["acetone", "CC(=O)C", "propan-2-ona"],
+  ]) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, `${label}: ${converted.ok ? "" : converted.error}`);
+    const analysis = analyzeMolecule(converted.molecule);
+    assert.equal(analysis.name, expectedName, label);
+    const spanish = buildIupacReasoningSteps(converted.molecule, analysis).map((step) => step.explanation).join(" ");
+    assert.doesNotMatch(spanish, /prefijo nitro-/i, label);
+  }
 });
 
 test("explains ring-attached aldehydes and acids with the functional carbon outside the ring", () => {
