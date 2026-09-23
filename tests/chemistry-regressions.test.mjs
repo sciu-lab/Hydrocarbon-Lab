@@ -34,6 +34,8 @@ let getSubstituentAliasSelectionKey;
 let localNamerCannotSafelyName;
 let externalCandidateNeedsNeutralLocalName;
 let externalCandidateLocalDisplayName;
+let heterocycleHasUnrepresentedHydroxylGroups;
+let legacyEnglishProfileIsSupportedForMolecule;
 let buildLegacyEnglishNameModel;
 let pubChemIdentityForNomenclature;
 
@@ -52,6 +54,8 @@ before(async () => {
     localNamerCannotSafelyName,
     externalCandidateNeedsNeutralLocalName,
     externalCandidateLocalDisplayName,
+    heterocycleHasUnrepresentedHydroxylGroups,
+    legacyEnglishProfileIsSupportedForMolecule,
     buildLegacyEnglishNameModel,
     pubChemIdentityForNomenclature,
   } = await server.ssrLoadModule("/app/page.tsx"));
@@ -80,7 +84,40 @@ test("supported fused bicyclic editing remains analyzable after opening a ring",
   assert.doesNotThrow(() => analyzeMolecule(opened));
 });
 
-test("external polyhydroxylated heterocycles do not expose an incomplete local name", () => {
+test("oxygenated heterocycles with external hydroxyl groups are outside local naming coverage", () => {
+  for (const [smiles, formula, incompleteName] of [
+    ["O1C(O)C1", "C₂H₄O₂", "oxirano"],
+    ["O1C(CO)C1", "C₃H₆O₂", "2-etiloxirano"],
+    ["C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O", "C₆H₁₂O₆", "2-etiltetrahidropirano"],
+  ]) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    const analysis = analyzeMolecule(converted.molecule);
+    assert.equal(analysis.formula, formula, smiles);
+    assert.equal(analysis.name, incompleteName, smiles, "the audit preserves the existing raw analyzer result");
+    assert.equal(heterocycleHasUnrepresentedHydroxylGroups(converted.molecule), true, smiles);
+    assert.equal(localNamerCannotSafelyName(converted.molecule, analysis), true, smiles);
+    assert.equal(externalCandidateNeedsNeutralLocalName(converted.molecule, analysis), true, smiles);
+    assert.equal(externalCandidateLocalDisplayName(converted.molecule, analysis, "es"), "Nombre IUPAC local no disponible para esta estructura");
+    assert.equal(externalCandidateLocalDisplayName(converted.molecule, analysis, "en"), "Local IUPAC name unavailable for this structure");
+  }
+
+  const oxirane = moleculeFromSmiles("O1CC1");
+  const morpholine = moleculeFromSmiles("O1CCNCC1");
+  assert.equal(oxirane.ok, true);
+  assert.equal(morpholine.ok, true);
+  for (const [converted, expectedName] of [[oxirane, "oxirano"], [morpholine, "morfolina"]]) {
+    const analysis = analyzeMolecule(converted.molecule);
+    assert.equal(analysis.name, expectedName);
+    assert.equal(heterocycleHasUnrepresentedHydroxylGroups(converted.molecule), false);
+    assert.equal(localNamerCannotSafelyName(converted.molecule, analysis), false);
+    assert.equal(externalCandidateNeedsNeutralLocalName(converted.molecule, analysis), false);
+    assert.equal(legacyEnglishProfileIsSupportedForMolecule(converted.molecule), false,
+      "the existing Legacy formatter treats heterocycle atom counts as carbons");
+  }
+});
+
+test("CID 5793 remains protected before local profiles are selected", () => {
   // PubChem CID 5793 (D-glucose) record structure. The editor round-trips its
   // stereochemistry, while the current local analysis omits four oxygen atoms.
   const result = moleculeFromSmiles("C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O");
@@ -90,17 +127,20 @@ test("external polyhydroxylated heterocycles do not expose an incomplete local n
   assert.equal(analysis.name, "2-etiltetrahidropirano");
   const legacy = generateLegacyEnglishName(buildLegacyEnglishNameModel(result.molecule, analysis));
   assert.equal(legacy.name, "2-ethylcyclohexane");
-  assert.equal(localNamerCannotSafelyName(result.molecule, analysis), false);
+  assert.equal(heterocycleHasUnrepresentedHydroxylGroups(result.molecule), true);
+  assert.equal(localNamerCannotSafelyName(result.molecule, analysis), true);
   assert.equal(externalCandidateNeedsNeutralLocalName(result.molecule, analysis), true);
   assert.equal(externalCandidateLocalDisplayName(result.molecule, analysis, "es"), "Nombre IUPAC local no disponible para esta estructura");
   assert.equal(externalCandidateLocalDisplayName(result.molecule, analysis, "en"), "Local IUPAC name unavailable for this structure");
   // The graph-based formatter is known to omit oxygen-rich parts here; the
   // UI must gate every locally generated profile when this external structure
   // is active, while keeping the exact PubChem identity as the primary name.
-  assert.match(pageSource, /localSuggestedNameUnavailable\s*\?\s*"-"\s*:\s*generateLegacyEnglishName/);
+  assert.match(pageSource, /localSuggestedNameUnavailable\s*\|\|\s*!legacyEnglishProfileIsSupportedForMolecule\(molecule\)\s*\?\s*"-"\s*:\s*generateLegacyEnglishName/);
   assert.match(pageSource, /if \(externalNameIsPrimary\)\s*\{\s*return \[\{[\s\S]*?name: pubChemIupacName!/);
-  assert.match(pageSource, /sourceNameOverride === null\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)/,
-    "the incomplete local name stays hidden while the external context loads after Undo");
+  assert.match(pageSource, /\|\| heterocycleHydroxylNameUnavailable/,
+    "the heterocycle coverage guard also applies when a source name override exists");
+  assert.match(pageSource, /localSuggestedNameUnavailable \|\| !legacyEnglishProfileIsSupportedForMolecule\(molecule\)/,
+    "Legacy English is not offered for heterocycles that its formatter turns into carbocycles");
 
   const supported = moleculeFromSmiles("OCC");
   assert.equal(supported.ok, true, supported.ok ? undefined : supported.error);

@@ -2279,6 +2279,26 @@ function analyzeHeterocycleMolecule(
   };
 }
 
+/**
+ * The heterocycle formatter currently names only the ring parent and carbon
+ * substituents. An OH outside that parent is therefore not represented by
+ * its name, even when the substituent atom list happens to contain it.
+ */
+export function heterocycleHasUnrepresentedHydroxylGroups(molecule: Molecule) {
+  const ring = heterocycleRing(molecule);
+  if (!ring) return false;
+  const ringAtomIds = new Set(ring.atomIds);
+  return detectFunctionalGroups(molecule).some((group) =>
+    group.kind === "alcohol"
+    && !ringAtomIds.has(group.heteroAtomId),
+  );
+}
+
+/** Legacy English currently maps supported heterocycles through carbocycle roots. */
+export function legacyEnglishProfileIsSupportedForMolecule(molecule: Molecule) {
+  return !heterocycleRing(molecule);
+}
+
 function atomNeighbors(atomId: number, molecule: Molecule) {
   return molecule.bonds.flatMap((bond) => {
     if (bond[0] === atomId) return [{ atomId: bond[1], order: getBondOrder(bond) }];
@@ -4673,6 +4693,7 @@ const COMPLEX_NAME_UNAVAILABLE_MESSAGE = "Nombre no disponible para estructuras 
 const STEREOCHEMISTRY_STORAGE_KEY = "hydrocarbon-lab-show-stereochemistry";
 
 export function localNamerCannotSafelyName(molecule: Molecule, analysis: Analysis) {
+  if (heterocycleHasUnrepresentedHydroxylGroups(molecule)) return true;
   // Recognised fused parents with a complete graph-based descriptor are safe;
   // other shared-ring topologies remain deliberately unsupported.
   if (hasSharedRingAtoms(molecule)) {
@@ -6092,8 +6113,11 @@ export default function Home() {
   const externalCandidateNameUnavailable = Boolean(namingPubChemIdentity
     && externalCandidateNeedsNeutralLocalName(molecule, calculatedAnalysis));
   const externalNameIsPrimary = externalCandidateNameUnavailable && Boolean(pubChemIupacName);
+  const heterocycleHydroxylNameUnavailable = heterocycleHasUnrepresentedHydroxylGroups(molecule);
   const localSuggestedNameUnavailable = (sourceNameOverride === null
-    && externalCandidateNeedsNeutralLocalName(molecule, calculatedAnalysis)) || externalCandidateNameUnavailable;
+    && externalCandidateNeedsNeutralLocalName(molecule, calculatedAnalysis))
+    || externalCandidateNameUnavailable
+    || heterocycleHydroxylNameUnavailable;
   const analysis = useMemo(
     () => sourceNameOverride
       ? { ...calculatedAnalysis, name: sourceNameOverride }
@@ -6109,9 +6133,7 @@ export default function Home() {
     () => externalNameIsPrimary
       ? pubChemIupacName!
       : localSuggestedNameUnavailable
-        ? externalCandidateNameUnavailable
-          ? externalCandidateLocalDisplayName(molecule, calculatedAnalysis, language)
-          : COMPLEX_NAME_UNAVAILABLE_MESSAGE
+        ? externalCandidateLocalDisplayName(molecule, calculatedAnalysis, language)
         : stripStereochemicalDescriptors(analysis.name),
     [analysis.name, calculatedAnalysis, externalCandidateNameUnavailable, externalNameIsPrimary, language, localSuggestedNameUnavailable, molecule, pubChemIupacName],
   );
@@ -6139,7 +6161,7 @@ export default function Home() {
     [traditionalStructure],
   );
   const legacyEnglishName = useMemo(
-    () => localSuggestedNameUnavailable
+    () => localSuggestedNameUnavailable || !legacyEnglishProfileIsSupportedForMolecule(molecule)
       ? "-"
       : generateLegacyEnglishName(
         buildLegacyEnglishNameModel(molecule, analysis, nameWithSelectedStereochemistry),
