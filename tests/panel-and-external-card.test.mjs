@@ -60,7 +60,8 @@ test("uses a page scroll, contextual constructors, right-side display settings a
   assert.match(styleSource, /\.app-shell \{ padding-bottom: calc\(var\(--iupac-dock-height\)/);
   assert.doesNotMatch(pageSource, /className=\{`name-result/);
   assert.match(pageSource, /className="iupac-dock-profile"/);
-  assert.match(pageSource, /option value="traditional" disabled=\{!traditionalNomenclatureAvailable\}/);
+  assert.match(pageSource, /option value=\{historicalNomenclatureConvention\} disabled=\{!traditionalNomenclatureAvailable\}/);
+  assert.match(pageSource, /language === "es" \? "iupac-1979-es" : "traditional"/);
   assert.match(pageSource, /className="iupac-dock-variants"/);
   assert.match(styleSource, /--editor-top-offset/);
   assert.match(pageSource, /grid\.style\.setProperty\("--editor-top-offset"/);

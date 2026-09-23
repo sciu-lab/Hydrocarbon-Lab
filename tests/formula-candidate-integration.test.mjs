@@ -72,6 +72,17 @@ test("local traditional names remain available only when the local nomenclator s
   assert.match(page, /disabled=\{!showIupacName \|\| isPristineInitialMolecule \|\| !displayedNameCopyable\}/);
 });
 
+test("dock selects the locale's historical profile, copies the visible variant and deduplicates labels", () => {
+  assert.match(page, /language === "es" \? "iupac-1979-es" : "traditional"/);
+  assert.match(page, /nomenclatureConvention === "traditional" \|\| nomenclatureConvention === "iupac-1979-es"/);
+  assert.match(page, /onChange=\{\(event\) => setNomenclatureConvention\(event\.target\.value as NomenclatureConvention\)\}/);
+  assert.match(page, /navigator\.clipboard\?\.writeText\(displayedIupacName\)/);
+  assert.match(page, /const visibleCommonName = verifiedLocalCommonName\s*&&\s*!nomenclatureVariants\.some/);
+  assert.match(page, /const showPubChemRecordTitle = Boolean\(pubChemRecordTitle && !\[/);
+  assert.match(page, /activePubChemIdentity\?\.iupacName \?\? ""/);
+  assert.match(page, /!localSuggestedNameUnavailable[\s\S]*historicalCandidate/);
+});
+
 test("candidate cards retain PubChem attribution and use a neutral label if the record has no name", () => {
   assert.match(page, /PubChem · CID \{candidate\.cid\}/);
   assert.match(page, /candidate\.iupacName \?\? \(language === "en" \? `PubChem compound \$\{candidate\.cid\}` : `Compuesto PubChem \$\{candidate\.cid\}`\)/);

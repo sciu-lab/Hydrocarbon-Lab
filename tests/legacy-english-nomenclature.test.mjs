@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
+import { applyNomenclatureConvention } from "../app/nomenclature-conventions.ts";
 import {
   compareLocantSets,
   compareNumberings,
@@ -90,6 +91,14 @@ test("declares a distinct 1979 English profile and explicit functional hierarchy
     { kind: "alcohol", locant: 4, carbonIncludedInParent: true },
     { kind: "ketone", locant: 2, carbonIncludedInParent: true },
   ]).principalKind, "ketone");
+});
+
+test("Spanish 1979 variant is derived from the local analysis of the loaded molecular graph", () => {
+  const acetone = fromSmiles("CC(=O)C");
+  const analysis = analyzeMolecule(acetone);
+  assert.equal(analysis.name, "propan-2-ona");
+  assert.equal(applyNomenclatureConvention(analysis.name, "current", "es"), "propan-2-ona");
+  assert.equal(applyNomenclatureConvention(analysis.name, "iupac-1979-es", "es"), "propanona");
 });
 
 test("compares locant sets lexicographically instead of by sum", () => {

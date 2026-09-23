@@ -6,12 +6,12 @@ import {
 } from "./iupac-name-normalization.ts";
 import { englishIupacRoot, IUPAC_ROOTS } from "./iupac-prefixes.ts";
 
-export type NomenclatureConvention = "current" | "traditional";
+export type NomenclatureConvention = "current" | "traditional" | "iupac-1979-es";
 
 type ConventionCycle = readonly NomenclatureConvention[];
 
 const conventionCycles: Record<AppLanguage, ConventionCycle> = {
-  es: ["current", "traditional"],
+  es: ["current", "iupac-1979-es"],
   en: ["current", "traditional"],
 };
 const stereoPrefix = /^(\((?:\d+[EZRS](?:,\d+[EZRS])*)\)-)(.+)$/;
@@ -219,6 +219,11 @@ export function formatTraditionalSystematicName(baseName: string, language: AppL
   return undefined;
 }
 
+/** Spanish IUPAC 1979 output reuses only the existing verified systematic patterns. */
+export function formatIupac1979SpanishName(baseName: string) {
+  return formatTraditionalSystematicName(baseName, "es");
+}
+
 function traditionalName(baseName: string, language: AppLanguage) {
   const systematicName = formatTraditionalSystematicName(baseName, language);
   if (systematicName) return systematicName;
@@ -249,16 +254,20 @@ export function applyNomenclatureConvention(
   convention: NomenclatureConvention,
   language: AppLanguage,
 ) {
-  const activeConvention = convention;
   const { prefix, baseName } = splitStereochemicalPrefix(name);
-  const formattedName = activeConvention === "traditional"
-    ? traditionalName(baseName, language)
-    : baseName;
+  const spanish1979 = convention === "iupac-1979-es" && language === "es";
+  const formattedName = spanish1979
+    ? formatIupac1979SpanishName(baseName) ?? "-"
+    : convention === "traditional"
+      ? traditionalName(baseName, language)
+      : baseName;
   if (formattedName === "-") return "-";
   const methaneLocantsRemoved = stripMethaneHalogenLocants(formattedName);
-  const halogenFormattedName = activeConvention === "traditional"
+  const halogenFormattedName = convention === "traditional"
     ? compactHalogenatedName(methaneLocantsRemoved)
-    : hyphenateHalogenatedName(methaneLocantsRemoved);
+    : spanish1979
+      ? formattedName
+      : hyphenateHalogenatedName(methaneLocantsRemoved);
   return `${prefix}${halogenFormattedName}`;
 }
 
@@ -267,8 +276,8 @@ export function nextNomenclatureConvention(
   language: AppLanguage,
 ): NomenclatureConvention {
   const cycle = conventionCycles[language];
-  const currentIndex = cycle.indexOf(current);
-  return cycle[(currentIndex + 1) % cycle.length];
+  const historicalSelected = current === "traditional" || current === "iupac-1979-es";
+  return historicalSelected ? "current" : cycle[1];
 }
 
 export function nomenclatureConventionLabel(
@@ -278,5 +287,5 @@ export function nomenclatureConventionLabel(
   if (language === "en") {
     return convention === "traditional" ? "IUPAC 1979 Legacy English" : "IUPAC Preferred";
   }
-  return convention === "traditional" ? "Tradicional" : "IUPAC Preferido";
+  return convention === "iupac-1979-es" ? "IUPAC 1979" : "IUPAC Preferido";
 }

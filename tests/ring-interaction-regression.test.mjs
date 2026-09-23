@@ -99,10 +99,12 @@ test("expanded workspace wraps the live canvas and construction controls", () =>
   assert.doesNotMatch(css, /\.molecule-stage\.is-expanded/);
 });
 
-test("the dock only offers a genuine traditional result, separate from legacy English", () => {
+test("the dock offers verified locale-specific historical variants separate from Legacy English", () => {
   assert.match(page, /const traditionalCandidate = analysis\.steroidSystem[\s\S]*: analysis\.fusedBicyclic/);
   assert.match(page, /fusedBicyclicTraditionalDisplayName\(analysis\.fusedBicyclic, language\)/);
-  assert.match(page, /traditionalCandidate\.trim\(\)\.toLocaleLowerCase\(language\) !== suggestedName/);
+  assert.match(page, /historicalCandidate = language === "es"[\s\S]*applyNomenclatureConvention\(nameWithSelectedStereochemistry, "iupac-1979-es", "es"\)/);
+  assert.match(page, /normalizeNomenclatureDisplayName\(historicalCandidate\) !== normalizeNomenclatureDisplayName\(suggestedName\)/);
+  assert.match(page, /label: language === "en" \? "Traditional" : "IUPAC 1979"/);
   assert.match(page, /legacyEnglishResult\.name !== "-" && !nomenclatureVariants\.some/);
   assert.match(page, /IUPAC 1979 Legacy English ·/);
 });

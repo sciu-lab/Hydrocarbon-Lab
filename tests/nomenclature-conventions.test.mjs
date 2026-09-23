@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   applyNomenclatureConvention,
+  formatIupac1979SpanishName,
   getCuratedCommonName,
   nextNomenclatureConvention,
   stripStereochemicalDescriptors,
@@ -138,6 +139,19 @@ test("keeps preferred IUPAC untouched while applying traditional formatting", ()
   assert.equal(applyNomenclatureConvention("metanal", "traditional", "es"), "metanal");
 });
 
+test("Spanish IUPAC 1979 uses verified systematic forms and leaves common names complementary", () => {
+  assert.equal(formatIupac1979SpanishName("propan-2-ona"), "propanona");
+  assert.equal(applyNomenclatureConvention("propan-2-ona", "current", "es"), "propan-2-ona");
+  assert.equal(applyNomenclatureConvention("propan-2-ona", "iupac-1979-es", "es"), "propanona");
+  assert.equal(applyNomenclatureConvention("butan-2-ona", "iupac-1979-es", "es"), "2-butanona");
+  assert.equal(applyNomenclatureConvention("pentan-2,3-diol", "iupac-1979-es", "es"), "2,3-pentanodiol");
+  assert.equal(applyNomenclatureConvention("hex-3-eno", "iupac-1979-es", "es"), "3-hexeno");
+  assert.equal(applyNomenclatureConvention("4-cloropent-2-eno", "iupac-1979-es", "es"), "4-cloro-2-penteno");
+  assert.equal(applyNomenclatureConvention("methylbenzene", "iupac-1979-es", "es"), "-");
+  assert.equal(getCuratedCommonName("propan-2-ona", "es"), "acetona");
+  assert.equal(applyNomenclatureConvention("propan-2-one", "traditional", "en"), "propanone");
+});
+
 test("reuses curated common names as supplemental labels for verified local structures", () => {
   const pairs = [
     ["propan-2-ona", "acetona", "acetone"],
@@ -187,9 +201,10 @@ test("preserves E/Z independently from the preferred convention", () => {
 });
 
 test("uses the language-specific convention cycle", () => {
-  assert.equal(nextNomenclatureConvention("current", "es"), "traditional");
+  assert.equal(nextNomenclatureConvention("current", "es"), "iupac-1979-es");
   assert.equal(nextNomenclatureConvention("current", "en"), "traditional");
   assert.equal(nextNomenclatureConvention("traditional", "en"), "current");
+  assert.equal(nextNomenclatureConvention("iupac-1979-es", "es"), "current");
 });
 
 test("never displays E/Z for benzene-derived aromatic rings", () => {
