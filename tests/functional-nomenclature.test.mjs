@@ -5,11 +5,15 @@ import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { buildHydrocarbonFromIupacName } from "../app/name-to-molecule.ts";
 import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
+import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
+import { generateLegacyEnglishName, legacyEnglishVariantIsAvailable } from "../app/legacy-english-nomenclature.ts";
 import { generarNombreTradicional } from "../app/traditional-nomenclature.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
+let buildLegacyEnglishNameModel;
+let legacyEnglishProfileIsSupportedForMolecule;
 let buildTraditionalMoleculeStructure;
 let canvasCoordinateScaleForCarbonCount;
 
@@ -24,6 +28,8 @@ before(async () => {
   });
   ({
     analyzeMolecule,
+    buildLegacyEnglishNameModel,
+    legacyEnglishProfileIsSupportedForMolecule,
     buildTraditionalMoleculeStructure,
     canvasCoordinateScaleForCarbonCount,
   } = await server.ssrLoadModule("/app/page.tsx"));
@@ -204,6 +210,51 @@ test("omite el locante 1 solo del sufijo al de aldehídos acíclicos principales
     const name = analyzeMolecule(converted.molecule).name;
     assert.equal(name, expectedName, smiles);
     assert.equal(forbidden.has(name), false, smiles);
+  }
+});
+
+test("names ring-attached aldehydes and carboxylic acids from the external functional carbon", () => {
+  const cases = [
+    ["O=CC1CCCCC1", "C₇H₁₂O", "ciclohexanocarbaldehído", "cyclohexanecarbaldehyde", "aldehyde"],
+    ["O=C(O)C1CCCCC1", "C₇H₁₂O₂", "ácido ciclohexanocarboxílico", "cyclohexanecarboxylic acid", "carboxylicAcid"],
+    ["O=C1CCCCC1", "C₆H₁₀O", "ciclohexanona", "cyclohexanone", "ketone"],
+    ["O=CCCC", "C₄H₈O", "butanal", "butanal", "aldehyde"],
+    ["CC(=O)O", "C₂H₄O₂", "ácido etanoico", "ethanoic acid", "carboxylicAcid"],
+    ["O=CC1CCCC1", "C₆H₁₀O", "ciclopentanocarbaldehído", "cyclopentanecarbaldehyde", "aldehyde"],
+    ["O=C(O)C1CCCC1", "C₆H₁₀O₂", "ácido ciclopentanocarboxílico", "cyclopentanecarboxylic acid", "carboxylicAcid"],
+    ["O=CC(C)1CCCCC1", "C₈H₁₄O", "1-metilciclohexanocarbaldehído", "1-methylcyclohexanocarbaldehyde", "aldehyde"],
+  ];
+
+  for (const [smiles, formula, expectedSpanish, expectedEnglish, expectedGroup] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    if (!converted.ok) continue;
+
+    const analysis = analyzeMolecule(converted.molecule);
+    assert.equal(analysis.formula, formula, smiles);
+    assert.equal(analysis.name, expectedSpanish, smiles);
+    assert.equal(translateSpanishIupacToOpsin(analysis.name), expectedEnglish, smiles);
+    assert.equal(analysis.primaryFunctionalGroup, expectedGroup, smiles);
+    assert.equal(analysis.functionalGroups.filter((group) => group.kind === expectedGroup).length, 1, smiles);
+
+    if (smiles === "O=CC1CCCCC1" || smiles === "O=C(O)C1CCCCC1") {
+      assert.equal(analysis.family, "cycloalkane", smiles);
+      assert.equal(analysis.mainChain.length, 6, smiles);
+      const functionalCarbon = analysis.functionalGroups.find((group) => group.kind === expectedGroup).carbonId;
+      assert.equal(analysis.mainChain.includes(functionalCarbon), false, "the aldehyde/acid carbon stays outside the ring parent");
+
+      const legacyName = generateLegacyEnglishName(buildLegacyEnglishNameModel(converted.molecule, analysis)).name;
+      const traditionalName = translateSpanishIupacToOpsin(generarNombreTradicional(
+        buildTraditionalMoleculeStructure(converted.molecule, analysis, analysis.name),
+      ));
+      assert.equal(traditionalName, expectedEnglish, "Traditional duplicates Suggested and must be omitted");
+      assert.equal(legacyName, expectedEnglish);
+      assert.equal(legacyEnglishVariantIsAvailable(
+        expectedEnglish,
+        legacyName,
+        legacyEnglishProfileIsSupportedForMolecule(converted.molecule),
+      ), false, "Legacy duplicates Suggested and must be omitted");
+    }
   }
 });
 

@@ -2362,6 +2362,21 @@ function atomNeighbors(atomId: number, molecule: Molecule) {
   });
 }
 
+function exocyclicRingCarbonFunction(
+  molecule: Molecule,
+  analysis: Analysis,
+): { kind: "aldehyde" | "carboxylicAcid"; attachmentLocant: number } | undefined {
+  const kind = analysis.primaryFunctionalGroup;
+  if (analysis.family !== "cycloalkane" || (kind !== "aldehyde" && kind !== "carboxylicAcid")) return;
+  const group = analysis.functionalGroups.find((item) => item.kind === kind);
+  if (!group || analysis.mainChain.includes(group.carbonId)) return;
+  const ringAttachmentLocants = atomNeighbors(group.carbonId, molecule)
+    .map(({ atomId }) => analysis.numberedAtoms.get(atomId))
+    .filter((locant): locant is number => locant !== undefined);
+  if (ringAttachmentLocants.length !== 1) return;
+  return { kind, attachmentLocant: ringAttachmentLocants[0] };
+}
+
 export function detectFunctionalGroups(molecule: Molecule): FunctionalGroup[] {
   const groups: FunctionalGroup[] = [];
   const claimedHeteroAtoms = new Set<number>();
@@ -4130,6 +4145,7 @@ export function buildIupacReasoningSteps(
     (name) => !normalizedResultName.includes(name),
   );
   const primaryKind = analysis.primaryFunctionalGroup;
+  const exocyclicRingFunction = exocyclicRingCarbonFunction(molecule, analysis);
   const primaryGroups = primaryKind
     ? analysis.functionalGroups.filter((group) => group.kind === primaryKind)
     : [];
@@ -4150,7 +4166,11 @@ export function buildIupacReasoningSteps(
       ? `Entre ${joinSpanishList(detectedLabels)}, ${analysis.primaryFunctionalLabel.toLowerCase()} tiene la prioridad más alta.`
       : `Se identifica ${analysis.primaryFunctionalLabel.toLowerCase()} como el grupo de mayor prioridad.`;
     let positionRule: string;
-    if (terminalCarbonFunctions.has(primaryKind)) {
+    if (exocyclicRingFunction) {
+      const functionName = primaryKind === "aldehyde" ? "el aldehído" : "el ácido carboxílico";
+      positionRule = functionName + " se une al anillo por C" + exocyclicRingFunction.attachmentLocant
+        + "; su carbono funcional queda fuera del padre cíclico.";
+    } else if (terminalCarbonFunctions.has(primaryKind)) {
       positionRule = `El carbono propio de esta función forma parte del esqueleto principal y se fija como C1.`;
     } else if (primaryKind === "ketone" && primaryLocants.some((locant) => locant > 1)) {
       positionRule = `El carbonilo es interno: no puede convertirse mecánicamente en C1 sin cortar una de las continuaciones de la cadena. Debe recibir el menor localizador posible; aquí queda en ${carbonLocantsText(primaryLocants)}.`;
@@ -4172,6 +4192,14 @@ export function buildIupacReasoningSteps(
     parentExplanation = `Se elige el anillo aromático de ${chainLength} carbonos que contiene la función prioritaria cuando existe. La elección se hace por conectividad, no por la orientación visual del dibujo, y aporta el nombre base ${analysis.chainName}.`;
   } else if (analysis.family === "polycyclic") {
     parentExplanation = `Se comparan los anillos del sistema y se elige como principal el que conserva la función prioritaria y el mayor número de conexiones. El esqueleto seleccionado aporta ${analysis.chainName}.`;
+  } else if (analysis.family === "cycloalkane" && exocyclicRingFunction) {
+    const functionalGroup = exocyclicRingFunction.kind === "aldehyde" ? "–CHO" : "–COOH";
+    const suffix = exocyclicRingFunction.kind === "aldehyde" ? "carbaldehído" : "carboxílico";
+    parentExplanation = "Se elige como padre el anillo continuo de " + chainLength
+      + " carbonos, que aporta el nombre base " + analysis.chainName + ". El carbono del grupo "
+      + functionalGroup + " queda fuera del anillo y se une por C"
+      + exocyclicRingFunction.attachmentLocant + "; por eso se expresa con el sufijo "
+      + suffix + ". El nombre completo es " + analysis.name + ".";
   } else if (analysis.family === "cycloalkane") {
     parentExplanation = `Se elige el anillo continuo de ${chainLength} carbonos${analysis.primaryFunctionalLabel ? ` que contiene el grupo ${analysis.primaryFunctionalLabel.toLowerCase()}` : ""}. Este anillo aporta el nombre base ${analysis.chainName}.`;
   } else {
@@ -4327,6 +4355,7 @@ export function buildEnglishReasoningSteps(
   molecule: Molecule,
   analysis: Analysis,
 ): IupacReasoningStep[] {
+  const exocyclicRingFunction = exocyclicRingCarbonFunction(molecule, analysis);
   const englishName = translateSpanishIupacToOpsin(analysis.name) || analysis.name;
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
   if (analysis.steroidSystem?.constitutionNameEs) {
@@ -4544,11 +4573,21 @@ export function buildEnglishReasoningSteps(
     let explanation: string;
     if (step.number === "01") {
       explanation = primaryLabel
-        ? `${primaryLabel} has the highest naming priority among the detected functional groups. It determines the suffix, and the parent skeleton is numbered to give this function the lowest permitted locant.`
+        ? exocyclicRingFunction
+          ? primaryLabel + " has the highest naming priority and determines the suffix. Its functional carbon is outside the ring and is attached at C"
+            + exocyclicRingFunction.attachmentLocant + "."
+          : `${primaryLabel} has the highest naming priority among the detected functional groups. It determines the suffix, and the parent skeleton is numbered to give this function the lowest permitted locant.`
         : "Functional-group priority is checked before the parent skeleton is numbered.";
     } else if (step.number === "02") {
       const heterocycleParentRing = heterocycleRing(molecule);
-      if (heterocycleParentRing) {
+      if (exocyclicRingFunction) {
+        const groupLabel = exocyclicRingFunction.kind === "aldehyde" ? "–CHO" : "–COOH";
+        const suffix = exocyclicRingFunction.kind === "aldehyde" ? "carbaldehyde" : "carboxylic acid";
+        explanation = "The " + analysis.mainChain.length + "-carbon ring is the parent " + parentName
+          + ". The carbon of " + groupLabel + " remains outside the ring and is attached at C"
+          + exocyclicRingFunction.attachmentLocant + "; the suffix is " + suffix
+          + ". The complete name is " + englishName + ".";
+      } else if (heterocycleParentRing) {
         explanation = `${heterocycleRingCompositionText(molecule, heterocycleParentRing, "en")} The parent name is ${parentName}; the complete IUPAC name is ${englishName}.`;
       } else {
         const family = analysis.family === "aromatic"

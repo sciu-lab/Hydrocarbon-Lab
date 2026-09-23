@@ -364,7 +364,14 @@ function translateCore(value: string) {
     .replace(/ilo$/g, "yl")
     .replace(/__amino_prefix__/g, "amino");
 
-  return translated;
+  // English cyclic parent hydrides retain their final "e" before the
+  // ring-attached suffixes carbaldehyde and carboxylic acid. The Spanish
+  // bridge above leaves an "o" after cycloalkane roots; restore the English
+  // parent ending only at these suffix boundaries, without affecting chains.
+  return translated.replace(
+    /(\bcyclo(?:prop|but|pent|hex|hept|oct|non|dec)an)o(?=carbaldehyde|carboxylic acid)/g,
+    "$1e",
+  );
 }
 
 /**

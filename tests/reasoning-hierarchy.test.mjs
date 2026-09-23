@@ -11,6 +11,7 @@ const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
 let buildIupacReasoningSteps;
+let buildEnglishReasoningSteps;
 
 before(async () => {
   server = await createServer({
@@ -21,7 +22,7 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, buildIupacReasoningSteps } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ analyzeMolecule, buildIupacReasoningSteps, buildEnglishReasoningSteps } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => {
@@ -65,6 +66,44 @@ test("functional priority appears before the parent and substituent rules", () =
   assert.deepEqual(steps.map((step) => step.number), ["01", "02", "03", "04"]);
   assert.match(steps[0].explanation, /ácido carboxílico/i);
   assert.match(steps[0].explanation, /se fija como C1/i);
+});
+
+test("explains ring-attached aldehydes and acids with the functional carbon outside the ring", () => {
+  const cases = [
+    ["O=CC1CCCCC1", /aldehído.*fuera del padre cíclico/i, /carbono del grupo –CHO queda fuera del anillo/i, /–CHO remains outside the ring/i],
+    ["O=C(O)C1CCCCC1", /ácido carboxílico.*fuera del padre cíclico/i, /carbono del grupo –COOH queda fuera del anillo/i, /–COOH remains outside the ring/i],
+    ["O=CC1CCCC1", /aldehído.*fuera del padre cíclico/i, /carbono del grupo –CHO queda fuera del anillo/i, /–CHO remains outside the ring/i],
+    ["O=C(O)C1CCCC1", /ácido carboxílico.*fuera del padre cíclico/i, /carbono del grupo –COOH queda fuera del anillo/i, /–COOH remains outside the ring/i],
+  ];
+
+  for (const [smiles, spanishGroupPattern, spanishParentPattern, englishParentPattern] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    if (!converted.ok) continue;
+    const analysis = analyzeMolecule(converted.molecule);
+    const spanish = buildIupacReasoningSteps(converted.molecule, analysis);
+    const english = buildEnglishReasoningSteps(spanish, converted.molecule, analysis);
+    assert.match(spanish.find((step) => step.number === "01").explanation, spanishGroupPattern, smiles);
+    assert.match(spanish.find((step) => step.number === "02").explanation, spanishParentPattern, smiles);
+    assert.match(english.find((step) => step.number === "02").explanation, englishParentPattern, smiles);
+    assert.doesNotMatch(spanish.find((step) => step.number === "02").explanation, /anillo.*contiene el grupo/i, smiles);
+  }
+});
+
+test("keeps in-ring ketones and acyclic terminal groups on their existing reasoning paths", () => {
+  const cases = [
+    ["O=C1CCCCC1", /contiene el grupo cetona/i, /ketone/i],
+    ["O=CCCC", /forma parte del esqueleto principal y se fija como C1/i, /carbon.*part of the main skeleton/i],
+    ["CC(=O)O", /forma parte del esqueleto principal y se fija como C1/i, /carbon.*part of the main skeleton/i],
+  ];
+  for (const [smiles, spanishPattern] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, converted.ok ? undefined : converted.error);
+    if (!converted.ok) continue;
+    const analysis = analyzeMolecule(converted.molecule);
+    const spanish = buildIupacReasoningSteps(converted.molecule, analysis);
+    assert.match(spanish.find((step) => step.number === (smiles === "O=C1CCCCC1" ? "02" : "01")).explanation, spanishPattern, smiles);
+  }
 });
 
 test("different substituents add locant and alphabetical-order steps", () => {
