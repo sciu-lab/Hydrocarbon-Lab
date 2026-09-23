@@ -38,6 +38,19 @@ const VERIFIED_PUBCHEM_COMMON_NAMES = [
   },
 ] as const;
 
+const VERIFIED_PUBCHEM_RECORD_EQUIVALENCES = [
+  {
+    cid: 5793,
+    inchiKey: "WQZGKKKJIJFFOK-GASJEMHNSA-N",
+    names: ["D-glucosa", "D-Glucose"],
+  },
+  {
+    cid: 1140,
+    inchiKey: "YXFVVABEGXRONW-UHFFFAOYSA-N",
+    names: ["tolueno", "Toluene"],
+  },
+] as const;
+
 function normalizeExactAlias(value: string) {
   return value
     .normalize("NFD")
@@ -67,4 +80,21 @@ export function verifiedPubChemCommonName(
     identity.cid === entry.cid && inchiKey === entry.inchiKey,
   );
   return match?.names[language] ?? null;
+}
+
+/** Identifies bilingual aliases only for the exact known PubChem structure. */
+export function verifiedPubChemRecordTitleEquivalent(
+  identity: { cid?: number; inchiKey?: string },
+  recordTitle: string | undefined,
+  displayedName: string | null | undefined,
+) {
+  if (!recordTitle || !displayedName) return false;
+  const inchiKey = identity.inchiKey?.trim().toLocaleUpperCase("en");
+  if (!inchiKey) return false;
+  return VERIFIED_PUBCHEM_RECORD_EQUIVALENCES.some((entry) =>
+    identity.cid === entry.cid
+    && inchiKey === entry.inchiKey
+    && entry.names.some((name) => normalizeExactAlias(name) === normalizeExactAlias(recordTitle))
+    && entry.names.some((name) => normalizeExactAlias(name) === normalizeExactAlias(displayedName)),
+  );
 }

@@ -124,7 +124,7 @@ import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
 import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
-import { verifiedPubChemCommonName } from "./verified-common-name-equivalences";
+import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent } from "./verified-common-name-equivalences";
 import {
   compoundIdentityKey,
   createCompoundContextResolver,
@@ -6091,11 +6091,13 @@ export default function Home() {
     () => generarNombreTradicional(traditionalStructure),
     [traditionalStructure],
   );
-  const legacyEnglishResult = useMemo(
-    () => generateLegacyEnglishName(
-      buildLegacyEnglishNameModel(molecule, analysis, nameWithSelectedStereochemistry),
-    ),
-    [analysis, molecule, nameWithSelectedStereochemistry],
+  const legacyEnglishName = useMemo(
+    () => localSuggestedNameUnavailable
+      ? "-"
+      : generateLegacyEnglishName(
+        buildLegacyEnglishNameModel(molecule, analysis, nameWithSelectedStereochemistry),
+      ).name,
+    [analysis, localSuggestedNameUnavailable, molecule, nameWithSelectedStereochemistry],
   );
   const nomenclatureVariants = (() => {
     if (externalNameIsPrimary) {
@@ -6128,11 +6130,11 @@ export default function Home() {
       && normalizeNomenclatureDisplayName(historicalCandidate) !== normalizeNomenclatureDisplayName(suggestedName));
     const legacyEnglishVariantAvailable = language === "en"
       && !localSuggestedNameUnavailable
-      && legacyEnglishResult.name !== "-"
+      && legacyEnglishName !== "-"
       && ![
         suggestedName,
         ...(traditionalAvailable && historicalCandidate ? [historicalCandidate] : []),
-      ].some((name) => normalizeNomenclatureDisplayName(name) === normalizeNomenclatureDisplayName(legacyEnglishResult.name));
+      ].some((name) => normalizeNomenclatureDisplayName(name) === normalizeNomenclatureDisplayName(legacyEnglishName));
     return [
       { convention: "current" as const, label: localSuggestedNameUnavailable
         ? language === "en" ? "Local IUPAC unavailable" : "IUPAC local no disponible"
@@ -6141,7 +6143,7 @@ export default function Home() {
         ? [{ convention: historicalConvention, label: language === "en" ? "Traditional" : "IUPAC 1979", name: historicalCandidate! }]
         : []),
       ...(legacyEnglishVariantAvailable
-        ? [{ convention: "iupac-1979-legacy-en" as const, label: "IUPAC 1979 Legacy English", name: legacyEnglishResult.name }]
+        ? [{ convention: "iupac-1979-legacy-en" as const, label: "IUPAC 1979 Legacy English", name: legacyEnglishName }]
         : []),
     ];
   })();
@@ -6175,7 +6177,15 @@ export default function Home() {
       : language === "en" ? "Verified biochemical name" : "Nombre bioquímico verificado"
     : language === "en" ? "Also known as" : "También conocido como";
   const pubChemRecordTitle = currentCompoundContext?.pubchem?.recordTitle;
-  const showPubChemRecordTitle = Boolean(pubChemRecordTitle && ![
+  const titleIdentity = activePubChemIdentity ?? (currentCompoundContext?.pubchem
+    ? { cid: currentCompoundContext.pubchem.cid, inchiKey: currentCompoundContext.pubchem.inchiKey }
+    : {});
+  const recordTitleHasVerifiedAlias = verifiedPubChemRecordTitleEquivalent(
+    titleIdentity,
+    pubChemRecordTitle,
+    commonNameToPresent,
+  );
+  const showPubChemRecordTitle = Boolean(pubChemRecordTitle && !recordTitleHasVerifiedAlias && ![
     ...nomenclatureVariants.map((variant) => variant.name),
     commonNameToPresent ?? "",
     activePubChemIdentity?.iupacName ?? "",
@@ -11958,6 +11968,14 @@ export default function Home() {
                         <>
                           <span className="pubchem-label">{t("Nombre IUPAC")}</span>
                           <span className="pubchem-value">{currentCompoundContext.pubchem.title}</span>
+                        </>
+                      )}
+                      {currentCompoundContext.pubchem.recordTitle
+                        && normalizeNomenclatureDisplayName(currentCompoundContext.pubchem.recordTitle)
+                          !== normalizeNomenclatureDisplayName(currentCompoundContext.pubchem.title) && (
+                        <>
+                          <span className="pubchem-label">{language === "en" ? "Original PubChem record title" : "Título original del registro PubChem"}</span>
+                          <span className="pubchem-value">{currentCompoundContext.pubchem.recordTitle}</span>
                         </>
                       )}
                       {currentCompoundContext.pubchem.smiles && (

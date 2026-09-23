@@ -43,7 +43,8 @@ test("external name safeguards follow the exact loaded graph and suppress unsupp
   assert.match(page, /const activePubChemIdentity = !isPristineInitialMolecule/);
   assert.match(page, /Boolean\(activePubChemIdentity\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)\)/);
   assert.match(page, /const traditionalAvailable = Boolean\(!localSuggestedNameUnavailable/);
-  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*!localSuggestedNameUnavailable[\s\S]*legacyEnglishResult\.name !== "-"/);
+  assert.match(page, /legacyEnglishName = useMemo\([\s\S]*localSuggestedNameUnavailable\s*\?\s*"-"\s*:\s*generateLegacyEnglishName/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*!localSuggestedNameUnavailable[\s\S]*legacyEnglishName !== "-"/);
   assert.match(page, /Systematic name · PubChem/);
   assert.match(page, /Nombre sistemático · PubChem \(inglés\)/);
   assert.match(page, /Local IUPAC name unavailable for this structure/);
@@ -81,8 +82,9 @@ test("dock selects the locale's historical profile, copies the visible variant a
   assert.match(page, /onChange=\{\(event\) => setNomenclatureConvention\(event\.target\.value as NomenclatureConvention\)\}/);
   assert.match(page, /navigator\.clipboard\?\.writeText\(displayedIupacName\)/);
   assert.match(page, /const visibleCommonName = commonNameToPresent\s*&&\s*!nomenclatureVariants\.some/);
-  assert.match(page, /const showPubChemRecordTitle = Boolean\(pubChemRecordTitle && !\[/);
+  assert.match(page, /const showPubChemRecordTitle = Boolean\(pubChemRecordTitle && !recordTitleHasVerifiedAlias && !\[/);
   assert.match(page, /verifiedPubChemCommonName\(activePubChemIdentity, language\)/);
+  assert.match(page, /verifiedPubChemRecordTitleEquivalent\([\s\S]*commonNameToPresent/);
   assert.match(page, /Nombre sistemático · PubChem \(inglés\)/);
   assert.match(page, /!localSuggestedNameUnavailable[\s\S]*legacyEnglishVariantAvailable/);
 });

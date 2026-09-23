@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
@@ -18,14 +19,17 @@ import { resolveNameWithOpsin } from "../app/opsin-name-resolver.ts";
 import { getAutoPlacedCarbonPosition } from "../app/manual-layout.ts";
 import { fuseRingOnBond, removeFusedRingAtom } from "../app/fused-ring.ts";
 import { orientCarbonylTemplateOutsideRing } from "../app/functional-group-layout.ts";
+import { generateLegacyEnglishName } from "../app/legacy-english-nomenclature.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
+const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 let server;
 let analyzeMolecule;
 let getSubstituentAliasSelectionKey;
 let localNamerCannotSafelyName;
 let externalCandidateNeedsNeutralLocalName;
 let externalCandidateLocalDisplayName;
+let buildLegacyEnglishNameModel;
 
 before(async () => {
   server = await createServer({
@@ -42,6 +46,7 @@ before(async () => {
     localNamerCannotSafelyName,
     externalCandidateNeedsNeutralLocalName,
     externalCandidateLocalDisplayName,
+    buildLegacyEnglishNameModel,
   } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
@@ -76,10 +81,17 @@ test("external polyhydroxylated heterocycles do not expose an incomplete local n
   const analysis = analyzeMolecule(result.molecule);
   assert.equal(analysis.formula, "C₆H₁₂O₆");
   assert.equal(analysis.name, "2-etiltetrahidropirano");
+  const legacy = generateLegacyEnglishName(buildLegacyEnglishNameModel(result.molecule, analysis));
+  assert.equal(legacy.name, "2-ethylcyclohexane");
   assert.equal(localNamerCannotSafelyName(result.molecule, analysis), false);
   assert.equal(externalCandidateNeedsNeutralLocalName(result.molecule, analysis), true);
   assert.equal(externalCandidateLocalDisplayName(result.molecule, analysis, "es"), "Nombre IUPAC local no disponible para esta estructura");
   assert.equal(externalCandidateLocalDisplayName(result.molecule, analysis, "en"), "Local IUPAC name unavailable for this structure");
+  // The graph-based formatter is known to omit oxygen-rich parts here; the
+  // UI must gate every locally generated profile when this external structure
+  // is active, while keeping the exact PubChem identity as the primary name.
+  assert.match(pageSource, /localSuggestedNameUnavailable\s*\?\s*"-"\s*:\s*generateLegacyEnglishName/);
+  assert.match(pageSource, /if \(externalNameIsPrimary\)\s*\{\s*return \[\{[\s\S]*?name: pubChemIupacName!/);
 
   const supported = moleculeFromSmiles("OCC");
   assert.equal(supported.ok, true, supported.ok ? undefined : supported.error);

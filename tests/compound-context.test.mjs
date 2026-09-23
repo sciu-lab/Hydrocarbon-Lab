@@ -5,7 +5,7 @@ import {
   compoundIdentityKey,
   createCompoundContextResolver,
 } from "../app/compound-context.ts";
-import { verifiedPubChemCommonName } from "../app/verified-common-name-equivalences.ts";
+import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent } from "../app/verified-common-name-equivalences.ts";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -158,6 +158,16 @@ test("the D-glucose bilingual name is pinned to the exact PubChem identity, not 
   assert.equal(verifiedPubChemCommonName({ cid: 5793, inchiKey: "OTHER-STEREO-KEY" }, "es"), null);
   assert.equal(verifiedPubChemCommonName({ cid: 100, inchiKey: glucoseIdentity.inchiKey }, "es"), null);
   assert.equal(verifiedPubChemCommonName({}, "es"), null);
+  assert.equal(verifiedPubChemRecordTitleEquivalent(glucoseIdentity, "D-Glucose", "D-glucosa"), true);
+  assert.equal(verifiedPubChemRecordTitleEquivalent({ ...glucoseIdentity, inchiKey: "OTHER" }, "D-Glucose", "D-glucosa"), false);
+  assert.equal(verifiedPubChemRecordTitleEquivalent(glucoseIdentity, "Another title", "D-glucosa"), false);
+});
+
+test("suppresses Toluene record-title repetition only for its verified CID and InChIKey", () => {
+  const tolueneIdentity = { cid: 1140, inchiKey: "YXFVVABEGXRONW-UHFFFAOYSA-N" };
+  assert.equal(verifiedPubChemRecordTitleEquivalent(tolueneIdentity, "Toluene", "tolueno"), true);
+  assert.equal(verifiedPubChemRecordTitleEquivalent({ ...tolueneIdentity, cid: 1 }, "Toluene", "tolueno"), false);
+  assert.equal(verifiedPubChemRecordTitleEquivalent(tolueneIdentity, "Toluene derivative", "tolueno"), false);
 });
 
 test("keeps a PubChem CID link when Wikipedia has no matching article", async () => {
