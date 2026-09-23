@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { preferredExternalInfoSource, shouldShowExternalInfo } from "../app/external-info-state.ts";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -93,4 +94,19 @@ test("keeps Wikipedia and PubChem in one alternate, source-attributed card", () 
   assert.match(styleSource, /\.external-info-card\.is-collapsed/);
   assert.match(pageSource, /compoundContext\.language === language/, "a previous locale must not render as the current one");
   assert.match(pageSource, /Wikipedia — English/, "English fallback is identified in the Spanish card");
+  assert.match(pageSource, /shouldShowExternalInfo\(showIupacName, compoundContextLoading, currentCompoundContext\)/);
+});
+
+test("the actual card visibility rule accepts either source independently", () => {
+  const pubchem = { identityKey: "cid:5793", language: "es", pubchem: { cid: 5793 } };
+  const wikipedia = { identityKey: "smiles:C", language: "es", wikipedia: { title: "Metano" } };
+  assert.equal(shouldShowExternalInfo(true, false, pubchem), true);
+  assert.equal(shouldShowExternalInfo(true, true, pubchem), true);
+  assert.equal(shouldShowExternalInfo(true, false, wikipedia), true);
+  assert.equal(shouldShowExternalInfo(true, false, { ...pubchem, ...wikipedia }), true);
+  assert.equal(shouldShowExternalInfo(true, false, null), false);
+  assert.equal(shouldShowExternalInfo(false, false, pubchem), false);
+  assert.equal(preferredExternalInfoSource(pubchem), "pubchem");
+  assert.equal(preferredExternalInfoSource(wikipedia), "wikipedia");
+  assert.equal(preferredExternalInfoSource({ ...pubchem, ...wikipedia }), "wikipedia");
 });

@@ -130,6 +130,7 @@ import {
   createCompoundContextResolver,
   type CompoundContext,
 } from "./compound-context";
+import { preferredExternalInfoSource, shouldShowExternalInfo } from "./external-info-state";
 import {
   type FormulaIsomer,
   type FormulaIsomerGeneration,
@@ -5979,6 +5980,7 @@ export default function Home() {
   const [compoundContext, setCompoundContext] = useState<CompoundContext | null>(null);
   const [compoundContextLoadingKey, setCompoundContextLoadingKey] = useState("");
   const [externalInfoSource, setExternalInfoSource] = useState<"wikipedia" | "pubchem">("wikipedia");
+  const externalSourceManuallySelectedRef = useRef(false);
   const [externalInfoCollapsed, setExternalInfoCollapsed] = useState(false);
   const [nomenclatureConvention, setNomenclatureConvention] = useState<NomenclatureConvention>("current");
   const [showStereochemistry, setShowStereochemistry] = useState(false);
@@ -6242,7 +6244,7 @@ export default function Home() {
     && compoundContext.language === language
     ? compoundContext
     : null;
-  const compoundContextLoading = compoundContextLoadingKey === compoundContextKey;
+  const compoundContextLoading = Boolean(compoundContextKey) && compoundContextLoadingKey === compoundContextKey;
   const namingPubChemIdentity = useMemo(
     () => !isPristineInitialMolecule && currentMoleculeSmiles.ok
       ? pubChemIdentityForNomenclature(currentMoleculeSmiles.smiles, activePubChemIdentity, currentCompoundContext)
@@ -6477,7 +6479,9 @@ export default function Home() {
       void compoundContextResolver.resolve({
         ...compoundIdentity,
         names: compoundLookupNamesRef.current,
-      }, language, controller.signal)
+      }, language, controller.signal, (context) => {
+        if (!controller.signal.aborted) setCompoundContext(context);
+      })
         .then((context) => {
           if (!controller.signal.aborted) setCompoundContext(context);
         })
@@ -6498,17 +6502,19 @@ export default function Home() {
   }, [compoundContextKey, compoundIdentity, language, showIupacName]);
 
   useEffect(() => {
+    externalSourceManuallySelectedRef.current = false;
     const reset = window.setTimeout(() => setExternalInfoSource("wikipedia"), 0);
     return () => window.clearTimeout(reset);
   }, [compoundContextKey]);
 
   useEffect(() => {
-    // Wikipedia is the preferred initial view whenever an approved page is
-    // available. For the PubChem-only fallback, avoid opening on an empty
-    // Wikipedia state just to make the user toggle once.
-    if (currentCompoundContext?.wikipedia || !currentCompoundContext?.pubchem) return undefined;
-    const preferPubChem = window.setTimeout(() => setExternalInfoSource("pubchem"), 0);
-    return () => window.clearTimeout(preferPubChem);
+    // PubChem can arrive before Wikipedia. Show whichever verified source is
+    // available, then prefer Wikipedia if its article arrives later.
+    if (externalSourceManuallySelectedRef.current) return undefined;
+    const preferredSource = preferredExternalInfoSource(currentCompoundContext);
+    if (!preferredSource) return undefined;
+    const preferAvailableSource = window.setTimeout(() => setExternalInfoSource(preferredSource), 0);
+    return () => window.clearTimeout(preferAvailableSource);
   }, [currentCompoundContext]);
 
   const panelStyle = (panelId: MovablePanelId) => ({
@@ -12115,7 +12121,7 @@ export default function Home() {
             </div>
           </div>
 
-          {showIupacName && (compoundContextLoading || currentCompoundContext?.pubchem || currentCompoundContext?.wikipedia) && (
+          {shouldShowExternalInfo(showIupacName, compoundContextLoading, currentCompoundContext) && (
             <section
               id="external-info-card"
               className={`real-world-context external-info-card ${externalInfoCollapsed ? "is-collapsed" : ""}`}
@@ -12140,7 +12146,10 @@ export default function Home() {
                   <button
                     className="source-toggle"
                     type="button"
-                    onClick={() => setExternalInfoSource((source) => source === "wikipedia" ? "pubchem" : "wikipedia")}
+                    onClick={() => {
+                      externalSourceManuallySelectedRef.current = true;
+                      setExternalInfoSource((source) => source === "wikipedia" ? "pubchem" : "wikipedia");
+                    }}
                     title={t("Cambiar fuente")}
                     aria-label={t("Cambiar fuente")}
                   >

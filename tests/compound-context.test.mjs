@@ -221,6 +221,7 @@ test("returns no source when neither API has context or responds with HTTP error
   assert.deepEqual(await unavailable.resolve(ethanolIdentity, "en"), {
     identityKey: "smiles:CCO",
     language: "en",
+    pubchemStatus: "retrieval-error",
     wikipediaStatus: "retrieval-error",
   });
   assert.deepEqual(await missing.resolve(ethanolIdentity, "en"), {

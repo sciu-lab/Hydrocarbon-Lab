@@ -51,6 +51,7 @@ export type CompoundContext = {
   identityKey: string;
   language?: AppLanguage;
   pubchem?: PubChemCompoundContext;
+  pubchemStatus?: "retrieval-error";
   wikipedia?: WikipediaCompoundContext;
   wikipediaStatus?: "registry" | "wikidata" | "no-article" | "retrieval-error" | "identity-mismatch" | "unverified";
 };
@@ -65,6 +66,7 @@ export type CompoundContextResolver = {
     identity: CompoundIdentity,
     language: AppLanguage,
     signal?: AbortSignal,
+    onProgress?: (context: CompoundContext) => void,
   ) => Promise<CompoundContext>;
   clearCache: () => void;
 };
@@ -442,11 +444,12 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
   const wikipediaCache = new Map<string, WikipediaCompoundContext>();
 
   return {
-    async resolve(identity, language, signal) {
+    async resolve(identity, language, signal, onProgress) {
       const identityKey = compoundIdentityKey(identity);
       if (!identityKey) return { identityKey: "" };
 
       let pubchem = pubchemCache.get(identityKey);
+      let pubchemStatus: CompoundContext["pubchemStatus"];
       if (pubchem === undefined) {
         try {
           pubchem = (await resolvePubChem(fetchImpl, identity, signal)) ?? null;
@@ -455,8 +458,15 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
         } catch (error) {
           if (isAbortError(error)) throw error;
           pubchem = null;
+          pubchemStatus = "retrieval-error";
         }
       }
+
+      // Publish structurally verified PubChem data before the optional
+      // Wikidata/Wikipedia lookup. A slow or cancelled article request must
+      // never delay or discard the independent PubChem result.
+      throwIfAborted(signal);
+      if (pubchem) onProgress?.({ identityKey, language, pubchem });
 
       const wikipediaKey = `${identityKey}:wikipedia:${language}`;
       let wikipedia = wikipediaCache.get(wikipediaKey);
@@ -484,6 +494,7 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
       return {
         identityKey,
         language,
+        ...(pubchemStatus ? { pubchemStatus } : {}),
         wikipediaStatus,
         ...(pubchem ? { pubchem } : {}),
         ...(wikipedia ? { wikipedia } : {}),

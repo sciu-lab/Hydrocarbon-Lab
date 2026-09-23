@@ -8,7 +8,7 @@ const cases = {
   oxirane: { cid: 6354, key: "IAYPIBMASNFSPL-UHFFFAOYSA-N", smiles: "O1CC1", qid: "Q407473", links: { es: "Óxido de etileno", en: "Ethylene oxide" } },
   acid: { cid: 7413, key: "NZNMSOFKMUBTKW-UHFFFAOYSA-N", smiles: "O=C(O)C1CCCCC1", qid: "Q5198713", links: { en: "Cyclohexanecarboxylic acid" } },
   bicyclohexyl: { cid: 7094, key: "WVIIMZNLDWSIRH-UHFFFAOYSA-N", smiles: "C1CCCCC1C2CCCCC2", qid: "Q21099094", links: { en: "Bicyclohexyl" } },
-  glucose: { cid: 5793, key: "WQZGKKKJIJFFOK-GASJEMHNSA-N", smiles: "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O", qid: "Q23905964", links: {} },
+  glucose: { cid: 5793, key: "WQZGKKKJIJFFOK-GASJEMHNSA-N", smiles: "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O", qid: "Q23905964", links: {}, iupacName: "(3R,4S,5S,6R)-6-(hydroxymethyl)oxane-2,3,4,5-tetrol" },
   oxazinane: { cid: 287364, key: "LQPOOAJESJYDLS-UHFFFAOYSA-N", smiles: "O1CNCCC1", qid: "Q82046256", links: {} },
 };
 
@@ -29,7 +29,7 @@ function fixtureFetch(record, options = {}) {
     if (init?.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
     if (url.hostname === "pubchem.ncbi.nlm.nih.gov") {
       if (url.pathname.includes("/property/")) return json({ PropertyTable: { Properties: [{
-        IUPACName: record.links.en ?? `CID ${record.cid}`,
+        IUPACName: record.iupacName ?? record.links.en ?? `CID ${record.cid}`,
         InChIKey: record.key,
         IsomericSMILES: record.smiles,
         MolecularFormula: record.cid === 5793 ? "C6H12O6" : undefined,
@@ -75,9 +75,13 @@ function identity(record, names = []) {
 test("verified PubChem graph, Wikidata item and final page identify morpholine in ES and EN", async () => {
   const { fetchImpl, calls } = fixtureFetch(cases.morpholine);
   const resolver = createCompoundContextResolver({ fetchImpl });
-  const es = await resolver.resolve(identity(cases.morpholine), "es");
+  const progress = [];
+  const es = await resolver.resolve(identity(cases.morpholine), "es", undefined, (context) => progress.push(context));
   const en = await resolver.resolve(identity(cases.morpholine), "en");
+  assert.equal(progress[0].pubchem?.cid, 8083);
+  assert.equal(progress[0].wikipedia, undefined);
   assert.equal(es.pubchem?.cid, 8083);
+  assert.equal(es.wikipedia?.url, "https://es.wikipedia.org/wiki/Morfolina");
   assert.equal(es.wikipedia?.title, "Morfolina");
   assert.equal(es.wikipedia?.qid, "Q410243");
   assert.equal(es.wikipedia?.source, "wikidata");
@@ -152,6 +156,11 @@ test("no exact sitelink never borrows glucose or morpholine by formula or alias"
     const { fetchImpl, calls } = fixtureFetch(record);
     const context = await createCompoundContextResolver({ fetchImpl }).resolve(identity(record, [alias]), "es");
     assert.equal(context.pubchem?.cid, record.cid);
+    assert.equal(context.pubchem?.inchiKey, record.key);
+    if (record === cases.glucose) {
+      assert.equal(context.pubchem?.iupacName, record.iupacName);
+      assert.equal(context.pubchem?.molecularFormula, "C6H12O6");
+    }
     assert.equal(context.wikipediaStatus, "no-article");
     assert.equal(context.wikipedia, undefined);
     assert.equal(calls.filter(({ url }) => url.hostname.endsWith(".wikipedia.org")).length, 0);
@@ -164,6 +173,7 @@ test("wrong or absent destination QID is rejected even when title and extract lo
     const context = await createCompoundContextResolver({ fetchImpl }).resolve(identity(cases.morpholine), "es");
     assert.equal(context.wikipedia, undefined);
     assert.equal(context.wikipediaStatus, "identity-mismatch");
+    assert.equal(context.pubchem?.cid, cases.morpholine.cid);
   }
 });
 
@@ -185,9 +195,33 @@ test("article retrieval errors are not cached as permanent absence", async () =>
   const first = await resolver.resolve(identity(cases.morpholine), "es");
   assert.equal(first.wikipediaStatus, "retrieval-error");
   assert.equal(first.wikipedia, undefined);
+  assert.equal(first.pubchem?.cid, cases.morpholine.cid);
   const second = await resolver.resolve(identity(cases.morpholine), "es");
   assert.equal(second.wikipedia?.qid, "Q410243");
   assert.ok(calls.filter(({ url }) => url.hostname === "es.wikipedia.org").length >= 4);
+});
+
+test("publishes verified PubChem while Wikipedia is pending and retains it on cancellation", async () => {
+  let releaseWikipedia;
+  const wikipediaGate = new Promise((resolve) => { releaseWikipedia = resolve; });
+  const { fetchImpl: baseFetch } = fixtureFetch(cases.morpholine);
+  const fetchImpl = async (input, init) => {
+    if (String(input).includes("wikidata.org")) await wikipediaGate;
+    return baseFetch(input, init);
+  };
+  const controller = new AbortController();
+  const snapshots = [];
+  const pending = createCompoundContextResolver({ fetchImpl }).resolve(
+    identity(cases.morpholine), "es", controller.signal, (context) => snapshots.push(context),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(snapshots.length, 1);
+  assert.equal(snapshots[0].pubchem?.cid, cases.morpholine.cid);
+  assert.equal(snapshots[0].wikipedia, undefined);
+  controller.abort();
+  releaseWikipedia();
+  await assert.rejects(pending, { name: "AbortError" });
+  assert.equal(snapshots[0].pubchem?.cid, cases.morpholine.cid);
 });
 
 test("cancellation rejects a late result and a later molecule receives only its own article", async () => {
@@ -208,11 +242,16 @@ test("cancellation rejects a late result and a later molecule receives only its 
   };
   const resolver = createCompoundContextResolver({ fetchImpl });
   const controller = new AbortController();
-  const old = resolver.resolve(identity(cases.morpholine), "en", controller.signal);
+  const oldProgress = [];
+  const old = resolver.resolve(identity(cases.morpholine), "en", controller.signal, (context) => oldProgress.push(context));
   controller.abort();
   release();
   await assert.rejects(old, { name: "AbortError" });
-  const current = await resolver.resolve(identity(cases.oxirane), "es");
+  const currentProgress = [];
+  const current = await resolver.resolve(identity(cases.oxirane), "es", undefined, (context) => currentProgress.push(context));
+  assert.equal(oldProgress.length, 0);
+  assert.equal(currentProgress[0].pubchem?.cid, cases.oxirane.cid);
+  assert.equal(currentProgress[0].identityKey, current.identityKey);
   assert.equal(current.wikipedia?.qid, "Q407473");
   assert.equal(current.wikipedia?.title, "Óxido de etileno");
 });
