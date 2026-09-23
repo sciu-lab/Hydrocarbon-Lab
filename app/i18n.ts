@@ -664,6 +664,7 @@ export function translateCommonName(language: AppLanguage, value?: string) {
   if (!value || language === "es") return value;
   const map: Record<string, string> = {
     acetona: "acetone",
+    decalina: "decalin",
     anilina: "aniline",
     catecol: "catechol",
     resorcinol: "resorcinol",

@@ -522,7 +522,9 @@ test("keeps long bicyclic names wrap-safe and does not invent traditional synony
 
   const decalin = getFusedBicyclicSystem(makeCanonicalDecalin());
   assert.equal(decalin?.traditionalName, "decalina");
+  assert.equal(analyzeMolecule(makeCanonicalDecalin()).formula, "C₁₀H₁₈");
   assert.equal(fusedBicyclicTraditionalDisplayName(decalin, "es"), "decalina");
+  assert.equal(fusedBicyclicTraditionalDisplayName(decalin, "en"), "decalin");
 
   const derivative = getFusedBicyclicSystem(addLinearAlkyl(makeCanonicalDecalin(), 2, 1));
   assert.equal(derivative?.traditionalName, undefined);
@@ -571,7 +573,7 @@ test("renders von Baeyer bridge locants as safe superscripts without changing st
   assert.equal(compoundUnsaturation, "triciclo[8.4.0.0^{2,7}]tetradeca-1(10),11,13-trieno");
 
   const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(pageSource, /navigator\.clipboard\?\.writeText\(displayedIupacName\)/);
+  assert.match(pageSource, /copyVisibleName\(displayedIupacName\)/);
   assert.ok((pageSource.match(/<ChemicalNameText/g) ?? []).length >= 4);
   assert.match(pageSource, /<p><ChemicalNotationText value=\{step\.explanation\}/);
   const stylesheet = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");

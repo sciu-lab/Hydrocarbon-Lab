@@ -152,6 +152,7 @@ test("Legacy English preserves registered heterocycle parents and gates unsuppor
 test("unfused linked cyclohexanes use one ring parent and one cyclohexyl substituent", () => {
   const molecule = fromSmiles("C1CCCCC1C2CCCCC2");
   const analysis = analyzeMolecule(molecule);
+  assert.equal(analysis.formula, "C₁₂H₂₂");
   const model = buildLegacyEnglishNameModel(molecule, analysis);
   const generated = generateLegacyEnglishName(model).name;
   const suggestedEnglish = translateSpanishIupacToOpsin(analysis.name);
