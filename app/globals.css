@@ -7893,6 +7893,10 @@ html[data-theme="dark"] .smiles-feedback.error > span {
   font-style: italic;
 }
 
+.external-info-retry {
+  margin-top: 8px;
+}
+
 .external-info-card.is-collapsed .external-info-content,
 .external-info-card.is-collapsed .external-info-link {
   display: none;

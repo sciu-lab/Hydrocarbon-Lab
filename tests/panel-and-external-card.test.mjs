@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { preferredExternalInfoSource, shouldShowExternalInfo } from "../app/external-info-state.ts";
+import { externalInfoUnavailableReason, preferredExternalInfoSource, shouldShowExternalInfo } from "../app/external-info-state.ts";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -105,6 +105,14 @@ test("the actual card visibility rule accepts either source independently", () =
   assert.equal(shouldShowExternalInfo(true, false, wikipedia), true);
   assert.equal(shouldShowExternalInfo(true, false, { ...pubchem, ...wikipedia }), true);
   assert.equal(shouldShowExternalInfo(true, false, null), false);
+  const temporaryFailure = { identityKey: "smiles:C", language: "en", pubchemStatus: "retrieval-error", wikipediaStatus: "no-article" };
+  const unmatched = { identityKey: "smiles:CC", language: "en", pubchemStatus: "no-match", wikipediaStatus: "no-article" };
+  assert.equal(shouldShowExternalInfo(true, true, null), true, "the loading card is shown");
+  assert.equal(shouldShowExternalInfo(true, false, temporaryFailure), true, "a completed HTTP failure retains the card");
+  assert.equal(shouldShowExternalInfo(true, false, unmatched), true, "a completed lookup without sources retains an explanation");
+  assert.equal(externalInfoUnavailableReason(temporaryFailure), "temporary");
+  assert.equal(externalInfoUnavailableReason(unmatched), "unverified");
+  assert.equal(externalInfoUnavailableReason(pubchem), null);
   assert.equal(shouldShowExternalInfo(false, false, pubchem), false);
   assert.equal(preferredExternalInfoSource(pubchem), "pubchem");
   assert.equal(preferredExternalInfoSource(wikipedia), "wikipedia");

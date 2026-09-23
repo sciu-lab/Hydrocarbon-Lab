@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCompoundContextResolver } from "../app/compound-context.ts";
+import { externalInfoUnavailableReason, shouldShowExternalInfo } from "../app/external-info-state.ts";
 
 const cases = {
   morpholine: { cid: 8083, key: "YNAVUWVOSKDBBP-UHFFFAOYSA-N", smiles: "O1CCNCC1", qid: "Q410243", links: { es: "Morfolina", en: "Morpholine" } },
@@ -9,6 +10,7 @@ const cases = {
   acid: { cid: 7413, key: "NZNMSOFKMUBTKW-UHFFFAOYSA-N", smiles: "O=C(O)C1CCCCC1", qid: "Q5198713", links: { en: "Cyclohexanecarboxylic acid" } },
   bicyclohexyl: { cid: 7094, key: "WVIIMZNLDWSIRH-UHFFFAOYSA-N", smiles: "C1CCCCC1C2CCCCC2", qid: "Q21099094", links: { en: "Bicyclohexyl" } },
   glucose: { cid: 5793, key: "WQZGKKKJIJFFOK-GASJEMHNSA-N", smiles: "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O", qid: "Q23905964", links: {}, iupacName: "(3R,4S,5S,6R)-6-(hydroxymethyl)oxane-2,3,4,5-tetrol" },
+  openGlucose: { cid: 107526, key: "GZCGUPFRVQAUEE-SLPGGIOYSA-N", smiles: "OC[C@H]([C@H]([C@@H]([C@H](C=O)O)O)O)O", qid: "Q21036645", links: {}, iupacName: "(2R,3S,4R,5R)-2,3,4,5,6-pentahydroxyhexanal" },
   oxazinane: { cid: 287364, key: "LQPOOAJESJYDLS-UHFFFAOYSA-N", smiles: "O1CNCCC1", qid: "Q82046256", links: {} },
 };
 
@@ -28,11 +30,12 @@ function fixtureFetch(record, options = {}) {
     calls.push({ url, init });
     if (init?.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
     if (url.hostname === "pubchem.ncbi.nlm.nih.gov") {
+      if (url.pathname.includes("/cids/JSON")) return json({ IdentifierList: { CID: [record.cid] } });
       if (url.pathname.includes("/property/")) return json({ PropertyTable: { Properties: [{
         IUPACName: record.iupacName ?? record.links.en ?? `CID ${record.cid}`,
         InChIKey: record.key,
         IsomericSMILES: record.smiles,
-        MolecularFormula: record.cid === 5793 ? "C6H12O6" : undefined,
+        MolecularFormula: record.cid === 5793 || record.cid === 107526 ? "C6H12O6" : undefined,
       }] } });
       if (url.pathname.includes("/description/")) return json({ InformationList: { Information: [{ Title: record.links.en ?? `CID ${record.cid}` }] } });
     }
@@ -165,6 +168,74 @@ test("no exact sitelink never borrows glucose or morpholine by formula or alias"
     assert.equal(context.wikipedia, undefined);
     assert.equal(calls.filter(({ url }) => url.hostname.endsWith(".wikipedia.org")).length, 0);
   }
+});
+
+test("open and cyclic D-glucose resolve distinct structurally verified CIDs", async () => {
+  for (const record of [cases.openGlucose, cases.glucose]) {
+    const { fetchImpl, calls } = fixtureFetch(record);
+    const context = await createCompoundContextResolver({ fetchImpl }).resolve({ canonicalSmiles: record.smiles }, "es");
+    assert.equal(context.pubchemStatus, "verified");
+    assert.equal(context.pubchem?.cid, record.cid);
+    assert.equal(context.pubchem?.inchiKey, record.key);
+    assert.equal(context.pubchem?.molecularFormula, "C6H12O6");
+    assert.equal(context.wikipediaStatus, "no-article");
+    assert.equal(context.wikipedia, undefined);
+    assert.ok(calls.some(({ url }) => url.pathname.includes("/smiles/") && url.pathname.endsWith("/cids/JSON")));
+    assert.ok(calls.some(({ url }) => url.pathname.includes(`/cid/${record.cid}/property/`)));
+    assert.ok(!calls.some(({ url }) => url.pathname.includes(`/cid/${record === cases.openGlucose ? 5793 : 107526}/property/`)));
+  }
+});
+
+test("a cyclic CID returned for the open glucose graph is rejected", async () => {
+  const { fetchImpl } = fixtureFetch(cases.glucose);
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve({ canonicalSmiles: cases.openGlucose.smiles }, "es");
+  assert.equal(context.pubchemStatus, "identity-mismatch");
+  assert.equal(context.pubchem, undefined);
+  assert.equal(context.wikipedia, undefined);
+});
+
+test("PubChem HTTP 500 leaves a visible temporary state and can recover on a manual retry", async () => {
+  const { fetchImpl: baseFetch } = fixtureFetch(cases.openGlucose);
+  let failing = true;
+  let pubchemRequests = 0;
+  let wikidataRequests = 0;
+  const fetchImpl = (input, init) => {
+    const url = new URL(String(input));
+    if (url.hostname === "pubchem.ncbi.nlm.nih.gov") {
+      pubchemRequests += 1;
+      if (failing) return Promise.resolve(json({}, 500));
+    }
+    if (url.hostname === "www.wikidata.org") wikidataRequests += 1;
+    return baseFetch(input, init);
+  };
+  const resolver = createCompoundContextResolver({ fetchImpl });
+  const failed = await resolver.resolve({ canonicalSmiles: cases.openGlucose.smiles }, "es");
+  assert.equal(failed.pubchemStatus, "retrieval-error");
+  assert.equal(failed.pubchem, undefined);
+  assert.equal(failed.wikipedia, undefined);
+  assert.equal(externalInfoUnavailableReason(failed), "temporary");
+  assert.equal(shouldShowExternalInfo(true, false, failed), true);
+  assert.equal(pubchemRequests, 3, "automatic attempts are bounded");
+  assert.equal(wikidataRequests, 0, "Wikidata requires verified PubChem identity");
+
+  failing = false;
+  const recovered = await resolver.resolve({ canonicalSmiles: cases.openGlucose.smiles }, "es");
+  assert.equal(recovered.pubchemStatus, "verified");
+  assert.equal(recovered.pubchem?.cid, 107526);
+  assert.equal(recovered.wikipediaStatus, "no-article");
+  assert.equal(externalInfoUnavailableReason(recovered), null);
+  assert.equal(shouldShowExternalInfo(true, false, recovered), true);
+});
+
+test("a failed optional PubChem description keeps validated structural properties", async () => {
+  const { fetchImpl: baseFetch } = fixtureFetch(cases.openGlucose);
+  const fetchImpl = (input, init) => String(input).includes("/description/")
+    ? Promise.resolve(json({}, 500))
+    : baseFetch(input, init);
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve({ canonicalSmiles: cases.openGlucose.smiles }, "es");
+  assert.equal(context.pubchemStatus, "verified");
+  assert.equal(context.pubchem?.cid, 107526);
+  assert.equal(context.pubchem?.recordTitle, undefined);
 });
 
 test("wrong or absent destination QID is rejected even when title and extract look correct", async () => {

@@ -227,6 +227,7 @@ test("returns no source when neither API has context or responds with HTTP error
   assert.deepEqual(await missing.resolve(ethanolIdentity, "en"), {
     identityKey: "smiles:CCO",
     language: "en",
+    pubchemStatus: "no-match",
     wikipediaStatus: "no-article",
   });
 });

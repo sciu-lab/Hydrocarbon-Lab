@@ -51,7 +51,7 @@ export type CompoundContext = {
   identityKey: string;
   language?: AppLanguage;
   pubchem?: PubChemCompoundContext;
-  pubchemStatus?: "retrieval-error";
+  pubchemStatus?: "verified" | "no-match" | "identity-mismatch" | "retrieval-error";
   wikipedia?: WikipediaCompoundContext;
   wikipediaStatus?: "registry" | "wikidata" | "no-article" | "retrieval-error" | "identity-mismatch" | "unverified";
 };
@@ -393,6 +393,7 @@ async function resolvePubChem(
   signal?: AbortSignal,
 ) {
   const cids = await resolvePubChemCids(fetchImpl, identity, signal);
+  let identityMismatch = false;
   for (const cid of cids) {
     const propertiesPayload = await fetchJson<PubChemPropertiesPayload>(
       fetchImpl,
@@ -400,18 +401,28 @@ async function resolvePubChem(
       signal,
     );
     const properties = propertiesPayload?.PropertyTable?.Properties?.[0];
-    if (!pubChemPropertiesMatchIdentity(identity, properties)) continue;
+    if (!properties) continue;
+    if (!pubChemPropertiesMatchIdentity(identity, properties)) {
+      identityMismatch = true;
+      continue;
+    }
 
-    const descriptionPayload = await fetchJson<PubChemDescriptionPayload>(
-      fetchImpl,
-      `${PUBCHEM_BASE_URL}/cid/${cid}/description/JSON`,
-      signal,
-    );
+    let descriptionPayload: PubChemDescriptionPayload | undefined;
+    try {
+      descriptionPayload = await fetchJson<PubChemDescriptionPayload>(
+        fetchImpl,
+        `${PUBCHEM_BASE_URL}/cid/${cid}/description/JSON`,
+        signal,
+      );
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      // The optional description cannot invalidate verified properties.
+    }
     const descriptionInformation = descriptionPayload?.InformationList?.Information?.[0];
     const description = shortSentences(descriptionInformation?.Description, 2);
     const iupacName = cleanText(properties?.IUPACName);
     const recordTitle = cleanText(descriptionInformation?.Title);
-    return {
+    const compound = {
       cid,
       url: `https://pubchem.ncbi.nlm.nih.gov/compound/${cid}`,
       title: iupacName || recordTitle || identity.names?.[0] || `CID ${cid}`,
@@ -428,8 +439,9 @@ async function resolvePubChem(
       ...(Number.isFinite(properties?.RotatableBondCount) ? { rotatableBondCount: properties?.RotatableBondCount } : {}),
       names: uniqueNames([descriptionInformation?.Title, properties?.IUPACName, ...(identity.names ?? [])]),
     } satisfies PubChemCompoundContext;
+    return { status: "verified" as const, compound };
   }
-  return undefined;
+  return { status: identityMismatch ? "identity-mismatch" as const : "no-match" as const };
 }
 
 /**
@@ -440,7 +452,7 @@ async function resolvePubChem(
 export function createCompoundContextResolver(options: { fetchImpl?: FetchLike } = {}): CompoundContextResolver {
   const fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
   const wikidataResolver = createWikidataArticleResolver({ fetchImpl });
-  const pubchemCache = new Map<string, PubChemCompoundContext | null>();
+  const pubchemCache = new Map<string, Awaited<ReturnType<typeof resolvePubChem>>>();
   const wikipediaCache = new Map<string, WikipediaCompoundContext>();
 
   return {
@@ -448,25 +460,26 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
       const identityKey = compoundIdentityKey(identity);
       if (!identityKey) return { identityKey: "" };
 
-      let pubchem = pubchemCache.get(identityKey);
-      let pubchemStatus: CompoundContext["pubchemStatus"];
-      if (pubchem === undefined) {
+      let pubchemResult = pubchemCache.get(identityKey);
+      let pubchemStatus: CompoundContext["pubchemStatus"] = pubchemResult?.status;
+      if (pubchemResult === undefined) {
         try {
-          pubchem = (await resolvePubChem(fetchImpl, identity, signal)) ?? null;
+          pubchemResult = await resolvePubChem(fetchImpl, identity, signal);
           throwIfAborted(signal);
-          pubchemCache.set(identityKey, pubchem);
+          pubchemCache.set(identityKey, pubchemResult);
+          pubchemStatus = pubchemResult.status;
         } catch (error) {
           if (isAbortError(error)) throw error;
-          pubchem = null;
           pubchemStatus = "retrieval-error";
         }
       }
+      const pubchem = pubchemResult?.status === "verified" ? pubchemResult.compound : undefined;
 
       // Publish structurally verified PubChem data before the optional
       // Wikidata/Wikipedia lookup. A slow or cancelled article request must
       // never delay or discard the independent PubChem result.
       throwIfAborted(signal);
-      if (pubchem) onProgress?.({ identityKey, language, pubchem });
+      if (pubchem) onProgress?.({ identityKey, language, pubchemStatus: "verified", pubchem });
 
       const wikipediaKey = `${identityKey}:wikipedia:${language}`;
       let wikipedia = wikipediaCache.get(wikipediaKey);
@@ -478,7 +491,7 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
             wikidataResolver,
             language,
             { identity: { ...identity, names: uniqueNames([...(identity.names ?? []), ...(pubchem?.names ?? [])]) },
-              pubchem: pubchem ?? undefined },
+              pubchem },
             signal,
           );
           throwIfAborted(signal);

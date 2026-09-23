@@ -130,7 +130,7 @@ import {
   createCompoundContextResolver,
   type CompoundContext,
 } from "./compound-context";
-import { preferredExternalInfoSource, shouldShowExternalInfo } from "./external-info-state";
+import { externalInfoUnavailableReason, preferredExternalInfoSource, shouldShowExternalInfo } from "./external-info-state";
 import {
   type FormulaIsomer,
   type FormulaIsomerGeneration,
@@ -5979,6 +5979,7 @@ export default function Home() {
   const activePanelDragRef = useRef<ActivePanelDrag | null>(null);
   const [compoundContext, setCompoundContext] = useState<CompoundContext | null>(null);
   const [compoundContextLoadingKey, setCompoundContextLoadingKey] = useState("");
+  const [compoundContextRetryToken, setCompoundContextRetryToken] = useState(0);
   const [externalInfoSource, setExternalInfoSource] = useState<"wikipedia" | "pubchem">("wikipedia");
   const externalSourceManuallySelectedRef = useRef(false);
   const [externalInfoCollapsed, setExternalInfoCollapsed] = useState(false);
@@ -6245,6 +6246,7 @@ export default function Home() {
     ? compoundContext
     : null;
   const compoundContextLoading = Boolean(compoundContextKey) && compoundContextLoadingKey === compoundContextKey;
+  const externalUnavailableReason = externalInfoUnavailableReason(currentCompoundContext);
   const namingPubChemIdentity = useMemo(
     () => !isPristineInitialMolecule && currentMoleculeSmiles.ok
       ? pubChemIdentityForNomenclature(currentMoleculeSmiles.smiles, activePubChemIdentity, currentCompoundContext)
@@ -6486,7 +6488,14 @@ export default function Home() {
           if (!controller.signal.aborted) setCompoundContext(context);
         })
         .catch(() => {
-          // External context is optional; a failed lookup never affects editing.
+          if (!controller.signal.aborted) {
+            setCompoundContext((current) => current?.identityKey === compoundContextKey
+              && current.language === language
+              && (current.pubchem || current.wikipedia)
+              ? current
+              : { identityKey: compoundContextKey, language,
+                  pubchemStatus: "retrieval-error", wikipediaStatus: "retrieval-error" });
+          }
         })
         .finally(() => {
           if (!controller.signal.aborted) {
@@ -6499,7 +6508,7 @@ export default function Home() {
       window.clearTimeout(debounceTimer);
       controller.abort();
     };
-  }, [compoundContextKey, compoundIdentity, language, showIupacName]);
+  }, [compoundContextKey, compoundContextRetryToken, compoundIdentity, language, showIupacName]);
 
   useEffect(() => {
     externalSourceManuallySelectedRef.current = false;
@@ -12143,7 +12152,7 @@ export default function Home() {
                   </h3>
                 </div>
                 <div className="external-info-actions">
-                  <button
+                  {(currentCompoundContext?.pubchem || currentCompoundContext?.wikipedia) && <button
                     className="source-toggle"
                     type="button"
                     onClick={() => {
@@ -12154,7 +12163,7 @@ export default function Home() {
                     aria-label={t("Cambiar fuente")}
                   >
                     {externalInfoSource === "wikipedia" ? "Wikipedia ↔" : "PubChem ↔"}
-                  </button>
+                  </button>}
                   <button
                     className="info-visibility"
                     type="button"
@@ -12169,7 +12178,23 @@ export default function Home() {
               </div>
 
               <div className="external-info-content">
-                {externalInfoSource === "wikipedia" ? (
+                {!compoundContextLoading && externalUnavailableReason ? (
+                  <>
+                    <p className="external-info-empty">
+                      {externalUnavailableReason === "temporary"
+                        ? t("No se pudo recuperar información externa verificada en este momento.")
+                        : t("No se encontró información externa verificada para esta estructura.")}
+                    </p>
+                    {externalUnavailableReason === "temporary" && (
+                      <button className="source-toggle external-info-retry" type="button" onClick={() => {
+                        setCompoundContextLoadingKey(compoundContextKey);
+                        setCompoundContextRetryToken((token) => token + 1);
+                      }}>
+                        {t("Reintentar")}
+                      </button>
+                    )}
+                  </>
+                ) : externalInfoSource === "wikipedia" ? (
                   currentCompoundContext?.wikipedia ? (
                     <p lang={currentCompoundContext.wikipedia.language === "en" ? "en" : undefined}>
                       {currentCompoundContext.wikipedia.summary}
