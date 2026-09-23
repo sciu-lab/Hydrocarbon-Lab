@@ -18,6 +18,9 @@ export type NameStructureResolution = {
   warnings: string[];
   cid?: number;
   molecularFormula?: string;
+  /** Present only when PubChem returned its structured IUPACName property. */
+  iupacName?: string;
+  inchiKey?: string;
 };
 
 export type NameStructureResolutionResult =

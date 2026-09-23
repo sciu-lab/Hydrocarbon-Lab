@@ -151,6 +151,8 @@ async function resolveNameWithPubChem(
           source: "PubChem",
           cid: selected.property.CID,
           molecularFormula: selected.molecularFormula,
+          ...(clean(selected.property.IUPACName) ? { iupacName: clean(selected.property.IUPACName) } : {}),
+          ...(clean(selected.property.InChIKey) ? { inchiKey: clean(selected.property.InChIKey).toLocaleUpperCase("en") } : {}),
           warnings: selected.inspection.unpreservedTetrahedralStereoCenterCount > 0
             ? [stereoWarning(selected.inspection.unpreservedTetrahedralStereoCenterCount)]
             : [],

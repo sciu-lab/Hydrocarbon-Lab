@@ -39,12 +39,37 @@ test("selection commits the verified candidate graph and only reports success af
 });
 
 test("external name safeguards follow the exact loaded graph and suppress unsupported local variants", () => {
-  assert.match(page, /currentSmiles\.ok && currentSmiles\.smiles === loadedPubChemFormulaCandidate\.smiles/);
-  assert.match(page, /Boolean\(activeLoadedPubChemFormulaCandidate\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)\)/);
-  assert.match(page, /const traditionalAvailable = Boolean\(!externalCandidateNameUnavailable/);
+  assert.match(page, /currentMoleculeSmiles\.smiles === loadedPubChemIdentity\.smiles/);
+  assert.match(page, /const activePubChemIdentity = !isPristineInitialMolecule/);
+  assert.match(page, /Boolean\(activePubChemIdentity\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)\)/);
+  assert.match(page, /const traditionalAvailable = Boolean\(!localSuggestedNameUnavailable/);
   assert.match(page, /language === "en" && !externalCandidateNameUnavailable && legacyEnglishResult\.name/);
+  assert.match(page, /Systematic name · PubChem/);
+  assert.match(page, /Nombre sistemático · PubChem/);
+  assert.match(page, /Local IUPAC name unavailable for this structure/);
+  assert.match(page, /Nombre IUPAC local no disponible para esta estructura/);
+  assert.match(page, /setLoadedPubChemIdentity\(\{[\s\S]*?candidate\.inchiKey[\s\S]*?candidate\.smiles/);
+  assert.match(page, /resolvedPubChemIdentity = \{[\s\S]*?data\.inchiKey[\s\S]*?data\.iupacName[\s\S]*?editorSmiles\.smiles/);
+  assert.match(page, /verifiedLocalCommonName/);
+  assert.match(page, /PubChem record title/);
+  assert.match(page, /Título del registro PubChem/);
+  assert.match(page, /!displayedNameCopyable/);
   assert.match(page, /setMolecule\(cloneMolecule\(previous\)\)/);
   assert.match(page, /setMolecule\(cloneMolecule\(next\)\)/);
+});
+
+test("external identity is keyed to the exact isomeric editor graph, not its formula", () => {
+  assert.match(page, /moleculeToSmiles\(molecule\)/);
+  assert.match(page, /currentMoleculeSmiles\.smiles === loadedPubChemIdentity\.smiles/);
+  assert.doesNotMatch(page, /loadedPubChemIdentity\.molecularFormula\s*===\s*current/);
+  assert.match(page, /setLoadedPubChemIdentity\(\{[\s\S]*?smiles: candidate\.smiles/);
+});
+
+test("local traditional names remain available only when the local nomenclator supports them", () => {
+  assert.match(page, /getCuratedCommonName\(calculatedAnalysis\.name, language\)/);
+  assert.match(page, /traditionalAvailable = Boolean\(!localSuggestedNameUnavailable/);
+  assert.match(page, /!externalCandidateNameUnavailable && legacyEnglishResult\.name/);
+  assert.match(page, /disabled=\{!showIupacName \|\| isPristineInitialMolecule \|\| !displayedNameCopyable\}/);
 });
 
 test("candidate cards retain PubChem attribution and use a neutral label if the record has no name", () => {

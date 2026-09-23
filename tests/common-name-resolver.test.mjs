@@ -152,6 +152,8 @@ test("resolves the requested Spanish and English common names through validated 
       if (result.value.source === "PubChem") {
         assert.equal(result.value.cid, fixture.cid, name);
         assert.equal(result.value.molecularFormula, fixture.formula, name);
+        assert.equal(result.value.iupacName, fixture.iupac, name);
+        if (fixture.inchiKey) assert.equal(result.value.inchiKey, fixture.inchiKey, name);
       }
       assert.equal(moleculeFromSmiles(result.value.smiles).ok, true, name);
       const inspection = inspectSmilesStructure(result.value.smiles);

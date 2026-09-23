@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   applyNomenclatureConvention,
+  getCuratedCommonName,
   nextNomenclatureConvention,
   stripStereochemicalDescriptors,
 } from "../app/nomenclature-conventions.ts";
@@ -135,6 +136,24 @@ test("keeps preferred IUPAC untouched while applying traditional formatting", ()
   assert.equal(applyNomenclatureConvention("metilbenceno", "traditional", "es"), "tolueno");
   assert.equal(applyNomenclatureConvention("propan-2-ona", "traditional", "es"), "propanona");
   assert.equal(applyNomenclatureConvention("metanal", "traditional", "es"), "metanal");
+});
+
+test("reuses curated common names as supplemental labels for verified local structures", () => {
+  const pairs = [
+    ["propan-2-ona", "acetona", "acetone"],
+    ["ácido etanoico", "ácido acético", "acetic acid"],
+    ["methylbenzene", "tolueno", "toluene"],
+    ["propan-1,2,3-triol", "glicerina", "glycerin"],
+    ["etan-1,2-diol", "etilenglicol", "ethylene glycol"],
+    ["metanal", "formaldehído", "formaldehyde"],
+    ["etanal", "acetaldehído", "acetaldehyde"],
+    ["ácido metanoico", "ácido fórmico", "formic acid"],
+  ];
+  for (const [systematicName, spanish, english] of pairs) {
+    assert.equal(getCuratedCommonName(systematicName, "es"), spanish, systematicName);
+    assert.equal(getCuratedCommonName(systematicName, "en"), english, systematicName);
+  }
+  assert.equal(getCuratedCommonName("ethanol", "en"), "ethyl alcohol");
 });
 
 test("covers the extended common-name catalog by functional family", () => {

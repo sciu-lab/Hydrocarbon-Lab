@@ -114,6 +114,37 @@ test("returns compact PubChem and Spanish Wikipedia context from mocked APIs", a
   assert.ok(!calls.some((url) => url.includes("list=search")));
 });
 
+test("keeps a PubChem CID 5793 systematic name and record title as distinct sourced fields", async () => {
+  const calls = [];
+  const fetchImpl = async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("/property/")) return json({ PropertyTable: { Properties: [{
+      CID: 5793,
+      IUPACName: "(3R,4S,5S,6R)-6-(hydroxymethyl)oxane-2,3,4,5-tetrol",
+      InChIKey: "WQZGKKKJIJFFOK-GASJEMHNSA-N",
+      IsomericSMILES: "O[C@H]1[C@@H](O)[C@H](O)[C@@H](O)C(O)O1",
+      MolecularFormula: "C6H12O6",
+    }] } });
+    if (url.includes("/description/")) return json({ InformationList: { Information: [{
+      Title: "D-Glucose",
+      Description: "D-Glucose is a monosaccharide.",
+    }] } });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve({
+    cid: 5793,
+    inchiKey: "WQZGKKKJIJFFOK-GASJEMHNSA-N",
+    canonicalSmiles: "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O",
+  }, "en");
+  assert.equal(context.pubchem?.iupacName, "(3R,4S,5S,6R)-6-(hydroxymethyl)oxane-2,3,4,5-tetrol");
+  assert.equal(context.pubchem?.recordTitle, "D-Glucose");
+  assert.equal(context.pubchem?.molecularFormula, "C6H12O6");
+  assert.equal(context.pubchem?.inchiKey, "WQZGKKKJIJFFOK-GASJEMHNSA-N");
+  assert.ok(calls.every((url) => !url.includes("synonym")), "no broad synonym request is made");
+});
+
 test("keeps a PubChem CID link when Wikipedia has no matching article", async () => {
   const { fetchImpl } = createKnownFetch({ wikipedia: "none" });
   const context = await createCompoundContextResolver({ fetchImpl }).resolve(ethanolIdentity, "en");

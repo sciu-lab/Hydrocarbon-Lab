@@ -18,6 +18,10 @@ export type PubChemCompoundContext = {
   url: string;
   /** Preferred title returned by PubChem's structured property endpoint. */
   title: string;
+  /** PubChem's structured IUPACName property; kept separate from its record title. */
+  iupacName?: string;
+  /** Title from the existing CID description response; not classified as a common name. */
+  recordTitle?: string;
   /** A short description exactly derived from PubChem data. */
   description?: string;
   /** Only use-oriented sentences from the PubChem description. */
@@ -332,10 +336,14 @@ async function resolvePubChem(
     );
     const descriptionInformation = descriptionPayload?.InformationList?.Information?.[0];
     const description = shortSentences(descriptionInformation?.Description, 2);
+    const iupacName = cleanText(properties?.IUPACName);
+    const recordTitle = cleanText(descriptionInformation?.Title);
     return {
       cid,
       url: `https://pubchem.ncbi.nlm.nih.gov/compound/${cid}`,
-      title: cleanText(properties?.IUPACName) || cleanText(descriptionInformation?.Title) || identity.names?.[0] || `CID ${cid}`,
+      title: iupacName || recordTitle || identity.names?.[0] || `CID ${cid}`,
+      ...(iupacName ? { iupacName } : {}),
+      ...(recordTitle ? { recordTitle } : {}),
       ...(description ? { description, usage: usageSummary(description) } : {}),
       ...(cleanText(properties?.MolecularFormula) ? { molecularFormula: cleanText(properties?.MolecularFormula) } : {}),
       ...(Number.isFinite(properties?.MolecularWeight) ? { molecularWeight: properties?.MolecularWeight } : {}),

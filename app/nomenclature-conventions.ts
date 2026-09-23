@@ -230,6 +230,15 @@ function traditionalName(baseName: string, language: AppLanguage) {
   return pureAlkaneNames.has(baseName.toLocaleLowerCase("es")) ? baseName : "-";
 }
 
+/** Returns only an exact alias already curated in the traditional-name table. */
+export function getCuratedCommonName(systematicName: string, language: AppLanguage) {
+  const { baseName } = splitStereochemicalPrefix(systematicName);
+  const commonName = traditionalNames[baseName.toLocaleLowerCase("es")]?.[language];
+  if (!commonName) return null;
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(language).replace(/[^a-z0-9]/g, "");
+  return normalize(commonName) === normalize(baseName) ? null : commonName;
+}
+
 /**
  * Applies only display conventions to a localized PIN. It deliberately does
  * not parse or identify a molecule, so OPSIN/OpenChemLib naming remains the

@@ -9046,6 +9046,12 @@ html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35
 .iupac-dock-detail-heading > span { color: #96c9bb; font-size: 10px; font-weight: 850; text-transform: uppercase; }
 .iupac-dock-detail-heading > button { min-height: 28px; padding: 3px 8px; }
 .iupac-dock-detail > strong { font-size: 19px; }
+.iupac-dock-detail > strong,
+.iupac-dock-detail > strong .chemical-name-text,
+.iupac-dock-origin strong { overflow-wrap: anywhere; word-break: normal; }
+.iupac-dock-origin { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 8px 0 0; color: #d6e9e2; font-size: 12px; }
+.iupac-dock-origin > span { color: #96c9bb; font-weight: 700; }
+.iupac-dock-origin > strong { min-width: 0; font: inherit; font-weight: 650; }
 .iupac-dock-variants { display: grid; gap: 7px; margin-top: 12px; }
 .iupac-dock-variants > button { display: grid; gap: 3px; min-width: 0; padding: 8px 10px; text-align: left; }
 .iupac-dock-variants > button.active { border-color: #a0dcc7; background: #34735f; }
