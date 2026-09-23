@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 import { applyNomenclatureConvention } from "../app/nomenclature-conventions.ts";
+import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
 import {
   compareLocantSets,
   compareNumberings,
@@ -152,14 +153,35 @@ test("names simple and repeated carbon branching", () => {
 });
 
 test("uses legacy English alkene and alkyne locant placement", () => {
-  for (const [smiles, expected] of [
-    ["C=CCC", "1-butene"],
-    ["CC=CC", "2-butene"],
-    ["C#CCC", "1-butyne"],
-    ["C=CC=C", "1,3-butadiene"],
-    ["C#CC#C", "1,3-butadiyne"],
-    ["C=CC(C)CC", "3-methyl-1-pentene"],
-  ]) assert.equal(legacyName(fromSmiles(smiles)).name, expected, smiles);
+  for (const [smiles, expected, locants] of [
+    ["C=CCC", "1-butene", [1]],
+    ["CC=CC", "2-butene", [2]],
+    ["CC=CCC", "2-pentene", [2]],
+    ["CC=C=CC", "2,3-pentadiene", [2, 3]],
+    ["C#CCC", "1-butyne", [1]],
+    ["C=CC=C", "1,3-butadiene", [1, 3]],
+    ["CC=CC=CC", "2,4-hexadiene", [2, 4]],
+    ["C#CC#C", "1,3-butadiyne", [1, 3]],
+    ["C=CC(C)CC", "3-methyl-1-pentene", [1]],
+  ]) {
+    const result = legacyName(fromSmiles(smiles));
+    assert.equal(result.name, expected, smiles);
+    assert.deepEqual(result.reasoning.numbering.multipleBondLocants, locants, `${smiles} locants`);
+  }
+});
+
+test("keeps the suggested English diene names distinct from Legacy English", () => {
+  for (const [smiles, suggested, legacy] of [
+    ["CC=C=CC", "penta-2,3-diene", "2,3-pentadiene"],
+    ["C=CC=C", "buta-1,3-diene", "1,3-butadiene"],
+    ["CC=CC=CC", "hexa-2,4-diene", "2,4-hexadiene"],
+  ]) {
+    const molecule = fromSmiles(smiles);
+    const analysis = analyzeMolecule(molecule);
+    assert.equal(translateSpanishIupacToOpsin(analysis.name), suggested, smiles);
+    assert.equal(legacyName(molecule).name, legacy, smiles);
+  }
+  assert.equal(translateSpanishIupacToOpsin(analyzeMolecule(fromSmiles("CC=CCC")).name), "pent-2-ene");
 });
 
 test("applies suffix priority and subordinate functional prefixes", () => {

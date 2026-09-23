@@ -6061,6 +6061,8 @@ export default function Home() {
     "--structure-functional": exportColors.functional,
   }) as CSSProperties, [exportColors]);
   const currentMoleculeSmiles = useMemo(() => moleculeToSmiles(molecule), [molecule]);
+  const isMethaneStructure = currentMoleculeSmiles.ok && currentMoleculeSmiles.smiles === "C";
+  const showPristineMethaneName = isPristineInitialMolecule && isMethaneStructure;
   const activePubChemIdentity = !isPristineInitialMolecule
     && loadedPubChemIdentity
     && currentMoleculeSmiles.ok
@@ -6172,14 +6174,16 @@ export default function Home() {
       && historicalCandidate
       && historicalCandidate !== "-"
       && historicalCandidate !== uiText(language, "Sin nombre tradicional reconocido")
-      && normalizeNomenclatureDisplayName(historicalCandidate) !== normalizeNomenclatureDisplayName(suggestedName));
+      && normalizeNomenclatureDisplayName(historicalCandidate) !== normalizeNomenclatureDisplayName(suggestedName)
+      // When Traditional and Legacy format the same historical systematic
+      // name, expose it under the explicit Legacy profile instead.
+      && !(language === "en"
+        && legacyEnglishName !== "-"
+        && normalizeNomenclatureDisplayName(historicalCandidate) === normalizeNomenclatureDisplayName(legacyEnglishName)));
     const legacyEnglishVariantAvailable = language === "en"
       && !localSuggestedNameUnavailable
       && legacyEnglishName !== "-"
-      && ![
-        suggestedName,
-        ...(traditionalAvailable && historicalCandidate ? [historicalCandidate] : []),
-      ].some((name) => normalizeNomenclatureDisplayName(name) === normalizeNomenclatureDisplayName(legacyEnglishName));
+      && normalizeNomenclatureDisplayName(suggestedName) !== normalizeNomenclatureDisplayName(legacyEnglishName);
     return [
       { convention: "current" as const, label: localSuggestedNameUnavailable
         ? language === "en" ? "Local IUPAC unavailable" : "IUPAC local no disponible"
@@ -8613,6 +8617,7 @@ export default function Home() {
     setFuturePristineStates([]);
     setMolecule(methane);
     setIsPristineInitialMolecule(true);
+    setLoadedPubChemIdentity(null);
     closeContextualPanels();
     setReasoningSourceName(null);
     setSourceNameOverride(null);
@@ -12259,11 +12264,11 @@ export default function Home() {
               <option value={variant.convention} key={variant.convention}>{variant.label}</option>
             ))}
           </select>
-          <strong className="iupac-dock-name"><ChemicalNameText name={isPristineInitialMolecule ? "—" : showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
+          <strong className="iupac-dock-name"><ChemicalNameText name={isPristineInitialMolecule && !showPristineMethaneName ? "—" : showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
           <button type="button" className="iupac-dock-expand" disabled={isPristineInitialMolecule} onClick={() => setIupacDockExpanded((expanded) => !expanded)} aria-expanded={iupacDockExpanded} aria-controls="iupac-dock-detail" title={t("Mostrar nombre completo")}>
             {iupacDockExpanded ? "⌄" : "⌃"}
           </button>
-          <button type="button" className="iupac-dock-copy" disabled={!showIupacName || isPristineInitialMolecule || !displayedNameCopyable} onClick={() => {
+          <button type="button" className="iupac-dock-copy" disabled={!showIupacName || (isPristineInitialMolecule && !showPristineMethaneName) || !displayedNameCopyable} onClick={() => {
             void copyVisibleName(displayedIupacName).then((copied) => {
               setNotice(copied
                 ? "Nombre copiado al portapapeles."

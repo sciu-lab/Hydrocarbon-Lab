@@ -59,6 +59,16 @@ test("external name safeguards follow the exact loaded graph and suppress unsupp
   assert.match(page, /setMolecule\(cloneMolecule\(next\)\)/);
 });
 
+test("the visible methane seed gets a name without clearing its pristine construction state", () => {
+  assert.match(page, /const isMethaneStructure = currentMoleculeSmiles\.ok && currentMoleculeSmiles\.smiles === "C"/);
+  assert.match(page, /const showPristineMethaneName = isPristineInitialMolecule && isMethaneStructure/);
+  assert.match(page, /setIsPristineInitialMolecule\(true\);\s*setLoadedPubChemIdentity\(null\);/);
+  assert.match(page, /isPristineInitialMolecule && !showPristineMethaneName \? "—" : showIupacName \? displayedIupacName/);
+  assert.match(page, /isPristineInitialMolecule && !showPristineMethaneName\) \|\| !displayedNameCopyable/);
+  assert.match(page, /if \(isPristineInitialMolecule\) mode = "replace"/);
+  assert.match(page, /!isPristineInitialMolecule && ringLibraryContext === "attach" \? "attach" : "replace"/);
+});
+
 test("external identity is keyed to the exact isomeric editor graph, not its formula", () => {
   assert.match(page, /moleculeToSmiles\(molecule\)/);
   assert.match(page, /currentMoleculeSmiles\.smiles === loadedPubChemIdentity\.smiles/);
@@ -70,12 +80,14 @@ test("local traditional names remain available only when the local nomenclator s
   assert.match(page, /getCuratedCommonName\(calculatedAnalysis\.name, language\)/);
   assert.match(page, /traditionalAvailable = Boolean\(!localSuggestedNameUnavailable/);
   assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*!localSuggestedNameUnavailable/);
-  assert.match(page, /disabled=\{!showIupacName \|\| isPristineInitialMolecule \|\| !displayedNameCopyable\}/);
+  assert.match(page, /disabled=\{!showIupacName \|\| \(isPristineInitialMolecule && !showPristineMethaneName\) \|\| !displayedNameCopyable\}/);
 });
 
 test("dock selects the locale's historical profile, copies the visible variant and deduplicates labels", () => {
   assert.match(page, /convention: "iupac-1979-legacy-en" as const, label: "IUPAC 1979 Legacy English"/);
   assert.match(page, /legacyEnglishVariantAvailable = language === "en"/);
+  assert.match(page, /traditionalAvailable = Boolean\([\s\S]*normalizeNomenclatureDisplayName\(historicalCandidate\) === normalizeNomenclatureDisplayName\(legacyEnglishName\)/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*normalizeNomenclatureDisplayName\(suggestedName\) !== normalizeNomenclatureDisplayName\(legacyEnglishName\)/);
   assert.match(page, /nomenclatureVariants\.some\(\(variant\) => variant\.convention === nomenclatureConvention\)/);
   assert.match(page, /nomenclatureVariants\.filter\(\(variant\) => variant\.convention !== "current"\)\.map/);
   assert.doesNotMatch(page, /No hay una variante IUPAC 1979 verificada para esta estructura/);
