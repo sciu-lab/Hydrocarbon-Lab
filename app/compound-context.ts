@@ -1,6 +1,7 @@
 import type { AppLanguage } from "./i18n";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter.ts";
 import { findApprovedWikipediaChemistryPage } from "./wikipedia-chemistry.ts";
+import { createWikidataArticleResolver } from "./wikidata-article-resolver.ts";
 
 export type CompoundIdentity = {
   /** A PubChem compound identifier retained when it is already known. */
@@ -42,12 +43,16 @@ export type WikipediaCompoundContext = {
   title: string;
   summary: string;
   url: string;
+  source: "registry" | "wikidata";
+  qid?: string;
 };
 
 export type CompoundContext = {
   identityKey: string;
+  language?: AppLanguage;
   pubchem?: PubChemCompoundContext;
   wikipedia?: WikipediaCompoundContext;
+  wikipediaStatus?: "registry" | "wikidata" | "no-article" | "retrieval-error" | "identity-mismatch" | "unverified";
 };
 
 export type FetchLike = (
@@ -98,6 +103,7 @@ type WikipediaPage = {
   extract?: string;
   fullurl?: string;
   missing?: boolean;
+  pageprops?: { wikibase_item?: string };
 };
 
 type WikipediaQueryPayload = {
@@ -151,6 +157,10 @@ function usageSummary(description: string | undefined) {
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException("The request was cancelled.", "AbortError");
 }
 
 async function fetchJson<T>(fetchImpl: FetchLike, url: string, signal?: AbortSignal) {
@@ -218,34 +228,83 @@ async function fetchWikipediaPage(
   language: "es" | "en",
   title: string,
   signal?: AbortSignal,
+  expectedQid?: string,
 ) {
   const payload = await fetchJson<WikipediaQueryPayload>(
     fetchImpl,
     wikipediaApiUrl(language, {
-      prop: "extracts|info",
+      prop: expectedQid ? "extracts|info|pageprops" : "extracts|info",
       inprop: "url",
+      ...(expectedQid ? { ppprop: "wikibase_item" } : {}),
       exintro: "1",
       explaintext: "1",
       titles: title,
     }),
     signal,
   );
+  throwIfAborted(signal);
   const page = payload ? readWikipediaPage(payload) : undefined;
+  // MediaWiki resolves redirects before returning pages. The destination's
+  // wikibase_item, rather than the requested title, establishes identity.
+  if (expectedQid && page && page.pageprops?.wikibase_item !== expectedQid) {
+    return { status: "identity-mismatch" as const };
+  }
   const summary = shortSentences(page?.extract, 2);
   const url = cleanText(page?.fullurl);
   const resolvedTitle = cleanText(page?.title);
-  if (!summary || !url || !resolvedTitle) return undefined;
-  return { language, title: resolvedTitle, summary, url } satisfies WikipediaCompoundContext;
+  if (!summary || !url || !resolvedTitle) return { status: "no-article" as const };
+  return {
+    status: "article" as const,
+    article: { language, title: resolvedTitle, summary, url,
+      source: expectedQid ? "wikidata" as const : "registry" as const,
+      ...(expectedQid ? { qid: expectedQid } : {}) },
+  };
 }
 
 async function resolveWikipedia(
   fetchImpl: FetchLike,
+  wikidataResolver: ReturnType<typeof createWikidataArticleResolver>,
   language: AppLanguage,
-  input: { cid?: number; names?: readonly string[] },
+  input: { identity: CompoundIdentity; pubchem?: PubChemCompoundContext },
   signal?: AbortSignal,
-) {
-  const approved = findApprovedWikipediaChemistryPage(input);
-  if (!approved) return undefined;
+) : Promise<{ status: NonNullable<CompoundContext["wikipediaStatus"]>; article?: WikipediaCompoundContext }> {
+  const { identity, pubchem } = input;
+  let fallbackStatus: "no-article" | "retrieval-error" = "no-article";
+  if (pubchem?.cid && pubchem.inchiKey) {
+    const result = await wikidataResolver.resolve({ cid: pubchem.cid, inchiKey: pubchem.inchiKey }, language, signal);
+    if (result.status === "cancelled") throw new DOMException("The request was cancelled.", "AbortError");
+    throwIfAborted(signal);
+    if (result.status === "article") {
+      let mismatch = false;
+      for (const wikiLanguage of getWikipediaLanguages(language)) {
+        const link = result.identity.links[wikiLanguage];
+        if (!link) continue;
+        const page = await fetchWikipediaPage(fetchImpl, wikiLanguage, link.title, signal, result.identity.qid);
+        if (page.status === "article") return { status: "wikidata", article: page.article };
+        if (page.status === "identity-mismatch") mismatch = true;
+      }
+      return { status: mismatch ? "identity-mismatch" : "no-article" };
+    }
+    // A verified item without a sitelink is not a licence to show an article
+    // for a broader substance. Conflicting identifiers are equally unsafe.
+    if (result.status === "no-article") return { status: "no-article" };
+    if (result.status === "ambiguous" || result.status === "discordant-identifiers") {
+      return { status: "unverified" };
+    }
+    if (result.status === "service-error" || result.status === "invalid-response") {
+      fallbackStatus = "retrieval-error";
+    }
+    // The curated registry remains available if Wikidata cannot be reached or
+    // provides no verifiable item. It is keyed by the verified PubChem CID.
+  }
+
+  // A claimed CID or InChIKey that PubChem did not verify must never gain an
+  // article through either a CID lookup or a coincidental naming alias.
+  if (!pubchem && (identity.cid || identity.inchiKey)) return { status: "unverified" };
+  const approved = findApprovedWikipediaChemistryPage(pubchem?.cid
+    ? { cid: pubchem.cid }
+    : { names: identity.names });
+  if (!approved) return { status: fallbackStatus };
   for (const wikiLanguage of getWikipediaLanguages(language)) {
     const exact = await fetchWikipediaPage(
       fetchImpl,
@@ -253,9 +312,9 @@ async function resolveWikipedia(
       approved.wikipedia[wikiLanguage],
       signal,
     );
-    if (exact) return exact;
+    if (exact.status === "article") return { status: "registry", article: exact.article };
   }
-  return undefined;
+  return { status: fallbackStatus };
 }
 
 async function resolvePubChemCids(
@@ -366,8 +425,9 @@ async function resolvePubChem(
  */
 export function createCompoundContextResolver(options: { fetchImpl?: FetchLike } = {}): CompoundContextResolver {
   const fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
+  const wikidataResolver = createWikidataArticleResolver({ fetchImpl });
   const pubchemCache = new Map<string, PubChemCompoundContext | null>();
-  const wikipediaCache = new Map<string, WikipediaCompoundContext | null>();
+  const wikipediaCache = new Map<string, WikipediaCompoundContext>();
 
   return {
     async resolve(identity, language, signal) {
@@ -378,6 +438,7 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
       if (pubchem === undefined) {
         try {
           pubchem = (await resolvePubChem(fetchImpl, identity, signal)) ?? null;
+          throwIfAborted(signal);
           pubchemCache.set(identityKey, pubchem);
         } catch (error) {
           if (isAbortError(error)) throw error;
@@ -387,26 +448,31 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
 
       const wikipediaKey = `${identityKey}:wikipedia:${language}`;
       let wikipedia = wikipediaCache.get(wikipediaKey);
+      let wikipediaStatus: NonNullable<CompoundContext["wikipediaStatus"]> = wikipedia?.source ?? "no-article";
       if (wikipedia === undefined) {
         try {
-          wikipedia = (await resolveWikipedia(
+          const result = await resolveWikipedia(
             fetchImpl,
+            wikidataResolver,
             language,
-            {
-              ...(pubchem?.cid ? { cid: pubchem.cid } : {}),
-              names: uniqueNames([...(identity.names ?? []), ...(pubchem?.names ?? [])]),
-            },
+            { identity: { ...identity, names: uniqueNames([...(identity.names ?? []), ...(pubchem?.names ?? [])]) },
+              pubchem: pubchem ?? undefined },
             signal,
-          )) ?? null;
-          wikipediaCache.set(wikipediaKey, wikipedia);
+          );
+          throwIfAborted(signal);
+          wikipedia = result.article;
+          wikipediaStatus = result.status;
+          if (wikipedia) wikipediaCache.set(wikipediaKey, wikipedia);
         } catch (error) {
           if (isAbortError(error)) throw error;
-          wikipedia = null;
+          wikipediaStatus = "retrieval-error";
         }
       }
 
       return {
         identityKey,
+        language,
+        wikipediaStatus,
         ...(pubchem ? { pubchem } : {}),
         ...(wikipedia ? { wikipedia } : {}),
       };
@@ -414,6 +480,7 @@ export function createCompoundContextResolver(options: { fetchImpl?: FetchLike }
     clearCache() {
       pubchemCache.clear();
       wikipediaCache.clear();
+      wikidataResolver.clearCache();
     },
   };
 }

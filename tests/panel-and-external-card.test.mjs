@@ -91,4 +91,6 @@ test("keeps Wikipedia and PubChem in one alternate, source-attributed card", () 
   assert.match(pageSource, /className="pubchem-grid"/);
   assert.match(pageSource, /target="_blank" rel="noopener noreferrer"/);
   assert.match(styleSource, /\.external-info-card\.is-collapsed/);
+  assert.match(pageSource, /compoundContext\.language === language/, "a previous locale must not render as the current one");
+  assert.match(pageSource, /Wikipedia — English/, "English fallback is identified in the Spanish card");
 });

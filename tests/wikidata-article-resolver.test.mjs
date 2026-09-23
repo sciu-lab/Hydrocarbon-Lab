@@ -97,11 +97,14 @@ test("cyclohexanecarboxylic acid explicitly falls back to English", async () => 
 });
 
 test("CID 5793 remains verified without borrowing the general glucose article", async () => {
-  const { fetchImpl } = mockedFetch(fixture(identities.glucose, "Q23905964"));
-  const result = await createWikidataArticleResolver({ fetchImpl }).resolve(identities.glucose, "es");
+  const { fetchImpl, calls } = mockedFetch(fixture(identities.glucose, "Q23905964"));
+  const resolver = createWikidataArticleResolver({ fetchImpl });
+  const result = await resolver.resolve(identities.glucose, "es");
   assert.equal(result.status, "no-article");
   assert.equal(result.identity.qid, "Q23905964");
   assert.deepEqual(result.identity.links, {});
+  assert.equal((await resolver.resolve(identities.glucose, "es")).status, "no-article");
+  assert.equal(calls.length, 6, "absence of sitelinks is not cached indefinitely");
 });
 
 test("two bonded cyclohexane rings resolve Bicyclohexyl, not decalin", async () => {

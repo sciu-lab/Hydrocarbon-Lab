@@ -6239,6 +6239,7 @@ export default function Home() {
   }, [activePubChemIdentity, currentMoleculeSmiles]);
   const compoundContextKey = compoundIdentity ? compoundIdentityKey(compoundIdentity) : "";
   const currentCompoundContext = compoundContext?.identityKey === compoundContextKey
+    && compoundContext.language === language
     ? compoundContext
     : null;
   const compoundContextLoading = compoundContextLoadingKey === compoundContextKey;
@@ -12123,7 +12124,11 @@ export default function Home() {
               <div className="external-info-header">
                 <div>
                   <span className="info-eyebrow">
-                    {externalInfoSource === "wikipedia" ? `🌍 ${t("En el mundo real")}` : `⚗ ${t("Datos químicos")}`}
+                    {externalInfoSource === "wikipedia"
+                      ? currentCompoundContext?.wikipedia?.language === "en" && language === "es"
+                        ? "🌍 Wikipedia — English"
+                        : `🌍 ${t("En el mundo real")}`
+                      : `⚗ ${t("Datos químicos")}`}
                   </span>
                   <h3>
                     {externalInfoSource === "wikipedia"
@@ -12244,7 +12249,7 @@ export default function Home() {
 
               {!externalInfoCollapsed && externalInfoSource === "wikipedia" && currentCompoundContext?.wikipedia && (
                 <a className="external-info-link" href={currentCompoundContext.wikipedia.url} target="_blank" rel="noopener noreferrer">
-                  {currentCompoundContext.wikipedia.language === "en" && language === "es" ? "Wikipedia (en) · " : ""}{t("Saber más")} <span aria-hidden="true">↗</span>
+                  {t("Saber más")} <span aria-hidden="true">↗</span>
                 </a>
               )}
               {!externalInfoCollapsed && externalInfoSource === "pubchem" && currentCompoundContext?.pubchem && (

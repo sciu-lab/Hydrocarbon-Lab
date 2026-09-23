@@ -208,7 +208,9 @@ export function createWikidataArticleResolver(options: { fetchImpl?: FetchLike; 
         if (verified.length > 1) return { status: "ambiguous" };
         if (!verified.length) return { status: discordant ? "discordant-identifiers" : "unverified" };
         const match = verified[0];
-        if (cacheSize > 0) {
+        // A verified item with no article can acquire a sitelink later; do not
+        // retain that negative coverage result for the resolver's lifetime.
+        if (cacheSize > 0 && (match.links.es || match.links.en)) {
           if (cache.size >= cacheSize) cache.delete(cache.keys().next().value!);
           cache.set(cacheKey, match);
         }

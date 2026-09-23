@@ -112,7 +112,8 @@ test("returns compact PubChem and Spanish Wikipedia context from mocked APIs", a
   assert.equal(context.pubchem?.url, "https://pubchem.ncbi.nlm.nih.gov/compound/702");
   assert.equal(context.wikipedia?.language, "es");
   assert.match(context.wikipedia?.summary ?? "", /alcohol de dos carbonos/i);
-  assert.ok(!calls.some((url) => url.includes("list=search")));
+  assert.ok(calls.some((url) => url.includes("haswbstatement%3AP662")), "verified PubChem identity is checked in Wikidata");
+  assert.equal(context.wikipedia?.source, "registry", "curated CID remains the fallback when Wikidata is unavailable");
 });
 
 test("keeps a PubChem CID 5793 systematic name and record title as distinct sourced fields", async () => {
@@ -219,9 +220,13 @@ test("returns no source when neither API has context or responds with HTTP error
 
   assert.deepEqual(await unavailable.resolve(ethanolIdentity, "en"), {
     identityKey: "smiles:CCO",
+    language: "en",
+    wikipediaStatus: "retrieval-error",
   });
   assert.deepEqual(await missing.resolve(ethanolIdentity, "en"), {
     identityKey: "smiles:CCO",
+    language: "en",
+    wikipediaStatus: "no-article",
   });
 });
 
