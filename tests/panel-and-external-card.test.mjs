@@ -54,7 +54,7 @@ test("uses a page scroll, contextual constructors, right-side display settings a
   assert.doesNotMatch(pageSource, /className="display-options"/);
   assert.match(pageSource, /setNameBuilderOpen\(false\);\s*setNameBuilderFeedback\(\{/);
   assert.match(pageSource, /className=\{`iupac-dock/);
-  assert.match(pageSource, /navigator\.clipboard\?\.writeText\(displayedIupacName\)/);
+  assert.match(pageSource, /copyVisibleName\(displayedIupacName\)/);
   assert.match(styleSource, /\.builder-card \{[\s\S]*?overflow: visible;/);
   assert.match(styleSource, /\.iupac-dock \{ position: fixed;/);
   assert.match(styleSource, /\.app-shell \{ padding-bottom: calc\(var\(--iupac-dock-height\)/);

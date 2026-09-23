@@ -395,18 +395,25 @@ test("substituent undo and redo preserve graph, formula and geometry exactly", (
   assert.deepEqual(next, nextSnapshot, "display layout does not mutate chemical connectivity or coordinates");
   assert.deepEqual(formulaCounts(next), formula);
 
-  const context = { molecule: initial, undoStack: [], future: [], cloneMolecule,
+  const context = { molecule: initial, undoStack: [], future: [],
+    undoPristineStates: [], futurePristineStates: [], isPristineInitialMolecule: true, cloneMolecule,
     findMoleculeValenceViolation: () => null };
-  for (const key of ["molecule", "undoStack", "future"]) {
+  for (const key of ["molecule", "undoStack", "future", "undoPristineStates", "futurePristineStates", "isPristineInitialMolecule"]) {
     context[`set${key[0].toUpperCase()}${key.slice(1)}`] = value => { context[key] = typeof value === "function" ? value(context[key]) : value; };
   }
   for (const name of ["setPlacementTool", "setReasoningSourceName", "setSourceNameOverride", "setNotice", "setSelectedId"]) context[name] = () => {};
   context.commit = action("commit", context);
-  context.commit(next, "Propil añadido.");
-  action("undo", context)();
+  assert.equal(context.commit(next, "Propil añadido."), true);
+  assert.deepEqual(context.undoPristineStates, [true]);
+  assert.equal(context.isPristineInitialMolecule, false);
+  // React handlers read the state snapshot from their render while setters queue updates.
+  action("undo", { ...context })();
   assert.deepEqual(context.molecule, cloneMolecule(initial));
-  action("redo", context)();
+  assert.deepEqual(context.futurePristineStates, [false]);
+  assert.equal(context.isPristineInitialMolecule, true);
+  action("redo", { ...context })();
   assert.deepEqual(context.molecule, cloneMolecule(nextSnapshot));
+  assert.equal(context.isPristineInitialMolecule, false);
 });
 
 test("invalid selections, saturated endpoints, aromatic and already shared edges are rejected", () => {
@@ -447,11 +454,13 @@ test("deleting a new atom opens its ring, preserves the original ring and permit
 
 test("actual commit, fusion, undo and redo preserve exact snapshots as one edit", () => {
   const initial = { ...makeRing(6, "cycloalkane"), isMirrored: true };
-  const context = { molecule: initial, undoStack: [], future: [], cloneMolecule, fuseRingOnBond,
+  const context = { molecule: initial, undoStack: [], future: [],
+    undoPristineStates: [], futurePristineStates: [], isPristineInitialMolecule: true,
+    cloneMolecule, fuseRingOnBond,
     selectedFusionBond: { a: 1, b: 2 }, language: "es",
     findMoleculeValenceViolation: () => null, ringFusionError,
   };
-  for (const key of ["molecule", "undoStack", "future"]) {
+  for (const key of ["molecule", "undoStack", "future", "undoPristineStates", "futurePristineStates", "isPristineInitialMolecule"]) {
     context[`set${key[0].toUpperCase()}${key.slice(1)}`] = value => { context[key] = typeof value === "function" ? value(context[key]) : value; };
   }
   for (const name of ["setPlacementTool", "setReasoningSourceName", "setSourceNameOverride", "setNotice", "setSelectedId"]) context[name] = () => {};
@@ -459,10 +468,15 @@ test("actual commit, fusion, undo and redo preserve exact snapshots as one edit"
   action("fuseSelectedBond", context)(6);
   const fused = structuredClone(context.molecule);
   assert.equal(context.undoStack.length, 1);
-  action("undo", context)();
+  assert.deepEqual(context.undoPristineStates, [true]);
+  assert.equal(context.isPristineInitialMolecule, false);
+  action("undo", { ...context })();
   assert.deepEqual(context.molecule, cloneMolecule(initial));
-  action("redo", context)();
+  assert.deepEqual(context.futurePristineStates, [false]);
+  assert.equal(context.isPristineInitialMolecule, true);
+  action("redo", { ...context })();
   assert.deepEqual(context.molecule, cloneMolecule(fused));
+  assert.equal(context.isPristineInitialMolecule, false);
 });
 
 test("existing chemistry document and SMILES round trips preserve fused topology", () => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { legacyEnglishVariantIsAvailable } from "../app/legacy-english-nomenclature.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
@@ -43,8 +44,10 @@ test("external name safeguards follow the exact loaded graph and suppress unsupp
   assert.match(page, /const activePubChemIdentity = !isPristineInitialMolecule/);
   assert.match(page, /Boolean\(namingPubChemIdentity\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)\)/);
   assert.match(page, /const traditionalAvailable = Boolean\(!localSuggestedNameUnavailable/);
-  assert.match(page, /legacyEnglishName = useMemo\([\s\S]*localSuggestedNameUnavailable\s*\?\s*"-"\s*:\s*generateLegacyEnglishName/);
-  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*!localSuggestedNameUnavailable[\s\S]*legacyEnglishName !== "-"/);
+  assert.match(page, /legacyEnglishName = useMemo\([\s\S]*localSuggestedNameUnavailable \|\| !legacyEnglishProfileIsSupportedForMolecule\(molecule\)[\s\S]*?\? "-"\s*: generateLegacyEnglishName/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"\s*&& !localSuggestedNameUnavailable\s*&& legacyEnglishVariantIsAvailable\(/);
+  assert.equal(legacyEnglishVariantIsAvailable("oxirane", "cyclopropane", false), false);
+  assert.equal(legacyEnglishVariantIsAvailable("morpholine", "cyclohexane", false), false);
   assert.match(page, /Systematic name · PubChem/);
   assert.match(page, /Nombre sistemático · PubChem \(inglés\)/);
   assert.match(page, /Local IUPAC name unavailable for this structure/);
@@ -87,7 +90,8 @@ test("dock selects the locale's historical profile, copies the visible variant a
   assert.match(page, /convention: "iupac-1979-legacy-en" as const, label: "IUPAC 1979 Legacy English"/);
   assert.match(page, /legacyEnglishVariantAvailable = language === "en"/);
   assert.match(page, /traditionalAvailable = Boolean\([\s\S]*normalizeNomenclatureDisplayName\(historicalCandidate\) === normalizeNomenclatureDisplayName\(legacyEnglishName\)/);
-  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*normalizeNomenclatureDisplayName\(suggestedName\) !== normalizeNomenclatureDisplayName\(legacyEnglishName\)/);
+  assert.equal(legacyEnglishVariantIsAvailable("cyclohexylcyclohexane", "cyclohexylcyclohexane"), false);
+  assert.equal(legacyEnglishVariantIsAvailable("pent-2-ene", "2-pentene"), true);
   assert.match(page, /nomenclatureVariants\.some\(\(variant\) => variant\.convention === nomenclatureConvention\)/);
   assert.match(page, /nomenclatureVariants\.filter\(\(variant\) => variant\.convention !== "current"\)\.map/);
   assert.doesNotMatch(page, /No hay una variante IUPAC 1979 verificada para esta estructura/);

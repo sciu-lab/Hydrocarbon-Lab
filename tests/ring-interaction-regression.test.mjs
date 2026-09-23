@@ -105,7 +105,7 @@ test("the dock offers verified locale-specific historical variants separate from
   assert.match(page, /historicalCandidate = language === "es"[\s\S]*applyNomenclatureConvention\(nameWithSelectedStereochemistry, "iupac-1979-es", "es"\)/);
   assert.match(page, /normalizeNomenclatureDisplayName\(historicalCandidate\) !== normalizeNomenclatureDisplayName\(suggestedName\)/);
   assert.match(page, /label: language === "en" \? "Traditional" : "IUPAC 1979"/);
-  assert.match(page, /legacyEnglishVariantAvailable = language === "en"[\s\S]*legacyEnglishName !== "-"/);
+  assert.match(page, /legacyEnglishVariantAvailable = language === "en"\s*&& !localSuggestedNameUnavailable\s*&& legacyEnglishVariantIsAvailable\(/);
   assert.match(page, /label: "IUPAC 1979 Legacy English"/);
 });
 
