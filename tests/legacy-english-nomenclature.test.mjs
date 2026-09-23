@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 import { applyNomenclatureConvention } from "../app/nomenclature-conventions.ts";
+import { legacyProfileDisplayName } from "../app/legacy-profile-display.ts";
 import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
 import {
   compareLocantSets,
@@ -106,6 +107,26 @@ test("Spanish 1979 variant is derived from the local analysis of the loaded mole
 
 test("IUPAC 1979 Legacy English names acetone systematically as propanone", () => {
   assert.equal(legacyName(fromSmiles("CC(=O)C")).name, "propanone");
+});
+
+test("TNT gets the same valid Legacy name in Spanish and English when Spanish 1979 has no formatter rule", () => {
+  const molecule = fromSmiles("CC1=C(C=C(C=C1[N+](=O)[O-])[N+](=O)[O-])[N+](=O)[O-]");
+  const analysis = analyzeMolecule(molecule);
+  const suggestedEs = applyNomenclatureConvention(analysis.name, "current", "es");
+  const suggestedEn = translateSpanishIupacToOpsin(analysis.name);
+  const spanish1979 = applyNomenclatureConvention(analysis.name, "iupac-1979-es", "es");
+  const english1979 = legacyName(molecule).name;
+
+  assert.equal(analysis.name, "2-metil-1,3,5-trinitrobenceno");
+  assert.equal(spanish1979, "-", "the Spanish 1979 formatter has no nitroaromatic rule");
+  assert.equal(suggestedEn, "2-methyl-1,3,5-trinitrobenzene");
+  assert.equal(english1979, suggestedEn, "the English Legacy engine confirms this is already a valid shared name");
+  assert.deepEqual(legacyProfileDisplayName({
+    language: "es", suggestedName: suggestedEs, spanish1979Name: spanish1979, english1979Name: english1979,
+  }), { name: suggestedEs, available: true });
+  assert.deepEqual(legacyProfileDisplayName({
+    language: "en", suggestedName: suggestedEn, spanish1979Name: spanish1979, english1979Name: english1979,
+  }), { name: suggestedEn, available: true });
 });
 
 test("Legacy English preserves registered heterocycle parents and gates unsupported profiles", () => {

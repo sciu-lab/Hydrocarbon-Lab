@@ -44,7 +44,7 @@ test("external name safeguards follow the exact loaded graph and suppress unsupp
   assert.match(page, /const activePubChemIdentity = !isPristineInitialMolecule/);
   assert.match(page, /Boolean\(namingPubChemIdentity\s*&& externalCandidateNeedsNeutralLocalName\(molecule, calculatedAnalysis\)\)/);
   assert.match(page, /legacyEnglishName = useMemo\([\s\S]*localSuggestedNameUnavailable \|\| !legacyEnglishProfileIsSupportedForMolecule\(molecule\)[\s\S]*?\? "-"\s*: generateLegacyEnglishName/);
-  assert.match(page, /const legacyName = externalNameIsPrimary \|\| localSuggestedNameUnavailable\s*\? "-"/);
+  assert.match(page, /legacyProfileDisplayName\(\{/);
   assert.equal(legacyEnglishVariantIsAvailable("oxirane", "cyclopropane", false), false);
   assert.equal(legacyEnglishVariantIsAvailable("morpholine", "cyclohexane", false), false);
   assert.match(page, /verifiedPubChemSystematicDisplayName\(namingPubChemIdentity!, language\) \?\? pubChemIupacName!/);

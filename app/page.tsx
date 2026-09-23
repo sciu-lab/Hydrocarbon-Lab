@@ -128,6 +128,7 @@ import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
 import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
 import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifiedPubChemSystematicDisplayName } from "./verified-common-name-equivalences";
 import { curatedCommonNameForSmiles } from "./curated-common-name-display";
+import { legacyProfileDisplayName } from "./legacy-profile-display";
 import {
   compoundIdentityKey,
   createCompoundContextResolver,
@@ -6310,15 +6311,19 @@ export default function Home() {
     const suggestedName = externalNameIsPrimary
       ? verifiedPubChemSystematicDisplayName(namingPubChemIdentity!, language) ?? pubChemIupacName!
       : applyNomenclatureConvention(localizedIupac(nameWithSelectedStereochemistry), "current", language);
-    const legacyName = externalNameIsPrimary || localSuggestedNameUnavailable
-      ? "-"
-      : language === "es"
-        ? applyNomenclatureConvention(nameWithSelectedStereochemistry, "iupac-1979-es", "es")
-        : legacyEnglishName;
+    const legacyDisplay = legacyProfileDisplayName({
+      language,
+      suggestedName,
+      spanish1979Name: externalNameIsPrimary || localSuggestedNameUnavailable
+        ? "-"
+        : applyNomenclatureConvention(nameWithSelectedStereochemistry, "iupac-1979-es", "es"),
+      english1979Name: externalNameIsPrimary || localSuggestedNameUnavailable ? "-" : legacyEnglishName,
+    });
     return selectableNomenclatureConventions(language).map((convention) => ({
       convention,
       label: nomenclatureConventionLabel(convention, language),
-      name: convention === "current" ? suggestedName : legacyName,
+      name: convention === "current" ? suggestedName : legacyDisplay.name,
+      available: convention === "current" || legacyDisplay.available,
     }));
   })();
   const activeNomenclatureConvention = !simplifiedModeEnabled
@@ -6328,6 +6333,7 @@ export default function Home() {
     (variant) => variant.convention === activeNomenclatureConvention,
   )?.name ?? localizedIupac(nameWithSelectedStereochemistry);
   const displayedNameCopyable = (!localSuggestedNameUnavailable || externalNameIsPrimary)
+    && Boolean(nomenclatureVariants.find((variant) => variant.convention === activeNomenclatureConvention)?.available)
     && displayedIupacName !== "-";
   const verifiedLocalCommonName = curatedCommonNameForSmiles(
     currentMoleculeSmiles.ok ? currentMoleculeSmiles.smiles : undefined,
