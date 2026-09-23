@@ -2165,6 +2165,55 @@ export function registeredHeterocycleParentForRing(molecule: Molecule, ring: Rin
   )?.definition;
 }
 
+function heterocycleRingAtomCounts(molecule: Molecule, ring: RingInfo) {
+  const counts = new Map<string, number>();
+  ring.atomIds.forEach((atomId) => {
+    const atom = getAtom(atomId, molecule);
+    const element = atom ? getElement(atom) : "C";
+    counts.set(element, (counts.get(element) ?? 0) + 1);
+  });
+  return counts;
+}
+
+const RING_ELEMENT_NAMES: Record<string, { es: [string, string]; en: [string, string] }> = {
+  C: { es: ["carbono", "carbonos"], en: ["carbon", "carbons"] },
+  O: { es: ["oxígeno", "oxígenos"], en: ["oxygen", "oxygens"] },
+  N: { es: ["nitrógeno", "nitrógenos"], en: ["nitrogen", "nitrogens"] },
+  S: { es: ["azufre", "azufres"], en: ["sulfur", "sulfurs"] },
+};
+
+function heterocycleRingCompositionText(molecule: Molecule, ring: RingInfo, language: AppLanguage) {
+  const counts = heterocycleRingAtomCounts(molecule, ring);
+  const composition = [...counts.entries()]
+    .sort(([left], [right]) => ["C", "O", "N", "S"].indexOf(left) - ["C", "O", "N", "S"].indexOf(right))
+    .map(([element, count]) => {
+      const names = RING_ELEMENT_NAMES[element];
+      return names
+        ? `${count} ${names[language][count === 1 ? 0 : 1]}`
+        : `${count} ${element}`;
+    });
+  const joined = language === "en"
+    ? composition.length < 2
+      ? composition[0] ?? ""
+      : composition.length === 2
+        ? `${composition[0]} and ${composition[1]}`
+        : `${composition.slice(0, -1).join(", ")}, and ${composition.at(-1)}`
+    : composition.length < 2
+      ? composition[0] ?? ""
+      : `${composition.slice(0, -1).join(", ")} y ${composition.at(-1)}`;
+  return language === "en"
+    ? `The parent ring contains ${ring.atomIds.length} atoms: ${joined}.`
+    : `El anillo principal contiene ${ring.atomIds.length} átomos: ${joined}.`;
+}
+
+/** The analysis card mixes functional classes with a hydrocarbon fallback; keep its structural fallback truthful. */
+export function principalGroupAnalysisLabel(molecule: Molecule, analysis: Analysis) {
+  if (analysis.primaryFunctionalLabel) return analysis.primaryFunctionalLabel;
+  if (analysis.functionalGroups[0]?.label) return analysis.functionalGroups[0].label;
+  if (heterocycleRing(molecule)) return "Heterociclo";
+  return molecule.atoms.every(isCarbonAtom) ? "Hidrocarburo" : null;
+}
+
 function moleculeContainsHeterocycle(molecule: Molecule) {
   return Boolean(heterocycleRing(molecule));
 }
@@ -3796,6 +3845,7 @@ export function buildIupacReasoningSteps(
   enabledAliases: readonly string[] = [],
   sourceName?: string | null,
 ): IupacReasoningStep[] {
+  if (heterocycleRing(molecule) && localNamerCannotSafelyName(molecule, analysis)) return [];
   if (analysis.steroidSystem?.constitutionNameEs) {
     const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
     const stereoExplanation = tetrahedralDescriptors.length
@@ -4078,8 +4128,9 @@ export function buildIupacReasoningSteps(
   }
 
   let parentExplanation: string;
-  if (moleculeContainsHeterocycle(molecule)) {
-    parentExplanation = `El anillo contiene uno o más heteroátomos (N, O o S). OPSIN y OpenChemLib conservan su conectividad y el nombre base ${analysis.chainName}.`;
+  const heterocycleParentRing = heterocycleRing(molecule);
+  if (heterocycleParentRing) {
+    parentExplanation = `${heterocycleRingCompositionText(molecule, heterocycleParentRing, "es")} El nombre del padre es ${analysis.chainName}; el nombre IUPAC completo es ${analysis.name}.`;
   } else if (analysis.family === "aromatic") {
     parentExplanation = `Se elige el anillo aromático de ${chainLength} carbonos que contiene la función prioritaria cuando existe. La elección se hace por conectividad, no por la orientación visual del dibujo, y aporta el nombre base ${analysis.chainName}.`;
   } else if (analysis.family === "polycyclic") {
@@ -4459,14 +4510,19 @@ export function buildEnglishReasoningSteps(
         ? `${primaryLabel} has the highest naming priority among the detected functional groups. It determines the suffix, and the parent skeleton is numbered to give this function the lowest permitted locant.`
         : "Functional-group priority is checked before the parent skeleton is numbered.";
     } else if (step.number === "02") {
-      const family = analysis.family === "aromatic"
-        ? "aromatic ring"
-        : analysis.family === "cycloalkane"
-          ? "ring"
-          : analysis.family === "polycyclic"
-            ? "ring system"
-            : "continuous carbon chain";
-      explanation = `The ${family} chosen as the parent contains ${analysis.mainChain.length} carbon${analysis.mainChain.length === 1 ? "" : "s"}. The parent name is ${parentName}; the complete IUPAC name is ${englishName}.`;
+      const heterocycleParentRing = heterocycleRing(molecule);
+      if (heterocycleParentRing) {
+        explanation = `${heterocycleRingCompositionText(molecule, heterocycleParentRing, "en")} The parent name is ${parentName}; the complete IUPAC name is ${englishName}.`;
+      } else {
+        const family = analysis.family === "aromatic"
+          ? "aromatic ring"
+          : analysis.family === "cycloalkane"
+            ? "ring"
+            : analysis.family === "polycyclic"
+              ? "ring system"
+              : "continuous carbon chain";
+        explanation = `The ${family} chosen as the parent contains ${analysis.mainChain.length} carbon${analysis.mainChain.length === 1 ? "" : "s"}. The parent name is ${parentName}; the complete IUPAC name is ${englishName}.`;
+      }
     } else if (step.number === "03") {
       const unsaturation = multipleBonds.length
         ? ` Multiple bonds are located at ${multipleBonds.join(", ")}.`
@@ -6511,6 +6567,7 @@ export default function Home() {
         : analysis.family === "polycyclic"
           ? "Policíclico"
           : "Hidrocarburo");
+  const principalGroupLabel = principalGroupAnalysisLabel(molecule, analysis);
   const localizedHistoryFamilyLabel = t(historyFamilyLabel);
   const filteredHistoryEntries = useMemo(() => {
     const query = historyQuery.trim().toLocaleLowerCase(language);
@@ -11974,13 +12031,7 @@ export default function Home() {
             </div>
             <div>
               <span>{t("Grupo principal")}</span>
-              <strong>{localSuggestedNameUnavailable
-                ? "—"
-                : analysis.primaryFunctionalLabel
-                  ? t(analysis.primaryFunctionalLabel)
-                  : analysis.functionalGroups[0]?.label
-                    ? t(analysis.functionalGroups[0].label)
-                    : t("Hidrocarburo")}</strong>
+              <strong>{principalGroupLabel ? t(principalGroupLabel) : "—"}</strong>
             </div>
           </div>
 

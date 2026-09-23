@@ -26,6 +26,7 @@ import { createFormulaCandidateResolver } from "../app/formula-candidate-resolve
 import { compoundIdentityKey, createCompoundContextResolver } from "../app/compound-context.ts";
 import { sanitizeTetrahedralStereochemistry } from "../app/tetrahedral-stereochemistry.ts";
 import { verifiedPubChemCommonName } from "../app/verified-common-name-equivalences.ts";
+import { uiText } from "../app/i18n.ts";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -38,6 +39,9 @@ let externalCandidateLocalDisplayName;
 let heterocycleHasUnrepresentedHydroxylGroups;
 let legacyEnglishProfileIsSupportedForMolecule;
 let registeredHeterocycleParentForRing;
+let buildIupacReasoningSteps;
+let buildEnglishReasoningSteps;
+let principalGroupAnalysisLabel;
 let buildLegacyEnglishNameModel;
 let pubChemIdentityForNomenclature;
 
@@ -59,6 +63,9 @@ before(async () => {
     heterocycleHasUnrepresentedHydroxylGroups,
     legacyEnglishProfileIsSupportedForMolecule,
     registeredHeterocycleParentForRing,
+    buildIupacReasoningSteps,
+    buildEnglishReasoningSteps,
+    principalGroupAnalysisLabel,
     buildLegacyEnglishNameModel,
     pubChemIdentityForNomenclature,
   } = await server.ssrLoadModule("/app/page.tsx"));
@@ -168,6 +175,54 @@ test("heterocycle parent recognition matches cyclic connectivity, not compositio
     assert.equal(registeredHeterocycleParentForRing(molecule, ring), undefined, smiles);
     assert.equal(localNamerCannotSafelyName(molecule, analysis), true, smiles);
   }
+});
+
+test("molecular analysis reports heterocycle classes and ring atom composition accurately", () => {
+  const cases = [
+    ["O1CCNCC1", "C₄H₉NO", 6, "4 carbonos, 1 oxígeno y 1 nitrógeno", "4 carbons, 1 oxygen, and 1 nitrogen"],
+    ["N1CCOCC1", "C₄H₉NO", 6, "4 carbonos, 1 oxígeno y 1 nitrógeno", "4 carbons, 1 oxygen, and 1 nitrogen"],
+    ["O1CC1", "C₂H₄O", 3, "2 carbonos y 1 oxígeno", "2 carbons and 1 oxygen"],
+    ["N1CCCCC1", "C₅H₁₁N", 6, "5 carbonos y 1 nitrógeno", "5 carbons and 1 nitrogen"],
+    ["O1CCOCC1", "C₄H₈O₂", 6, "4 carbonos y 2 oxígenos", "4 carbons and 2 oxygens"],
+    ["O1COCC1", "C₃H₆O₂", 5, "3 carbonos y 2 oxígenos", "3 carbons and 2 oxygens"],
+  ];
+
+  for (const [smiles, formula, ringSize, spanishComposition, englishComposition] of cases) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, true, smiles);
+    const analysis = analyzeMolecule(converted.molecule);
+    assert.equal(analysis.formula, formula, smiles);
+    assert.equal(principalGroupAnalysisLabel(converted.molecule, analysis), "Heterociclo", smiles);
+    assert.equal(uiText("en", principalGroupAnalysisLabel(converted.molecule, analysis)), "Heterocycle", smiles);
+    const spanishSteps = buildIupacReasoningSteps(converted.molecule, analysis);
+    const englishSteps = buildEnglishReasoningSteps(spanishSteps, converted.molecule, analysis);
+    const spanishParent = spanishSteps.find((step) => step.number === "02")?.explanation ?? "";
+    const englishParent = englishSteps.find((step) => step.number === "02")?.explanation ?? "";
+    assert.match(spanishParent, new RegExp(`contiene ${ringSize} átomos`), smiles);
+    assert.ok(spanishParent.includes(spanishComposition), `${smiles}: ${spanishParent}`);
+    assert.ok(englishParent.includes(englishComposition), `${smiles}: ${englishParent}`);
+  }
+
+  const cyclohexane = moleculeFromSmiles("C1CCCCC1");
+  assert.equal(cyclohexane.ok, true);
+  const cyclohexaneAnalysis = analyzeMolecule(cyclohexane.molecule);
+  assert.equal(principalGroupAnalysisLabel(cyclohexane.molecule, cyclohexaneAnalysis), "Hidrocarburo");
+  const cyclohexaneSpanish = buildIupacReasoningSteps(cyclohexane.molecule, cyclohexaneAnalysis)
+    .find((step) => step.number === "02")?.explanation ?? "";
+  const cyclohexaneEnglish = buildEnglishReasoningSteps(
+    buildIupacReasoningSteps(cyclohexane.molecule, cyclohexaneAnalysis),
+    cyclohexane.molecule,
+    cyclohexaneAnalysis,
+  ).find((step) => step.number === "02")?.explanation ?? "";
+  assert.match(cyclohexaneSpanish, /anillo continuo de 6 carbonos/);
+  assert.match(cyclohexaneEnglish, /ring chosen as the parent contains 6 carbons/);
+
+  const unregistered = moleculeFromSmiles("O1CNCCC1");
+  assert.equal(unregistered.ok, true);
+  const unregisteredAnalysis = analyzeMolecule(unregistered.molecule);
+  assert.equal(principalGroupAnalysisLabel(unregistered.molecule, unregisteredAnalysis), "Heterociclo");
+  assert.deepEqual(buildIupacReasoningSteps(unregistered.molecule, unregisteredAnalysis), []);
+  assert.deepEqual(buildEnglishReasoningSteps([], unregistered.molecule, unregisteredAnalysis), []);
 });
 
 test("CID 5793 remains protected before local profiles are selected", () => {
