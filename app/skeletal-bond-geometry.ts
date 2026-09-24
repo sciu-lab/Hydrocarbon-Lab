@@ -8,11 +8,33 @@ export type SkeletalNumberBadgeObstacle = {
   radius: number;
 };
 
+export type SkeletalBondStrokeObstacle = {
+  start: SkeletalPoint;
+  end: SkeletalPoint;
+  radius: number;
+};
+
 export type SkeletalBondSegment = SkeletalPoint & {
   x2: number;
   y2: number;
   role: "edge" | "inner";
 };
+
+export function getParallelBondSegments(start: SkeletalPoint, end: SkeletalPoint, order: 1 | 2 | 3) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const normalX = -dy / length;
+  const normalY = dx / length;
+  const offsets = order === 1 ? [0] : order === 2 ? [-5, 5] : [-8, 0, 8];
+  return offsets.map((offset) => ({
+    x: start.x + normalX * offset,
+    y: start.y + normalY * offset,
+    x2: end.x + normalX * offset,
+    y2: end.y + normalY * offset,
+    role: null,
+  }));
+}
 
 export const SKELETAL_NODE_RADIUS = 20;
 export const SKELETAL_BOND_END_BUFFER = 3;
@@ -93,29 +115,43 @@ export function getSkeletalNumberBadgeOffsetWithClearance(
   preferredOffset: SkeletalPoint,
   badgeRadius: number,
   obstacles: readonly SkeletalNumberBadgeObstacle[],
+  bondStrokes: readonly SkeletalBondStrokeObstacle[] = [],
 ): SkeletalPoint {
   const preferredLength = Math.hypot(preferredOffset.x, preferredOffset.y);
-  if (preferredLength === 0 || obstacles.length === 0) return { ...preferredOffset };
+  if (preferredLength === 0 || (obstacles.length === 0 && bondStrokes.length === 0)) return { ...preferredOffset };
 
   const candidateOffsets = [0, -24, 24, -48, 48, -72, 72].flatMap((degrees) => {
     const angle = degrees * Math.PI / 180;
     const cosine = Math.cos(angle);
     const sine = Math.sin(angle);
-    return [1, 1.16].map((distanceScale) => ({
+    return (bondStrokes.length ? [1, 1.16, 1.4, 1.6] : [1, 1.16]).map((distanceScale) => ({
       x: (preferredOffset.x * cosine - preferredOffset.y * sine) * distanceScale,
       y: (preferredOffset.x * sine + preferredOffset.y * cosine) * distanceScale,
     }));
   });
 
-  return candidateOffsets.reduce((best, candidate) => {
-    const candidatePenalty = obstacles.reduce((penalty, obstacle) => {
+  const penaltyFor = (candidate: SkeletalPoint) => {
+    const circlePenalty = obstacles.reduce((penalty, obstacle) => {
       const distance = Math.hypot(candidate.x - obstacle.center.x, candidate.y - obstacle.center.y);
       return penalty + Math.max(0, badgeRadius + obstacle.radius - distance) ** 2;
     }, 0);
-    const bestPenalty = obstacles.reduce((penalty, obstacle) => {
-      const distance = Math.hypot(best.x - obstacle.center.x, best.y - obstacle.center.y);
-      return penalty + Math.max(0, badgeRadius + obstacle.radius - distance) ** 2;
-    }, 0);
+    return bondStrokes.reduce((penalty, stroke) => {
+      const dx = stroke.end.x - stroke.start.x;
+      const dy = stroke.end.y - stroke.start.y;
+      const lengthSquared = dx * dx + dy * dy;
+      const t = lengthSquared === 0 ? 0 : clamp(
+        ((candidate.x - stroke.start.x) * dx + (candidate.y - stroke.start.y) * dy) / lengthSquared,
+        0,
+        1,
+      );
+      const distance = Math.hypot(candidate.x - stroke.start.x - dx * t, candidate.y - stroke.start.y - dy * t);
+      return penalty + Math.max(0, badgeRadius + stroke.radius - distance) ** 2;
+    }, circlePenalty);
+  };
+
+  return candidateOffsets.reduce((best, candidate) => {
+    const candidatePenalty = penaltyFor(candidate);
+    const bestPenalty = penaltyFor(best);
     const candidateDeviation = Math.hypot(candidate.x - preferredOffset.x, candidate.y - preferredOffset.y);
     const bestDeviation = Math.hypot(best.x - preferredOffset.x, best.y - preferredOffset.y);
     return candidatePenalty < bestPenalty || (candidatePenalty === bestPenalty && candidateDeviation < bestDeviation)

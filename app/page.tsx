@@ -74,6 +74,7 @@ import {
   DEFAULT_NUMBERING_SCALE,
   getSkeletalNumberBadgeGeometry,
   getSkeletalNumberBadgeOffsetWithClearance,
+  getParallelBondSegments,
   getSkeletalRingNumberBadgeOffset,
   getSkeletalRingDoubleBondSegments,
   MAX_NUMBERING_SCALE,
@@ -81,6 +82,7 @@ import {
   normalizeNumberingScale,
   NUMBERING_SCALE_STEP,
 } from "./skeletal-bond-geometry";
+import { clipCondensedBondSegments, CONDENSED_NODE_RADIUS } from "./condensed-bond-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
 import {
   clearTetrahedralConfiguration,
@@ -194,12 +196,6 @@ const DEFAULT_STRUCTURE_COLORS = {
   branch: "#d5a254",
   functional: "#8a6ca0",
 } as const;
-
-// Keep this in sync with the condensed SVG node below. Coordinates come from
-// the shared molecular layout; this value only controls where a stroke meets
-// that visual node.
-const CONDENSED_NODE_RADIUS = 28;
-const CONDENSED_BOND_NODE_PADDING = 3;
 
 const MIN_EXPORT_PIXELS = 200;
 const MAX_EXPORT_PIXELS = 8000;
@@ -4816,36 +4812,6 @@ export function canvasCoordinateScaleForCarbonCount(carbonCount: number) {
   return 0.36;
 }
 
-type BondSegment = {
-  x: number;
-  y: number;
-  x2: number;
-  y2: number;
-  role: string | null;
-};
-
-function clipCondensedBondSegments(
-  segments: readonly BondSegment[],
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-) {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const length = Math.hypot(dx, dy);
-  const clearance = CONDENSED_NODE_RADIUS + CONDENSED_BOND_NODE_PADDING;
-  if (length < clearance * 2 + 1e-6) return segments;
-
-  const ux = dx / length;
-  const uy = dy / length;
-  return segments.map((segment) => ({
-    ...segment,
-    x: segment.x + ux * clearance,
-    y: segment.y + uy * clearance,
-    x2: segment.x2 - ux * clearance,
-    y2: segment.y2 - uy * clearance,
-  }));
-}
-
 function ringIconPoints(size: number) {
   return Array.from({ length: size }, (_, index) => {
     const angle = -Math.PI / 2 + (index * Math.PI * 2) / size;
@@ -9225,10 +9191,24 @@ export default function Home() {
         radius: paintedNumberBadgeRadius + 4,
       };
     });
+    const attachedBondStrokes = viewMode === "skeletal" && effectiveShowNumbering
+      ? molecule.bonds.flatMap((bond) => {
+          const otherId = bond[0] === atom.id ? bond[1] : bond[1] === atom.id ? bond[0] : null;
+          if (otherId === null) return [];
+          const otherPosition = displayPositions.get(otherId)!;
+          const order = getBondOrder(bond);
+          return [{
+            start: { x: 0, y: 0 },
+            end: { x: otherPosition.x - position.x, y: otherPosition.y - position.y },
+            radius: (order === 3 ? 8 : order === 2 ? 5 : 0) + 5.5 / 2 + 2,
+          }];
+        })
+      : [];
     const offset = getSkeletalNumberBadgeOffsetWithClearance(
       preferredOffset,
       paintedNumberBadgeRadius,
       [...labelObstacles, ...priorBadgeObstacles],
+      attachedBondStrokes,
     );
     skeletalNumberBadgeOffsets.set(atom.id, offset);
     if (Math.hypot(offset.x - preferredOffset.x, offset.y - preferredOffset.y) > 1) {
@@ -10957,14 +10937,7 @@ export default function Home() {
                         .map((atom) => displayPositions.get(atom.id)!),
                     )
                   : null;
-                const offsets = order === 1 ? [0] : order === 2 ? [-5, 5] : [-8, 0, 8];
-                const parallelBondSegments = offsets.map((offset) => ({
-                  x: positionA.x + normalX * offset,
-                  y: positionA.y + normalY * offset,
-                  x2: positionB.x + normalX * offset,
-                  y2: positionB.y + normalY * offset,
-                  role: null,
-                }));
+                const parallelBondSegments = getParallelBondSegments(positionA, positionB, order);
                 const rawBondSegments = ringDoubleBondSegments ?? parallelBondSegments;
                 const startNumberObstacle = effectiveShowNumbering
                   && carbonCount > 1
