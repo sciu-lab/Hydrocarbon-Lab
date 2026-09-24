@@ -6228,6 +6228,8 @@ export default function Home() {
   const expandedWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const historyCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const pngExportCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsTriggerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const compoundLookupNamesRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -6299,18 +6301,31 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!canvasExpanded && !pngExportOpen && !historyOpen) return undefined;
+    if (!canvasExpanded && !pngExportOpen && !historyOpen && !settingsOpen) return undefined;
     const body = window.document.body;
+    const scrollY = window.scrollY;
     const previousOverflow = body.style.overflow;
     const previousPaddingRight = body.style.paddingRight;
+    const previousPosition = body.style.position;
+    const previousTop = body.style.top;
+    const previousWidth = body.style.width;
     const scrollbarWidth = Math.max(0, window.innerWidth - window.document.documentElement.clientWidth);
     body.style.overflow = "hidden";
+    if (settingsOpen) {
+      body.style.position = "fixed";
+      body.style.top = `-${scrollY}px`;
+      body.style.width = "100%";
+    }
     if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
     return () => {
       body.style.overflow = previousOverflow;
       body.style.paddingRight = previousPaddingRight;
+      body.style.position = previousPosition;
+      body.style.top = previousTop;
+      body.style.width = previousWidth;
+      if (settingsOpen) window.scrollTo(0, scrollY);
     };
-  }, [canvasExpanded, pngExportOpen, historyOpen]);
+  }, [canvasExpanded, pngExportOpen, historyOpen, settingsOpen]);
 
   useEffect(() => {
     if (!canvasExpanded || pngExportOpen) return undefined;
@@ -7100,6 +7115,16 @@ export default function Home() {
       });
     };
   }, [pngExportOpen]);
+
+  useEffect(() => {
+    if (!settingsOpen) return undefined;
+    const settingsTriggerButton = settingsTriggerButtonRef.current;
+    const focusFrame = window.requestAnimationFrame(() => settingsCloseButtonRef.current?.focus({ preventScroll: true }));
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.requestAnimationFrame(() => settingsTriggerButton?.focus({ preventScroll: true }));
+    };
+  }, [settingsOpen]);
 
   useEffect(() => {
     if (!historyReady || !historyIdentity || historyClearing) return;
@@ -9537,7 +9562,7 @@ export default function Home() {
         simplifiedModeEnabled && "a11y-simplified-mode",
         highlightInteractivesEnabled && "a11y-highlight-interactives",
       ].filter(Boolean).join(" ")}
-      inert={historyOpen || pngExportOpen || canvasExpanded}
+      inert={historyOpen || settingsOpen || pngExportOpen || canvasExpanded}
       onPointerDownCapture={() => {
         dismissValenceAlert();
       }}
@@ -9801,6 +9826,7 @@ export default function Home() {
       )}
 
       {settingsOpen && (
+        <OverlayPortal active={settingsOpen}>
         <div className="settings-overlay">
           <button
             className="settings-scrim"
@@ -9822,6 +9848,7 @@ export default function Home() {
               <button
                 type="button"
                 className="settings-close"
+                ref={settingsCloseButtonRef}
                 onClick={() => setSettingsOpen(false)}
                 aria-label={t("Cerrar configuración")}
               >
@@ -10050,6 +10077,7 @@ export default function Home() {
             </section>
           </aside>
         </div>
+        </OverlayPortal>
       )}
 
       {pngExportOpen && (
@@ -12197,6 +12225,7 @@ export default function Home() {
             <button
               type="button"
               className="settings-control"
+              ref={settingsTriggerButtonRef}
               onClick={() => {
                 setHistoryOpen(false);
                 setSettingsOpen(true);

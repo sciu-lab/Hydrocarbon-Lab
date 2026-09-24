@@ -48,3 +48,13 @@ test("the settings drawer keeps its controls, shortcuts, and dismiss actions", (
   assert.match(css, /\.settings-panel\s*\{/);
   assert.match(css, /\.settings-toggle\s*\{/);
 });
+
+test("settings scale actions adapt to the section width and preserve localized reset behavior", () => {
+  assert.match(css, /\.settings-scale-control\s*\{[^}]*grid-template-columns:\s*minmax\(0, 0\.45fr\) minmax\(207px, 1fr\)/s);
+  assert.match(css, /\.settings-scale-actions\s*\{[^}]*grid-template-columns:\s*minmax\(70px, 1fr\) 40px auto/s);
+  assert.match(css, /@container settings-section \(max-width: 320px\)[\s\S]*?\.settings-scale-actions button\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*justify-self:\s*end/s);
+  assert.match(page, /<output aria-live="polite">\{Math\.round\(numberingScale \* 100\)\} %<\/output>[\s\S]*?disabled=\{numberingScale === DEFAULT_NUMBERING_SCALE\}[\s\S]*?updateNumberingScale\(DEFAULT_NUMBERING_SCALE\)/);
+  assert.match(page, /<output aria-live="polite">\{Math\.round\(functionalGroupScale \* 100\)\} %<\/output>[\s\S]*?disabled=\{functionalGroupScale === DEFAULT_FUNCTIONAL_GROUP_SCALE\}[\s\S]*?updateFunctionalGroupScale\(DEFAULT_FUNCTIONAL_GROUP_SCALE\)/);
+  assert.match(page, /<output aria-live="polite">\{Math\.round\(tetrahedralBadgeScale \* 100\)\} %<\/output>[\s\S]*?disabled=\{tetrahedralBadgeScale === DEFAULT_TETRAHEDRAL_BADGE_SCALE\}[\s\S]*?updateTetrahedralBadgeScale\(DEFAULT_TETRAHEDRAL_BADGE_SCALE\)/);
+  assert.match(page, /\{t\("Restablecer"\)\}/);
+});

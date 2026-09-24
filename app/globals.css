@@ -224,6 +224,7 @@ button {
   height: 100%;
   padding: 25px 22px 24px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-left: 1px solid #cfe2db;
   background:
     radial-gradient(circle at 100% 0, rgba(218, 239, 230, 0.78), transparent 22rem),
@@ -270,6 +271,7 @@ button {
 }
 
 .settings-section {
+  container: settings-section / inline-size;
   padding: 16px;
   border: 1px solid #d8e7e1;
   border-radius: 17px;
@@ -864,7 +866,7 @@ button {
 
 .settings-scale-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.9fr);
+  grid-template-columns: minmax(0, 0.45fr) minmax(207px, 1fr);
   align-items: center;
   gap: 12px;
   min-height: 64px;
@@ -892,7 +894,7 @@ button {
 
 .settings-scale-actions {
   display: grid;
-  grid-template-columns: minmax(78px, 1fr) 40px auto;
+  grid-template-columns: minmax(70px, 1fr) 40px auto;
   align-items: center;
   gap: 7px;
 }
@@ -912,7 +914,7 @@ button {
 
 .settings-scale-actions button {
   min-height: 30px;
-  padding: 0 9px;
+  padding: 0 6px;
   border: 1px solid #bfd4cd;
   border-radius: 8px;
   background: #f6faf8;
@@ -936,6 +938,23 @@ button {
 @media (max-width: 480px) {
   .settings-scale-control {
     grid-template-columns: 1fr;
+  }
+}
+
+@container settings-section (max-width: 320px) {
+  .settings-scale-control {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .settings-scale-actions {
+    grid-template-columns: minmax(0, 1fr) 40px;
+    gap: 6px;
+  }
+
+  .settings-scale-actions button {
+    grid-column: 1 / -1;
+    justify-self: end;
   }
 }
 
