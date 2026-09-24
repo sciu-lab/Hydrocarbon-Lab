@@ -246,9 +246,13 @@ type PanelPositions = Record<MovablePanelId, PanelPosition>;
  * the same live React subtree while mounting it at the document root only for
  * the expanded presentation.
  */
-function ViewportPortal({ active, children }: { active: boolean; children: React.ReactNode }) {
+function OverlayPortal({ active, children }: { active: boolean; children: React.ReactNode }) {
   if (active && typeof document !== "undefined") return createPortal(children, document.body);
   return <>{children}</>;
+}
+
+function ViewportPortal({ active, children }: { active: boolean; children: React.ReactNode }) {
+  return <OverlayPortal active={active}>{children}</OverlayPortal>;
 }
 
 function ToolPanelPortal({ target, expanded, children }: {
@@ -6222,6 +6226,8 @@ export default function Home() {
   const canvasExpandButtonRef = useRef<HTMLButtonElement | null>(null);
   const expandedCanvasCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const expandedWorkspaceRef = useRef<HTMLDivElement | null>(null);
+  const historyCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pngExportCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const compoundLookupNamesRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -6293,16 +6299,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!canvasExpanded && !pngExportOpen) return undefined;
-    const previousOverflow = window.document.body.style.overflow;
-    window.document.body.style.overflow = "hidden";
+    if (!canvasExpanded && !pngExportOpen && !historyOpen) return undefined;
+    const body = window.document.body;
+    const previousOverflow = body.style.overflow;
+    const previousPaddingRight = body.style.paddingRight;
+    const scrollbarWidth = Math.max(0, window.innerWidth - window.document.documentElement.clientWidth);
+    body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
     return () => {
-      window.document.body.style.overflow = previousOverflow;
+      body.style.overflow = previousOverflow;
+      body.style.paddingRight = previousPaddingRight;
     };
-  }, [canvasExpanded, pngExportOpen]);
+  }, [canvasExpanded, pngExportOpen, historyOpen]);
 
   useEffect(() => {
-    if (!canvasExpanded) return undefined;
+    if (!canvasExpanded || pngExportOpen) return undefined;
     const keepFocusInWorkspace = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
       const workspace = expandedWorkspaceRef.current;
@@ -6320,7 +6331,7 @@ export default function Home() {
     };
     window.document.addEventListener("keydown", keepFocusInWorkspace);
     return () => window.document.removeEventListener("keydown", keepFocusInWorkspace);
-  }, [canvasExpanded]);
+  }, [canvasExpanded, pngExportOpen]);
 
   const adjacency = useMemo(() => buildAdjacency(molecule), [molecule]);
   const calculatedAnalysis = useMemo(
@@ -7063,17 +7074,32 @@ export default function Home() {
 
   useEffect(() => {
     if (!historyOpen) return;
-    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusFrame = window.requestAnimationFrame(() => historyCloseButtonRef.current?.focus({ preventScroll: true }));
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setHistoryOpen(false);
     };
-    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      window.cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", closeOnEscape);
+      window.requestAnimationFrame(() => {
+        if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true });
+      });
     };
   }, [historyOpen]);
+
+  useEffect(() => {
+    if (!pngExportOpen) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusFrame = window.requestAnimationFrame(() => pngExportCloseButtonRef.current?.focus({ preventScroll: true }));
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.requestAnimationFrame(() => {
+        if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true });
+      });
+    };
+  }, [pngExportOpen]);
 
   useEffect(() => {
     if (!historyReady || !historyIdentity || historyClearing) return;
@@ -9511,6 +9537,7 @@ export default function Home() {
         simplifiedModeEnabled && "a11y-simplified-mode",
         highlightInteractivesEnabled && "a11y-highlight-interactives",
       ].filter(Boolean).join(" ")}
+      inert={historyOpen || pngExportOpen || canvasExpanded}
       onPointerDownCapture={() => {
         dismissValenceAlert();
       }}
@@ -9525,6 +9552,7 @@ export default function Home() {
       </header>
 
       {historyOpen && (
+        <OverlayPortal active={historyOpen}>
         <div className="history-overlay">
           <button
             className="history-scrim"
@@ -9544,6 +9572,7 @@ export default function Home() {
               </div>
               <button
                 className="history-close"
+                ref={historyCloseButtonRef}
                 onClick={() => setHistoryOpen(false)}
                 aria-label={t("Cerrar historial")}
               >
@@ -9768,6 +9797,7 @@ export default function Home() {
             </p>
           </aside>
         </div>
+        </OverlayPortal>
       )}
 
       {settingsOpen && (
@@ -10023,6 +10053,7 @@ export default function Home() {
       )}
 
       {pngExportOpen && (
+        <OverlayPortal active={pngExportOpen}>
         <div className="png-export-overlay">
           <button
             className="png-export-scrim"
@@ -10046,6 +10077,7 @@ export default function Home() {
               <button
                 type="button"
                 className="png-export-close"
+                ref={pngExportCloseButtonRef}
                 onClick={() => setPngExportOpen(false)}
                 aria-label={t("Cerrar opciones de exportación de imagen")}
               >
@@ -10275,6 +10307,7 @@ export default function Home() {
             </div>
           </section>
         </div>
+        </OverlayPortal>
       )}
 
       <div className="workspace-grid" ref={workspaceGridRef}>
@@ -10805,6 +10838,7 @@ export default function Home() {
             className={`molecule-workspace ${canvasExpanded ? "is-expanded" : ""}`}
             role={canvasExpanded ? "dialog" : undefined}
             aria-modal={canvasExpanded || undefined}
+            inert={pngExportOpen}
             aria-label={canvasExpanded ? t("Vista ampliada del constructor molecular") : undefined}
           >
             {canvasExpanded && (

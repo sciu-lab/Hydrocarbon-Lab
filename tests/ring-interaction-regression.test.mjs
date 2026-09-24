@@ -85,7 +85,8 @@ test("explicit fusion clears its temporary selection only after a successful com
 
 test("expanded workspace wraps the live canvas and construction controls", () => {
   assert.match(page, /import \{ createPortal \} from "react-dom"/);
-  assert.match(page, /function ViewportPortal[\s\S]*?createPortal\(children, document\.body\)/);
+  assert.match(page, /function OverlayPortal[\s\S]*?createPortal\(children, document\.body\)/);
+  assert.match(page, /function ViewportPortal[\s\S]*?<OverlayPortal active=\{active\}>/);
   assert.match(page, /<ViewportPortal active=\{canvasExpanded\}>/);
   assert.match(page, /className=\{`molecule-workspace \$\{canvasExpanded \? "is-expanded" : ""\}`\}/);
   assert.match(page, /expanded-workspace-header/);

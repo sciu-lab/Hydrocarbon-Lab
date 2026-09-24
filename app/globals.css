@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 :root {
+  --layer-workspace-sticky: 10;
+  --layer-workspace-floating: 20;
+  --layer-expanded-backdrop: 30;
+  --layer-expanded-content: 40;
+  --layer-modal-backdrop: 50;
+  --layer-modal-content: 60;
+  --layer-modal-popover: 70;
   --ink: #18312d;
   --muted: #63746f;
   --line: #dce6e2;
@@ -190,8 +197,9 @@ button {
 
 .settings-overlay {
   position: fixed;
-  z-index: 110;
+  z-index: var(--layer-modal-backdrop);
   inset: 0;
+  width: 100vw;
   display: flex;
   justify-content: flex-end;
 }
@@ -211,7 +219,7 @@ button {
 
 .settings-panel {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-modal-content);
   width: min(430px, calc(100% - 28px));
   height: 100%;
   padding: 25px 22px 24px;
@@ -271,8 +279,9 @@ button {
 
 .png-export-overlay {
   position: fixed;
-  z-index: 120;
+  z-index: var(--layer-modal-backdrop);
   inset: 0;
+  width: 100vw;
   display: grid;
   padding: 20px;
   place-items: center;
@@ -293,7 +302,7 @@ button {
 
 .png-export-dialog {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-modal-content);
   width: min(680px, 100%);
   max-height: min(760px, calc(100vh - 40px));
   padding: 24px;
@@ -1195,8 +1204,9 @@ button {
 
 .history-overlay {
   position: fixed;
-  z-index: 100;
+  z-index: var(--layer-modal-backdrop);
   inset: 0;
+  width: 100vw;
   display: flex;
   justify-content: flex-end;
 }
@@ -1216,7 +1226,7 @@ button {
 
 .history-drawer {
   position: relative;
-  z-index: 1;
+  z-index: var(--layer-modal-content);
   display: flex;
   width: min(475px, calc(100% - 28px));
   height: 100%;
@@ -2100,7 +2110,7 @@ button {
 }
 
 .movable-panel.is-raised {
-  z-index: 1000;
+  z-index: var(--layer-workspace-floating);
 }
 
 .movable-panel.is-dragging {
@@ -2495,10 +2505,10 @@ button {
 
 .canvas-expand-scrim {
   position: fixed;
-  z-index: 109;
+  z-index: var(--layer-expanded-backdrop);
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100dvh;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -2509,7 +2519,7 @@ button {
 
 .molecule-workspace.is-expanded {
   position: fixed;
-  z-index: 110;
+  z-index: var(--layer-expanded-content);
   top: 5dvh;
   left: 5vw;
   display: flex;
@@ -8912,7 +8922,7 @@ html[data-theme="dark"] .sticky-iupac-name small {
 .name-result .nomenclature-variants button strong span { display: inline; }
 .name-result .nomenclature-variants strong,
 .name-result .chemical-name-text { overflow-wrap: break-word; word-break: normal; }
-.iupac-dock { position: fixed; z-index: 1400; right: 0; bottom: 0; left: 0; min-height: var(--iupac-dock-height); padding: 6px max(20px, calc((100vw - 1460px) / 2)) calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid #3e7669; background: rgba(21, 42, 36, .97); color: #e8f8f3; box-shadow: 0 -8px 26px rgba(0,0,0,.2); backdrop-filter: blur(12px); }
+.iupac-dock { position: fixed; z-index: var(--layer-workspace-floating); right: 0; bottom: 0; left: 0; min-height: var(--iupac-dock-height); padding: 6px max(20px, calc((100vw - 1460px) / 2)) calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid #3e7669; background: rgba(21, 42, 36, .97); color: #e8f8f3; box-shadow: 0 -8px 26px rgba(0,0,0,.2); backdrop-filter: blur(12px); }
 .iupac-dock-inner { display: flex; align-items: center; gap: 10px; min-width: 0; height: 42px; }
 .iupac-dock-label { flex: 0 0 auto; color: #83c8b8; font-size: 10px; font-weight: 900; letter-spacing: .12em; }
 .iupac-dock-name-stack { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; gap: 2px; }
@@ -8927,7 +8937,7 @@ html[data-theme="dark"] .sticky-iupac-name small {
 .iupac-dock-detail > span { display: block; margin-bottom: 6px; color: #96c9bb; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .iupac-dock-detail strong span { display: inline; }
 .iupac-dock-detail strong { display: block; overflow-wrap: normal; font-family: Georgia, "Times New Roman", serif; font-size: 20px; line-height: 1.35; }
-.settings-overlay { z-index: 1500; }
+.settings-overlay { z-index: var(--layer-modal-backdrop); }
 @media (max-width: 1050px) and (min-width: 761px) {
   .workspace-grid { grid-template-columns: minmax(0, 57fr) minmax(0, 43fr); }
   .builder-card .card-heading h2 { font-size: 14px; }
@@ -9031,7 +9041,7 @@ html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35
 .builder-card .bond-order-picker button { min-height: 28px; }
 .builder-card .structure-actions button { min-height: 30px; }
 .builder-card .notice { margin: 0 10px 6px; }
-.construction-context-slot { position: sticky; top: 10px; z-index: 22; align-self: start; min-width: 0; }
+.construction-context-slot { position: sticky; top: 10px; z-index: var(--layer-workspace-sticky); align-self: start; min-width: 0; }
 .construction-context-slot:empty { display: none; }
 .construction-context-panel {
   max-height: calc(100dvh - var(--iupac-dock-height) - 20px - env(safe-area-inset-bottom));
@@ -9071,7 +9081,7 @@ html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35
 .construction-context-panel .functional-option { min-width: 0; }
 .molecule-workspace.is-expanded .construction-context-panel {
   position: absolute;
-  z-index: 25;
+  z-index: var(--layer-modal-popover);
   top: 66px;
   right: 20px;
   width: min(360px, 38%);
@@ -9126,7 +9136,7 @@ html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35
   .construction-context-slot { position: static; }
   .construction-context-panel {
     position: fixed;
-    z-index: 1300;
+    z-index: var(--layer-workspace-floating);
     right: 12px;
     bottom: calc(var(--iupac-dock-height) + 8px + env(safe-area-inset-bottom));
     left: 12px;
