@@ -3718,6 +3718,14 @@ export function suggestedIupacNameWithOmittedLocants(analysis: Analysis) {
   return analysis.name;
 }
 
+/** Keeps the graph-derived locant for the older Spanish formatter when Suggested omits it. */
+export function legacySpanishFormatterInput(analysis: Analysis, selectedDisplayName: string) {
+  if (suggestedIupacNameWithOmittedLocants(analysis) === analysis.name) return selectedDisplayName;
+  const selectedBase = stripStereochemicalDescriptors(selectedDisplayName);
+  const stereoPrefix = selectedDisplayName.slice(0, selectedDisplayName.length - selectedBase.length);
+  return `${stereoPrefix}${analysis.name}`;
+}
+
 /**
  * A single C1 double/triple-bond locant in an unsubstituted ring is optional
  * in the short IUPAC spelling (ciclohexeno/ciclohexino).  Keep this as a
@@ -6421,7 +6429,7 @@ export default function Home() {
       suggestedName,
       spanish1979Name: externalNameIsPrimary || localSuggestedNameUnavailable
         ? "-"
-        : applyNomenclatureConvention(nameWithSelectedStereochemistry, "iupac-1979-es", "es"),
+        : applyNomenclatureConvention(legacySpanishFormatterInput(analysis, nameWithSelectedStereochemistry), "iupac-1979-es", "es"),
       english1979Name: externalNameIsPrimary || localSuggestedNameUnavailable ? "-" : legacyEnglishName,
     });
     return selectableNomenclatureConventions(language).map((convention) => ({

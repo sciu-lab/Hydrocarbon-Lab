@@ -8,6 +8,7 @@ import { createServer } from "vite";
 import { applyNomenclatureConvention } from "../app/nomenclature-conventions.ts";
 import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
 import { generateLegacyEnglishName } from "../app/legacy-english-nomenclature.ts";
+import { legacyProfileDisplayName } from "../app/legacy-profile-display.ts";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 import { deriveReasoningNameFragments } from "../app/reasoning-name-fragments.ts";
 import { buildReasoningNameLinkParts } from "../app/reasoning-name-links.ts";
@@ -18,6 +19,7 @@ let suggestedIupacNameWithOmittedLocants;
 let buildIupacReasoningSteps;
 let buildEnglishReasoningSteps;
 let buildLegacyEnglishNameModel;
+let legacySpanishFormatterInput;
 
 before(async () => {
   server = await createServer({
@@ -30,7 +32,7 @@ before(async () => {
   });
   ({ analyzeMolecule, suggestedIupacNameWithOmittedLocants,
     buildIupacReasoningSteps, buildEnglishReasoningSteps,
-    buildLegacyEnglishNameModel } = await server.ssrLoadModule("/app/page.tsx"));
+    buildLegacyEnglishNameModel, legacySpanishFormatterInput } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => server?.close());
@@ -41,12 +43,24 @@ function namesFor(smiles) {
   const molecule = result.molecule;
   const analysis = analyzeMolecule(molecule);
   const suggestedEs = suggestedIupacNameWithOmittedLocants(analysis);
+  const legacyEs = applyNomenclatureConvention(
+    legacySpanishFormatterInput(analysis, suggestedEs), "iupac-1979-es", "es",
+  );
+  const legacyEn = generateLegacyEnglishName(
+    buildLegacyEnglishNameModel(molecule, analysis, suggestedEs),
+  ).name;
+  const legacyDisplayEs = legacyProfileDisplayName({
+    language: "es", suggestedName: suggestedEs, spanish1979Name: legacyEs, english1979Name: legacyEn,
+  });
+  const legacyDisplayEn = legacyProfileDisplayName({
+    language: "en", suggestedName: translateSpanishIupacToOpsin(suggestedEs),
+    spanish1979Name: legacyEs, english1979Name: legacyEn,
+  });
   return {
     molecule, analysis,
     suggestedEs,
     suggestedEn: translateSpanishIupacToOpsin(suggestedEs),
-    legacyEs: applyNomenclatureConvention(analysis.name, "iupac-1979-es", "es"),
-    legacyEn: generateLegacyEnglishName(buildLegacyEnglishNameModel(molecule, analysis, analysis.name)).name,
+    legacyEs, legacyEn, legacyDisplayEs, legacyDisplayEn,
   };
 }
 
@@ -65,19 +79,23 @@ test("unsubstituted C3 alkene and alkyne and C2 alcohol omit only Suggested loca
 });
 
 test("locants remain in larger chains and positional isomers in both languages", () => {
-  for (const [smiles, spanish, english] of [
-    ["C=CCC", "but-1-eno", "but-1-ene"],
-    ["CC=CC", "but-2-eno", "but-2-ene"],
-    ["CC=CCC", "pent-2-eno", "pent-2-ene"],
-    ["CC#CCC", "pent-2-ino", "pent-2-yne"],
-    ["CCCO", "propan-1-ol", "propan-1-ol"],
-    ["CC(O)C", "propan-2-ol", "propan-2-ol"],
-    ["CCC(O)C", "butan-2-ol", "butan-2-ol"],
-    ["CC(=O)C", "propan-2-ona", "propan-2-one"],
+  for (const [smiles, spanish, english, legacyEs, legacyEn] of [
+    ["C=CCC", "but-1-eno", "but-1-ene", "1-buteno", "1-butene"],
+    ["CC=CC", "but-2-eno", "but-2-ene", "2-buteno", "2-butene"],
+    ["CC=CCC", "pent-2-eno", "pent-2-ene", "2-penteno", "2-pentene"],
+    ["CC#CCC", "pent-2-ino", "pent-2-yne", "2-pentino", "2-pentyne"],
+    ["CCCO", "propan-1-ol", "propan-1-ol", "propanol", "1-propanol"],
+    ["CC(O)C", "propan-2-ol", "propan-2-ol", "2-propanol", "2-propanol"],
+    ["CCC(O)C", "butan-2-ol", "butan-2-ol", "2-butanol", "2-butanol"],
+    ["CC(=O)C", "propan-2-ona", "propan-2-one", "propanona", "propanone"],
   ]) {
     const actual = namesFor(smiles);
     assert.equal(actual.suggestedEs, spanish, smiles);
     assert.equal(actual.suggestedEn, english, smiles);
+    assert.deepEqual([actual.legacyEs, actual.legacyEn], [legacyEs, legacyEn], `${smiles} Legacy engines`);
+    assert.deepEqual([actual.legacyDisplayEs, actual.legacyDisplayEn], [
+      { name: legacyEs, available: true }, { name: legacyEn, available: true },
+    ], `${smiles} Legacy display`);
   }
   for (const smiles of ["C=C(C)C", "ClCCO"]) {
     const { analysis, suggestedEs } = namesFor(smiles);

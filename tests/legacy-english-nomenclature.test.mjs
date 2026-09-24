@@ -25,6 +25,8 @@ let server;
 let analyzeMolecule;
 let buildLegacyEnglishNameModel;
 let legacyEnglishProfileIsSupportedForMolecule;
+let legacySpanishFormatterInput;
+let suggestedIupacNameWithOmittedLocants;
 
 before(async () => {
   server = await createServer({
@@ -35,7 +37,8 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, buildLegacyEnglishNameModel, legacyEnglishProfileIsSupportedForMolecule } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ analyzeMolecule, buildLegacyEnglishNameModel, legacyEnglishProfileIsSupportedForMolecule,
+    legacySpanishFormatterInput, suggestedIupacNameWithOmittedLocants } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => server?.close());
@@ -107,6 +110,34 @@ test("Spanish 1979 variant is derived from the local analysis of the loaded mole
 
 test("IUPAC 1979 Legacy English names acetone systematically as propanone", () => {
   assert.equal(legacyName(fromSmiles("CC(=O)C")).name, "propanone");
+});
+
+test("Legacy formats keep graph-derived locants when Suggested omits locant 1", () => {
+  for (const [smiles, expectedBase, expectedSuggestedEs, expectedLegacyEs, expectedLegacyEn] of [
+    ["C=CC", "prop-1-eno", "propeno", "1-propeno", "1-propene"],
+    ["C#CC", "prop-1-ino", "propino", "1-propino", "1-propyne"],
+    ["CCO", "etan-1-ol", "etanol", "etanol", "ethanol"],
+  ]) {
+    const molecule = fromSmiles(smiles);
+    const analysis = analyzeMolecule(molecule);
+    const suggestedEs = suggestedIupacNameWithOmittedLocants(analysis);
+    assert.equal(analysis.name, expectedBase);
+    assert.equal(suggestedEs, expectedSuggestedEs);
+    const legacyEs = applyNomenclatureConvention(
+      legacySpanishFormatterInput(analysis, suggestedEs), "iupac-1979-es", "es",
+    );
+    const legacyEn = legacyName(molecule).name;
+    assert.equal(legacyEs, expectedLegacyEs);
+    assert.equal(legacyEn, expectedLegacyEn);
+    assert.equal(legacyEnglishProfileIsSupportedForMolecule(molecule), true);
+    for (const [language, suggestedName, spanish1979Name, english1979Name, expected] of [
+      ["es", suggestedEs, legacyEs, legacyEn, expectedLegacyEs],
+      ["en", translateSpanishIupacToOpsin(suggestedEs), legacyEs, legacyEn, expectedLegacyEn],
+    ]) {
+      assert.deepEqual(legacyProfileDisplayName({ language, suggestedName, spanish1979Name, english1979Name }),
+        { name: expected, available: true }, `${smiles} ${language}`);
+    }
+  }
 });
 
 test("TNT gets the same valid Legacy name in Spanish and English when Spanish 1979 has no formatter rule", () => {
