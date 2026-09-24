@@ -3693,6 +3693,31 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
   return analyzeFunctionalAcyclic(molecule, skeleton, groups, primaryKind, enabledAliases);
 }
 
+/** Blue Book P-14.3.4.2(b,d): omit only structurally redundant locants in the Suggested display. */
+export function suggestedIupacNameWithOmittedLocants(analysis: Analysis) {
+  if (analysis.family !== "acyclic" || analysis.name !== analysis.chainName
+    || analysis.substituents.length) return analysis.name;
+
+  const oneUnsaturation = analysis.doubleBondLocants.length + analysis.tripleBondLocants.length === 1;
+  if (analysis.mainChain.length === 3 && oneUnsaturation
+    && !analysis.functionalGroups.length && !analysis.primaryFunctionalGroup) {
+    if (analysis.formula === "C₃H₆" && analysis.doubleBondLocants[0] === 1
+      && analysis.chainName.endsWith("-1-eno")) return analysis.chainName.replace(/-1-eno$/, "eno");
+    if (analysis.formula === "C₃H₄" && analysis.tripleBondLocants[0] === 1
+      && analysis.chainName.endsWith("-1-ino")) return analysis.chainName.replace(/-1-ino$/, "ino");
+  }
+
+  if (analysis.formula === "C₂H₆O" && analysis.mainChain.length === 2
+    && analysis.primaryFunctionalGroup === "alcohol"
+    && analysis.functionalGroups.length === 1
+    && analysis.functionalGroups[0].kind === "alcohol"
+    && analysis.numberedAtoms.get(analysis.functionalGroups[0].carbonId) === 1
+    && !oneUnsaturation && analysis.chainName.endsWith("-1-ol")) {
+    return analysis.chainName.replace(/-1-ol$/, "ol");
+  }
+  return analysis.name;
+}
+
 /**
  * A single C1 double/triple-bond locant in an unsubstituted ring is optional
  * in the short IUPAC spelling (ciclohexeno/ciclohexino).  Keep this as a
@@ -4373,6 +4398,11 @@ export function buildIupacReasoningSteps(
         explanationParts.push("Ambos extremos son equivalentes para esta estructura.");
       }
     }
+    if (suggestedIupacNameWithOmittedLocants(analysis) !== analysis.name) {
+      explanationParts.push(primaryKind === "alcohol"
+        ? "El hidroxilo está unido a C1. En esta cadena de dos carbonos, el localizador 1 se omite en el nombre IUPAC preferido porque su posición es inequívoca."
+        : `El enlace ${analysis.tripleBondLocants.length ? "triple" : "doble"} une C1 y C2. En esta cadena no sustituida de tres carbonos, el localizador 1 se omite en el nombre IUPAC preferido porque la posición es inequívoca.`);
+    }
     steps.push({
       number: "03",
       title: "Numeración razonada",
@@ -4701,6 +4731,11 @@ export function buildEnglishReasoningSteps(
         : substituentLocantsTie
         ? `Both numbering directions give the same substituent locants (${substituentLocants.join(",")}); neither direction wins this comparison.`
         : `Numbering is chosen from the end that gives the lowest locant at the first point of difference. Multiple bonds are considered before substituents.${unsaturation}`;
+      if (suggestedIupacNameWithOmittedLocants(analysis) !== analysis.name) {
+        explanation += analysis.primaryFunctionalGroup === "alcohol"
+          ? " The hydroxyl group is attached to C1. In this two-carbon chain, locant 1 is omitted from the preferred IUPAC name because its position is unambiguous."
+          : ` The ${analysis.tripleBondLocants.length ? "triple" : "double"} bond joins C1 and C2. In this unsubstituted three-carbon chain, locant 1 is omitted from the preferred IUPAC name because its position is unambiguous.`;
+      }
     } else if (step.number === "04") {
       explanation = substituentList
         ? `Substituent names and locants are assigned from the numbered parent skeleton: ${substituentList}. Multiplicative prefixes such as di-, tri-, and tetra- are used when the same substituent occurs more than once.${substituentLocantsTie ? " Both directions are equivalent for these locants." : ""}`
@@ -6349,8 +6384,10 @@ export default function Home() {
       ? pubChemIupacName!
       : localSuggestedNameUnavailable
         ? externalCandidateLocalDisplayName(molecule, calculatedAnalysis, language)
-        : stripStereochemicalDescriptors(analysis.name),
-    [analysis.name, calculatedAnalysis, externalCandidateNameUnavailable, externalNameIsPrimary, language, localSuggestedNameUnavailable, molecule, pubChemIupacName],
+        : sourceNameOverride === null
+          ? stripStereochemicalDescriptors(suggestedIupacNameWithOmittedLocants(analysis))
+          : stripStereochemicalDescriptors(analysis.name),
+    [analysis, calculatedAnalysis, externalCandidateNameUnavailable, externalNameIsPrimary, language, localSuggestedNameUnavailable, molecule, pubChemIupacName, sourceNameOverride],
   );
   const stereochemistryAvailable = useMemo(
     () => getMainChainStereoDescriptors(molecule, analysis.mainChain).length > 0

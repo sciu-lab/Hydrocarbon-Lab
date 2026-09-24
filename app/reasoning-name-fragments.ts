@@ -139,6 +139,11 @@ export function deriveReasoningNameFragments({
       add("03", name.slice(stem.length + 1), language === "en"
         ? `${isTriple ? "Triple" : "Double"} bond and locant`
         : `Enlace ${isTriple ? "triple" : "doble"} y localizador`, "unsaturation");
+    } else if (name === `${stem}${suffix}` && analysis.mainChain.length === 3 && locant === 1) {
+      add("02", stem, chainLabel, "parent");
+      add("03", suffix, language === "en"
+        ? `${isTriple ? "Triple" : "Double"} bond`
+        : `Enlace ${isTriple ? "triple" : "doble"}`, "unsaturation");
     }
     return fragments;
   }
