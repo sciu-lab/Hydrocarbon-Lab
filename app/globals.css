@@ -4678,7 +4678,7 @@ button {
 
 .reasoning-section li {
   display: grid;
-  grid-template-columns: 27px 1fr;
+  grid-template-columns: 27px minmax(0, 1fr);
   gap: 9px;
 }
 
@@ -4711,6 +4711,32 @@ button {
 
 .reasoning-section p b {
   color: #4e5754;
+}
+
+.reasoning-name-fragment {
+  margin-top: 10px;
+  color: var(--mint-strong);
+  text-align: center;
+}
+
+.reasoning-name-fragment--parent {
+  color: var(--blue);
+}
+
+.reasoning-name-fragment-text {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: clamp(0.875rem, 1.1vw, 1rem);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.reasoning-name-fragment-label {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  line-height: 1.4;
 }
 
 .substituent-list {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { externalInfoUnavailableReason, preferredExternalInfoSource, shouldShowExternalInfo } from "../app/external-info-state.ts";
+import { selectableNomenclatureConventions } from "../app/nomenclature-conventions.ts";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -61,9 +62,10 @@ test("uses a page scroll, contextual constructors, right-side display settings a
   assert.match(styleSource, /\.app-shell \{ padding-bottom: calc\(var\(--iupac-dock-height\)/);
   assert.doesNotMatch(pageSource, /className=\{`name-result/);
   assert.match(pageSource, /className="iupac-dock-profile"/);
-  assert.match(pageSource, /nomenclatureVariants\.filter\(\(variant\) => variant\.convention !== "current"\)\.map/);
+  assert.match(pageSource, /nomenclatureVariants\.filter\(\(variant\) => variant\.convention !== activeNomenclatureConvention\)\.map/);
   assert.match(pageSource, /option value=\{variant\.convention\} key=\{variant\.convention\}/);
-  assert.match(pageSource, /language === "es" \? "iupac-1979-es" as const : "traditional" as const/);
+  assert.deepEqual(selectableNomenclatureConventions("es"), ["current", "iupac-1979-es"]);
+  assert.deepEqual(selectableNomenclatureConventions("en"), ["current", "iupac-1979-legacy-en"]);
   assert.match(pageSource, /className="iupac-dock-variants"/);
   assert.match(styleSource, /--editor-top-offset/);
   assert.match(pageSource, /grid\.style\.setProperty\("--editor-top-offset"/);

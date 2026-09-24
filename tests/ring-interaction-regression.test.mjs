@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { fuseRingOnBond, ringFusionError } from "../app/fused-ring.ts";
+import { migrateNomenclatureConvention, nomenclatureConventionLabel, selectableNomenclatureConventions } from "../app/nomenclature-conventions.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -99,14 +100,26 @@ test("expanded workspace wraps the live canvas and construction controls", () =>
   assert.doesNotMatch(css, /\.molecule-stage\.is-expanded/);
 });
 
-test("the dock offers verified locale-specific historical variants separate from Legacy English", () => {
-  assert.match(page, /const traditionalCandidate = analysis\.steroidSystem[\s\S]*: analysis\.fusedBicyclic/);
-  assert.match(page, /fusedBicyclicTraditionalDisplayName\(analysis\.fusedBicyclic, language\)/);
-  assert.match(page, /historicalCandidate = language === "es"[\s\S]*applyNomenclatureConvention\(nameWithSelectedStereochemistry, "iupac-1979-es", "es"\)/);
-  assert.match(page, /normalizeNomenclatureDisplayName\(historicalCandidate\) !== normalizeNomenclatureDisplayName\(suggestedName\)/);
-  assert.match(page, /label: language === "en" \? "Traditional" : "IUPAC 1979"/);
-  assert.match(page, /legacyEnglishVariantAvailable = language === "en"\s*&& !localSuggestedNameUnavailable\s*&& legacyEnglishVariantIsAvailable\(/);
-  assert.match(page, /label: "IUPAC 1979 Legacy English"/);
+test("the dock exposes exactly the two current profiles in both locales", () => {
+  const spanishProfiles = selectableNomenclatureConventions("es");
+  const englishProfiles = selectableNomenclatureConventions("en");
+  assert.deepEqual(spanishProfiles, ["current", "iupac-1979-es"]);
+  assert.deepEqual(englishProfiles, ["current", "iupac-1979-legacy-en"]);
+  assert.deepEqual(spanishProfiles.map((profile) => nomenclatureConventionLabel(profile, "es")), [
+    "IUPAC sugerido (Blue Book 2013+)",
+    "IUPAC 1979 (Legacy)",
+  ]);
+  assert.deepEqual(englishProfiles.map((profile) => nomenclatureConventionLabel(profile, "en")), [
+    "IUPAC Suggested (Blue Book 2013+)",
+    "IUPAC 1979 (Legacy)",
+  ]);
+  assert.equal(migrateNomenclatureConvention("traditional", "es"), "current");
+  assert.equal(migrateNomenclatureConvention("traditional", "en"), "current");
+  assert.equal(migrateNomenclatureConvention("IUPAC 1979 Legacy English", "en"), "iupac-1979-legacy-en");
+  assert.match(page, /nomenclatureVariants\.filter\(\(variant\) => variant\.convention !== activeNomenclatureConvention\)\.map/);
+  assert.match(page, /option value=\{variant\.convention\} key=\{variant\.convention\}/);
+  assert.doesNotMatch(page, /label: language === "en" \? "Traditional" : "IUPAC 1979"/);
+  assert.doesNotMatch(page, /label: "IUPAC 1979 Legacy English"/);
 });
 
 test("contextual selection focus preserves the page scroll and expanded SVG uses fitted bounds", () => {

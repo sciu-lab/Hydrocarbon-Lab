@@ -129,6 +129,7 @@ import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
 import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifiedPubChemSystematicDisplayName } from "./verified-common-name-equivalences";
 import { curatedCommonNameForSmiles } from "./curated-common-name-display";
 import { legacyProfileDisplayName } from "./legacy-profile-display";
+import { deriveReasoningNameFragments, type ReasoningNameFragment } from "./reasoning-name-fragments";
 import {
   compoundIdentityKey,
   createCompoundContextResolver,
@@ -578,6 +579,15 @@ export function ChemicalNameText({ name = "" }: { name?: string }) {
         </span>
       ))}
     </span>
+  );
+}
+
+export function ReasoningNameFragmentView({ fragment }: { fragment: ReasoningNameFragment }) {
+  return (
+    <div className={`reasoning-name-fragment reasoning-name-fragment--${fragment.kind}`}>
+      <span className="reasoning-name-fragment-text">{fragment.text}</span>
+      <small className="reasoning-name-fragment-label">{fragment.label}</small>
+    </div>
   );
 }
 
@@ -6669,6 +6679,15 @@ export default function Home() {
       : reasoningSteps,
     [analysis, language, molecule, reasoningSteps],
   );
+  const reasoningNameFragments = deriveReasoningNameFragments({
+    analysis,
+    displayedName: displayedIupacName,
+    language,
+    steps: localizedReasoningSteps,
+    canHighlight: showIupacName && displayedNameCopyable
+      && !externalNameIsPrimary && sourceNameOverride === null
+      && (!isPristineInitialMolecule || showPristineMethaneName),
+  });
   const isDarkTheme = themePreference === "dark" || (themePreference === "auto" && automaticDark);
   const historyFamilyLabel = hasHeterocycle
     ? "Heterociclo"
@@ -12352,6 +12371,9 @@ export default function Home() {
                       <div>
                         <strong>{step.title}</strong>
                         <p><ChemicalNotationText value={step.explanation} /></p>
+                        {reasoningNameFragments[step.number] && (
+                          <ReasoningNameFragmentView fragment={reasoningNameFragments[step.number]} />
+                        )}
                       </div>
                     </li>
                   ))}
