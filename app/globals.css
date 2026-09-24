@@ -9223,6 +9223,29 @@ html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35
 .builder-card .heading-actions { flex-wrap: wrap; }
 .builder-card .heading-actions > button { min-height: 36px; }
 .builder-card .molecule-workspace:not(.is-expanded) .molecule-stage { margin-top: 0; margin-bottom: 0; }
+.builder-card .card-heading { padding-right: 8px; padding-left: 8px; }
+.builder-card .heading-actions { gap: 3px; justify-content: flex-start; }
+.builder-card .heading-actions > .history-controls { margin-left: 0; }
+.builder-card .name-builder-toggle { padding-right: 4px; padding-left: 4px; }
+.builder-card .view-mode-switch button { padding-right: 3px; padding-left: 3px; }
+.builder-card .view-mode-switch .line-angle-icon { width: 18px; }
+.builder-card .history-controls .new-button { padding-right: 6px; padding-left: 6px; }
+@media (min-width: 1001px) and (max-width: 1365px) {
+  .builder-card .heading-actions {
+    display: grid;
+    grid-template-areas:
+      "name smiles formula examples"
+      "view view history history";
+    grid-template-columns: repeat(4, max-content);
+    justify-content: center;
+    gap: 4px 3px;
+  }
+
+  .builder-card .heading-actions > .view-mode-switch,
+  .builder-card .heading-actions > .history-controls {
+    justify-self: center;
+  }
+}
 @media (max-width: 760px) {
   .app-shell { padding-top: 6px; }
   .construction-context-panel .examples-context-panel .preset-list { grid-template-columns: minmax(0, 1fr); }

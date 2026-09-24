@@ -47,6 +47,13 @@ test("keeps one live canvas in the sticky left card and all information in the r
   assert.match(styleSource, /@media \(max-width: 760px\) \{\s*\.workspace-grid \{ grid-template-columns: minmax\(0, 1fr\)/);
 });
 
+test("keeps constructor actions aligned across locales and balances two-column desktop rows", () => {
+  assert.match(styleSource, /\.builder-card \.heading-actions \{ gap: 3px; justify-content: flex-start; \}/);
+  assert.match(styleSource, /\.builder-card \.heading-actions > \.history-controls \{ margin-left: 0; \}/);
+  assert.match(styleSource, /@media \(min-width: 1001px\) and \(max-width: 1365px\) \{[\s\S]*?grid-template-areas:[\s\S]*?"name smiles formula examples"\s*"view view history history"[\s\S]*?\}/);
+  assert.match(pageSource, /t\("Por nombre"\)[\s\S]*?SMILES[\s\S]*?language === "en" \? "Formula" : "Fórmula"[\s\S]*?language === "en" \? "Examples" : "Ejemplos"[\s\S]*?t\("Semides\."\)[\s\S]*?t\("Esquelética"\)[\s\S]*?t\("Redibujar"\)/);
+});
+
 test("uses a page scroll, contextual constructors, right-side display settings and a fixed full-name dock", () => {
   const rightStart = pageSource.indexOf('className="information-column"');
   const settingsStart = pageSource.indexOf('className="settings-panel"');
