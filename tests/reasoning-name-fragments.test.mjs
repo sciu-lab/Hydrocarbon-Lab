@@ -108,6 +108,104 @@ test("a single alkyl substituent and an alkene use only written locants", () => 
   assert.deepEqual([penteneEn["02"]?.text, penteneEn["03"]?.text], ["pent", "2-ene"]);
 });
 
+test("alcohol and aldehyde fragments follow the visible functional suffix in both languages", () => {
+  const alcohol = analyzed("CCC(O)C");
+  assert.equal(alcohol.analysis.name, "butan-2-ol");
+  for (const language of ["es", "en"]) {
+    const { fragments } = derive(alcohol, "butan-2-ol", language);
+    assert.deepEqual([fragments["01"]?.text, fragments["02"]?.text, fragments["03"]?.text], ["2-ol", "butan", "2"]);
+  }
+  const legacyAlcohol = applyNomenclatureConvention(alcohol.analysis.name, "iupac-1979-es", "es");
+  assert.equal(legacyAlcohol, "2-butanol");
+  const legacyFragments = derive(alcohol, legacyAlcohol).fragments;
+  assert.deepEqual([legacyFragments["01"]?.text, legacyFragments["02"]?.text, legacyFragments["03"]?.text], ["ol", "butan", "2"]);
+  assert.ok(!Object.values(legacyFragments).some((fragment) => fragment.text === "2-ol"));
+  const legacyEnglishAlcohol = generateLegacyEnglishName(buildLegacyEnglishNameModel(alcohol.molecule, alcohol.analysis)).name;
+  assert.equal(legacyEnglishAlcohol, "2-butanol");
+  assert.deepEqual([derive(alcohol, legacyEnglishAlcohol, "en").fragments["01"]?.text,
+    derive(alcohol, legacyEnglishAlcohol, "en").fragments["03"]?.text], ["ol", "2"]);
+
+  const terminalAlcohol = analyzed("CCCCO");
+  const terminalLegacy = applyNomenclatureConvention(terminalAlcohol.analysis.name, "iupac-1979-es", "es");
+  assert.equal(terminalLegacy, "butanol");
+  const terminalFragments = derive(terminalAlcohol, terminalLegacy).fragments;
+  assert.deepEqual([terminalFragments["01"]?.text, terminalFragments["02"]?.text, terminalFragments["03"]],
+    ["ol", "butan", undefined], "an implicit locant is not highlighted");
+
+  const aldehyde = analyzed("CCCC=O");
+  assert.equal(aldehyde.analysis.name, "butanal");
+  for (const language of ["es", "en"]) {
+    const { steps, fragments } = derive(aldehyde, "butanal", language);
+    assert.deepEqual([fragments["01"]?.text, fragments["02"]?.text, fragments["03"]], ["al", "butan", undefined]);
+    if (language === "es") assert.match(steps.find((step) => step.number === "01").explanation, /C1/);
+  }
+});
+
+test("the same suffix rules cover a second ketone without inventing Legacy locants", () => {
+  const ketone = analyzed("CCC(=O)C");
+  assert.equal(ketone.analysis.name, "butan-2-ona");
+  const names = [
+    [ketone.analysis.name, "es", "2-ona"],
+    [translateSpanishIupacToOpsin(ketone.analysis.name), "en", "2-one"],
+    [applyNomenclatureConvention(ketone.analysis.name, "iupac-1979-es", "es"), "es", "ona"],
+    [generateLegacyEnglishName(buildLegacyEnglishNameModel(ketone.molecule, ketone.analysis)).name, "en", "one"],
+  ];
+  for (const [name, language, functionFragment] of names) {
+    const { fragments } = derive(ketone, name, language);
+    assert.equal(fragments["01"]?.text, functionFragment, name);
+    assert.equal(fragments["02"]?.text, "butan", name);
+    assert.equal(fragments["03"]?.text, "2", name);
+  }
+});
+
+test("a triple bond uses its own suffix without borrowing the alkene label", () => {
+  const alkyne = analyzed("CCC#CC");
+  assert.equal(alkyne.analysis.name, "pent-2-ino");
+  const spanish = derive(alkyne, alkyne.analysis.name).fragments;
+  const englishName = translateSpanishIupacToOpsin(alkyne.analysis.name);
+  assert.equal(englishName, "pent-2-yne");
+  const english = derive(alkyne, englishName, "en").fragments;
+  assert.deepEqual([spanish["02"]?.text, spanish["03"]?.text], ["pent", "2-ino"]);
+  assert.deepEqual([english["02"]?.text, english["03"]?.text], ["pent", "2-yne"]);
+  assert.match(spanish["03"].label, /triple/);
+  assert.match(english["03"].label, /Triple/);
+  assert.doesNotMatch(spanish["03"].label, /doble/);
+});
+
+test("repeated alkyl prefixes retain every locant and their di, tri or tetra multiplier", () => {
+  const cases = [
+    ["CC(C)C(C)C", "2,3-dimetilbutano", "2,3-dimethylbutane", "2,3-dimetil", "2,3-dimethyl", "butano", "butane"],
+    ["CC(C)(C)C(C)C", "2,2,3-trimetilbutano", "2,2,3-trimethylbutane", "2,2,3-trimetil", "2,2,3-trimethyl", "butano", "butane"],
+    ["CC(C)(C)C(C)(C)C", "2,2,3,3-tetrametilbutano", "2,2,3,3-tetramethylbutane", "2,2,3,3-tetrametil", "2,2,3,3-tetramethyl", "butano", "butane"],
+    ["CCC(CC)C(CC)CC", "3,4-dietilhexano", "3,4-diethylhexane", "3,4-dietil", "3,4-diethyl", "hexano", "hexane"],
+  ];
+  for (const [smiles, nameEs, nameEn, prefixEs, prefixEn, parentEs, parentEn] of cases) {
+    const compound = analyzed(smiles);
+    assert.equal(compound.analysis.name, nameEs);
+    assert.equal(translateSpanishIupacToOpsin(nameEs), nameEn);
+    for (const [name, language, prefix, parent] of [
+      [nameEs, "es", prefixEs, parentEs],
+      [nameEn, "en", prefixEn, parentEn],
+    ]) {
+      const { fragments } = derive(compound, name, language);
+      assert.deepEqual([fragments["02"]?.text, fragments["03"]?.text, fragments["04"]?.text],
+        [parent, prefix.slice(0, prefix.indexOf("-")), prefix], name);
+      assert.equal(Object.values(fragments).filter((fragment) => fragment.kind === "substituent").length, 1);
+    }
+  }
+});
+
+test("equal locant sets do not claim to determine the numbering direction", () => {
+  const dimethylbutane = analyzed("CC(C)C(C)C");
+  const spanish = derive(dimethylbutane, dimethylbutane.analysis.name).steps;
+  const english = derive(dimethylbutane, "2,3-dimethylbutane", "en").steps;
+  assert.match(spanish.find((step) => step.number === "03").explanation, /mismo conjunto de localizadores desde ambos extremos/);
+  assert.match(spanish.find((step) => step.number === "04").explanation, /Ambos sentidos de numeración son equivalentes/);
+  assert.doesNotMatch(spanish.find((step) => step.number === "04").explanation, /define el sentido de numeración/);
+  assert.match(english.find((step) => step.number === "03").explanation, /Both numbering directions give the same substituent locants/);
+  assert.match(english.find((step) => step.number === "04").explanation, /Both directions are equivalent/);
+});
+
 test("aromatic fragments retain benzene, visible prefixes, and TNT pedagogy", () => {
   const methylbenzene = analyzed("Cc1ccccc1");
   const methylEs = derive(methylbenzene, methylbenzene.analysis.name).fragments;
@@ -131,6 +229,11 @@ test("aromatic fragments retain benzene, visible prefixes, and TNT pedagogy", ()
   const exported = moleculeToSmiles(tnt.molecule);
   assert.equal(exported.ok, true);
   assert.equal(curatedCommonNameForSmiles(exported.smiles, "es"), "TNT · 2,4,6-trinitrotolueno");
+
+  const nitrobenzene = analyzed("O=[N+]([O-])c1ccccc1");
+  const nitroFragments = derive(nitrobenzene, nitrobenzene.analysis.name).fragments;
+  assert.deepEqual([nitroFragments["02"]?.text, nitroFragments["04"]?.text, nitroFragments["01"]],
+    ["benceno", "nitro", undefined]);
 });
 
 test("unavailable names and unsupported patterns keep the explanation without borrowed fragments", () => {
@@ -143,6 +246,9 @@ test("unavailable names and unsupported patterns keep the explanation without bo
   assert.deepEqual(result.fragments, {});
   const acid = analyzed("O=C(O)c1ccccc1");
   assert.deepEqual(derive(acid, acid.analysis.name).fragments, {});
+  const butanal = analyzed("CCCC=O");
+  assert.deepEqual(derive(acetone, butanal.analysis.name).fragments, {}, "a name from another molecule supplies no fragments");
+  assert.deepEqual(derive(butanal, "butan-2-ol").fragments, {}, "a displayed suffix must agree with the analyzed function");
 });
 
 test("fragments are static text rather than interactive controls", () => {

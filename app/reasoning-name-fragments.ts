@@ -83,29 +83,45 @@ export function deriveReasoningNameFragments({
 
   if (analysis.family !== "acyclic") return fragments;
   const parent = localizedName(analysis.chainName, language);
-  const stem = /^[a-z]+/i.exec(parent)?.[0];
+  const stem = ["ketone", "alcohol", "aldehyde"].includes(analysis.primaryFunctionalGroup ?? "")
+    ? /^([a-z]+?)(?:-\d+-)?(?:ona|one|ol|al)$/i.exec(parent)?.[1]
+    : /^[a-z]+/i.exec(parent)?.[0];
   if (!stem) return fragments;
   const chainLabel = language === "en"
     ? `Parent chain · ${analysis.mainChain.length} carbons`
     : `Cadena principal · ${analysis.mainChain.length} carbonos`;
 
-  if (analysis.primaryFunctionalGroup === "ketone"
+  if (["ketone", "alcohol", "aldehyde"].includes(analysis.primaryFunctionalGroup ?? "")
     && analysis.functionalGroups.length === 1
-    && analysis.functionalGroups[0].kind === "ketone"
+    && analysis.functionalGroups[0].kind === analysis.primaryFunctionalGroup
     && !analysis.substituents.length
     && !analysis.doubleBondLocants.length
-    && !analysis.tripleBondLocants.length
-    && name.startsWith(stem)) {
+    && !analysis.tripleBondLocants.length) {
     const locant = analysis.numberedAtoms.get(analysis.functionalGroups[0].carbonId);
-    const suffix = language === "en" ? "one" : "ona";
+    const suffix = analysis.primaryFunctionalGroup === "ketone"
+      ? language === "en" ? "one" : "ona"
+      : analysis.primaryFunctionalGroup === "alcohol" ? "ol" : "al";
+    if (!locant || (analysis.primaryFunctionalGroup === "aldehyde" && locant !== 1)) return fragments;
     const tail = name.slice(stem.length);
-    if (locant && tail === `-${locant}-${suffix}`) {
-      add("01", name.slice(stem.length + 1), language === "en" ? "Ketone locant and suffix" : "Posición y sufijo de la cetona", "function");
+    const functionLabel = analysis.primaryFunctionalGroup === "ketone"
+      ? language === "en" ? "Ketone" : "cetona"
+      : analysis.primaryFunctionalGroup === "alcohol"
+        ? language === "en" ? "Alcohol" : "alcohol"
+        : language === "en" ? "Aldehyde" : "aldehído";
+    const spanishGroupPhrase = analysis.primaryFunctionalGroup === "ketone" ? "de la cetona" : `del ${functionLabel}`;
+    const numberingLabel = language === "en" ? `${functionLabel} locant`
+      : analysis.primaryFunctionalGroup === "ketone" ? "Localizador del carbonilo" : `Localizador del ${functionLabel}`;
+    if (analysis.primaryFunctionalGroup !== "aldehyde" && tail === `-${locant}-${suffix}`) {
+      add("01", name.slice(stem.length + 1), language === "en" ? `${functionLabel} locant and suffix` : `Posición y sufijo ${spanishGroupPhrase}`, "function");
       add("02", name.slice(0, stem.length), chainLabel, "parent");
-      add("03", String(locant), language === "en" ? "Carbonyl locant" : "Localizador del carbonilo", "numbering");
+      add("03", String(locant), numberingLabel, "numbering");
     } else if (tail === suffix) {
-      add("01", name.slice(-suffix.length), language === "en" ? "Ketone suffix" : "Sufijo de la cetona", "function");
+      add("01", name.slice(-suffix.length), language === "en" ? `${functionLabel} suffix` : `Sufijo ${spanishGroupPhrase}`, "function");
       add("02", name.slice(0, stem.length), chainLabel, "parent");
+    } else if (analysis.primaryFunctionalGroup !== "aldehyde" && name === `${locant}-${stem}${suffix}`) {
+      add("01", suffix, language === "en" ? `${functionLabel} suffix` : `Sufijo ${spanishGroupPhrase}`, "function");
+      add("02", stem, chainLabel, "parent");
+      add("03", String(locant), numberingLabel, "numbering");
     }
     return fragments;
   }
@@ -113,14 +129,16 @@ export function deriveReasoningNameFragments({
   if (!analysis.primaryFunctionalGroup
     && !analysis.functionalGroups.length
     && !analysis.substituents.length
-    && analysis.doubleBondLocants.length === 1
-    && !analysis.tripleBondLocants.length
+    && analysis.doubleBondLocants.length + analysis.tripleBondLocants.length === 1
     && name.startsWith(stem)) {
-    const locant = analysis.doubleBondLocants[0];
-    const suffix = language === "en" ? "ene" : "eno";
+    const isTriple = analysis.tripleBondLocants.length === 1;
+    const locant = isTriple ? analysis.tripleBondLocants[0] : analysis.doubleBondLocants[0];
+    const suffix = isTriple ? language === "en" ? "yne" : "ino" : language === "en" ? "ene" : "eno";
     if (name.slice(stem.length) === `-${locant}-${suffix}`) {
       add("02", name.slice(0, stem.length), chainLabel, "parent");
-      add("03", name.slice(stem.length + 1), language === "en" ? "Double bond and locant" : "Enlace doble y localizador", "unsaturation");
+      add("03", name.slice(stem.length + 1), language === "en"
+        ? `${isTriple ? "Triple" : "Double"} bond and locant`
+        : `Enlace ${isTriple ? "triple" : "doble"} y localizador`, "unsaturation");
     }
     return fragments;
   }
@@ -131,13 +149,15 @@ export function deriveReasoningNameFragments({
   const prefix = name.slice(0, -parent.length);
   if (!prefix && !analysis.substituents.length) {
     add("02", name, chainLabel, "parent");
-  } else if (analysis.substituents.length === 1 && !analysis.substituents[0].complex) {
-    const substituent = analysis.substituents[0];
-    const named = localizedName(substituent.name, language);
-    if (prefix === `${substituent.locant}-${named}`) {
+  } else if (analysis.substituents.length >= 1 && analysis.substituents.length <= 4
+    && analysis.substituents.every((item) => !item.complex && item.name === analysis.substituents[0].name)) {
+    const named = localizedName(analysis.substituents[0].name, language);
+    const locants = analysis.substituents.map((item) => item.locant).sort((left, right) => left - right);
+    const multiplier = ["", "", "di", "tri", "tetra"][locants.length];
+    if (prefix === `${locants.join(",")}-${multiplier}${named}`) {
       add("02", name.slice(-parent.length), chainLabel, "parent");
-      add("03", String(substituent.locant), language === "en" ? "Substituent locant" : "Localizador del sustituyente", "numbering");
-      add("04", prefix, language === "en" ? "Substituent and locant" : "Sustituyente y localizador", "substituent");
+      add("03", locants.join(","), language === "en" ? "Substituent locants" : "Localizadores del sustituyente", "numbering");
+      add("04", prefix, language === "en" ? "Substituent and locants" : "Sustituyente y localizadores", "substituent");
     }
   }
   return fragments;

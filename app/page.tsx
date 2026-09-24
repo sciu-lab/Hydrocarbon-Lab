@@ -4283,6 +4283,7 @@ export function buildIupacReasoningSteps(
     explanation: parentExplanation,
   });
 
+  let substituentLocantsTie = false;
   if (primaryKind || hasMultipleBonds || analysis.substituents.length) {
     const explanationParts = [
       "Se comparan ambos extremos en este orden: primero la función principal, después los enlaces múltiples y, solo si continúa el empate, los sustituyentes.",
@@ -4355,6 +4356,7 @@ export function buildIupacReasoningSteps(
           );
           hierarchyResolved = true;
         } else if (substituentComparison === 0) {
+          substituentLocantsTie = true;
           explanationParts.push("Los sustituyentes conservan el mismo conjunto de localizadores desde ambos extremos.");
         }
       }
@@ -4377,6 +4379,8 @@ export function buildIupacReasoningSteps(
         : "Al no haber una función de sufijo, los grupos citados como prefijos guían la numeración del anillo."
       : primaryKind || hasMultipleBonds
       ? "Se consideran después de la función principal y de los enlaces múltiples; solo rompen un empate previo."
+      : substituentLocantsTie
+      ? "Ambos sentidos de numeración son equivalentes para estos localizadores."
       : "Al no existir una función principal ni enlaces múltiples, este conjunto define el sentido de numeración.";
     steps.push({
       number: "04",
@@ -4639,6 +4643,10 @@ export function buildEnglishReasoningSteps(
     ...analysis.doubleBondLocants.map((locant) => `C${locant}=C${locant + 1}`),
     ...analysis.tripleBondLocants.map((locant) => `C${locant}≡C${locant + 1}`),
   ];
+  const substituentLocants = analysis.substituents.map((item) => item.locant).sort((left, right) => left - right);
+  const substituentLocantsTie = analysis.family === "acyclic" && !primaryLabel
+    && !multipleBonds.length && substituentLocants.length > 0
+    && compareNumberLists(substituentLocants, reverseAtomLocants(substituentLocants, analysis.mainChain.length)) === 0;
 
   return steps.map((step) => {
     let explanation: string;
@@ -4680,10 +4688,12 @@ export function buildEnglishReasoningSteps(
         ? `${primaryLabel ? `The suffix function (${primaryLabel}) keeps its numbering priority; prefix locants are considered afterward.` : "Admissible aromatic-ring numberings are compared using the locants of the groups cited as prefixes."}${aromaticPrefixLocantsText(analysis.substituents, "en") ? ` The assigned numbering places ${aromaticPrefixLocantsText(analysis.substituents, "en")}.` : ""}`
         : primaryLabel
         ? `Numbering is chosen to give the principal group (${primaryLabel}) the lowest permitted locant. If both directions remain equivalent, multiple bonds are considered next, followed by substituents at the first point of difference.${unsaturation}`
+        : substituentLocantsTie
+        ? `Both numbering directions give the same substituent locants (${substituentLocants.join(",")}); neither direction wins this comparison.`
         : `Numbering is chosen from the end that gives the lowest locant at the first point of difference. Multiple bonds are considered before substituents.${unsaturation}`;
     } else if (step.number === "04") {
       explanation = substituentList
-        ? `Substituent names and locants are assigned from the numbered parent skeleton: ${substituentList}. Multiplicative prefixes such as di-, tri-, and tetra- are used when the same substituent occurs more than once.`
+        ? `Substituent names and locants are assigned from the numbered parent skeleton: ${substituentList}. Multiplicative prefixes such as di-, tri-, and tetra- are used when the same substituent occurs more than once.${substituentLocantsTie ? " Both directions are equivalent for these locants." : ""}`
         : "No carbon substituents need to be added to the parent name.";
     } else if (step.number === "05") {
       const names = [...new Set(analysis.substituents.map((item) =>
