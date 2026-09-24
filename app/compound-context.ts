@@ -1,5 +1,5 @@
 import type { AppLanguage } from "./i18n";
-import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter.ts";
+import { inspectSmilesStructure, moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter.ts";
 import { findApprovedWikipediaChemistryPage } from "./wikipedia-chemistry.ts";
 import { createWikidataArticleResolver } from "./wikidata-article-resolver.ts";
 
@@ -45,6 +45,7 @@ export type WikipediaCompoundContext = {
   url: string;
   source: "registry" | "wikidata";
   qid?: string;
+  summaryAdapted?: boolean;
 };
 
 export type CompoundContext = {
@@ -155,6 +156,31 @@ function cleanWikipediaLayoutReferences(value: string | undefined) {
     .replace(/\s{2,}/g, " ");
 }
 
+function adaptVerifiedDimethylbutaneExtract(input: {
+  language: "es" | "en";
+  title: string;
+  extract: string;
+  qid?: string;
+  pubchem?: PubChemCompoundContext;
+  structuralFormula?: string;
+}) {
+  const verifiedBadExtract = "El 2,3-dimetillbutano es un hidrocarburo de cadena ramificada, de la familia de los alcanos. Su fórmula empírica es C6H14 y su fórmula semidesarrollada es (CH3)2CHCH(CH3)2.";
+  if (input.language !== "es"
+    || input.title.toLocaleLowerCase("es") !== "2,3-dimetilbutano"
+    || !input.qid
+    || input.pubchem?.cid === undefined
+    || !input.pubchem.inchiKey
+    || input.structuralFormula !== "C6H14"
+    || input.pubchem.molecularFormula !== input.structuralFormula
+    || cleanText(input.extract) !== verifiedBadExtract) {
+    return { extract: input.extract, adapted: false };
+  }
+  return {
+    extract: "El 2,3-dimetilbutano es un hidrocarburo de cadena ramificada de la familia de los alcanos. Su fórmula molecular es C6H14 y su fórmula semidesarrollada es (CH3)2CHCH(CH3)2.",
+    adapted: true,
+  };
+}
+
 /**
  * Keeps the UI's "Uso" label truthful: a description is shown there only
  * when PubChem itself explicitly contains a use/application statement.
@@ -243,6 +269,8 @@ async function fetchWikipediaPage(
   title: string,
   signal?: AbortSignal,
   expectedQid?: string,
+  pubchem?: PubChemCompoundContext,
+  structuralFormula?: string,
 ) {
   const payload = await fetchJson<WikipediaQueryPayload>(
     fetchImpl,
@@ -263,7 +291,16 @@ async function fetchWikipediaPage(
   if (expectedQid && page && page.pageprops?.wikibase_item !== expectedQid) {
     return { status: "identity-mismatch" as const };
   }
-  const summary = shortSentences(cleanWikipediaLayoutReferences(page?.extract), 2);
+  const cleanedExtract = cleanWikipediaLayoutReferences(page?.extract);
+  const adaptedExtract = page ? adaptVerifiedDimethylbutaneExtract({
+    language,
+    title: page.title ?? "",
+    extract: cleanedExtract,
+    qid: expectedQid,
+    pubchem,
+    structuralFormula,
+  }) : { extract: cleanedExtract, adapted: false };
+  const summary = shortSentences(adaptedExtract.extract, 2);
   const url = cleanText(page?.fullurl);
   const resolvedTitle = cleanText(page?.title);
   if (!summary || !url || !resolvedTitle) return { status: "no-article" as const };
@@ -271,7 +308,8 @@ async function fetchWikipediaPage(
     status: "article" as const,
     article: { language, title: resolvedTitle, summary, url,
       source: expectedQid ? "wikidata" as const : "registry" as const,
-      ...(expectedQid ? { qid: expectedQid } : {}) },
+      ...(expectedQid ? { qid: expectedQid } : {}),
+      ...(adaptedExtract.adapted ? { summaryAdapted: true } : {}) },
   };
 }
 
@@ -289,11 +327,23 @@ async function resolveWikipedia(
     if (result.status === "cancelled") throw new DOMException("The request was cancelled.", "AbortError");
     throwIfAborted(signal);
     if (result.status === "article") {
+      const structureInspection = identity.canonicalSmiles
+        ? inspectSmilesStructure(identity.canonicalSmiles)
+        : undefined;
+      const structuralFormula = structureInspection?.ok ? structureInspection.formula : undefined;
       let mismatch = false;
       for (const wikiLanguage of getWikipediaLanguages(language)) {
         const link = result.identity.links[wikiLanguage];
         if (!link) continue;
-        const page = await fetchWikipediaPage(fetchImpl, wikiLanguage, link.title, signal, result.identity.qid);
+        const page = await fetchWikipediaPage(
+          fetchImpl,
+          wikiLanguage,
+          link.title,
+          signal,
+          result.identity.qid,
+          pubchem,
+          structuralFormula,
+        );
         if (page.status === "article") return { status: "wikidata", article: page.article };
         if (page.status === "identity-mismatch") mismatch = true;
       }

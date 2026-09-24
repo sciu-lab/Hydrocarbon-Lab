@@ -4680,6 +4680,18 @@ button {
   display: grid;
   grid-template-columns: 27px minmax(0, 1fr);
   gap: 9px;
+  scroll-margin-top: 96px;
+  border-radius: 9px;
+  transition: background 180ms ease, box-shadow 180ms ease;
+}
+.reasoning-section li.reasoning-step-target {
+  background: rgba(79, 168, 141, .13);
+  box-shadow: 0 0 0 5px rgba(79, 168, 141, .13);
+}
+.reasoning-step-target .reasoning-name-fragment {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 .reasoning-section li > span {
@@ -7910,6 +7922,13 @@ html[data-theme="dark"] .smiles-feedback.error > span {
   line-height: 1.45;
 }
 
+.external-info-adaptation-note {
+  display: block;
+  margin-top: 4px;
+  color: #81918c;
+  font-size: 9px;
+}
+
 .external-info-empty,
 .real-world-loading {
   color: #81918c !important;
@@ -9074,6 +9093,12 @@ html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35
 .iupac-dock-profile:disabled { opacity: .6; cursor: default; }
 .iupac-dock-name { display: block; max-height: 1.3em; }
 .iupac-dock-name .chemical-name-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iupac-name-reference { color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: #87d8be; text-decoration-style: dotted; text-decoration-thickness: 2px; text-underline-offset: 3px; user-select: text; }
+.iupac-name-reference:hover, .iupac-name-reference.is-active { color: #b9ffdf; text-decoration-style: solid; }
+.iupac-name-reference:focus-visible { outline: 2px solid #b9ffdf; outline-offset: 3px; border-radius: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .reasoning-section li { transition: none; }
+}
 .iupac-dock-name wbr { display: none; }
 .iupac-dock-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .iupac-dock-detail-heading > span { color: #96c9bb; font-size: 10px; font-weight: 850; text-transform: uppercase; }

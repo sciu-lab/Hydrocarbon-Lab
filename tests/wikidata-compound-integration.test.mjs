@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { createCompoundContextResolver } from "../app/compound-context.ts";
@@ -11,6 +12,7 @@ const cases = {
   bicyclohexyl: { cid: 7094, key: "WVIIMZNLDWSIRH-UHFFFAOYSA-N", smiles: "C1CCCCC1C2CCCCC2", qid: "Q21099094", links: { en: "Bicyclohexyl" } },
   glucose: { cid: 5793, key: "WQZGKKKJIJFFOK-GASJEMHNSA-N", smiles: "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O", qid: "Q23905964", links: {}, iupacName: "(3R,4S,5S,6R)-6-(hydroxymethyl)oxane-2,3,4,5-tetrol" },
   openGlucose: { cid: 107526, key: "GZCGUPFRVQAUEE-SLPGGIOYSA-N", smiles: "OC[C@H]([C@H]([C@@H]([C@H](C=O)O)O)O)O", qid: "Q21036645", links: {}, iupacName: "(2R,3S,4R,5R)-2,3,4,5,6-pentahydroxyhexanal" },
+  dimethylbutane: { cid: 999999, key: "AAAAAAAAAAAAAA-BBBBBBBBBB-C", smiles: "CC(C)C(C)C", qid: "Q99999999", links: { es: "2,3-dimetilbutano", en: "2,3-Dimethylbutane" }, formula: "C6H14" },
   oxazinane: { cid: 287364, key: "LQPOOAJESJYDLS-UHFFFAOYSA-N", smiles: "O1CNCCC1", qid: "Q82046256", links: {} },
 };
 
@@ -35,7 +37,7 @@ function fixtureFetch(record, options = {}) {
         IUPACName: record.iupacName ?? record.links.en ?? `CID ${record.cid}`,
         InChIKey: record.key,
         IsomericSMILES: record.smiles,
-        MolecularFormula: record.cid === 5793 || record.cid === 107526 ? "C6H12O6" : undefined,
+        MolecularFormula: record.formula ?? (record.cid === 5793 || record.cid === 107526 ? "C6H12O6" : undefined),
       }] } });
       if (url.pathname.includes("/description/")) return json({ InformationList: { Information: [{ Title: record.links.en ?? `CID ${record.cid}` }] } });
     }
@@ -102,6 +104,35 @@ test("removes Wikipedia's layout aside from the Spanish morpholine extract befor
 
   assert.equal(context.wikipedia?.summary, "La morfolina es un compuesto químico orgánico de fórmula O(CH2CH2)2NH. Este heterociclo contiene tanto el grupo funcional amino como el éter.");
   assert.equal(context.wikipedia?.url, "https://es.wikipedia.org/wiki/Morfolina");
+});
+
+test("adapts the verified dimethylbutane extract only when its typo and formula conflict are confirmed", async () => {
+  const incorrect = "El 2,3-dimetillbutano es un hidrocarburo de cadena ramificada, de la familia de los alcanos. Su fórmula empírica es C6H14 y su fórmula semidesarrollada es (CH3)2CHCH(CH3)2.";
+  const adapted = "El 2,3-dimetilbutano es un hidrocarburo de cadena ramificada de la familia de los alcanos. Su fórmula molecular es C6H14 y su fórmula semidesarrollada es (CH3)2CHCH(CH3)2.";
+  const { fetchImpl } = fixtureFetch(cases.dimethylbutane, { extract: { es: incorrect } });
+  const context = await createCompoundContextResolver({ fetchImpl }).resolve(identity(cases.dimethylbutane), "es");
+  assert.equal(context.pubchem?.molecularFormula, "C6H14");
+  assert.equal(context.wikipedia?.summary, adapted);
+  assert.equal(context.wikipedia?.summaryAdapted, true);
+  assert.equal(context.wikipedia?.source, "wikidata");
+  assert.equal(context.wikipedia?.qid, cases.dimethylbutane.qid);
+  assert.equal(context.wikipedia?.title, "2,3-dimetilbutano");
+  assert.equal(context.wikipedia?.url, "https://es.wikipedia.org/wiki/2%2C3-dimetilbutano");
+  const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(pageSource, /href=\{currentCompoundContext\.wikipedia\.url\}/);
+  assert.match(pageSource, /currentCompoundContext\.wikipedia\.summaryAdapted &&/);
+
+  const accurate = "El 2,3-dimetilbutano es un hidrocarburo de cadena ramificada. Su fórmula molecular es C6H14.";
+  const { fetchImpl: accurateFetch } = fixtureFetch(cases.dimethylbutane, { extract: { es: accurate } });
+  const unchanged = await createCompoundContextResolver({ fetchImpl: accurateFetch }).resolve(identity(cases.dimethylbutane), "es");
+  assert.equal(unchanged.wikipedia?.summary, accurate);
+  assert.equal(unchanged.wikipedia?.summaryAdapted, undefined);
+
+  const wrongFormulaRecord = { ...cases.dimethylbutane, formula: "C5H12" };
+  const { fetchImpl: mismatchFetch } = fixtureFetch(wrongFormulaRecord, { extract: { es: incorrect } });
+  const mismatch = await createCompoundContextResolver({ fetchImpl: mismatchFetch }).resolve(identity(wrongFormulaRecord), "es");
+  assert.equal(mismatch.wikipedia?.summary, incorrect);
+  assert.equal(mismatch.wikipedia?.summaryAdapted, undefined, "a PubChem formula that disagrees with the verified graph does not authorize adaptation");
 });
 
 test("removes equivalent English and vertical image asides without changing chemistry", async () => {

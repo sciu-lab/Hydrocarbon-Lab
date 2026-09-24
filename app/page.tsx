@@ -130,6 +130,8 @@ import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifi
 import { curatedCommonNameForSmiles } from "./curated-common-name-display";
 import { legacyProfileDisplayName } from "./legacy-profile-display";
 import { deriveReasoningNameFragments, type ReasoningNameFragment } from "./reasoning-name-fragments";
+import { buildReasoningNameLinkParts } from "./reasoning-name-links";
+import { activateReasoningReference, cancelReasoningHover, scheduleReasoningHover, scrollToReasoningStep } from "./reasoning-name-navigation";
 import {
   compoundIdentityKey,
   createCompoundContextResolver,
@@ -3936,6 +3938,13 @@ function buildLocalizedSubstituentGroups(
   return groups;
 }
 
+function hasImplicitAcyclicAldehydeLocant(analysis: Analysis) {
+  return analysis.family === "acyclic"
+    && analysis.primaryFunctionalGroup === "aldehyde"
+    && analysis.functionalGroups.filter((group) => group.kind === "aldehyde").length === 1
+    && /al$/i.test(analysis.chainName);
+}
+
 export function buildIupacReasoningSteps(
   molecule: Molecule,
   analysis: Analysis,
@@ -4314,7 +4323,10 @@ export function buildIupacReasoningSteps(
       const reversedSubstituentLocants = reverseAtomLocants(chosenSubstituentLocants, chainLength);
       let hierarchyResolved = false;
 
-      if (primaryKind && primaryLocants.length) {
+      if (hasImplicitAcyclicAldehydeLocant(analysis)) {
+        explanationParts.push("El carbono del grupo aldehído forma parte de la cadena principal y recibe el localizador C1. Su posición queda implícita en el sufijo -al, por lo que no es necesario escribir el número 1 en el nombre.");
+        hierarchyResolved = true;
+      } else if (primaryKind && primaryLocants.length) {
         const primaryComparison = compareNumberLists(primaryLocants, reversedPrimaryLocants);
         if (primaryComparison < 0) {
           explanationParts.push(
@@ -4686,6 +4698,8 @@ export function buildEnglishReasoningSteps(
         : "";
       explanation = analysis.family === "aromatic"
         ? `${primaryLabel ? `The suffix function (${primaryLabel}) keeps its numbering priority; prefix locants are considered afterward.` : "Admissible aromatic-ring numberings are compared using the locants of the groups cited as prefixes."}${aromaticPrefixLocantsText(analysis.substituents, "en") ? ` The assigned numbering places ${aromaticPrefixLocantsText(analysis.substituents, "en")}.` : ""}`
+        : hasImplicitAcyclicAldehydeLocant(analysis)
+        ? "The aldehyde carbon is part of the parent chain and is assigned position C1. Its position is implicit in the suffix -al, so the locant 1 does not need to be written in the name."
         : primaryLabel
         ? `Numbering is chosen to give the principal group (${primaryLabel}) the lowest permitted locant. If both directions remain equivalent, multiple bonds are considered next, followed by substituents at the first point of difference.${unsaturation}`
         : substituentLocantsTie
@@ -6079,6 +6093,13 @@ export default function Home() {
   const [highlightInteractivesEnabled, setHighlightInteractivesEnabled] = useState(false);
   const [stereochemistryPreferenceReady, setStereochemistryPreferenceReady] = useState(false);
   const [showReasoningHelp, setShowReasoningHelp] = useState(true);
+  const [reasoningPeekContext, setReasoningPeekContext] = useState<{ key: string; molecule: typeof molecule } | null>(null);
+  const [activeReasoningReference, setActiveReasoningReference] = useState<{ key: string; molecule: typeof molecule; step: string } | null>(null);
+  const reasoningHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reasoningPointerNavigated = useRef(false);
+  const reasoningScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reasoningHighlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reasoningPeekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSkeletalHint, setShowSkeletalHint] = useState(true);
   const [showBondInteractionHint, setShowBondInteractionHint] = useState(true);
   const [showAlkylPalette, setShowAlkylPalette] = useState(false);
@@ -6698,6 +6719,48 @@ export default function Home() {
       && !externalNameIsPrimary && sourceNameOverride === null
       && (!isPristineInitialMolecule || showPristineMethaneName),
   });
+  const reasoningNameLinkParts = buildReasoningNameLinkParts(displayedIupacName, reasoningNameFragments, localizedReasoningSteps);
+  const reasoningReferenceKey = `${language}|${activeNomenclatureConvention}|${displayedIupacName}|${currentMoleculeSmiles.ok ? currentMoleculeSmiles.smiles : ""}`;
+  const reasoningPeekOpen = reasoningPeekContext?.key === reasoningReferenceKey && reasoningPeekContext.molecule === molecule;
+  const activeReasoningStep = activeReasoningReference?.key === reasoningReferenceKey && activeReasoningReference.molecule === molecule ? activeReasoningReference.step : null;
+  const setActiveReasoningStep = (step: string | null) => setActiveReasoningReference(step ? { key: reasoningReferenceKey, molecule, step } : null);
+  const setReasoningPeekOpen = (open: boolean) => setReasoningPeekContext(open ? { key: reasoningReferenceKey, molecule } : null);
+  const reasoningHelpVisible = showReasoningHelp || reasoningPeekOpen;
+  const clearReasoningTimer = (timer: { current: ReturnType<typeof setTimeout> | null }) => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const navigateToReasoningStep = (stepNumber: string, fromHover: boolean) => {
+    reasoningPointerNavigated.current = true;
+    cancelReasoningHover(reasoningHoverTimer);
+    clearReasoningTimer(reasoningScrollTimer);
+    clearReasoningTimer(reasoningHighlightTimer);
+    clearReasoningTimer(reasoningPeekTimer);
+    const wasCollapsed = !reasoningHelpVisible;
+    if (fromHover) {
+      if (!showReasoningHelp) setReasoningPeekOpen(true);
+    } else {
+      setReasoningPeekOpen(false);
+      setShowReasoningHelp(true);
+    }
+    setActiveReasoningStep(stepNumber);
+    reasoningScrollTimer.current = setTimeout(() => {
+      reasoningScrollTimer.current = null;
+      scrollToReasoningStep(stepNumber);
+    }, wasCollapsed ? 320 : 0);
+    reasoningHighlightTimer.current = setTimeout(() => setActiveReasoningStep(null), 2600);
+    if (fromHover && !showReasoningHelp) {
+      reasoningPeekTimer.current = setTimeout(() => setReasoningPeekOpen(false), 3600);
+    }
+  };
+  useEffect(() => {
+    return () => {
+      for (const timer of [reasoningHoverTimer, reasoningScrollTimer, reasoningHighlightTimer, reasoningPeekTimer]) {
+        if (timer.current !== null) clearTimeout(timer.current);
+        timer.current = null;
+      }
+    };
+  }, [reasoningReferenceKey, molecule]);
   const isDarkTheme = themePreference === "dark" || (themePreference === "auto" && automaticDark);
   const historyFamilyLabel = hasHeterocycle
     ? "Heterociclo"
@@ -12244,9 +12307,14 @@ export default function Home() {
                   </>
                 ) : externalInfoSource === "wikipedia" ? (
                   currentCompoundContext?.wikipedia ? (
-                    <p lang={currentCompoundContext.wikipedia.language === "en" ? "en" : undefined}>
-                      {currentCompoundContext.wikipedia.summary}
-                    </p>
+                    <>
+                      <p lang={currentCompoundContext.wikipedia.language === "en" ? "en" : undefined}>
+                        {currentCompoundContext.wikipedia.summary}
+                      </p>
+                      {currentCompoundContext.wikipedia.summaryAdapted && (
+                        <small className="external-info-adaptation-note">{t("Extracto adaptado con datos estructurales verificados.")}</small>
+                      )}
+                    </>
                   ) : compoundContextLoading ? (
                     <p className="real-world-loading">{t("Buscando contexto…")}</p>
                   ) : (
@@ -12342,22 +12410,23 @@ export default function Home() {
             </section>
           )}
 
-          {!localSuggestedNameUnavailable && <div className={`reasoning-section ${showReasoningHelp ? "expanded" : "collapsed"}`}>
+          {!localSuggestedNameUnavailable && <div className={`reasoning-section ${reasoningHelpVisible ? "expanded" : "collapsed"}`}>
             <div className="reasoning-heading">
               <div>
                 <h3>{t("Cómo se obtiene")}</h3>
-                <span>{showReasoningHelp ? t("Prioridades que aplican") : t("Modo examen")}</span>
+                <span>{reasoningHelpVisible ? t("Prioridades que aplican") : t("Modo examen")}</span>
               </div>
               <button
                 type="button"
                 className="reasoning-visibility-button"
-                aria-label={showReasoningHelp ? t("Ocultar ayuda de nomenclatura") : t("Mostrar ayuda de nomenclatura")}
-                aria-expanded={showReasoningHelp}
+                aria-label={reasoningHelpVisible ? t("Ocultar ayuda de nomenclatura") : t("Mostrar ayuda de nomenclatura")}
+                aria-expanded={reasoningHelpVisible}
                 aria-controls="iupac-reasoning-content"
                 onClick={() => {
-                  setShowReasoningHelp((visible) => !visible);
+                  setShowReasoningHelp(!reasoningHelpVisible);
+                  setReasoningPeekOpen(false);
                   setNotice(
-                    showReasoningHelp
+                    reasoningHelpVisible
                       ? "Ayuda de nomenclatura oculta: modo examen activado."
                       : "Ayuda de nomenclatura visible nuevamente.",
                   );
@@ -12366,17 +12435,17 @@ export default function Home() {
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M2.7 12s3.4-5.2 9.3-5.2 9.3 5.2 9.3 5.2-3.4 5.2-9.3 5.2S2.7 12 2.7 12Z" />
                   <circle cx="12" cy="12" r="2.7" />
-                  {!showReasoningHelp && <path className="eye-slash" d="m4 4 16 16" />}
+                  {!reasoningHelpVisible && <path className="eye-slash" d="m4 4 16 16" />}
                 </svg>
-                <span>{showReasoningHelp ? t("Ocultar ayuda") : t("Mostrar ayuda")}</span>
+                <span>{reasoningHelpVisible ? t("Ocultar ayuda") : t("Mostrar ayuda")}</span>
               </button>
             </div>
 
-            <div className="reasoning-collapse" aria-hidden={!showReasoningHelp}>
+            <div className="reasoning-collapse" aria-hidden={!reasoningHelpVisible}>
               <div id="iupac-reasoning-content">
                 <ol>
                   {localizedReasoningSteps.map((step) => (
-                    <li key={step.number}>
+                    <li key={step.number} id={`iupac-reasoning-step-${step.number}`} className={activeReasoningStep === step.number ? "reasoning-step-target" : undefined}>
                       <span>{step.number}</span>
                       <div>
                         <strong>{step.title}</strong>
@@ -12506,7 +12575,40 @@ export default function Home() {
             ))}
           </select>
           <div className="iupac-dock-name-stack">
-            <strong className="iupac-dock-name"><ChemicalNameText name={isPristineInitialMolecule && !showPristineMethaneName ? "—" : showIupacName ? displayedIupacName : t("Respuesta oculta")} /></strong>
+            <strong className="iupac-dock-name">
+              {showIupacName && !isPristineInitialMolecule && !localSuggestedNameUnavailable && reasoningNameLinkParts.some((part) => part.stepNumber)
+                ? <span className="chemical-name-text">{reasoningNameLinkParts.map((part, index) => part.stepNumber
+                  ? <a
+                      key={`${index}-${part.text}`}
+                      className={`iupac-name-reference ${activeReasoningStep === part.stepNumber ? "is-active" : ""}`}
+                      href={`#iupac-reasoning-step-${part.stepNumber}`}
+                      aria-label={`${part.text}: ${language === "en" ? "explain in step" : "explicar en el paso"} ${part.stepNumber}, ${localizedReasoningSteps.find((step) => step.number === part.stepNumber)?.title ?? ""}${part.relatedStepNumbers?.length ? `; ${language === "en" ? "also related to step" : "también relacionado con el paso"} ${part.relatedStepNumbers.join(", ")}` : ""}`}
+                      title={`${language === "en" ? "Explain" : "Explicar"} ${part.text} · ${language === "en" ? "step" : "paso"} ${part.stepNumber}`}
+                      onPointerEnter={(event) => {
+                        if (event.pointerType !== "mouse") return;
+                        reasoningPointerNavigated.current = false;
+                        scheduleReasoningHover(reasoningHoverTimer, part.stepNumber!, setActiveReasoningStep, (stepNumber) => navigateToReasoningStep(stepNumber, true));
+                      }}
+                      onPointerLeave={(event) => {
+                        if (event.pointerType !== "mouse") return;
+                        cancelReasoningHover(reasoningHoverTimer);
+                        if (!reasoningPointerNavigated.current) setActiveReasoningStep(null);
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        if (window.getSelection()?.toString()) return;
+                        activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === " ") {
+                          event.preventDefault();
+                          activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
+                        }
+                      }}
+                    ><ChemicalNotationText value={part.text} /></a>
+                  : <ChemicalNotationText key={`${index}-${part.text}`} value={part.text} />)}</span>
+                : <ChemicalNameText name={isPristineInitialMolecule && !showPristineMethaneName ? "—" : showIupacName ? displayedIupacName : t("Respuesta oculta")} />}
+            </strong>
             {showIupacName && !isPristineInitialMolecule && visibleCommonName && (
               <span className="iupac-dock-common-name"><span>{commonNameLabel}</span> {visibleCommonName}</span>
             )}

@@ -99,6 +99,8 @@ test("a single alkyl substituent and an alkene use only written locants", () => 
   const methylEn = derive(methylhexane, translateSpanishIupacToOpsin(methylhexane.analysis.name), "en").fragments;
   assert.deepEqual([methylEs["02"]?.text, methylEs["03"]?.text, methylEs["04"]?.text], ["hexano", "3", "3-metil"]);
   assert.deepEqual([methylEn["02"]?.text, methylEn["03"]?.text, methylEn["04"]?.text], ["hexane", "3", "3-methyl"]);
+  assert.equal(methylEs["03"]?.label, "Localizador del sustituyente");
+  assert.equal(methylEn["03"]?.label, "Substituent locant");
 
   const pentene = analyzed("CC=CCC");
   assert.equal(pentene.analysis.name, "pent-2-eno");
@@ -191,6 +193,7 @@ test("repeated alkyl prefixes retain every locant and their di, tri or tetra mul
       assert.deepEqual([fragments["02"]?.text, fragments["03"]?.text, fragments["04"]?.text],
         [parent, prefix.slice(0, prefix.indexOf("-")), prefix], name);
       assert.equal(Object.values(fragments).filter((fragment) => fragment.kind === "substituent").length, 1);
+      assert.equal(fragments["03"]?.label, language === "en" ? "Substituent locants" : "Localizadores de los sustituyentes");
     }
   }
 });

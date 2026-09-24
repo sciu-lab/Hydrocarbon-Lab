@@ -156,7 +156,9 @@ export function deriveReasoningNameFragments({
     const multiplier = ["", "", "di", "tri", "tetra"][locants.length];
     if (prefix === `${locants.join(",")}-${multiplier}${named}`) {
       add("02", name.slice(-parent.length), chainLabel, "parent");
-      add("03", locants.join(","), language === "en" ? "Substituent locants" : "Localizadores del sustituyente", "numbering");
+      add("03", locants.join(","), language === "en"
+        ? analysis.substituents.length > 1 ? "Substituent locants" : "Substituent locant"
+        : analysis.substituents.length > 1 ? "Localizadores de los sustituyentes" : "Localizador del sustituyente", "numbering");
       add("04", prefix, language === "en" ? "Substituent and locants" : "Sustituyente y localizadores", "substituent");
     }
   }

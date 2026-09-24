@@ -69,6 +69,39 @@ test("functional priority appears before the parent and substituent rules", () =
   assert.match(steps[0].explanation, /se fija como C1/i);
 });
 
+test("acyclic aldehydes explain the implicit -al locant without changing cyclic carbaldehydes", () => {
+  const butanalResult = moleculeFromSmiles("CCCC=O");
+  assert.equal(butanalResult.ok, true, butanalResult.ok ? undefined : butanalResult.error);
+  const butanal = analyzeMolecule(butanalResult.molecule);
+  assert.equal(butanal.name, "butanal");
+  const spanish = buildIupacReasoningSteps(butanalResult.molecule, butanal)
+    .find((step) => step.number === "03");
+  const english = buildEnglishReasoningSteps(
+    buildIupacReasoningSteps(butanalResult.molecule, butanal),
+    butanalResult.molecule,
+    butanal,
+  ).find((step) => step.number === "03");
+  assert.match(spanish.explanation, /carbono del grupo aldehído forma parte de la cadena principal y recibe el localizador C1/i);
+  assert.match(spanish.explanation, /posición queda implícita en el sufijo -al/i);
+  assert.match(spanish.explanation, /no es necesario escribir el número 1/i);
+  assert.match(english.explanation, /aldehyde carbon is part of the parent chain and is assigned position C1/i);
+  assert.match(english.explanation, /implicit in the suffix -al/i);
+  assert.match(english.explanation, /locant 1 does not need to be written/i);
+
+  const cyclicResult = moleculeFromSmiles("O=CC1CCCCC1");
+  assert.equal(cyclicResult.ok, true, cyclicResult.ok ? undefined : cyclicResult.error);
+  const cyclic = analyzeMolecule(cyclicResult.molecule);
+  assert.match(cyclic.name, /carbaldehído$/);
+  const cyclicSpanish = buildIupacReasoningSteps(cyclicResult.molecule, cyclic).find((step) => step.number === "03");
+  const cyclicEnglish = buildEnglishReasoningSteps(
+    buildIupacReasoningSteps(cyclicResult.molecule, cyclic),
+    cyclicResult.molecule,
+    cyclic,
+  ).find((step) => step.number === "03");
+  assert.doesNotMatch(cyclicSpanish.explanation, /posición queda implícita en el sufijo -al/i);
+  assert.doesNotMatch(cyclicEnglish.explanation, /implicit in the suffix -al/i);
+});
+
 test("aromatic nitro groups are explained as prefixes, not principal suffix groups", () => {
   const cases = [
     ["benzene", "c1ccccc1"],

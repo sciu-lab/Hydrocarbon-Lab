@@ -290,6 +290,7 @@ const ENGLISH_UI: Record<string, string> = {
   "Mostrar información externa": "Show external information",
   "Cargando datos de PubChem…": "Loading PubChem data…",
   "No hay información de Wikipedia aprobada para este compuesto.": "No approved Wikipedia information is available for this compound.",
+  "Extracto adaptado con datos estructurales verificados.": "Extract adapted using verified structural data.",
   "No hay datos estructurados validados de PubChem para esta estructura.": "No validated PubChem structural data is available for this structure.",
   "No se pudo recuperar información externa verificada en este momento.": "Verified external information is temporarily unavailable.",
   "No se encontró información externa verificada para esta estructura.": "No verified external information was found for this structure.",
