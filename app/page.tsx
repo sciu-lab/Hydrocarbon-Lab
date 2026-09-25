@@ -11,6 +11,7 @@ import {
   useEffectEvent,
   useMemo,
   useRef,
+  useReducer,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -134,6 +135,19 @@ import { legacyProfileDisplayName } from "./legacy-profile-display";
 import { deriveReasoningNameFragments, type ReasoningNameFragment } from "./reasoning-name-fragments";
 import { buildReasoningNameLinkParts } from "./reasoning-name-links";
 import { activateReasoningReference, cancelReasoningHover, scheduleReasoningHover, scrollToReasoningStep } from "./reasoning-name-navigation";
+import {
+  GUIDED_TOUR_STEP_COUNT,
+  INITIAL_GUIDED_TOUR_STATE,
+  guidedTourCopy,
+  guidedTourControls,
+  guidedTourIsSuspendedByOverlay,
+  guidedTourScrollDelta,
+  guidedTourReducer,
+  guidedTourTargetForStep,
+  placeGuidedTourCard,
+  readGuidedTourDecision,
+  writeGuidedTourDecision,
+} from "./guided-tour-state";
 import {
   compoundIdentityKey,
   createCompoundContextResolver,
@@ -6105,6 +6119,10 @@ export default function Home() {
   const [simplifiedModeEnabled, setSimplifiedModeEnabled] = useState(false);
   const [highlightInteractivesEnabled, setHighlightInteractivesEnabled] = useState(false);
   const [stereochemistryPreferenceReady, setStereochemistryPreferenceReady] = useState(false);
+  const [guidedTourState, dispatchGuidedTour] = useReducer(guidedTourReducer, INITIAL_GUIDED_TOUR_STATE);
+  const guidedTourTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const guidedTourPanelRef = useRef<HTMLElement | null>(null);
+  const [guidedTourPosition, setGuidedTourPosition] = useState<{ top: number; left: number; side: string } | null>(null);
   const [showReasoningHelp, setShowReasoningHelp] = useState(true);
   const [reasoningPeekContext, setReasoningPeekContext] = useState<{ key: string; molecule: typeof molecule } | null>(null);
   const [activeReasoningReference, setActiveReasoningReference] = useState<{ key: string; molecule: typeof molecule; step: string } | null>(null);
@@ -6243,6 +6261,49 @@ export default function Home() {
     }, 0);
     return () => window.clearTimeout(restoreDismissedHints);
   }, []);
+
+  useEffect(() => {
+    let decision: ReturnType<typeof readGuidedTourDecision> = null;
+    try {
+      decision = readGuidedTourDecision(window.localStorage);
+    } catch {
+      // The first-visit guide remains available when browser storage is blocked.
+    }
+    dispatchGuidedTour({ type: "initialize", decision });
+  }, []);
+
+  const rememberGuidedTourDecision = useCallback((decision: "completed" | "skipped") => {
+    try {
+      writeGuidedTourDecision(window.localStorage, decision);
+    } catch {
+      // The guide remains dismissible for this page view when storage is blocked.
+    }
+  }, []);
+
+  const openGuidedTour = () => dispatchGuidedTour({ type: "open" });
+  const dismissGuidedTour = useCallback(() => {
+    if (guidedTourState.completion === "pending") rememberGuidedTourDecision("skipped");
+    dispatchGuidedTour({ type: "dismiss" });
+    window.requestAnimationFrame(() => guidedTourTriggerRef.current?.focus({ preventScroll: true }));
+  }, [guidedTourState.completion, rememberGuidedTourDecision]);
+  const advanceGuidedTour = useCallback(() => {
+    if (guidedTourState.step >= GUIDED_TOUR_STEP_COUNT - 1) {
+      rememberGuidedTourDecision("completed");
+      dispatchGuidedTour({ type: "next" });
+      window.requestAnimationFrame(() => guidedTourTriggerRef.current?.focus({ preventScroll: true }));
+      return;
+    }
+    dispatchGuidedTour({ type: "next" });
+  }, [guidedTourState.step, rememberGuidedTourDecision]);
+  const markGuidedTourToolsOpened = () => {
+    if (!guidedTourState.open || guidedTourState.step !== GUIDED_TOUR_STEP_COUNT - 1) return;
+    rememberGuidedTourDecision("completed");
+    dispatchGuidedTour({ type: "tools-opened" });
+  };
+  const closeSettings = () => {
+    setSettingsOpen(false);
+    dispatchGuidedTour({ type: "settings-closed" });
+  };
 
   useEffect(() => () => {
     formulaSearchGenerationRef.current += 1;
@@ -6763,6 +6824,12 @@ export default function Home() {
   const setActiveReasoningStep = (step: string | null) => setActiveReasoningReference(step ? { key: reasoningReferenceKey, molecule, step } : null);
   const setReasoningPeekOpen = (open: boolean) => setReasoningPeekContext(open ? { key: reasoningReferenceKey, molecule } : null);
   const reasoningHelpVisible = showReasoningHelp || reasoningPeekOpen;
+  const openReasoningHelpFromUserAction = () => {
+    const shouldAdvanceTour = !showReasoningHelp && guidedTourState.open && guidedTourState.step === 3;
+    setShowReasoningHelp(true);
+    setReasoningPeekOpen(false);
+    if (shouldAdvanceTour) dispatchGuidedTour({ type: "reasoning-opened" });
+  };
   const clearReasoningTimer = (timer: { current: ReturnType<typeof setTimeout> | null }) => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
@@ -7699,6 +7766,7 @@ export default function Home() {
     if (!committed) return;
     previousSelectedId.current = selectedAtom.id;
     setSelectedId(nextId);
+    dispatchGuidedTour({ type: "carbon-added" });
   };
   const addCarbonFromArrow = useEffectEvent(addCarbon);
 
@@ -7707,12 +7775,12 @@ export default function Home() {
     b: number,
     requestedOrder?: BondOrder,
     toggleStereochemistry = false,
-  ) => {
+  ): boolean => {
     const atomA = getAtom(a, molecule);
     const atomB = getAtom(b, molecule);
     if ((atomA && !isCarbonAtom(atomA)) || (atomB && !isCarbonAtom(atomB))) {
       setNotice("Los enlaces de O, N y halógenos quedan fijados para conservar el grupo funcional. Retira el átomo terminal y elige otro grupo si deseas cambiarlo.");
-      return;
+      return false;
     }
     const containingRings = molecule.rings?.filter((ring) => ringHasBond(ring, a, b)) ?? [];
     const containingRing = containingRings[0];
@@ -7721,19 +7789,19 @@ export default function Home() {
       setNotice(
         "Los enlaces que unen un anillo con un sustituyente u otro anillo se mantienen simples; toca un enlace interno del ciclo para cambiarlo.",
       );
-      return;
+      return false;
     }
     const bondIndex = molecule.bonds.findIndex(
       (bond) => (bond[0] === a && bond[1] === b) || (bond[0] === b && bond[1] === a),
     );
-    if (bondIndex < 0) return;
+    if (bondIndex < 0) return false;
 
     const currentOrder = getBondOrder(molecule.bonds[bondIndex]);
     if (toggleStereochemistry && requestedOrder === undefined && currentOrder === 2 && !containingRing) {
       const ezToggleAvailable = isDoubleBondEZToggleAvailable(molecule, a, b);
       if (ezToggleAvailable && !canToggleBondStereochemistry(stereochemistryEnabled, ezToggleAvailable)) {
         setNotice("Activa Estereoquímica para alternar la configuración E/Z de este doble enlace.");
-        return;
+        return false;
       }
       const stereoToggle = toggleDoubleBondGeometry(molecule, a, b);
       if (stereoToggle.ok) {
@@ -7751,7 +7819,7 @@ export default function Home() {
           `Configuración cambiada a ${descriptor}: se rotó un lado del doble enlace y el nombre IUPAC se actualizó automáticamente.`,
         );
         setShowIupacName(true);
-        return;
+        return false;
       }
     }
 
@@ -7761,7 +7829,7 @@ export default function Home() {
       ?? (currentOrder === 3 ? 1 : currentOrder + 1) as BondOrder;
     if (nextOrder === currentOrder) {
       skippedBondOrder.current.delete(key);
-      return;
+      return false;
     }
     const extraValence = nextOrder - currentOrder;
     const violation = extraValence > 0
@@ -7778,7 +7846,7 @@ export default function Home() {
           : formatBondValenceError(nextOrder, violation),
         2800,
       );
-      return;
+      return false;
     }
 
     skippedBondOrder.current.delete(key);
@@ -7786,7 +7854,7 @@ export default function Home() {
     const nextBonds = molecule.bonds.map((bond, index) =>
       index === bondIndex ? [bond[0], bond[1], nextOrder] as Bond : [...bond] as Bond,
     );
-    commit(
+    return commit(
       {
         ...molecule,
         bonds: nextBonds,
@@ -7798,6 +7866,16 @@ export default function Home() {
         ? `Enlace actualizado: ${getBondOrderLabel(currentOrder)} → ${getBondOrderLabel(nextOrder)}. El anillo dejó de marcarse como aromático y se conservaron sus órdenes de enlace explícitos.`
         : `Enlace actualizado: ${getBondOrderLabel(currentOrder)} → ${getBondOrderLabel(nextOrder)}. Fórmula y nombre recalculados.`,
     );
+  };
+  const changeBondOrderFromInput = (
+    a: number,
+    b: number,
+    requestedOrder?: BondOrder,
+    toggleStereochemistry = false,
+  ) => {
+    const changed = cycleBondOrder(a, b, requestedOrder, toggleStereochemistry);
+    if (changed) dispatchGuidedTour({ type: "bond-order-changed" });
+    return changed;
   };
 
   const toggleTetrahedralCenter = (atomId: number) => {
@@ -9027,7 +9105,10 @@ export default function Home() {
           closeExpandedCanvas();
         } else if (settingsOpen) {
           event.preventDefault();
-          setSettingsOpen(false);
+          closeSettings();
+        } else if (guidedTourState.open) {
+          event.preventDefault();
+          dismissGuidedTour();
         } else if (!historyOpen && !isEditable && (selectedId !== null || selectedFusionBond)) {
           event.preventDefault();
           previousSelectedId.current = null;
@@ -9037,7 +9118,7 @@ export default function Home() {
         return;
       }
 
-      if (isEditable) return;
+      if (isEditable || target?.closest(".guided-tour")) return;
 
       if (event.altKey || historyOpen || settingsOpen || pngExportOpen) return;
       const commandPressed = event.ctrlKey || event.metaKey;
@@ -9090,7 +9171,7 @@ export default function Home() {
           const bond = target.closest<SVGGElement>("[data-bond-a]");
           if (bond) {
             event.preventDefault();
-            cycleBondOrder(Number(bond.dataset.bondA), Number(bond.dataset.bondB), Number(key) as BondOrder);
+            changeBondOrderFromInput(Number(bond.dataset.bondA), Number(bond.dataset.bondB), Number(key) as BondOrder);
           }
         } else if (key === "m" || key === "e" || key === "p") {
           event.preventDefault();
@@ -9144,6 +9225,7 @@ export default function Home() {
         closeContextualPanels();
         setNameBuilderOpen(true);
         setNameBuilderFeedback(null);
+        if (!nameBuilderOpen) markGuidedTourToolsOpened();
       } else if (key === "2") {
         event.preventDefault();
         closeContextualPanels();
@@ -9172,7 +9254,7 @@ export default function Home() {
     undo,
     redo,
     placementTool, showRingPalette, showAlkylPalette, showFunctionalPalette,
-    molecule, loadRingTemplate, addAlkylGroup, cycleBondOrder,
+    molecule, loadRingTemplate, addAlkylGroup, changeBondOrderFromInput, closeSettings,
     exportCurrentSmiles,
     saveCurrentStructure,
     newMolecule,
@@ -9181,6 +9263,9 @@ export default function Home() {
     closeExpandedCanvas,
     pngExportOpen,
     settingsOpen,
+    markGuidedTourToolsOpened,
+    guidedTourState.open,
+    dismissGuidedTour,
     selectedId,
     selectedFusionBond,
   ]);
@@ -9549,6 +9634,181 @@ export default function Home() {
       ? `${alias.common} volvió a mostrarse como (${alias.systematic}) y se recalculó el orden alfabético.`
       : `(${alias.systematic}) ahora se muestra como ${alias.common}; el nombre completo se reordenó alfabéticamente.`);
   };
+  const guidedTourControlsText = guidedTourControls(language);
+  const guidedTourTarget = guidedTourTargetForStep(guidedTourState.step, guidedTourState.carbonPhase);
+  const guidedTourCopyText = guidedTourCopy(language, guidedTourState.step, {
+    hasInteractiveName: reasoningNameLinkParts.some((part) => part.stepNumber),
+    acetoneAlreadyLoaded: analysis.name === "propan-2-ona" && carbonCount === 3,
+    needsExampleForReasoning: isPristineInitialMolecule || localSuggestedNameUnavailable,
+    isPristineInitialMolecule,
+    carbonPhase: guidedTourState.carbonPhase,
+  });
+  const guidedTourSuspended = guidedTourIsSuspendedByOverlay({
+    historyOpen,
+    settingsOpen,
+    exportOpen: pngExportOpen,
+    canvasExpanded,
+  });
+  const showGuidedTour = guidedTourState.open && !guidedTourSuspended;
+  const guidedTourAcetonePreset = PRESETS.find((preset) => preset.label === "Propan-2-ona");
+  const guidedTourCarbonAtomId = molecule.atoms.find((atom) => atom.id === selectedId && isCarbonAtom(atom))?.id
+    ?? molecule.atoms.find(isCarbonAtom)?.id
+    ?? null;
+  const guidedTourEditableBond = molecule.bonds.find((bond) => {
+    const [a, b] = bond;
+    const atomA = getAtom(a, molecule);
+    const atomB = getAtom(b, molecule);
+    if (!atomA || !atomB || !isCarbonAtom(atomA) || !isCarbonAtom(atomB)) return false;
+    const containingRing = molecule.rings?.some((ring) => ringHasBond(ring, a, b)) ?? false;
+    if (molecule.rings?.length && !containingRing) return false;
+    const currentOrder = getBondOrder(bond);
+    const nextOrder = (currentOrder === 3 ? 1 : currentOrder + 1) as BondOrder;
+    return findBondValenceViolation(molecule, a, b, nextOrder, currentOrder) === null;
+  });
+  const guidedTourEditableBondKey = guidedTourEditableBond
+    ? `${guidedTourEditableBond[0]}-${guidedTourEditableBond[1]}`
+    : null;
+
+  useEffect(() => {
+    if (!showGuidedTour) {
+      return undefined;
+    }
+
+    let frame = 0;
+    const dockHeight = Number.parseFloat(
+      window.getComputedStyle(document.documentElement).getPropertyValue("--iupac-dock-height"),
+    ) || 58;
+    const findAnchor = () => document.querySelector<HTMLElement>(
+      `[data-guided-tour-anchor="${guidedTourTarget}"]`,
+    ) ?? (guidedTourTarget === "reasoning"
+      ? document.querySelector<HTMLElement>(".analysis-card")
+      : null);
+
+    const scrollTargetIntoView = () => {
+      const target = findAnchor();
+      if (!target || target.closest(".iupac-dock")) return;
+
+      const rect = target.getBoundingClientRect();
+      const addCarbonControls = target.closest<HTMLElement>(".builder-card")?.querySelector<HTMLElement>(".direction-pad");
+      const addCarbonControlsTop = addCarbonControls?.getBoundingClientRect().top;
+      const carbonTargetTop = guidedTourTarget === "carbon" && window.innerWidth <= 760
+        ? Math.min(
+          Math.round(window.innerHeight * 0.5),
+          window.innerHeight - dockHeight - 24 - Math.max(0, (addCarbonControlsTop ?? rect.bottom) - rect.top),
+        )
+        : undefined;
+      const delta = guidedTourScrollDelta({
+        anchor: { top: rect.top, bottom: rect.bottom },
+        viewportHeight: window.innerHeight,
+        dockHeight,
+        targetTop: carbonTargetTop,
+      });
+      if (delta === 0) return;
+
+      const scrollParent = (() => {
+        let parent = target.parentElement;
+        while (parent && parent !== document.body) {
+          const overflowY = window.getComputedStyle(parent).overflowY;
+          if ((overflowY === "auto" || overflowY === "scroll") && parent.scrollHeight > parent.clientHeight + 1) {
+            return parent;
+          }
+          parent = parent.parentElement;
+        }
+        return null;
+      })();
+      const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth";
+      if (scrollParent) scrollParent.scrollBy({ top: delta, behavior });
+      else window.scrollBy({ top: delta, behavior });
+    };
+
+    const reposition = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const panel = guidedTourPanelRef.current;
+        const anchor = findAnchor();
+        if (!panel || !anchor) return;
+
+        const anchorRect = anchor.getBoundingClientRect();
+        const cardRect = panel.getBoundingClientRect();
+        let placementAnchor = {
+          top: anchorRect.top,
+          right: anchorRect.right,
+          bottom: anchorRect.bottom,
+          left: anchorRect.left,
+        };
+        let preferHorizontal = false;
+        if (window.innerWidth > 760) {
+          const builderPanel = anchor.closest<HTMLElement>(".builder-card");
+          const builderRect = builderPanel?.getBoundingClientRect();
+          if (builderRect && builderRect.right + 22 + cardRect.width <= window.innerWidth) {
+            placementAnchor = {
+              ...placementAnchor,
+              left: builderRect.right + 12,
+              right: builderRect.right + 12,
+            };
+            preferHorizontal = true;
+          } else if (guidedTourTarget === "name" && anchor.closest(".iupac-dock")) {
+            placementAnchor = {
+              ...placementAnchor,
+              left: window.innerWidth - 12,
+              right: window.innerWidth - 12,
+            };
+            preferHorizontal = true;
+          }
+        }
+        const placement = placeGuidedTourCard({
+          anchor: placementAnchor,
+          card: { width: cardRect.width, height: cardRect.height },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          dockHeight,
+          preferHorizontal,
+          preferAbove: guidedTourTarget === "bond-controls"
+            || guidedTourTarget === "add-carbon"
+            || (guidedTourTarget === "carbon" && window.innerWidth <= 760),
+        });
+        setGuidedTourPosition((current) => current
+          && Math.abs(current.top - placement.top) < 1
+          && Math.abs(current.left - placement.left) < 1
+          && current.side === placement.side
+          ? current
+          : placement);
+      });
+    };
+
+    scrollTargetIntoView();
+    reposition();
+    const handleResize = () => {
+      scrollTargetIntoView();
+      reposition();
+    };
+    window.addEventListener("resize", handleResize);
+    document.addEventListener("scroll", reposition, true);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reposition);
+    const anchor = findAnchor();
+    if (anchor) resizeObserver?.observe(anchor);
+    if (guidedTourPanelRef.current) resizeObserver?.observe(guidedTourPanelRef.current);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", handleResize);
+      document.removeEventListener("scroll", reposition, true);
+      resizeObserver?.disconnect();
+    };
+  }, [
+    analysis.name,
+    guidedTourCopyText.action,
+    guidedTourCopyText.description,
+    guidedTourCopyText.exampleAction,
+    guidedTourState.step,
+    guidedTourState.carbonPhase,
+    guidedTourTarget,
+    language,
+    selectedId,
+    showGuidedTour,
+  ]);
 
   return (
     <main
@@ -9574,7 +9834,103 @@ export default function Home() {
         <div className="brand-copy">
           <h1>{t("Laboratorio de Hidrocarburos")}</h1>
         </div>
+        <button
+          type="button"
+          className="guided-tour-launch"
+          ref={guidedTourTriggerRef}
+          onClick={openGuidedTour}
+          aria-expanded={showGuidedTour}
+          aria-controls="guided-tour-panel"
+        >
+          <span aria-hidden="true">?</span>
+          {guidedTourControlsText.open}
+        </button>
       </header>
+
+      {showGuidedTour && (
+        <OverlayPortal active={showGuidedTour}>
+          <aside
+            className="guided-tour"
+            id="guided-tour-panel"
+            ref={guidedTourPanelRef}
+            data-guided-tour-step={guidedTourState.step + 1}
+            data-guided-tour-side={guidedTourPosition?.side}
+            data-positioned={guidedTourPosition ? "true" : undefined}
+            style={guidedTourPosition ? { top: guidedTourPosition.top, left: guidedTourPosition.left } : undefined}
+            role="region"
+            aria-labelledby="guided-tour-title"
+            aria-describedby="guided-tour-description"
+          >
+            <div className="guided-tour-heading">
+              <span className="guided-tour-progress" role="status" aria-live="polite">
+                {guidedTourControlsText.progress(guidedTourState.step)}
+              </span>
+              <button
+                type="button"
+                className="guided-tour-close"
+                onClick={dismissGuidedTour}
+                aria-label={guidedTourControlsText.close}
+                title={guidedTourControlsText.close}
+              >
+                ×
+              </button>
+            </div>
+            <h2 id="guided-tour-title">{guidedTourCopyText.title}</h2>
+            <p id="guided-tour-description">{guidedTourCopyText.description}</p>
+            {guidedTourCopyText.followUp && <p className="guided-tour-follow-up">{guidedTourCopyText.followUp}</p>}
+            {guidedTourCopyText.exampleAction && (
+              <button
+                type="button"
+                className="guided-tour-inline-action"
+                onClick={() => {
+                  if (guidedTourAcetonePreset) loadPreset(guidedTourAcetonePreset);
+                  if (guidedTourState.step === 3) {
+                    openReasoningHelpFromUserAction();
+                  }
+                }}
+              >
+                {guidedTourCopyText.exampleAction}
+              </button>
+            )}
+            {guidedTourCopyText.action && (
+              <button
+                type="button"
+                className="guided-tour-inline-action"
+                onClick={() => {
+                  if (guidedTourState.step === 3) {
+                    openReasoningHelpFromUserAction();
+                  } else if (guidedTourAcetonePreset) {
+                    loadPreset(guidedTourAcetonePreset);
+                  }
+                }}
+              >
+                {guidedTourCopyText.action}
+              </button>
+            )}
+            {guidedTourCopyText.exampleNote && <small className="guided-tour-example-note">{guidedTourCopyText.exampleNote}</small>}
+            <div className="guided-tour-actions">
+              <button type="button" className="guided-tour-skip" onClick={dismissGuidedTour}>
+                {guidedTourControlsText.skip}
+              </button>
+              <div>
+                <button
+                  type="button"
+                  className="guided-tour-previous"
+                  onClick={() => dispatchGuidedTour({ type: "previous" })}
+                  disabled={guidedTourState.step === 0}
+                >
+                  {guidedTourControlsText.previous}
+                </button>
+                <button type="button" className="guided-tour-next" onClick={advanceGuidedTour}>
+                  {guidedTourState.step === GUIDED_TOUR_STEP_COUNT - 1
+                    ? guidedTourControlsText.finish
+                    : guidedTourControlsText.next}
+                </button>
+              </div>
+            </div>
+          </aside>
+        </OverlayPortal>
+      )}
 
       {historyOpen && (
         <OverlayPortal active={historyOpen}>
@@ -9831,7 +10187,7 @@ export default function Home() {
           <button
             className="settings-scrim"
             type="button"
-            onClick={() => setSettingsOpen(false)}
+            onClick={closeSettings}
             aria-label={t("Cerrar configuración")}
           />
           <aside
@@ -9849,7 +10205,7 @@ export default function Home() {
                 type="button"
                 className="settings-close"
                 ref={settingsCloseButtonRef}
-                onClick={() => setSettingsOpen(false)}
+                onClick={closeSettings}
                 aria-label={t("Cerrar configuración")}
               >
                 ×
@@ -10358,7 +10714,11 @@ export default function Home() {
               <h2>{t("Construye la estructura orgánica")}</h2>
             </div>
             <div className="panel-heading-end">
-              <div className="heading-actions">
+              <div
+                className="heading-actions"
+                data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "tools" ? "tools" : undefined}
+                data-guided-tour-target={showGuidedTour && guidedTourTarget === "tools" ? "active" : undefined}
+              >
               <button
                 className={`name-builder-toggle ${nameBuilderOpen ? "active" : ""}`}
                 onClick={() => {
@@ -10369,6 +10729,7 @@ export default function Home() {
                   closeContextualPanels();
                   setNameBuilderOpen(true);
                   setNameBuilderFeedback(null);
+                  markGuidedTourToolsOpened();
                 }}
                 aria-expanded={nameBuilderOpen}
                 aria-controls="iupac-name-builder"
@@ -10413,6 +10774,7 @@ export default function Home() {
                   const next = !showExamplesPanel;
                   closeContextualPanels();
                   setShowExamplesPanel(next);
+                  if (next) markGuidedTourToolsOpened();
                 }}
                 aria-expanded={showExamplesPanel}
                 aria-controls="preset-examples"
@@ -11133,6 +11495,8 @@ export default function Home() {
                     className={`bond-control bond-order-${order} ${lockedBond ? "locked-bond" : ""} ${stereoInteractionEnabled ? "stereo-bond-control" : ""} ${ringFusionDropTarget?.a === a && ringFusionDropTarget.b === b ? ringFusionDropTarget.error ? "fusion-drop-invalid" : "fusion-drop-valid" : ""}`}
                     data-bond-a={a}
                     data-bond-b={b}
+                    data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "bond-controls" && guidedTourEditableBondKey === `${a}-${b}` ? "bond-controls" : undefined}
+                    data-guided-tour-target={showGuidedTour && guidedTourTarget === "bond-controls" && guidedTourEditableBondKey === `${a}-${b}` ? "active" : undefined}
                     onClick={(event) => {
                       if (placementTool || suppressBondClickAfterDrop.current) return;
                       event.currentTarget.focus({ preventScroll: true });
@@ -11147,7 +11511,7 @@ export default function Home() {
                         return;
                       }
                       setFusionSelection(null);
-                      cycleBondOrder(a, b, undefined, event.altKey);
+                      changeBondOrderFromInput(a, b, undefined, event.altKey);
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -11162,7 +11526,7 @@ export default function Home() {
                             : language === "en" ? "Bond selected for stereochemistry context." : "Enlace seleccionado para el contexto estereoquímico.");
                         } else {
                           setFusionSelection(null);
-                          cycleBondOrder(a, b, undefined, event.altKey);
+                          changeBondOrderFromInput(a, b, undefined, event.altKey);
                         }
                       }
                     }}
@@ -11289,13 +11653,13 @@ export default function Home() {
                           : `Cambiar la configuración del doble enlace a ${stereoLocant ?? ""}${nextStereoLabel}`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          cycleBondOrder(a, b, undefined, true);
+                          changeBondOrderFromInput(a, b, undefined, true);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
                             event.stopPropagation();
-                            cycleBondOrder(a, b, undefined, true);
+                            changeBondOrderFromInput(a, b, undefined, true);
                           }
                         }}
                       >
@@ -11384,6 +11748,8 @@ export default function Home() {
                     key={atom.id}
                     className={`carbon-node ${carbonAtom ? "carbon-element" : `hetero-node element-${element.toLowerCase()}`} ${viewMode === "skeletal" ? (carbonAtom ? "skeletal-node" : "skeletal-hetero-node") : "condensed-node"} ${isSelected ? "selected" : ""} ${mainChainSet.has(atom.id) ? "on-main-chain" : "on-branch"}`}
                     transform={`translate(${position.x} ${position.y})`}
+                    data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "carbon" && atom.id === guidedTourCarbonAtomId ? "carbon" : undefined}
+                    data-guided-tour-target={showGuidedTour && guidedTourTarget === "carbon" && atom.id === guidedTourCarbonAtomId ? "active" : undefined}
                     data-placement-valid={placementTool?.kind === "ring" && placementTool.mode === "replace" || carbonAtom && getValenceUsed(atom.id, molecule) < 4}
                     onClick={(event) => {
                       if (placementTool) {
@@ -11396,6 +11762,7 @@ export default function Home() {
                       previousSelectedId.current = selectedId;
                       setFusionSelection(null);
                       setSelectedId(atom.id);
+                      if (carbonAtom) dispatchGuidedTour({ type: "carbon-selected" });
                       setNotice(`${elementNames[element][0].toUpperCase()}${elementNames[element].slice(1)} ${chainNumber ?? "del grupo funcional"} seleccionado.`);
                     }}
                     role={advancedScreenReaderEnabled ? "button" : undefined}
@@ -11407,9 +11774,11 @@ export default function Home() {
                       : undefined}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
                         previousSelectedId.current = selectedId;
                         setFusionSelection(null);
                         setSelectedId(atom.id);
+                        if (carbonAtom) dispatchGuidedTour({ type: "carbon-selected" });
                       }
                     }}
                   >
@@ -11676,7 +12045,13 @@ export default function Home() {
               )}
             </div>
 
-            <div className="bond-order-picker" role="group" aria-label={t("Orden del próximo enlace")}>
+            <div
+              className="bond-order-picker"
+              role="group"
+              aria-label={t("Orden del próximo enlace")}
+              data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "bond-controls" && !guidedTourEditableBondKey ? "bond-controls" : undefined}
+              data-guided-tour-target={showGuidedTour && guidedTourTarget === "bond-controls" && !guidedTourEditableBondKey ? "active" : undefined}
+            >
               <span>{t("Próximo enlace")}</span>
               <div>
                 {([1, 2, 3] as BondOrder[]).map((order) => (
@@ -11699,7 +12074,12 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="direction-pad" aria-label={t("Añadir carbono")}>
+            <div
+              className="direction-pad"
+              aria-label={t("Añadir carbono")}
+              data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "add-carbon" ? "add-carbon" : undefined}
+              data-guided-tour-target={showGuidedTour && guidedTourTarget === "add-carbon" ? "active" : undefined}
+            >
               <span className="pad-label">{t("Añadir C")}</span>
               {directionOptions.map((option) => (
                 <button
@@ -12172,6 +12552,8 @@ export default function Home() {
         <aside
           id="analysis-panel"
           className={`analysis-card movable-panel ${isPristineInitialMolecule ? "is-pristine" : ""} ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "analysis-panel" ? "is-raised" : ""} ${draggingPanelId === "analysis-panel" ? "is-dragging" : ""}`}
+          data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "reasoning" && localSuggestedNameUnavailable ? "reasoning" : undefined}
+          data-guided-tour-target={showGuidedTour && guidedTourTarget === "reasoning" && localSuggestedNameUnavailable ? "active" : undefined}
           style={panelStyle("analysis-panel")}
         >
           <div className="analysis-utility-bar" aria-label={t("Preferencias")}>
@@ -12226,8 +12608,14 @@ export default function Home() {
               type="button"
               className="settings-control"
               ref={settingsTriggerButtonRef}
+              data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "settings" ? "settings" : undefined}
+              data-guided-tour-target={showGuidedTour && guidedTourTarget === "settings" ? "active" : undefined}
               onClick={() => {
                 setHistoryOpen(false);
+                dispatchGuidedTour({
+                  type: "settings-opened",
+                  fromGuidedStep: guidedTourState.open && guidedTourState.step === 5,
+                });
                 setSettingsOpen(true);
               }}
               aria-label={t("Abrir configuración")}
@@ -12491,8 +12879,14 @@ export default function Home() {
             </section>
           )}
 
-          {!localSuggestedNameUnavailable && <div className={`reasoning-section ${reasoningHelpVisible ? "expanded" : "collapsed"}`}>
-            <div className="reasoning-heading">
+          {!localSuggestedNameUnavailable && <div
+            className={`reasoning-section ${reasoningHelpVisible ? "expanded" : "collapsed"}`}
+          >
+            <div
+              className="reasoning-heading"
+              data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "reasoning" ? "reasoning" : undefined}
+              data-guided-tour-target={showGuidedTour && guidedTourTarget === "reasoning" ? "active" : undefined}
+            >
               <div>
                 <h3>{t("Cómo se obtiene")}</h3>
                 <span>{reasoningHelpVisible ? t("Prioridades que aplican") : t("Modo examen")}</span>
@@ -12504,8 +12898,12 @@ export default function Home() {
                 aria-expanded={reasoningHelpVisible}
                 aria-controls="iupac-reasoning-content"
                 onClick={() => {
+                  const opening = !reasoningHelpVisible;
                   setShowReasoningHelp(!reasoningHelpVisible);
                   setReasoningPeekOpen(false);
+                  if (opening && guidedTourState.open && guidedTourState.step === 3) {
+                    dispatchGuidedTour({ type: "reasoning-opened" });
+                  }
                   setNotice(
                     reasoningHelpVisible
                       ? "Ayuda de nomenclatura oculta: modo examen activado."
@@ -12656,7 +13054,11 @@ export default function Home() {
             ))}
           </select>
           <div className="iupac-dock-name-stack">
-            <strong className="iupac-dock-name">
+            <strong
+              className="iupac-dock-name"
+              data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "name" ? "name" : undefined}
+              data-guided-tour-target={showGuidedTour && guidedTourTarget === "name" ? "active" : undefined}
+            >
               {showIupacName && !isPristineInitialMolecule && !localSuggestedNameUnavailable && reasoningNameLinkParts.some((part) => part.stepNumber)
                 ? <span className="chemical-name-text">{reasoningNameLinkParts.map((part, index) => part.stepNumber
                   ? <a
@@ -12679,11 +13081,13 @@ export default function Home() {
                         event.preventDefault();
                         if (window.getSelection()?.toString()) return;
                         activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
+                        dispatchGuidedTour({ type: "reasoning-fragment-activated" });
                       }}
                       onKeyDown={(event) => {
                         if (event.key === " ") {
                           event.preventDefault();
                           activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
+                          dispatchGuidedTour({ type: "reasoning-fragment-activated" });
                         }
                       }}
                     ><ChemicalNotationText value={part.text} /></a>

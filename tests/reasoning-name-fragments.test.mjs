@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 
 import { deriveReasoningNameFragments } from "../app/reasoning-name-fragments.ts";
+import { buildReasoningNameLinkParts } from "../app/reasoning-name-links.ts";
 import { applyNomenclatureConvention } from "../app/nomenclature-conventions.ts";
 import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
 import { generateLegacyEnglishName } from "../app/legacy-english-nomenclature.ts";
@@ -89,6 +90,14 @@ test("acetone fragments follow the actual Suggested and Legacy names in both lan
     assert.ok(steps.find((step) => step.number === "01").explanation.length > 80, name);
     if (name.includes("-2-")) assert.equal(fragments["03"].text, "2", name);
     else assert.equal(fragments["03"], undefined, `${name} omits the locant`);
+
+    const linkedName = buildReasoningNameLinkParts(name, fragments, steps);
+    assert.equal(linkedName.map((part) => part.text).join(""), name, `${name} remains unchanged`);
+    assert.equal(linkedName.find((part) => part.stepNumber === "02")?.text, "propan", `${name} links its chain fragment`);
+    assert.equal(linkedName.find((part) => part.stepNumber === "01")?.text, expectedFunction, `${name} links its functional suffix`);
+    if (name.includes("-2-")) {
+      assert.deepEqual(linkedName.find((part) => part.stepNumber === "01")?.relatedStepNumbers, ["03"], `${name} links its written locant to its explanation`);
+    }
   }
 });
 

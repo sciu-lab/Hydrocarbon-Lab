@@ -26,7 +26,8 @@ function action(name, context = {}) {
 
 test("ordinary bond activation edits while Shift activation retains explicit fusion", () => {
   assert.match(page, /if \(event\.shiftKey\) \{\s*setFusionSelection/s);
-  assert.match(page, /setFusionSelection\(null\);\s*cycleBondOrder\(a, b, undefined, event\.altKey\);/s);
+  assert.match(page, /setFusionSelection\(null\);\s*changeBondOrderFromInput\(a, b, undefined, event\.altKey\);/s);
+  assert.match(page, /const changeBondOrderFromInput = \([\s\S]*?const changed = cycleBondOrder\(a, b, requestedOrder, toggleStereochemistry\);\s*if \(changed\) dispatchGuidedTour\(\{ type: "bond-order-changed" \}\);/);
   assert.doesNotMatch(page, /containingRing && !event\.shiftKey\) setFusionSelection/);
 });
 

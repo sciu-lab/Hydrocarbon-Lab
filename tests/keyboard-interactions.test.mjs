@@ -17,9 +17,18 @@ function harness(overrides = {}) {
     ALKYL_TEMPLATES: ["methyl", "ethyl", "propyl"].map(id => ({ id })),
   };
   for (const name of ["setToolPointer", "setPlacementTool", "setSelectedId", "setShowRingPalette", "setShowAlkylPalette", "setShowFunctionalPalette", "setRingInsertMode", "setPngExportOpen", "setCanvasExpanded", "setSettingsOpen", "removeSelectedWithKeyboard", "loadRingTemplate", "addAlkylGroup", "addCarbon", "cycleBondOrder", "undo", "redo"]) {
-    context[name] = (...args) => calls.push([name, ...args]);
+    context[name] = (...args) => {
+      calls.push([name, ...args]);
+      return name === "cycleBondOrder" ? false : undefined;
+    };
   }
   context.addCarbonFromArrow = (...args) => calls.push(["addCarbon", ...args]);
+  context.dispatchGuidedTour = action => calls.push(["dispatchGuidedTour", action]);
+  context.changeBondOrderFromInput = (...args) => {
+    const committed = context.cycleBondOrder(...args);
+    if (committed) context.dispatchGuidedTour({ type: "bond-order-changed" });
+    return committed;
+  };
   Object.assign(context, overrides);
   const listener = new Function("context", `with (context) { ${compiled}; return handleGlobalShortcut; }`)(context);
   const press = (key, options = {}) => {
@@ -84,4 +93,16 @@ test("bond numbers require focus; Backspace is guarded; undo uses existing histo
   assert.deepEqual(h.calls.at(-1), ["cycleBondOrder", 1, 2, 2]);
   const empty = harness({ selectedId: null }); assert.equal(empty.press("Backspace"), true); assert.deepEqual(empty.calls, []);
   const undo = harness(); undo.press("z", { ctrlKey: true }); assert.deepEqual(undo.calls, [["undo"]]);
+});
+
+test("a focused bond number advances the guide only when the bond-order edit commits", () => {
+  const target = { target: { closest: selector => selector === "[data-bond-a]" ? { dataset: { bondA: "1", bondB: "2" } } : null } };
+  const committedCycles = [];
+  const committed = harness({ cycleBondOrder: (...args) => { committedCycles.push(args); return true; } });
+  assert.equal(committed.press("2", target), true);
+  assert.deepEqual(committedCycles, [[1, 2, 2]]);
+  assert.deepEqual(committed.calls, [["dispatchGuidedTour", { type: "bond-order-changed" }]]);
+  const rejected = harness();
+  assert.equal(rejected.press("2", target), true);
+  assert.deepEqual(rejected.calls, [["cycleBondOrder", 1, 2, 2]]);
 });
