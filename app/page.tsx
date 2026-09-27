@@ -6192,6 +6192,7 @@ export default function Home() {
   const [nameSuggestionPreviewLoading, setNameSuggestionPreviewLoading] = useState(false);
   const [smilesPanelOpen, setSmilesPanelOpen] = useState(false);
   const [smilesImporting, setSmilesImporting] = useState(false);
+  const [smilesInput, setSmilesInput] = useState("");
   const [smilesFeedback, setSmilesFeedback] = useState<HistoryTransferNotice | null>(null);
   const [formulaPanelOpen, setFormulaPanelOpen] = useState(false);
   const [formulaInput, setFormulaInput] = useState("");
@@ -8739,22 +8740,20 @@ export default function Home() {
     setPngExportOpen(true);
   };
 
-  const importSmilesDocument = async (event: ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    setSmilesImporting(true);
+  const importSmilesString = (
+    source: string,
+    origin: { kind: "file"; name: string; ignoredRecordCount: number } | { kind: "text" },
+  ) => {
     setSmilesFeedback(null);
     try {
-      if (file.size > 1_000_000) {
-        throw new Error(t("El archivo SMILES supera el límite de 1 MB."));
+      const smiles = source.trim();
+      if (!smiles) throw new Error(t("Escribe o pega un SMILES antes de cargarlo."));
+      const converted = moleculeFromSmiles(smiles);
+      if (!converted.ok) {
+        throw new Error(t(origin.kind === "text" && converted.error === "OpenChemLib no pudo convertir la estructura recibida."
+          ? "SMILES no válido. Revisa la sintaxis e inténtalo de nuevo."
+          : converted.error));
       }
-
-      const record = readSmilesFileRecord(await file.text());
-      const { moleculeFromSmiles } = await import("./openchemlib-adapter");
-      const converted = moleculeFromSmiles(record.smiles);
-      if (!converted.ok) throw new Error(t(converted.error));
 
       const next = converted.molecule;
       const importedAnalysis = analyzeMolecule(next);
@@ -8763,9 +8762,13 @@ export default function Home() {
         : importedAnalysis.name;
       const committed = commit(
         next,
-        language === "en"
-          ? `Structure imported from SMILES file ${file.name}. You can keep editing it atom by atom.`
-          : `Estructura importada desde el archivo SMILES ${file.name}. Puedes seguir editándola átomo por átomo.`,
+        origin.kind === "file"
+          ? language === "en"
+            ? `Structure imported from SMILES file ${origin.name}. You can keep editing it atom by atom.`
+            : `Estructura importada desde el archivo SMILES ${origin.name}. Puedes seguir editándola átomo por átomo.`
+          : language === "en"
+            ? "Structure loaded from SMILES text. You can keep editing it atom by atom."
+            : "Estructura cargada desde texto SMILES. Puedes seguir editándola átomo por átomo.",
       );
       if (!committed) {
         throw new Error(t("El SMILES fue interpretado, pero el canvas lo bloqueó por una validación de valencia."));
@@ -8781,10 +8784,10 @@ export default function Home() {
       setShowFunctionalPalette(false);
       setNameBuilderFeedback(null);
 
-      const extraRecords = record.ignoredRecordCount > 0
+      const extraRecords = origin.kind === "file" && origin.ignoredRecordCount > 0
         ? language === "en"
-          ? ` The file contains ${record.ignoredRecordCount + 1} records; SciU imported the first molecule.`
-          : ` El archivo contiene ${record.ignoredRecordCount + 1} registros; SciU importó la primera molécula.`
+          ? ` The file contains ${origin.ignoredRecordCount + 1} records; SciU imported the first molecule.`
+          : ` El archivo contiene ${origin.ignoredRecordCount + 1} registros; SciU importó la primera molécula.`
         : "";
       setSmilesFeedback({
         kind: "success",
@@ -8796,6 +8799,29 @@ export default function Home() {
             ? `SMILES imported with OpenChemLib. Local IUPAC name unavailable for this structure.${extraRecords}`
             : `SMILES importado con OpenChemLib. Nombre IUPAC local no disponible para esta estructura.${extraRecords}`,
       });
+    } catch (error) {
+      setSmilesFeedback({
+        kind: "error",
+        message: error instanceof Error
+          ? localizedDynamicText(error.message)
+          : t("No fue posible cargar este SMILES."),
+      });
+    }
+  };
+
+  const importSmilesDocument = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    setSmilesImporting(true);
+    setSmilesFeedback(null);
+    try {
+      if (file.size > 1_000_000) {
+        throw new Error(t("El archivo SMILES supera el límite de 1 MB."));
+      }
+      const record = readSmilesFileRecord(await file.text());
+      importSmilesString(record.smiles, { kind: "file", name: file.name, ignoredRecordCount: record.ignoredRecordCount });
     } catch (error) {
       setSmilesFeedback({
         kind: "error",
@@ -11212,13 +11238,37 @@ export default function Home() {
                 </label>
               </div>
 
+              <form className="smiles-text-form" onSubmit={(event) => {
+                event.preventDefault();
+                if (!smilesImporting) importSmilesString(smilesInput, { kind: "text" });
+              }}>
+                <label htmlFor="smiles-text-input">{t("Pega o escribe un SMILES")}</label>
+                <div className="smiles-text-controls">
+                  <input
+                    id="smiles-text-input"
+                    type="text"
+                    value={smilesInput}
+                    onChange={(event) => {
+                      setSmilesInput(event.target.value);
+                      if (smilesFeedback?.kind === "error") setSmilesFeedback(null);
+                    }}
+                    placeholder={t("p. ej. CCC o c1ccccc1")}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-invalid={smilesFeedback?.kind === "error"}
+                    aria-describedby={smilesFeedback?.kind === "error" ? "smiles-feedback" : undefined}
+                  />
+                  <button type="submit" disabled={smilesImporting}>{t("Cargar SMILES")}</button>
+                </div>
+              </form>
+
               <div className="smiles-format-note">
                 <code>.smi</code>
                 <span>{t("Se exporta una cadena SMILES isomérica en texto plano. También se aceptan archivos .smiles y .txt al importar.")}</span>
               </div>
 
               {smilesFeedback && (
-                <div className={`smiles-feedback ${smilesFeedback.kind}`} role={smilesFeedback.kind === "error" ? "alert" : "status"}>
+                <div id="smiles-feedback" className={`smiles-feedback ${smilesFeedback.kind}`} role={smilesFeedback.kind === "error" ? "alert" : "status"}>
                   <span aria-hidden="true">{smilesFeedback.kind === "success" ? "✓" : "!"}</span>
                   <p>{smilesFeedback.message}</p>
                 </div>

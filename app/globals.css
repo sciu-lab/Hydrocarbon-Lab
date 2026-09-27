@@ -7709,6 +7709,69 @@ html[data-theme="dark"] .language-switch button.active {
   transform: none;
 }
 
+.smiles-text-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.smiles-text-form > label {
+  color: #245e51;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.smiles-text-controls {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.smiles-text-controls > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #bcd8cf;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #245e51;
+  font: 12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.smiles-text-controls > input:focus-visible,
+.smiles-text-controls > button:focus-visible {
+  outline: 2px solid #2d7a65;
+  outline-offset: 2px;
+}
+
+.smiles-text-controls > input[aria-invalid="true"] {
+  border-color: #b7655d;
+}
+
+.smiles-text-controls > button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #bcd8cf;
+  border-radius: 11px;
+  background: #e8f4ef;
+  color: #2d6e5e;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.smiles-text-controls > button:hover:not(:disabled) {
+  border-color: #72aa9a;
+  background: #f5fbf8;
+}
+
+.smiles-text-controls > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .smiles-format-note {
   display: flex;
   align-items: center;
@@ -7804,6 +7867,18 @@ html[data-theme="dark"] .smiles-interop-actions > label {
   color: #a9d6c8;
 }
 
+html[data-theme="dark"] .smiles-text-form > label,
+html[data-theme="dark"] .smiles-text-controls > input,
+html[data-theme="dark"] .smiles-text-controls > button {
+  color: #a9d6c8;
+}
+
+html[data-theme="dark"] .smiles-text-controls > input,
+html[data-theme="dark"] .smiles-text-controls > button {
+  border-color: #3c6257;
+  background: #1d332c;
+}
+
 html[data-theme="dark"] .smiles-format-note code {
   border-color: #3c6257;
   background: #203a32;
@@ -7854,6 +7929,15 @@ html[data-theme="dark"] .smiles-feedback.error > span {
 
   .smiles-interop-actions {
     grid-template-columns: 1fr;
+  }
+
+  .smiles-text-controls {
+    flex-direction: column;
+  }
+
+  .smiles-text-controls > input,
+  .smiles-text-controls > button {
+    width: 100%;
   }
 }
 
