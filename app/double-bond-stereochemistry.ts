@@ -499,6 +499,7 @@ export function toggleDoubleBondGeometry<T extends StereoMolecule>(
 export function getMainChainStereoDescriptors(
   molecule: StereoMolecule,
   mainChain: number[],
+  explicitOnly = false,
 ): StereoDescriptor[] {
   const descriptors: StereoDescriptor[] = [];
   mainChain.slice(0, -1).forEach((leftAtomId, index) => {
@@ -506,6 +507,7 @@ export function getMainChainStereoDescriptors(
     // E/Z descriptors are only meaningful for an acyclic alkene in this
     // simulator. A C=C inside any ring is geometrically constrained and must
     // never be added to the suggested name.
+    if (explicitOnly && findBond(molecule, leftAtomId, rightAtomId)?.[3] !== true) return;
     if (!isDoubleBondEZToggleAvailable(molecule, leftAtomId, rightAtomId)) return;
     const inspection = inspectDoubleBondStereochemistry(
       molecule,
@@ -526,13 +528,14 @@ export function formatStereochemicalName(
   molecule: StereoMolecule,
   mainChain: number[],
   baseName: string,
+  options: { explicitDoubleBonds?: boolean; includeTetrahedral?: boolean } = {},
 ) {
   const descriptors = [
-    ...getMainChainStereoDescriptors(molecule, mainChain).map((descriptor) => ({
+    ...getMainChainStereoDescriptors(molecule, mainChain, options.explicitDoubleBonds).map((descriptor) => ({
       locant: descriptor.locant,
       configuration: descriptor.configuration,
     })),
-    ...getMainChainTetrahedralDescriptors(molecule, mainChain).map((descriptor) => ({
+    ...(options.includeTetrahedral === false ? [] : getMainChainTetrahedralDescriptors(molecule, mainChain)).map((descriptor) => ({
       locant: descriptor.locant,
       configuration: descriptor.configuration,
     })),

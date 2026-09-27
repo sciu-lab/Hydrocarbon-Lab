@@ -3552,6 +3552,15 @@ export function steroidStereochemistryStatus(
     : `Núcleo de androstano reconocido · ${assigned} de ${detected} centros estereogénicos tetraédricos conservados`;
 }
 
+function withExplicitGeometricName(molecule: Molecule, analysis: Analysis): Analysis {
+  if (analysis.family !== "acyclic") return analysis;
+  const name = formatStereochemicalName(molecule, analysis.mainChain, analysis.name, {
+    explicitDoubleBonds: true,
+    includeTetrahedral: false,
+  });
+  return name === analysis.name ? analysis : { ...analysis, name };
+}
+
 export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly string[] = []): Analysis {
   const groups = detectFunctionalGroups(molecule);
   const fusedBicyclic = getFusedBicyclicSystem(molecule, groups);
@@ -3677,26 +3686,28 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
   const chainAgainstRing = selectChainAgainstMonocycle(skeleton, groups, primaryKind);
   if (chainAgainstRing) {
     if (groups.length) {
-      return analyzeFunctionalAcyclic(
+      return withExplicitGeometricName(molecule, analyzeFunctionalAcyclic(
         molecule,
         chainAgainstRing.skeleton,
         groups,
         primaryKind,
         enabledAliases,
         chainAgainstRing.externalSubstituents,
-      );
+      ));
     }
     const chainAnalysis = analyzeHydrocarbonMolecule(
       chainAgainstRing.skeleton,
       enabledAliases,
       chainAgainstRing.externalSubstituents,
     );
-    return { ...chainAnalysis, formula: molecularFormula(molecule) };
+    return withExplicitGeometricName(molecule, { ...chainAnalysis, formula: molecularFormula(molecule) });
   }
 
   const baseAnalysis = analyzeHydrocarbonMolecule(skeleton, enabledAliases);
   if (!groups.length) {
-    return { ...baseAnalysis, formula: molecularFormula(molecule), functionalGroups: [] };
+    return withExplicitGeometricName(molecule, {
+      ...baseAnalysis, formula: molecularFormula(molecule), functionalGroups: [],
+    });
   }
   if (skeleton.rings?.length) {
     return analyzeFunctionalRing(
@@ -3708,7 +3719,9 @@ export function analyzeMolecule(molecule: Molecule, enabledAliases: readonly str
       enabledAliases,
     );
   }
-  return analyzeFunctionalAcyclic(molecule, skeleton, groups, primaryKind, enabledAliases);
+  return withExplicitGeometricName(
+    molecule, analyzeFunctionalAcyclic(molecule, skeleton, groups, primaryKind, enabledAliases),
+  );
 }
 
 /** Blue Book P-14.3.4.2(b,d): omit only structurally redundant locants in the Suggested display. */
@@ -6485,14 +6498,14 @@ export default function Home() {
     [analysis, calculatedAnalysis, externalCandidateNameUnavailable, externalNameIsPrimary, language, localSuggestedNameUnavailable, molecule, pubChemIupacName, sourceNameOverride],
   );
   const stereochemistryAvailable = useMemo(
-    () => getMainChainStereoDescriptors(molecule, analysis.mainChain).length > 0
+    () => getMainChainStereoDescriptors(molecule, analysis.mainChain, true).length > 0
       || getTetrahedralStereoCenters(molecule).length > 0,
     [analysis.mainChain, molecule],
   );
   const stereochemicalName = useMemo(
     () => !stereochemistryAvailable || localSuggestedNameUnavailable || externalNameIsPrimary
       ? pinName
-      : formatStereochemicalName(molecule, analysis.mainChain, pinName),
+      : formatStereochemicalName(molecule, analysis.mainChain, pinName, { explicitDoubleBonds: true }),
     [analysis.mainChain, externalNameIsPrimary, localSuggestedNameUnavailable, molecule, pinName, stereochemistryAvailable],
   );
   const stereochemistryEnabled = showStereochemistry && !simplifiedModeEnabled;
