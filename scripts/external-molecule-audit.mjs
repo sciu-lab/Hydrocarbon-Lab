@@ -6,13 +6,17 @@ import { createServer } from "vite";
 import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
 import { Canonizer, Molecule as OCLMolecule, SmilesParser } from "openchemlib";
+import { compareEzDescriptors } from "./external-audit-name-comparator.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const reports = path.join(root, "reports", "external-molecule-audit");
+const currentOutput = process.argv.includes("--current");
+const outputReports = currentOutput ? path.join(root, "reports", "external-molecule-audit-current") : reports;
+const outputPrefix = currentOutput ? "mechanical-" : "";
 const referenceFile = path.join(reports, "fixtures.json");
-const resultsFile = path.join(reports, "results.json");
-const csvFile = path.join(reports, "results.csv");
-const summaryFile = path.join(reports, "summary.md");
+const resultsFile = path.join(outputReports, `${outputPrefix}results.json`);
+const csvFile = path.join(outputReports, `${outputPrefix}results.csv`);
+const summaryFile = path.join(outputReports, `${outputPrefix}summary.md`);
 const { analyzeMolecule } = await (async () => {
   const server = await createServer({ root, configFile: false, logLevel: "error", appType: "custom", plugins: [react()], server: { middlewareMode: true, hmr: false } });
   try { return await server.ssrLoadModule("/app/page.tsx"); } finally { await server.close(); }
@@ -96,9 +100,15 @@ async function pubchem(smiles) {
 const wantRefresh = process.argv.includes("--refresh");
 const wantExtend = process.argv.includes("--extend");
 const wantSynonyms = process.argv.includes("--fetch-synonyms");
+if (currentOutput && (wantRefresh || wantExtend || wantSynonyms)) {
+  throw new Error("La reauditoría actual solo admite los fixtures congelados; no puede consultar PubChem.");
+}
 await fs.mkdir(reports, { recursive: true });
 let fixtures;
 try { if (!wantRefresh) fixtures = JSON.parse(await fs.readFile(referenceFile, "utf8")); } catch {}
+if (currentOutput && fixtures?.cases?.length !== 122) {
+  throw new Error("La reauditoría actual requiere exactamente los 122 fixtures congelados.");
+}
 if (!fixtures || wantExtend) {
   const candidates = await extractCandidates();
   const existing = fixtures?.cases ?? [];
@@ -172,6 +182,18 @@ function canonicalStructure(smiles) {
   parsed.ensureHelperArrays(OCLMolecule.cHelperCIP);
   return new Canonizer(parsed).getIDCode();
 }
+function alkeneConfigurations(smiles) {
+  const parsed = new SmilesParser().parseMolecule(smiles);
+  parsed.ensureHelperArrays(OCLMolecule.cHelperCIP);
+  const configurations = [];
+  for (let bond = 0; bond < parsed.getAllBonds(); bond += 1) {
+    if (parsed.getBondOrder(bond) !== 2) continue;
+    const parity = parsed.getBondCIPParity(bond);
+    configurations.push(parity === OCLMolecule.cBondCIPParityEorP ? "E"
+      : parity === OCLMolecule.cBondCIPParityZorM ? "Z" : null);
+  }
+  return configurations;
+}
 function csvCell(value) { return `"${String(value ?? "").replaceAll('"', '""')}"`; }
 const results = [];
 for (const item of fixtures.cases) {
@@ -198,14 +220,17 @@ for (const item of fixtures.cases) {
     const appNameSynonym = (item.synonyms ?? []).find((synonym) => normalizeName(synonym) === normalizeName(analysis.name));
     const nameLooksSame = normalizeName(analysis.name) === normalizeName(item.referenceName) || Boolean(appNameSynonym);
     const layout = calculateMolecule2DLayout(molecule, analysis.mainChain);
-    const referenceEz = item.referenceName.match(/^\(([EZ])\)/i)?.[1]?.toUpperCase();
-    const appEz = analysis.name.match(/\(([EZ])\)/i)?.[1]?.toUpperCase();
-    const ezNameIncorrect = Boolean(referenceEz && referenceEz !== appEz);
+    const ezComparison = compareEzDescriptors({
+      referenceName: item.referenceName,
+      generatedName: analysis.name,
+      structureConfigurations: alkeneConfigurations(item.isomericSmiles || item.canonicalSmiles),
+    });
+    const ezNameIncorrect = ezComparison.status === "FAIL";
     let status = !formulaOk || !structureOk ? "FAIL-STRUCTURE" : ezNameIncorrect ? "FAIL-NAME" : nameLooksSame ? "PASS" : "PARTIAL";
     let errorType = !formulaOk ? "cálculo de fórmula" : !structureOk ? "serializer SMILES" : ezNameIncorrect ? "E/Z" : "";
     if (!layout.size || ![...layout.values()].every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) { status = "FAIL-STRUCTURE"; errorType = "representación / anillos"; }
     const stereoKind = /[\\/]/.test(item.isomericSmiles || "") ? "E/Z" : "";
-    results.push({ ...result, nameHydrocarbonLab: analysis.name, formulaHydrocarbonLab: analysis.formula, smilesRoundTrip: exported.smiles, status, errorType, observations: { invariants, canonicalGraphIDCodeInput: stereoSource, canonicalGraphIDCodeRoundTrip: stereoAfter, before: { ...before, signature: undefined }, after: { ...after, signature: undefined }, layoutAtoms: layout.size, pubchemSynonymMatch: appNameSynonym ?? null, nameReview: ezNameIncorrect ? `FAIL-NAME: referencia ${referenceEz} pero Hydrocarbon Lab no conserva ese descriptor E/Z (${appEz ?? "omitido"})` : appNameSynonym ? `Nombre publicado por PubChem como sinónimo alternativo: ${appNameSynonym}; su carácter IUPAC o común requiere interpretación nomenclatural.` : nameLooksSame ? "Coincidencia textual normalizada" : `PARTIAL: equivalencia IUPAC pendiente de revisión; salida ${analysis.name}, referencia ${item.referenceName}`, stereoKind } });
+    results.push({ ...result, nameHydrocarbonLab: analysis.name, formulaHydrocarbonLab: analysis.formula, smilesRoundTrip: exported.smiles, status, errorType, observations: { invariants, canonicalGraphIDCodeInput: stereoSource, canonicalGraphIDCodeRoundTrip: stereoAfter, before: { ...before, signature: undefined }, after: { ...after, signature: undefined }, layoutAtoms: layout.size, pubchemSynonymMatch: appNameSynonym ?? null, nameReview: ezNameIncorrect ? `FAIL-NAME: ${ezComparison.reason}` : appNameSynonym ? `Nombre publicado por PubChem como sinónimo alternativo: ${appNameSynonym}; su carácter IUPAC o común requiere interpretación nomenclatural.` : nameLooksSame ? "Coincidencia textual normalizada" : `PARTIAL: equivalencia IUPAC pendiente de revisión; salida ${analysis.name}, referencia ${item.referenceName}`, stereoKind, ezComparison } });
   } catch (error) { results.push({ ...result, status: "CRASH", errorType: "otro", observations: String(error?.stack ?? error) }); }
 }
 
@@ -216,8 +241,9 @@ const groups = Object.fromEntries(["selección del parent","numeración","priori
 for (const r of results.filter((x)=>x.status.startsWith("FAIL")||x.status==="CRASH")) groups[r.errorType && Object.hasOwn(groups,r.errorType) ? r.errorType : "otro"] += 1;
 const pct = (n) => `${(100*n/results.length).toFixed(1)}%`;
 const minimumCases = results.filter((r)=>r.status.startsWith("FAIL")||r.status==="CRASH").map((r)=>`- ${r.id} — ${r.status}${r.errorType ? ` (${r.errorType})` : ""}: PubChem SMILES \`${r.smilesReference}\` → Hydrocarbon Lab \`${r.smilesRoundTrip ?? "sin salida"}\`; nombre PubChem \`${r.referenceName}\` → nombre Hydrocarbon Lab \`${r.nameHydrocarbonLab ?? "sin nombre"}\`.`);
+await fs.mkdir(outputReports, { recursive: true });
 await fs.writeFile(resultsFile, `${JSON.stringify({ generatedAt: new Date().toISOString(), counts, failureGroups: groups, results }, null, 2)}\n`);
 await fs.writeFile(csvFile, `${csv}\r\n`);
 const commonNameCount = results.filter((r)=>r.commonName).length;
-await fs.writeFile(summaryFile, `# Auditoría automatizada de Hydrocarbon Lab\n\n- Casos: ${results.length}\n${Object.entries(counts).map(([k,v])=>`- ${k}: ${v} (${pct(v)})`).join("\n")}\n- Casos con nombre común documentado en sinónimos PubChem: ${commonNameCount}\n- Fuente: PubChem PUG REST, consulta por SMILES; CID, URL, fórmula, nombre IUPAC, canonical/isomeric SMILES y sinónimos quedan en fixtures.json.\n- La diferencia de nombre no produce fallo sin una discrepancia química observada. Los nombres que PubChem publica como sinónimos quedan documentados en results.json; los restantes PARTIAL requieren revisión nomenclatural humana.\n\n## Fallos por causa probable\n\n${Object.entries(groups).map(([k,v])=>`- ${k}: ${v}`).join("\n")}\n\n## Distribución por familia\n\n${[...new Set(results.map(r=>r.category))].map((c)=>`- ${c}: ${results.filter(r=>r.category===c).length}`).join("\n")}\n\n## Casos mínimos reproducibles\n\n${minimumCases.join("\n") || "- Sin fallos."}\n\n## Lectura nomenclatural\n\nLos cuatro FAIL-NAME corresponden a los cuatro registros estereoespecíficos: Hydrocarbon Lab conserva el grafo y el isómero E/Z en el SMILES exportado, pero omite el descriptor configuracional de su nombre. Los PARTIAL no se declaran errores; quedan pendientes para verificar equivalencia IUPAC o preferencia nomenclatural.\n`);
+await fs.writeFile(summaryFile, `# Auditoría automatizada de Hydrocarbon Lab\n\n- Casos: ${results.length}\n${Object.entries(counts).map(([k,v])=>`- ${k}: ${v} (${pct(v)})`).join("\n")}\n- Casos con nombre común documentado en sinónimos PubChem: ${commonNameCount}\n- Referencias congeladas: PubChem PUG REST; CID, URL, fórmula, nombre IUPAC y SMILES constan en el fixture histórico.\n- La diferencia textual de nombre no produce fallo sin discrepancia química; los PARTIAL conservan su arbitraje nomenclatural separado.\n\n## Fallos por causa probable\n\n${Object.entries(groups).map(([k,v])=>`- ${k}: ${v}`).join("\n")}\n\n## Distribución por familia\n\n${[...new Set(results.map(r=>r.category))].map((c)=>`- ${c}: ${results.filter(r=>r.category===c).length}`).join("\n")}\n\n## Casos mínimos reproducibles\n\n${minimumCases.join("\n") || "- Sin fallos."}\n\n## Lectura nomenclatural\n\nEl comparador E/Z contrasta los descriptores del nombre con la configuración definida por el SMILES de referencia. Los PARTIAL son diferencias textuales que requieren el arbitraje nomenclatural guardado; no se declaran errores por sí solos.\n`);
 console.log(JSON.stringify({ fixtureFile: referenceFile, resultsFile, csvFile, summaryFile, count: results.length, counts, failureGroups: groups }, null, 2));
