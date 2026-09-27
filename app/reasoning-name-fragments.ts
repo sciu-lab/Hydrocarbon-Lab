@@ -1,10 +1,12 @@
 import type { AppLanguage } from "./i18n.ts";
+import { uiText } from "./i18n.ts";
 import { translateSpanishIupacToOpsin } from "./iupac-name-normalization.ts";
 
 export type ReasoningNameFragment = {
   text: string;
   label: string;
   kind: "function" | "parent" | "numbering" | "substituent" | "unsaturation";
+  start?: number;
 };
 
 type FragmentAnalysis = {
@@ -43,9 +45,12 @@ export function deriveReasoningNameFragments({
   const name = displayedName.trim();
   if (!canHighlight || !/^[a-záéíóúüñ0-9,-]+$/i.test(name)) return fragments;
   const stepNumbers = new Set(steps.map((step) => step.number));
-  const add = (number: string, text: string, label: string, kind: ReasoningNameFragment["kind"]) => {
-    if (stepNumbers.has(number) && text && name.includes(text)) {
-      fragments[number] = { text, label, kind };
+  const add = (number: string, text: string, label: string, kind: ReasoningNameFragment["kind"], start?: number) => {
+    const literalMatches = start === undefined
+      ? name.includes(text)
+      : name.slice(start, start + text.length) === text;
+    if (stepNumbers.has(number) && text && literalMatches) {
+      fragments[number] = { text, label, kind, ...(start === undefined ? {} : { start }) };
     }
   };
 
@@ -86,10 +91,38 @@ export function deriveReasoningNameFragments({
   const stem = ["ketone", "alcohol", "aldehyde"].includes(analysis.primaryFunctionalGroup ?? "")
     ? /^([a-z]+?)(?:-\d+-)?(?:ona|one|ol|al)$/i.exec(parent)?.[1]
     : /^[a-z]+/i.exec(parent)?.[0];
-  if (!stem) return fragments;
   const chainLabel = language === "en"
     ? `Parent chain · ${analysis.mainChain.length} carbons`
     : `Cadena principal · ${analysis.mainChain.length} carbonos`;
+
+  const multipleBondCount = analysis.doubleBondLocants.length + analysis.tripleBondLocants.length;
+  if (multipleBondCount >= 2 && name.endsWith(parent)) {
+    const root = /^[a-z]+/i.exec(parent)?.[0];
+    const unsaturation = root ? parent.slice(root.length + 1) : "";
+    const parentStart = name.length - parent.length;
+    if (!root || !unsaturation) return fragments;
+
+    add("02", root, chainLabel, "parent", parentStart);
+    add("03", unsaturation, uiText(language, "Enlaces múltiples, localizadores y multiplicidad"), "unsaturation", parentStart + root.length + 1);
+
+    const stereoPrefix = /^\((?:\d+[EZRS](?:,\d+[EZRS])*)\)-/.exec(name)?.[0] ?? "";
+    const substituentStart = stereoPrefix.length;
+    const substituentText = name.slice(substituentStart, parentStart);
+    const containsEverySubstituent = analysis.substituents.length > 0
+      && analysis.substituents.every((item) => {
+        const substituentName = localizedName(item.name, language);
+        const hasName = substituentName
+          && new RegExp(`(?:^|[^a-z])${substituentName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[^a-z])`, "i").test(substituentText);
+        const hasLocant = new RegExp(`(?:^|\\D)${item.locant}(?:\\D|$)`).test(substituentText);
+        return Boolean(hasName && hasLocant);
+      });
+    if (containsEverySubstituent) {
+      add("04", substituentText, uiText(language, "Sustituyentes y localizadores"), "substituent", substituentStart);
+    }
+    return fragments;
+  }
+
+  if (!stem) return fragments;
 
   if (["ketone", "alcohol", "aldehyde"].includes(analysis.primaryFunctionalGroup ?? "")
     && analysis.functionalGroups.length === 1

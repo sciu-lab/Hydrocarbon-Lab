@@ -14,9 +14,10 @@ export function buildReasoningNameLinkParts(
 ): ReasoningNameLinkPart[] {
   const available = new Set(steps.map((step) => step.number));
   const candidates = Object.entries(fragments).flatMap(([stepNumber, fragment]) => {
-    const start = name.indexOf(fragment.text);
-    return available.has(stepNumber) && fragment.text && start >= 0
-      && name.lastIndexOf(fragment.text) === start
+    const start = fragment.start ?? name.indexOf(fragment.text);
+    const matchesAtStart = start >= 0 && name.slice(start, start + fragment.text.length) === fragment.text;
+    return available.has(stepNumber) && fragment.text && matchesAtStart
+      && (fragment.start !== undefined || name.lastIndexOf(fragment.text) === start)
       ? [{ stepNumber, start, end: start + fragment.text.length, text: fragment.text }]
       : [];
   });

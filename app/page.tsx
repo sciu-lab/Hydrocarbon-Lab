@@ -3894,6 +3894,40 @@ function multipleBondLocantsText(doubleLocants: number[], tripleLocants: number[
   return joinSpanishList(parts);
 }
 
+function multipleUnsaturationReasoningText(analysis: Analysis, language: AppLanguage) {
+  const groups = [
+    {
+      locants: analysis.doubleBondLocants,
+      plural: "dobles enlaces",
+      singular: "doble enlace",
+      symbol: "=",
+    },
+    {
+      locants: analysis.tripleBondLocants,
+      plural: "enlaces triples",
+      singular: "enlace triple",
+      symbol: "≡",
+    },
+  ];
+  return groups.filter(({ locants }) => locants.length > 0).map(({ locants, plural, singular, symbol }) => {
+    const bonds = locants.map((locant) => `C${locant}${symbol}C${locant + 1}`);
+    const bondList = language === "en" ? bonds.join(", ") : joinSpanishList(bonds);
+    const bondType = uiText(language, locants.length === 1 ? singular : plural);
+    if (locants.length === 1) {
+      return uiText(language, "El progenitor tiene un {bondType} en {bondList}.")
+        .replace("{bondType}", bondType)
+        .replace("{bondList}", bondList);
+    }
+    const multiplier = simplePrefixes[locants.length] ?? String(locants.length);
+    const count = uiText(language, spanishCardinal(locants.length));
+    return uiText(language, "El multiplicador {multiplier}- significa {count} {bondType} en {bondList}.")
+      .replace("{multiplier}", multiplier)
+      .replace("{count}", count)
+      .replace("{bondType}", bondType)
+      .replace("{bondList}", bondList);
+  }).join(" ");
+}
+
 function fusedMultipleBondLocationsText(
   system: FusedTricyclicSystem,
   language: AppLanguage,
@@ -4446,6 +4480,9 @@ export function buildIupacReasoningSteps(
         ? "El hidroxilo está unido a C1. En esta cadena de dos carbonos, el localizador 1 se omite en el nombre IUPAC preferido porque su posición es inequívoca."
         : `El enlace ${analysis.tripleBondLocants.length ? "triple" : "doble"} une C1 y C2. En esta cadena no sustituida de tres carbonos, el localizador 1 se omite en el nombre IUPAC preferido porque la posición es inequívoca.`);
     }
+    if (analysis.doubleBondLocants.length + analysis.tripleBondLocants.length >= 2) {
+      explanationParts.push(multipleUnsaturationReasoningText(analysis, "es"));
+    }
     steps.push({
       number: "03",
       title: "Numeración razonada",
@@ -4763,6 +4800,7 @@ export function buildEnglishReasoningSteps(
       }
     } else if (step.number === "03") {
       const unsaturation = multipleBonds.length
+        && analysis.doubleBondLocants.length + analysis.tripleBondLocants.length === 1
         ? ` Multiple bonds are located at ${multipleBonds.join(", ")}.`
         : "";
       explanation = analysis.family === "aromatic"
@@ -4774,6 +4812,9 @@ export function buildEnglishReasoningSteps(
         : substituentLocantsTie
         ? `Both numbering directions give the same substituent locants (${substituentLocants.join(",")}); neither direction wins this comparison.`
         : `Numbering is chosen from the end that gives the lowest locant at the first point of difference. Multiple bonds are considered before substituents.${unsaturation}`;
+      if (analysis.doubleBondLocants.length + analysis.tripleBondLocants.length >= 2) {
+        explanation += ` ${multipleUnsaturationReasoningText(analysis, "en")}`;
+      }
       if (suggestedIupacNameWithOmittedLocants(analysis) !== analysis.name) {
         explanation += analysis.primaryFunctionalGroup === "alcohol"
           ? " The hydroxyl group is attached to C1. In this two-carbon chain, locant 1 is omitted from the preferred IUPAC name because its position is unambiguous."

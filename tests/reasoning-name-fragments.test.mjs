@@ -119,6 +119,85 @@ test("a single alkyl substituent and an alkene use only written locants", () => 
   assert.deepEqual([penteneEn["02"]?.text, penteneEn["03"]?.text], ["pent", "2-ene"]);
 });
 
+test("all supported multiple-unsaturation parents expose every typed locant interactively in EN and ES", () => {
+  const cases = [
+    { label: "separated diene", smiles: "C=CC=CC", double: 2, triple: 0, name: "penta-1,3-dieno" },
+    { label: "cumulative diene", smiles: "CC=C=CC", double: 2, triple: 0, name: "penta-2,3-dieno" },
+    { label: "triene", smiles: "C=CC=CC=C", double: 3, triple: 0, name: "hexa-1,3,5-trieno" },
+    { label: "diyne", smiles: "C#CC#CCCC", double: 0, triple: 2, name: "hepta-1,3-diino" },
+    { label: "triyne", smiles: "C#CC#CC#CC", double: 0, triple: 3, name: "hepta-1,3,5-triino" },
+    { label: "enyne", smiles: "C=CC#CCCCC", double: 1, triple: 1, name: "oct-1-en-3-ino" },
+    { label: "branched diene", smiles: "CC(C)C=CC=C", double: 2, triple: 0, name: "5-metilhexa-1,3-dieno", branched: true },
+  ];
+
+  for (const fixture of cases) {
+    const compound = analyzed(fixture.smiles);
+    const analysis = compound.analysis;
+    const total = analysis.doubleBondLocants.length + analysis.tripleBondLocants.length;
+    assert.equal(total, fixture.double + fixture.triple, `${fixture.label} fixture has the intended parent bonds`);
+    assert.ok(total >= 2, `${fixture.label} exercises the multi-unsaturation path`);
+    if (fixture.name) assert.equal(analysis.name, fixture.name, `${fixture.label} keeps its generated name`);
+    if (fixture.branched) assert.ok(analysis.substituents.length > 0, "the branch remains outside the selected parent");
+
+    for (const language of ["es", "en"]) {
+      const displayedName = language === "en"
+        ? translateSpanishIupacToOpsin(analysis.name)
+        : analysis.name;
+      const { steps, fragments } = derive(compound, displayedName, language);
+      const localizedParent = language === "en"
+        ? translateSpanishIupacToOpsin(analysis.chainName)
+        : analysis.chainName;
+      const root = /^[a-z]+/i.exec(localizedParent)?.[0];
+      assert.ok(root, `${fixture.label} has a structured parent root`);
+      assert.equal(fragments["02"]?.text, root, `${fixture.label} links its parent root in ${language}`);
+      assert.equal(fragments["03"]?.text, localizedParent.slice(root.length + 1), `${fixture.label} links every parent unsaturation in ${language}`);
+      assert.equal(fragments["03"]?.label, language === "en"
+        ? "Multiple bonds, locants, and multiplicity"
+        : "Enlaces múltiples, localizadores y multiplicidad");
+
+      const linked = buildReasoningNameLinkParts(displayedName, fragments, steps);
+      assert.equal(linked.map((part) => part.text).join(""), displayedName, "links preserve the displayed name exactly");
+      assert.ok(linked.some((part) => part.stepNumber === "02"), `${fixture.label} exposes the parent explanation`);
+      assert.ok(linked.some((part) => part.stepNumber === "03"), `${fixture.label} exposes the numbering/unsaturation explanation`);
+
+      const explanation = steps.find((step) => step.number === "03")?.explanation ?? "";
+      for (const locant of [...analysis.doubleBondLocants, ...analysis.tripleBondLocants]) {
+        assert.match(explanation, new RegExp(`C${locant}(?:=|≡|\\b)`), `${fixture.label} explains locant C${locant} in ${language}`);
+      }
+      if (fixture.double) assert.match(explanation, language === "en" ? /C\d+=C\d+/ : /C=C/, `${fixture.label} distinguishes double bonds in ${language}`);
+      if (fixture.triple) assert.match(explanation, language === "en" ? /C\d+≡C\d+/ : /C≡C/, `${fixture.label} distinguishes triple bonds in ${language}`);
+      if (fixture.double > 1) {
+        assert.match(explanation, language === "en" ? /di- multiplier means two double bonds|tri- multiplier means three double bonds/ : /multiplicador (?:di|tri)- significa (?:dos|tres) dobles enlaces/);
+      }
+      if (fixture.triple > 1) {
+        assert.match(explanation, language === "en" ? /di- multiplier means two triple bonds|tri- multiplier means three triple bonds/ : /multiplicador (?:di|tri)- significa (?:dos|tres) enlaces triples/);
+      }
+
+      const parentStep = steps.find((step) => step.number === "02")?.explanation ?? "";
+      assert.match(parentStep, new RegExp(`${analysis.mainChain.length} carbon`), `${fixture.label} explains parent length in ${language}`);
+      if (fixture.branched) {
+        assert.ok(steps.some((step) => step.number === "04" && /metil|methyl/i.test(step.explanation)),
+          "the existing substituent explanation remains present alongside multiple bonds");
+        assert.ok(fragments["04"], "the branch remains an interactive name fragment");
+      }
+    }
+  }
+});
+
+test("a single-unsaturation name retains its existing parent and locant links", () => {
+  const pentene = analyzed("CC=CCC");
+  assert.equal(pentene.analysis.name, "pent-2-eno");
+  for (const [name, language] of [
+    ["pent-2-eno", "es"],
+    ["pent-2-ene", "en"],
+  ]) {
+    const { steps, fragments } = derive(pentene, name, language);
+    const links = buildReasoningNameLinkParts(name, fragments, steps);
+    assert.deepEqual([fragments["02"]?.text, fragments["03"]?.text], ["pent", language === "en" ? "2-ene" : "2-eno"]);
+    assert.equal(links.map((part) => part.text).join(""), name);
+  }
+});
+
 test("alcohol and aldehyde fragments follow the visible functional suffix in both languages", () => {
   const alcohol = analyzed("CCC(O)C");
   assert.equal(alcohol.analysis.name, "butan-2-ol");
