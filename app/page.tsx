@@ -72,6 +72,7 @@ import {
 import {
   clipSkeletalParallelBondSegments,
   clipSkeletalRingDoubleBondSegments,
+  clipSkeletalTripleBondSegments,
   DEFAULT_NUMBERING_SCALE,
   getSkeletalNumberBadgeGeometry,
   getSkeletalNumberBadgeOffsetWithClearance,
@@ -11515,21 +11516,28 @@ export default function Home() {
                   endObstacle: endNumberObstacle ?? endHeteroObstacle,
                 };
                 const visibleBondSegments = viewMode === "skeletal"
-                  ? order > 1
-                    ? ringDoubleBondSegments
-                      ? clipSkeletalRingDoubleBondSegments(
-                          ringDoubleBondSegments,
-                          positionA,
-                          positionB,
-                          bondClipOptions,
-                        )
-                      : clipSkeletalParallelBondSegments(
-                          parallelBondSegments,
-                          positionA,
-                          positionB,
-                          bondClipOptions,
-                        )
-                    : rawBondSegments
+                  ? order === 3
+                    ? clipSkeletalTripleBondSegments(
+                        parallelBondSegments,
+                        positionA,
+                        positionB,
+                        bondClipOptions,
+                      )
+                    : order === 2
+                      ? ringDoubleBondSegments
+                        ? clipSkeletalRingDoubleBondSegments(
+                            ringDoubleBondSegments,
+                            positionA,
+                            positionB,
+                            bondClipOptions,
+                          )
+                        : clipSkeletalParallelBondSegments(
+                            parallelBondSegments,
+                            positionA,
+                            positionB,
+                            bondClipOptions,
+                          )
+                      : rawBondSegments
                   : clipCondensedBondSegments(rawBondSegments, positionA, positionB);
                 const lockedBond = isFunctionalBond
                   || Boolean(molecule.rings?.length && !containingRing);

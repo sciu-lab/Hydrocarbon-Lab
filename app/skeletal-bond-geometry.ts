@@ -306,6 +306,31 @@ export function clipSkeletalParallelBondSegments<
 }
 
 /**
+ * Clip each stroke of a skeletal triple bond against its own visible obstacles.
+ * A collision with one outer stroke must not pull the central stroke away from
+ * an implicit carbon vertex when that central path itself is clear.
+ */
+export function clipSkeletalTripleBondSegments<
+  Segment extends SkeletalPoint & { x2: number; y2: number },
+>(
+  segments: readonly Segment[],
+  start: SkeletalPoint,
+  end: SkeletalPoint,
+  options: SkeletalParallelBondClipOptions = {},
+): Segment[] {
+  return segments.map((segment) => {
+    const startClearance = options.startObstacle
+      ? getCircleEndClearance(segment, start, end, options.startObstacle, "start")
+      : 0;
+    const endClearance = options.endObstacle
+      ? getCircleEndClearance(segment, start, end, options.endObstacle, "end")
+      : 0;
+
+    return clipSkeletalBondSegment(segment, start, end, startClearance, endClearance);
+  });
+}
+
+/**
  * En los anillos la línea exterior forma parte del propio polígono: se deja
  * llegar al vértice igual que un enlace simple. La línea interior conserva su
  * recorte clásico y cada trazo se aparta de las insignias numeradas solo si su

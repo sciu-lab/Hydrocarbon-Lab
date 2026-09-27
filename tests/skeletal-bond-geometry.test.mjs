@@ -5,10 +5,12 @@ import {
   clipSkeletalBondSegment,
   clipSkeletalParallelBondSegments,
   clipSkeletalRingDoubleBondSegments,
+  clipSkeletalTripleBondSegments,
   getSkeletalNumberBadgeGeometry,
   getSkeletalNumberBadgeOffsetWithClearance,
   getSkeletalRingNumberBadgeOffset,
   getSkeletalRingDoubleBondSegments,
+  getParallelBondSegments,
   SKELETAL_BOND_END_CLEARANCE,
   SKELETAL_NUMBER_BADGE_CLEARANCE,
   SKELETAL_NUMBER_BADGE_OFFSET,
@@ -223,6 +225,78 @@ test("skeletal double-bond strokes reach implicit-carbon vertices without a visi
 
   assert.deepEqual(start, originalStart);
   assert.deepEqual(end, originalEnd);
+});
+
+test("triple-bond clipping keeps a clear central stroke attached in every orientation", () => {
+  const start = { x: 0, y: 0 };
+  const endpoints = [
+    { x: 120, y: 0 },
+    { x: 120, y: -90 },
+    { x: 120, y: 90 },
+  ];
+
+  for (const end of endpoints) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy);
+    const tangent = { x: dx / length, y: dy / length };
+    const normal = { x: -tangent.y, y: tangent.x };
+    const raw = getParallelBondSegments(start, end, 3);
+    const options = {
+      startObstacle: {
+        center: {
+          x: start.x + tangent.x * 18 + normal.x * 8,
+          y: start.y + tangent.y * 18 + normal.y * 8,
+        },
+        radius: 6,
+      },
+      endObstacle: {
+        center: {
+          x: end.x - tangent.x * 18 + normal.x * 8,
+          y: end.y - tangent.y * 18 + normal.y * 8,
+        },
+        radius: 6,
+      },
+    };
+    const clipped = clipSkeletalTripleBondSegments(raw, start, end, options);
+    const central = clipped[1];
+    const outer = clipped[2];
+
+    assert.deepEqual(
+      { x: central.x, y: central.y, x2: central.x2, y2: central.y2 },
+      { x: start.x, y: start.y, x2: end.x, y2: end.y },
+      "a clear central stroke remains continuous from vertex to vertex",
+    );
+    assert.ok(
+      (outer.x - start.x) * tangent.x + (outer.y - start.y) * tangent.y > 0,
+      "the outer stroke clears its start obstacle independently",
+    );
+    assert.ok(
+      (end.x - outer.x2) * tangent.x + (end.y - outer.y2) * tangent.y > 0,
+      "the outer stroke clears its end obstacle independently",
+    );
+
+    const centralGapFromSharedClipping = clipSkeletalParallelBondSegments(raw, start, end, options)[1];
+    assert.ok(
+      (centralGapFromSharedClipping.x - start.x) * tangent.x
+        + (centralGapFromSharedClipping.y - start.y) * tangent.y > 0,
+      "the fixture reproduces the extra central-line recut caused by shared clipping",
+    );
+  }
+});
+
+test("single and double skeletal strokes retain their existing unoccluded geometry", () => {
+  const start = { x: 14, y: -21 };
+  for (const end of [{ x: 144, y: -21 }, { x: 144, y: -85 }, { x: 144, y: 43 }]) {
+    for (const order of [1, 2]) {
+      const raw = getParallelBondSegments(start, end, order);
+      assert.deepEqual(
+        clipSkeletalParallelBondSegments(raw, start, end),
+        raw,
+        `bond order ${order} remains untrimmed without an obstacle`,
+      );
+    }
+  }
 });
 
 test("both strokes of an open-chain carbonyl reach the carbon vertex while clearing a visible oxygen", () => {
