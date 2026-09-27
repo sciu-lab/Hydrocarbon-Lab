@@ -4480,7 +4480,7 @@ export function buildIupacReasoningSteps(
     });
   }
 
-  const stereoDescriptors = getMainChainStereoDescriptors(molecule, analysis.mainChain);
+  const stereoDescriptors = getMainChainStereoDescriptors(molecule, analysis.mainChain, true);
   const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
   if (stereoDescriptors.length || tetrahedralDescriptors.length) {
     const descriptorDetails = stereoDescriptors.map((descriptor) => {
@@ -4790,7 +4790,7 @@ export function buildEnglishReasoningSteps(
         ? `Different substituent names are written in alphabetical order: ${names.join(" → ")}. Multiplicative prefixes such as di-, tri-, and tetra- do not control alphabetization.`
         : "Substituent prefixes are ordered alphabetically when more than one different substituent is present.";
     } else {
-      const descriptors = getMainChainStereoDescriptors(molecule, analysis.mainChain);
+      const descriptors = getMainChainStereoDescriptors(molecule, analysis.mainChain, true);
       const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
       explanation = descriptors.length || tetrahedralDescriptors.length
         ? `CIP priority rules are applied to every defined stereogenic element. ${[
