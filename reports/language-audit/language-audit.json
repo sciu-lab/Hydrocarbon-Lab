@@ -1,0 +1,136 @@
+{
+  "auditDate": "2026-09-27",
+  "scope": "Diagnostic only; no production code, existing tests, chemical fixtures, or chemical audit reports changed.",
+  "sourceOfTruth": "app/i18n.ts: Spanish source strings are keys, ENGLISH_UI and dynamicExact provide English values, and page.tsx also builds some language-specific messages directly.",
+  "methodology": "TypeScript AST inventory of 50 app source/style files, source review, 12 molecule/reasoning probes, direct probes of file-reader and dynamic-error translation, and local browser checks of EN/ES, SMILES, formula errors, accessibility and narrow layout. Contexts count call sites, JSX text, visible/accessibility attributes, CSS content and dynamic setters; they are not unique phrases.",
+  "metrics": {
+    "uniqueI18nKeys": 578,
+    "translationPairs": 582,
+    "englishUiPairs": 485,
+    "dynamicExactPairs": 97,
+    "englishEntries": 582,
+    "spanishSourceEntries": 582,
+    "uniqueEnglishKeys": 578,
+    "uniqueSpanishSourceKeys": 578,
+    "contextsAudited": 715,
+    "translationCallSites": 428,
+    "jsxTextContexts": 28,
+    "accessibilityAndTooltipAttributes": 148,
+    "cssContentContexts": 3,
+    "dynamicMessageSetters": 108,
+    "missingEnglishKeysReferenced": 20,
+    "missingSpanishKeys": 0,
+    "emptyEntries": 0,
+    "duplicateWithinMap": 0,
+    "duplicateAcrossMaps": 4,
+    "identicalUiValuesReviewed": 6,
+    "staticPlaceholderMismatches": 0,
+    "apparentDeadKeysNeedingManualVerification": 61
+  },
+  "baseline": {
+    "suite": "602/602",
+    "externalRegressions": "16/16",
+    "externalNameComparator": "15/15",
+    "lint": "0 errors, 11 preexisting warnings",
+    "build": "success"
+  },
+  "finalValidation": {
+    "suite": "602/602",
+    "externalRegressions": "16/16",
+    "externalNameComparator": "15/15",
+    "lint": "0 errors, 11 preexisting warnings",
+    "build": "success"
+  },
+  "keyParity": {
+    "model": "There are no independent EN and ES dictionaries: each Spanish source key is paired with one English value.",
+    "missingEnglishReferences": [
+      "Admite grupos funcionales, sustituyentes entre paréntesis y descriptores estereoquímicos E/Z y R/S.",
+      "Vista ampliada del constructor molecular",
+      "Constructor molecular",
+      "Zoom del constructor",
+      "Alejar",
+      "Ajustar molécula a la vista",
+      "Ajustar",
+      "Acercar",
+      "Fusionar con enlace seleccionado",
+      "Unir al carbono seleccionado",
+      "El anillo elegido compartirá los dos carbonos y el enlace resaltado.",
+      "Fusionar enlace",
+      "solo cicloalcanos de 5 o 6 miembros",
+      "La fusión aromática aún no está disponible.",
+      "La fusión de heterociclos aún no está disponible.",
+      "La fusión reutiliza el enlace resaltado: los dos anillos comparten exactamente dos átomos y un enlace.",
+      "No hay centros E/Z o R/S definidos en esta estructura",
+      "Sistema de anillos detectado",
+      "Nombre tradicional",
+      "Nombre IUPAC"
+    ],
+    "legitimateIdenticalValues": ["Color", "triple", "Alcohol", "Nitro", "Fluoro", "Bromo"],
+    "fallback": "uiText returns its Spanish source key when English is missing; dynamicUiText also returns the source after partial replacement rules. This masks missing translations.",
+    "placeholderFinding": "No syntactic ${...}, {...}, %s or %d mismatch in 582 pairs. A dynamic explanation does lose positional facts; see LANG-011."
+  },
+  "runtimeSamples": {
+    "smiles": ["CCC", "CC=CC", "C/C=C/C", "C/C=C\\C", "CC(O)C", "CC(=O)O", "c1ccccc1", "CC(C)C", "C1CCCCC1", "C1CCC2CCCCC2C1", "O1CCNCC1", "CNCC"],
+    "names": "All 12 sampled names appeared in the selected language without a confirmed hybrid name; E and Z names were retained and the unspecified alkene name omitted a descriptor.",
+    "interactive": "SMILES empty and invalid errors, supported-parser/unsupported-element CP, valid CCC, formula empty error, EN↔ES with a message visible, semantic accessibility labels, and a narrow viewport were checked locally. Direct module probes confirmed that an empty/comment-only SMILES file has clear ES and EN messages and that ring-fusion/unsupported-element errors remain ES in EN. Automated file-picker interaction timed out; a browser file upload is not claimed."
+  },
+  "findings": [
+    {
+      "id": "LANG-001", "file": "app/page.tsx", "location": "4483, 4793", "area": "explanations", "context": "How it is derived for CC=CC", "english": "2E identifies the relative position of the higher-priority alkene substituents.", "spanish": "C2=C3 es 2E: los sustituyentes de mayor prioridad quedan en lados opuestos.", "category": "OTHER", "severity": "HIGH", "reason": "Both explanations assign E to an alkene whose SMILES has unspecified E/Z. The names remain correctly unspecified, so the educational explanation contradicts the actual stereochemical state. Both reasoning builders call getMainChainStereoDescriptors without the explicit-only argument used elsewhere in the UI.", "recommendedFix": "Derive reasoning descriptors only from explicitly defined stereochemistry and add a regression for CC=CC, C/C=C/C and C/C=C\\C in both languages.", "affectsChemistry": true
+    },
+    {
+      "id": "LANG-002", "file": "app/page.tsx; app/i18n.ts", "location": "page.tsx:10938, 11298-11311, 12262-12512, 12728-13048", "area": "UI", "context": "20 distinct t() source keys at 22 call sites", "english": "Spanish source strings are displayed, including Nombre IUPAC and ring-fusion controls.", "spanish": "The Spanish source strings are present.", "category": "MISSING-TRANSLATION", "severity": "MEDIUM", "reason": "These referenced keys are absent from both translation maps. English silently falls back to Spanish in visible controls, instructions and accessible names. The full key list is in keyParity.missingEnglishReferences.", "recommendedFix": "Add contextual English entries for the 20 referenced keys; add a static key-coverage test.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-003", "file": "app/page.tsx", "location": "8757-8813, 11273", "area": "SMILES/import/export", "context": "Direct SMILES feedback remains visible while switching language", "english": "Paste or type a SMILES before loading it.; Invalid SMILES. Check the syntax and try again.; SMILES imported with OpenChemLib. Suggested IUPAC name: propane.", "spanish": "Escribe o pega un SMILES antes de cargarlo.; SMILES no válido. Revisa la sintaxis e inténtalo de nuevo.; SMILES importado con OpenChemLib. Nombre IUPAC sugerido: propano.", "category": "DYNAMIC-LANGUAGE", "severity": "MEDIUM", "reason": "Observed EN→ES for an empty error and ES→EN for an invalid error: the prior-language text remains. The success text is likewise stored as a localized string. smilesFeedback.message is rendered directly and is not recomputed when language changes. File import shares the same feedback state.", "recommendedFix": "Store a stable feedback code plus parameters or retain a language-neutral source and render the message for the current language.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-004", "file": "app/openchemlib-adapter.ts; app/page.tsx", "location": "openchemlib-adapter.ts:158-327; page.tsx:8760-8765", "area": "SMILES/import/export", "context": "Direct SMILES CP in English", "english": "Expected an English unsupported-element explanation.", "spanish": "La estructura contiene P. Por ahora el laboratorio admite C, O, N, S y halógenos.", "category": "LANGUAGE-LEAK", "severity": "MEDIUM", "reason": "The adapter's parameterized Spanish error is not covered by the exact translation map or the dynamic replacement rules, so the Spanish sentence appears in the English SMILES panel. Reproduced in the local browser.", "recommendedFix": "Represent this existing error with translatable parameters at the UI boundary; preserve the adapter's chemical validation.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-005", "file": "app/page.tsx", "location": "7523-7548, 11066", "area": "error messages", "context": "Formula builder error visible during EN→ES", "english": "Enter a molecular formula. Example: C6H12O.", "spanish": "Escribe una fórmula molecular. Ejemplo: C6H12O.", "category": "DYNAMIC-LANGUAGE", "severity": "MEDIUM", "reason": "The English error stays in English after switching to ES. Several formula feedback branches store already localized English strings, while localizedDynamicText only translates Spanish-source messages toward English.", "recommendedFix": "Keep formula feedback as a code and parameters, and localize on render in either direction.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-006", "file": "app/fused-ring.ts; app/page.tsx", "location": "fused-ring.ts:22-43; page.tsx:9599-9612", "area": "error messages", "context": "Ring-fusion invalid-selection and valence errors", "english": "Expected e.g. Select a peripheral ring bond / Fusion would exceed carbon valence.", "spanish": "Selecciona un enlace periférico de un anillo.; La fusión superaría la valencia del carbono.", "category": "LANGUAGE-LEAK", "severity": "MEDIUM", "reason": "ringFusionError returns raw Spanish messages that are used as a disabled option title and notice in English. They are not in either exact translation table and have no matching dynamic rule.", "recommendedFix": "Translate these existing validation messages at the UI boundary using stable codes or exact mappings; leave validation untouched.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-007", "file": "app/page.tsx", "location": "11385, 12194", "area": "accessibility", "context": "Canvas Deselect and Rings button titles in Spanish mode", "english": "Cancel tool / clear selection — Shortcut: Esc; Add ring — Shortcut: R", "spanish": "Expected localized help text for both controls.", "category": "ACCESSIBILITY", "severity": "MEDIUM", "reason": "Hardcoded English title attributes remain in ES, including the AX help text. Their visible button labels are translated, producing conflicting accessible context.", "recommendedFix": "Localize both titles with the existing language system; preserve shortcut keys.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-008", "file": "app/page.tsx", "location": "12392", "area": "accessibility", "context": "Ring library option title in English", "english": "A translated start followed by a Spanish drag instruction.", "spanish": "Arrastra sobre un enlace de anillo para fusionar.", "category": "HARDCODED-UI", "severity": "MEDIUM", "reason": "The tooltip appends a literal Spanish sentence regardless of language, so the English hover/AX help becomes bilingual.", "recommendedFix": "Localize the entire tooltip as one message or translated fragments with shared parameters.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-009", "file": "app/page.tsx", "location": "12243", "area": "accessibility", "context": "Alkyl option titles in Spanish mode", "english": "Add methyl — Shortcut: M (and related choices)", "spanish": "Expected Añadir metilo — Atajo: M", "category": "HARDCODED-UI", "severity": "MEDIUM", "reason": "The title template hardcodes English Add and Shortcut while the rest of the alkyl panel changes to Spanish.", "recommendedFix": "Build the complete title from language-aware text and localized group names.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-010", "file": "app/page.tsx", "location": "9621, 12241", "area": "error messages", "context": "English instruction after selecting an alkyl/ring placement tool", "english": "Click a carbon on the canvas to place metilo/ciclohexano.", "spanish": "Pulsa un carbono del canvas para colocar metilo/ciclohexano.", "category": "LANGUAGE-LEAK", "severity": "MEDIUM", "reason": "The English sentence interpolates the Spanish template.label without localization. It is stored in notice and may also persist after language switching.", "recommendedFix": "Use localizedCommonAlkylName/localizedIupac or the existing template English label before formatting the English notice.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-011", "file": "app/page.tsx", "location": "4770-4780", "area": "explanations", "context": "English numbering explanation for CC(=O)O and CNCC", "english": "Numbering is chosen to give the principal group the lowest permitted locant. If both directions remain equivalent, multiple bonds are considered next...", "spanish": "La función principal resuelve la orientación: queda en C1, mientras que desde el extremo contrario quedaría en C2.", "category": "PLACEHOLDER", "severity": "MEDIUM", "reason": "The English branch discards computed C1/C2 positional evidence and instead states a generic conditional about equal directions. It loses dynamic information that distinguishes the chosen orientation.", "recommendedFix": "Generate English reasoning from the same structured locant comparison and include both positions; do not translate chemical names by text replacement.", "affectsChemistry": true
+    },
+    {
+      "id": "LANG-012", "file": "app/page.tsx; app/i18n.ts", "location": "page.tsx:10999,11078; i18n.ts:100,116", "area": "UI", "context": "Formula builder terminology in English", "english": "IDH + OpenChemLib; IDH [value]", "spanish": "IDH; elsewhere the translated explanatory text uses DoU for índice de deficiencia de hidrógeno.", "category": "CHEMISTRY-TERMINOLOGY", "severity": "MEDIUM", "reason": "The English formula UI keeps the Spanish acronym IDH while nearby English help uses DoU (degree of unsaturation). The same concept is labelled two ways without explanation.", "recommendedFix": "Choose one English term and acronym consistently, with an accessible expanded form where needed.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-013", "file": "app/layout.tsx; app/page.tsx", "location": "layout.tsx:html lang; page.tsx:5874-5881,6927-6931", "area": "accessibility", "context": "Initial HTML at /en/ before hydration", "english": "The /en/ route initially has html lang=es and Spanish server-rendered content, then changes to English client-side.", "spanish": "The default document language is es.", "category": "ACCESSIBILITY", "severity": "MEDIUM", "reason": "The document language and initial content do not match an English route until client hydration. This was visible during local initial loading and can affect early screen-reader reading and non-JS rendering.", "recommendedFix": "Initialize the server-rendered locale and html lang from the route while keeping live switching intact.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-014", "file": "app/page.tsx", "location": "4342", "area": "explanations", "context": "Spanish parent-chain explanation for CNCC", "english": "a one-carbon path", "spanish": "una ruta de 1 carbonos", "category": "GRAMMAR", "severity": "LOW", "reason": "The dynamic carbon count uses a plural noun when the value is one.", "recommendedFix": "Use singular/plural agreement for this explanation branch.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-015", "file": "app/page.tsx", "location": "9062", "area": "error messages", "context": "Spanish notice after attaching one ring", "english": "The structure now contains 1 ring.", "spanish": "La estructura ahora contiene 1 anillos.", "category": "GRAMMAR", "severity": "LOW", "reason": "The Spanish notice always formats the plural, even for one ring; the English conversion already has a singular branch.", "recommendedFix": "Apply count-aware Spanish singular/plural formatting at the message source.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-016", "file": "app/i18n.ts", "location": "441,444-445,470 and 626-629", "area": "other", "context": "Four translation keys repeated in ENGLISH_UI and dynamicExact", "english": "Four matching English values occur twice.", "spanish": "Four matching Spanish keys occur twice.", "category": "DUPLICATE", "severity": "LOW", "reason": "The duplicated keys are maintained in two lookup maps; no output mismatch was observed, but future edits could diverge.", "recommendedFix": "Keep a single canonical mapping for each of the four messages after checking dynamic lookup usage.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-017", "file": "app/i18n.ts", "location": "8-489", "area": "other", "context": "61 keys without exact source-string references outside i18n.ts", "english": "Examples include Organic Chemistry Builder and legacy PNG wording.", "spanish": "Ejemplos: Constructor de química orgánica y textos PNG antiguos.", "category": "DEAD-KEY", "severity": "LOW", "reason": "A source-string scan found 61 candidates; dynamic t(variable) calls may still use some. This is a maintenance candidate group, not proof that all 61 are dead.", "recommendedFix": "Trace dynamic call arguments and usage before removing any entry; do not delete based solely on this scan.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-018", "file": "app/page.tsx", "location": "12134", "area": "accessibility", "context": "Bond-order title in English", "english": "Create bond single / Create bond double", "spanish": "Crear enlace simple / Crear enlace doble", "category": "STYLE", "severity": "LOW", "reason": "Word-by-word concatenation yields unnatural English word order in hover and AX help.", "recommendedFix": "Use an English template such as Create a single bond with the translated bond-order term.", "affectsChemistry": false
+    },
+    {
+      "id": "LANG-019", "file": "app/page.tsx", "location": "4752-4761", "area": "explanations", "context": "English parent-chain explanation for CC=CC or CC(=O)O", "english": "The parent name is but-2-ene / ethanoic acid; the complete IUPAC name is...", "spanish": "su esqueleto es butano / etano; por eso el nombre base resultante es...", "category": "CHEMISTRY-TERMINOLOGY", "severity": "LOW", "reason": "The English explanation calls a completed unsaturated or functional name the parent name and then repeats it as the complete name. The Spanish branch distinguishes parent skeleton from derived name, making the teaching step clearer.", "recommendedFix": "Clarify parent skeleton or parent hydride versus the resulting complete name in English, using structured nomenclature data.", "affectsChemistry": false
+    }
+  ]
+}
