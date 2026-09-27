@@ -1984,7 +1984,10 @@ function buildRingAnalysis(
     chosen.tripleBondLocants,
   );
   const substituentParts = formatSubstituentGroups(chosen.substituents, enabledAliases);
+  // A multiple bond can distinguish substituent positions, so retain the locant.
   const singleSubstituent = chosen.substituents.length === 1
+    && chosen.doubleBondLocants.length === 0
+    && chosen.tripleBondLocants.length === 0
     ? resolveSubstituentNaming(chosen.substituents[0], new Set(enabledAliases))
     : undefined;
   let name = singleSubstituent
