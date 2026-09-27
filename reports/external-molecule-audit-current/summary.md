@@ -28,7 +28,9 @@ Los cinco errores de serialización E/Z no especificada (HC-018, HC-020, HC-021,
 
 ## Corrección del comparador mecánico
 
-El ejecutor histórico solo reconoce prefijos `(E)` y `(Z)` al comparar nombres. Por eso `raw-results.json` marca HC-117 a HC-120 como FAIL-NAME aunque la aplicación produce `(2E)`, `(2Z)`, `(3E)` y `(3Z)` y los tests de regresión confirman cada configuración y su identidad molecular. Son cuatro falsos positivos del comparador, no fallos nuevos del producto. La salida literal se conserva para trazabilidad.
+El comparador anterior solo reconocía `(E)` y `(Z)` al comparar nombres. Por eso `raw-results.json` marcó HC-117 a HC-120 como FAIL-NAME aunque la aplicación producía `(2E)`, `(2Z)`, `(3E)` y `(3Z)`. La salida literal anterior se conserva para trazabilidad.
+
+La reejecución con el comparador corregido está en `mechanical-results.json`, `mechanical-results.csv` y `mechanical-summary.md`. Sus 122 casos dan 13 PASS, 109 PARTIAL, 0 FAIL-NAME, 0 FAIL-STRUCTURE y 0 CRASH. Los 109 PARTIAL son diferencias textuales cuyo arbitraje nomenclatural queda reflejado en `results.json`; ninguno es un fallo confirmado. Solo cambiaron de clasificación mecánica HC-117, HC-118, HC-119 y HC-120: de FAIL-NAME a PARTIAL. Sus descriptores E/Z pasaron la comparación con el nombre de referencia y la configuración del SMILES. Los otros 118 estados mecánicos permanecieron iguales y las invariantes estructurales pasaron en 122/122.
 
 ## Nombres corregidos en esta fase
 
