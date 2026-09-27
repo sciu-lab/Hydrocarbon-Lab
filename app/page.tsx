@@ -342,7 +342,7 @@ async function copyVisibleName(value: string) {
   }
 }
 
-type Bond = [number, number, BondOrder?];
+type Bond = [number, number, BondOrder?] & { 3?: boolean };
 
 type RingKind = "cycloalkane" | "aromatic";
 

@@ -10,7 +10,8 @@ import {
 
 export type GeneratedBondOrder = 1 | 2 | 3;
 
-export type GeneratedBond = [number, number, GeneratedBondOrder?];
+/** The fourth value records E/Z explicitly chosen or supplied by SMILES, not 2D layout. */
+export type GeneratedBond = [number, number, GeneratedBondOrder?] & { 3?: boolean };
 
 export type GeneratedAtom = {
   id: number;

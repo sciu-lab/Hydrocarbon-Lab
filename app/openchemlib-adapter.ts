@@ -104,6 +104,18 @@ export function moleculeToSmiles(molecule: GeneratedMolecule): OpenChemLibSmiles
     }
 
     const { molecule: oclMolecule } = buildOpenChemLibStereoGraph(molecule);
+    // OpenChemLib may infer E/Z from drawing coordinates. Only bonds whose
+    // configuration came from SMILES or an explicit E/Z edit may serialize it.
+    oclMolecule.ensureHelperArrays(OCLMolecule.cHelperCIP);
+    const inferredUnspecifiedBonds = molecule.bonds.flatMap((bond, index) => {
+      if ((bond[2] ?? 1) !== 2 || bond[3]) return [];
+      const parity = oclMolecule.getBondCIPParity(index);
+      return parity === OCLMolecule.cBondCIPParityEorP
+        || parity === OCLMolecule.cBondCIPParityZorM ? [index] : [];
+    });
+    for (const bondIndex of inferredUnspecifiedBonds) {
+      oclMolecule.setBondParity(bondIndex, OCLMolecule.cBondParityUnknown, false);
+    }
     const smiles = oclMolecule.toIsomericSmiles().trim();
     if (!smiles) {
       return { ok: false, error: "OpenChemLib no pudo generar el SMILES de esta estructura." };
@@ -243,7 +255,12 @@ export function moleculeFromSmiles(smiles: string): OpenChemLibBuildResult {
     if (!(order === 1 || order === 2 || order === 3)) {
       return { ok: false, error: "La estructura contiene un tipo de enlace aún no editable." };
     }
-    bonds.push([left, right, order]);
+    const parity = order === 2 ? oclMolecule.getBondCIPParity(bondIndex) : OCLMolecule.cBondCIPParityNone;
+    const hasExplicitEZ = parity === OCLMolecule.cBondCIPParityEorP
+      || parity === OCLMolecule.cBondCIPParityZorM;
+    const editableBond: GeneratedBond = [left, right, order];
+    if (hasExplicitEZ) editableBond[3] = true;
+    bonds.push(editableBond);
   }
 
   const atomIds = rawAtoms.map((atom) => atom.id);

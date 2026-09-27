@@ -14,7 +14,7 @@ export type StereoMolecule = {
     charge?: number;
     tetrahedralParity?: "R" | "S";
   }>;
-  bonds: Array<[number, number, StereoBondOrder?]>;
+  bonds: Array<[number, number, StereoBondOrder?] & { 3?: boolean }>;
   rings?: Array<{
     id: number;
     kind: "cycloalkane" | "aromatic";
@@ -472,6 +472,9 @@ export function setDoubleBondGeometry<T extends StereoMolecule>(
       error: "No fue posible representar con claridad la configuración E/Z de ese enlace.",
     };
   }
+
+  const configuredBond = findBond(next, leftAtomId, rightAtomId);
+  if (configuredBond) configuredBond[3] = true;
 
   return { ok: true, molecule: next, configuration: target };
 }
