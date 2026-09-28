@@ -139,6 +139,7 @@ import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifi
 import { curatedCommonNameForSmiles } from "./curated-common-name-display";
 import { legacyProfileDisplayName } from "./legacy-profile-display";
 import { deriveReasoningNameFragments, type ReasoningNameFragment } from "./reasoning-name-fragments";
+import { functionalContributionReasoning, retainedFunctionalParentReasoning } from "./reasoning-functional-groups";
 import { buildReasoningNameLinkParts } from "./reasoning-name-links";
 import { activateReasoningReference, cancelReasoningHover, scheduleReasoningHover, scrollToReasoningStep } from "./reasoning-name-navigation";
 import {
@@ -628,10 +629,14 @@ export function ChemicalNameText({ name = "" }: { name?: string }) {
 
 export function ReasoningNameFragmentView({ fragment }: { fragment: ReasoningNameFragment }) {
   return (
-    <div className={`reasoning-name-fragment reasoning-name-fragment--${fragment.kind}`}>
-      <span className="reasoning-name-fragment-text">{fragment.text}</span>
-      <small className="reasoning-name-fragment-label">{fragment.label}</small>
-    </div>
+    <>
+      {[fragment, ...(fragment.additionalFragments ?? [])].map((part, index) => (
+        <div key={index} className={`reasoning-name-fragment reasoning-name-fragment--${part.kind}`}>
+          <span className="reasoning-name-fragment-text">{part.text}</span>
+          <small className="reasoning-name-fragment-label">{part.label}</small>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -4324,6 +4329,7 @@ export function buildIupacReasoningSteps(
     (name) => !normalizedResultName.includes(name),
   );
   const primaryKind = analysis.primaryFunctionalGroup;
+  const retainedReasoning = retainedFunctionalParentReasoning(analysis, "es");
   const aromaticNitroGroups = analysis.family === "aromatic"
     ? analysis.functionalGroups.filter((group) => group.kind === "nitro")
     : [];
@@ -4364,7 +4370,7 @@ export function buildIupacReasoningSteps(
     steps.push({
       number: "01",
       title: "Grupo funcional principal",
-      explanation: `${priorityLead} Aporta el sufijo del nombre. ${positionRule}${aromaticNitroGroups.length ? " Los grupos nitro se expresan con el prefijo nitro- y no desplazan esta función de sufijo." : ""}`,
+      explanation: retainedReasoning?.function ?? `${priorityLead} Aporta el sufijo del nombre. ${positionRule}${aromaticNitroGroups.length ? " Los grupos nitro se expresan con el prefijo nitro- y no desplazan esta función de sufijo." : ""} ${functionalContributionReasoning(analysis, "function", "es")}`.trim(),
       nameRole: "function",
     });
   } else if (aromaticNitroGroups.length) {
@@ -4377,7 +4383,9 @@ export function buildIupacReasoningSteps(
 
   let parentExplanation: string;
   const heterocycleParentRing = heterocycleRing(molecule);
-  if (heterocycleParentRing) {
+  if (retainedReasoning) {
+    parentExplanation = retainedReasoning.parent;
+  } else if (heterocycleParentRing) {
     parentExplanation = `${heterocycleRingCompositionText(molecule, heterocycleParentRing, "es")} El nombre del padre es ${analysis.chainName}; el nombre IUPAC completo es ${analysis.name}.`;
   } else if (analysis.family === "aromatic") {
     parentExplanation = `Se elige como progenitor el anillo aromático de ${chainLength} carbonos${primaryKind ? " que contiene la función de sufijo prioritaria" : ""}. La conectividad y las reglas de nomenclatura determinan la elección, independientemente de la orientación visual del dibujo; el nombre base es ${analysis.chainName}.`;
@@ -4541,7 +4549,7 @@ export function buildIupacReasoningSteps(
     steps.push({
       number: "04",
       title: "Sustituyentes y localizadores",
-      explanation: `Con la orientación ya evaluada, ${analysis.substituents.length === 1 ? "se ubica" : "se ubican"} ${joinSpanishList(localizedSubstituents)}. ${hierarchyReminder}`,
+      explanation: `Con la orientación ya evaluada, ${analysis.substituents.length === 1 ? "se ubica" : "se ubican"} ${joinSpanishList(localizedSubstituents)}. ${hierarchyReminder} ${functionalContributionReasoning(analysis, "substituent", "es")}`.trim(),
       nameRole: "substituent",
     });
   }
@@ -4584,6 +4592,7 @@ export function buildEnglishReasoningSteps(
   molecule: Molecule,
   analysis: Analysis,
 ): IupacReasoningStep[] {
+  const retainedReasoning = retainedFunctionalParentReasoning(analysis, "en");
   const exocyclicRingFunction = exocyclicRingCarbonFunction(molecule, analysis);
   const englishName = translateSpanishIupacForDisplay(analysis.name) || analysis.name;
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
@@ -4808,17 +4817,19 @@ export function buildEnglishReasoningSteps(
   return steps.map((step) => {
     let explanation: string;
     if (step.number === "01") {
-      explanation = primaryLabel
+      explanation = retainedReasoning?.function ?? (primaryLabel
         ? exocyclicRingFunction
           ? primaryLabel + " has the highest naming priority and determines the suffix. Its functional carbon is outside the ring and is attached at C"
             + exocyclicRingFunction.attachmentLocant + "."
           : `${primaryLabel} has the highest naming priority among the suffix functional groups. It determines the suffix, and the parent skeleton is numbered to give this function the lowest permitted locant.${aromaticNitroGroups.length ? " Nitro groups are cited with the nitro- prefix and do not displace this suffix function." : ""}`
         : aromaticNitroGroups.length
           ? "The nitro group is detected, but here it is cited with the prefix nitro-. It does not provide a suffix and is not classified as the principal functional group."
-          : "Functional-group priority is checked before the parent skeleton is numbered.";
+          : "Functional-group priority is checked before the parent skeleton is numbered.");
     } else if (step.number === "02") {
       const heterocycleParentRing = heterocycleRing(molecule);
-      if (exocyclicRingFunction) {
+      if (retainedReasoning) {
+        explanation = retainedReasoning.parent;
+      } else if (exocyclicRingFunction) {
         const groupLabel = exocyclicRingFunction.kind === "aldehyde" ? "–CHO" : "–COOH";
         const suffix = exocyclicRingFunction.kind === "aldehyde" ? "carbaldehyde" : "carboxylic acid";
         explanation = "The " + analysis.mainChain.length + "-carbon ring is the parent " + parentName
@@ -4884,6 +4895,9 @@ export function buildEnglishReasoningSteps(
         : "Stereochemical descriptors are assigned from molecular geometry using CIP priority rules when the structure requires them.";
     }
 
+    if ((step.nameRole === "function" && !retainedReasoning) || step.nameRole === "substituent") {
+      explanation = `${explanation} ${functionalContributionReasoning(analysis, step.nameRole, "en")}`.trim();
+    }
     return {
       ...step,
       title: englishReasoningTitle(step.title),
@@ -6939,6 +6953,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   const reasoningNameFragments = deriveReasoningNameFragments({
     analysis,
     displayedName: displayedIupacName,
+    generatedNames: nomenclatureVariants.filter((variant) => variant.available).map((variant) => variant.name),
     language,
     steps: localizedReasoningSteps,
     canHighlight: showIupacName && displayedNameCopyable

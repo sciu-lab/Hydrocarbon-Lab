@@ -1,24 +1,24 @@
 import type { AppLanguage } from "./i18n.ts";
 import { uiText } from "./i18n.ts";
-import { translateSpanishIupacToOpsin } from "./iupac-name-normalization.ts";
+import { translateSpanishIupacForDisplay } from "./iupac-name-normalization.ts";
+import { functionalNameEvidence, matchFunctionalParentSuffix, type FunctionalContribution, type FunctionalReasoningAnalysis } from "./reasoning-functional-groups.ts";
 
-export type ReasoningNameFragment = {
+export type ReasoningNameEvidence = {
   text: string;
   label: string;
   kind: "function" | "parent" | "numbering" | "substituent" | "unsaturation";
   start?: number;
+  atomIds?: readonly number[];
+  contributions?: FunctionalContribution[];
 };
 
-type FragmentAnalysis = {
-  family: string;
-  name?: string;
-  chainName: string;
+export type ReasoningNameFragment = ReasoningNameEvidence & {
+  additionalFragments?: ReasoningNameEvidence[];
+};
+
+type FragmentAnalysis = FunctionalReasoningAnalysis & {
   mainChain: number[];
-  substituents: { name: string; locant: number; complex?: boolean }[];
-  functionalGroups: { kind: string; carbonId: number }[];
-  primaryFunctionalGroup?: string;
   primaryFunctionalLabel?: string;
-  numberedAtoms: ReadonlyMap<number, number>;
   doubleBondLocants: number[];
   tripleBondLocants: number[];
 };
@@ -26,17 +26,19 @@ type FragmentAnalysis = {
 type FragmentInput = {
   analysis: FragmentAnalysis;
   displayedName: string;
+  /** Available local profile outputs supplied by the existing naming pipeline. */
+  generatedNames?: readonly string[];
   language: AppLanguage;
   steps: readonly { number: string; nameRole?: ReasoningNameFragment["kind"] }[];
   canHighlight: boolean;
 };
 
 function localizedName(name: string, language: AppLanguage) {
-  return language === "en" ? translateSpanishIupacToOpsin(name) : name;
+  return language === "en" ? translateSpanishIupacForDisplay(name) : name;
 }
 
 /** Presentation only: every emitted text is copied from the currently displayed name. */
-export function deriveReasoningNameFragments({
+function deriveExistingReasoningNameFragments({
   analysis,
   displayedName,
   language,
@@ -86,20 +88,10 @@ export function deriveReasoningNameFragments({
     const groupLabel = analysis.primaryFunctionalLabel
       ? uiText(language, analysis.primaryFunctionalLabel)
       : uiText(language, "Grupo funcional principal");
-    const suffixes: Record<string, string> = language === "en" ? {
-      alcohol: "ol", ketone: "one", amine: "amine", aldehyde: "carbaldehyde",
-      carboxylicAcid: "carboxylic acid", amide: "carboxamide", nitrile: "carbonitrile",
-    } : {
-      alcohol: "ol", ketone: "ona", amine: "amina", aldehyde: "carbaldehído",
-      carboxylicAcid: "carboxílico", amide: "carboxamida", nitrile: "carbonitrilo",
-    };
     const primary = analysis.primaryFunctionalGroup;
-    const suffix = primary ? suffixes[primary] : undefined;
     // Split only a supported systematic suffix from an explicit ring scaffold.
     // An indivisible functional parent is kept whole, without guessing morphemes.
-    const suffixMatch = suffix
-      ? new RegExp(`(?:(\\d+(?:,\\d+)*)-)?((?:di|tri|tetra|penta|hexa)?${suffix})$`).exec(parent)
-      : null;
+    const suffixMatch = matchFunctionalParentSuffix(parent, primary, language);
     const scaffoldEnd = suffixMatch?.index ?? parent.length;
     const scaffold = parent.slice(0, scaffoldEnd).replace(/-$/, "").replace(/^ácido /, "");
     const explicitRing = analysis.family === "aromatic"
@@ -193,8 +185,9 @@ export function deriveReasoningNameFragments({
 
   if (analysis.family !== "acyclic") return fragments;
   const parent = localizedName(analysis.chainName, language);
+  const parentSuffix = matchFunctionalParentSuffix(parent, analysis.primaryFunctionalGroup, language);
   const stem = ["ketone", "alcohol", "aldehyde"].includes(analysis.primaryFunctionalGroup ?? "")
-    ? /^([a-z]+?)(?:-\d+-)?(?:ona|one|ol|al)$/i.exec(parent)?.[1]
+    ? parentSuffix ? parent.slice(0, parentSuffix.index).replace(/-$/, "") : undefined
     : /^[a-z]+/i.exec(parent)?.[0];
   const chainLabel = language === "en"
     ? `Parent chain · ${analysis.mainChain.length} carbons`
@@ -236,9 +229,8 @@ export function deriveReasoningNameFragments({
     && !analysis.doubleBondLocants.length
     && !analysis.tripleBondLocants.length) {
     const locant = analysis.numberedAtoms.get(analysis.functionalGroups[0].carbonId);
-    const suffix = analysis.primaryFunctionalGroup === "ketone"
-      ? language === "en" ? "one" : "ona"
-      : analysis.primaryFunctionalGroup === "alcohol" ? "ol" : "al";
+    const suffix = parentSuffix?.[2];
+    if (!suffix) return fragments;
     if (!locant || (analysis.primaryFunctionalGroup === "aldehyde" && locant !== 1)) return fragments;
     const tail = name.slice(stem.length);
     const functionLabel = analysis.primaryFunctionalGroup === "ketone"
@@ -304,6 +296,138 @@ export function deriveReasoningNameFragments({
         : analysis.substituents.length > 1 ? "Localizadores de los sustituyentes" : "Localizador del sustituyente", "numbering");
       add("04", prefix, language === "en" ? "Substituent and locants" : "Sustituyente y localizadores", "substituent");
     }
+  }
+  return fragments;
+}
+
+/** Recover the parent contribution beside the existing functional evidence. */
+function parentNameEvidence(
+  analysis: FragmentAnalysis, name: string, language: AppLanguage,
+  evidence: ReturnType<typeof functionalNameEvidence>,
+): ReasoningNameEvidence | undefined {
+  if (!analysis.mainChain.length) return;
+  if (analysis.family === "aromatic" && ["fenol", "anilina"].includes(analysis.chainName)) return;
+  let parent = localizedName(analysis.chainName, language).replace(/^ácido /, "").replace(/ acid$/, "");
+  if (analysis.primaryFunctionalGroup === "ester") {
+    const acidPortion = /^(.*) de (.+)$/.exec(analysis.chainName)?.[1];
+    if (!acidPortion) return;
+    parent = localizedName(acidPortion, language);
+  }
+  const suffix = evidence.find((item) => item.kind === "function"
+    && item.contributions.some((origin) => origin.role === "suffix"));
+  let text: string;
+  let start: number;
+  if (suffix) {
+    const parentSuffix = matchFunctionalParentSuffix(parent, analysis.primaryFunctionalGroup, language);
+    if (!parentSuffix) return; // Indivisible retained parents keep their existing evidence.
+    const root = /^[a-záéíóúüñ]+/i.exec(parent.slice(0, parentSuffix.index))?.[0];
+    if (!root) return;
+    start = name.lastIndexOf(root, suffix.start - root.length);
+    if (start < 0) return;
+    // A locanted unsaturation may intervene between the root and final function.
+    const intervening = name.slice(start + root.length, suffix.start);
+    if (!/^(?:-(?:\d+(?:,\d+)*-)?[a-z]+)*-?$/i.test(intervening)) return;
+    text = name.slice(start, start + root.length);
+  } else if (!analysis.primaryFunctionalGroup
+    && (analysis.family === "acyclic" || analysis.family === "aromatic" && analysis.chainName === "benceno")
+    && name.endsWith(parent)) {
+    text = /^[a-z]+/i.exec(parent)?.[0] ?? "";
+    start = name.length - parent.length;
+  } else if (!analysis.primaryFunctionalGroup && analysis.family === "acyclic" && analysis.name?.endsWith(analysis.chainName)
+    && name === localizedName(analysis.name, language)) {
+    // Contextual localization can spell a root differently from its isolated
+    // parent. Copy the residual only after every analyzed prefix is accounted for.
+    const prefixes = evidence.filter((item) => item.kind === "substituent").sort((a, b) => a.start - b.start);
+    if (!prefixes.length || prefixes.length !== new Set(analysis.substituents.map((item) => item.name)).size) return;
+    let cursor = 0;
+    for (const prefix of prefixes) {
+      if (!/^-?$/.test(name.slice(cursor, prefix.start))) return;
+      cursor = prefix.start + prefix.text.length;
+    }
+    start = cursor;
+    text = name.slice(start);
+    if (!/^[a-z]+$/i.test(text)) return;
+  } else return;
+  if (!text) return;
+  const ring = analysis.family !== "acyclic";
+  const label = language === "en"
+    ? `${analysis.family === "aromatic" ? "Aromatic parent ring" : ring ? "Parent ring" : "Parent chain"} · ${analysis.mainChain.length} carbons`
+    : `${analysis.family === "aromatic" ? "Anillo principal aromático" : ring ? "Anillo principal" : "Cadena principal"} · ${analysis.mainChain.length} carbonos`;
+  return { text, start, label, kind: "parent", atomIds: analysis.mainChain };
+}
+
+/** Extend the existing evidence/targets; one step can own several disjoint spans. */
+export function deriveReasoningNameFragments(input: FragmentInput): Record<string, ReasoningNameFragment> {
+  const fragments = deriveExistingReasoningNameFragments(input);
+  const { analysis, displayedName, language, steps, canHighlight } = input;
+  const name = displayedName.trim();
+  if (!canHighlight || !/^[a-záéíóúüñ0-9, -]+$/i.test(name)
+    || !["acyclic", "cycloalkane", "aromatic"].includes(analysis.family)) return fragments;
+  // Consume the analyzed result or an available local profile output. The caller
+  // supplies the existing selector's results; this layer never creates variants.
+  if (name !== localizedName(analysis.name ?? analysis.chainName, language)
+    && !input.generatedNames?.includes(name)
+    && !Object.keys(fragments).length) return fragments;
+  const evidence = functionalNameEvidence(analysis, name, language);
+  const parent = parentNameEvidence(analysis, name, language, evidence);
+  const parentStep = steps.find((step) => step.nameRole === "parent");
+  if (parent && parentStep) {
+    const previous = fragments[parentStep.number];
+    if (!previous || previous.text === parent.text
+      || evidence.some((item) => item.kind === "function" && item.start >= (previous.start ?? name.indexOf(previous.text))
+        && item.start + item.text.length <= (previous.start ?? name.indexOf(previous.text)) + previous.text.length)) {
+      fragments[parentStep.number] = { ...parent, ...(previous?.text === parent.text ? { label: previous.label } : {}) };
+    }
+  }
+  for (const item of evidence) {
+    const step = steps.find((candidate) => candidate.nameRole === item.kind);
+    if (!step) continue;
+    const previous = fragments[step.number];
+    if (!previous) {
+      fragments[step.number] = item;
+      continue;
+    }
+    const previousStart = previous.start ?? name.indexOf(previous.text);
+    // A recognizable suffix must not inherit a broad retained-parent claim.
+    if (item.kind === "function" && item.contributions[0]?.role === "suffix" && parent
+      && previousStart < parent.start! + parent.text.length
+      && previousStart + previous.text.length > parent.start!) {
+      fragments[step.number] = item;
+      continue;
+    }
+    if (previous.text === item.text && previousStart === item.start
+      || previous.kind === "function" && item.contributions[0]?.role === "suffix"
+        && item.start >= previousStart && item.start + item.text.length <= previousStart + previous.text.length) {
+      previous.contributions = item.contributions;
+      if (item.atomIds) previous.atomIds = item.atomIds;
+    } else {
+      previous.additionalFragments ??= [];
+      previous.additionalFragments.push(item);
+    }
+  }
+  const numberingStep = steps.find((step) => step.nameRole === "numbering");
+  if (numberingStep) {
+    for (const item of evidence) {
+      const locants = /^\d+(?:,\d+)*/.exec(item.text)?.[0];
+      if (!locants) continue;
+      const written: ReasoningNameEvidence = { text: locants, start: item.start,
+        label: uiText(language, "Numeración razonada"), kind: "numbering" };
+      const previous = fragments[numberingStep.number];
+      if (!previous) fragments[numberingStep.number] = written;
+      else if (![previous, ...(previous.additionalFragments ?? [])].some((fragment) =>
+        fragment.text === locants && (fragment.start ?? name.indexOf(fragment.text)) === item.start)) {
+        previous.additionalFragments ??= [];
+        previous.additionalFragments.push(written);
+      }
+    }
+  }
+  // Retained functional parents (phenol/aniline) are intentionally indivisible.
+  const functionStep = steps.find((step) => step.nameRole === "function");
+  const retained = functionStep ? fragments[functionStep.number] : undefined;
+  if (retained && !retained.contributions && analysis.primaryFunctionalGroup) {
+    retained.contributions = analysis.functionalGroups
+      .filter((group) => group.kind === analysis.primaryFunctionalGroup)
+      .map((group) => ({ group: group.kind, role: "suffix", atomIds: group.atomIds ?? [group.carbonId] }));
   }
   return fragments;
 }

@@ -336,7 +336,10 @@ test("unavailable names and unsupported patterns keep the explanation without bo
   assert.ok(result.steps.length > 0);
   assert.deepEqual(result.fragments, {});
   const acid = analyzed("O=C(O)c1ccccc1");
-  assert.deepEqual(derive(acid, acid.analysis.name).fragments, {});
+  const acidEvidence = derive(acid, acid.analysis.name).fragments["01"];
+  assert.equal(acidEvidence?.text, "ácido");
+  assert.equal(acidEvidence?.additionalFragments?.[0].text, "oico", "the supported acid now has explicit functional evidence");
+  assert.deepEqual(derive(acetone, acid.analysis.name).fragments, {}, "an acid name cannot supply evidence for a ketone");
   const butanal = analyzed("CCCC=O");
   assert.deepEqual(derive(acetone, butanal.analysis.name).fragments, {}, "a name from another molecule supplies no fragments");
   assert.deepEqual(derive(butanal, "butan-2-ol").fragments, {}, "a displayed suffix must agree with the analyzed function");
