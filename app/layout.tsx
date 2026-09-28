@@ -25,13 +25,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
+  params: routeParams,
 }: Readonly<{
   children: React.ReactNode;
+  params?: Promise<{ lang?: string }>;
 }>) {
+  const params = await routeParams;
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang={params?.lang === "en" ? "en" : "es"} suppressHydrationWarning>
       <head>
         <script id="google-analytics-script" async src="https://www.googletagmanager.com/gtag/js?id=G-FZ76EQBG32" />
         <script

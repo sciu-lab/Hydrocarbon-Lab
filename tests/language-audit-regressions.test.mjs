@@ -20,9 +20,11 @@ import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const languagePageSource = readFileSync(new URL("../app/[lang]/page.tsx", import.meta.url), "utf8");
 const i18nSource = readFileSync(new URL("../app/i18n.ts", import.meta.url), "utf8");
 const pageAst = ts.createSourceFile("page.tsx", pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const layoutAst = ts.createSourceFile("layout.tsx", layoutSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const languagePageAst = ts.createSourceFile("[lang]/page.tsx", languagePageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const i18nAst = ts.createSourceFile("i18n.ts", i18nSource, ts.ScriptTarget.Latest, true);
 
 function findAll(ast, predicate) {
@@ -495,14 +497,54 @@ for (const language of ["en", "es"]) {
   });
 }
 
-// LANG-010 — LANGUAGE-LEAK — MEDIUM. Current: English placement notices interpolate Spanish template.label. Expected: group/ring names are localized before insertion.
+// LANG-010 — LANGUAGE-LEAK — MEDIUM. Placement notice names must come from the existing locale-aware ring/alkyl helpers.
 test("LANG-010 — LANGUAGE-LEAK — MEDIUM — English placement notices never insert raw Spanish template labels", () => {
-  const unsafe = findAll(pageAst, (node) => ts.isCallExpression(node)
+  const notices = findAll(pageAst, (node) => ts.isCallExpression(node)
     && node.expression.getText(pageAst) === "setNotice"
     && node.arguments[0] && ts.isConditionalExpression(node.arguments[0])
-    && node.arguments[0].whenTrue.getText(pageAst).includes("Click a carbon on the canvas to place")
-    && node.arguments[0].whenTrue.getText(pageAst).includes("${template.label}"));
-  assert.deepEqual(unsafe.map((call) => pageAst.getLineAndCharacterOfPosition(call.getStart(pageAst)).line + 1), []);
+    && node.arguments[0].whenTrue.getText(pageAst).includes("Click a carbon on the canvas to place"));
+  assert.equal(notices.length, 3, "the ring, alkyl, and translated ring placement notices should remain covered");
+
+  const ringNames = [
+    { label: "ciclohexano", labelEn: "cyclohexane" },
+    { label: "benceno", labelEn: "benzene" },
+  ];
+  const alkylNames = [
+    { label: "metilo", english: "methyl" },
+    { label: "etilo", english: "ethyl" },
+  ];
+  const helperNotices = notices.filter((call) => {
+    const expression = call.arguments[0].whenTrue.getText(pageAst);
+    return expression.includes("localizedRingTemplateName") || expression.includes("localizedCommonAlkylName");
+  });
+  assert.equal(helperNotices.length, 2);
+  const ringNotice = helperNotices.find((call) => call.arguments[0].whenTrue.getText(pageAst).includes("localizedRingTemplateName"));
+  const alkylNotice = helperNotices.find((call) => call.arguments[0].whenTrue.getText(pageAst).includes("localizedCommonAlkylName"));
+  assert.ok(ringNotice, "ring notice should use the localized ring name");
+  assert.ok(alkylNotice, "alkyl notice should use the localized substituent name");
+
+  for (const template of ringNames) {
+    const branches = ringNotice.arguments[0];
+    const visibleEnglish = evaluateExpression(branches.whenTrue.getText(pageAst), {
+      template,
+      localizedRingTemplateName: (value) => value.labelEn,
+    });
+    const visibleSpanish = evaluateExpression(branches.whenFalse.getText(pageAst), { template });
+    assert.match(visibleEnglish, new RegExp(template.labelEn));
+    assert.doesNotMatch(visibleEnglish, new RegExp(template.label));
+    assert.match(visibleSpanish, new RegExp(template.label));
+  }
+  for (const template of alkylNames) {
+    const branches = alkylNotice.arguments[0];
+    const visibleEnglish = evaluateExpression(branches.whenTrue.getText(pageAst), {
+      template,
+      localizedCommonAlkylName: (value) => value === "metilo" ? "methyl" : "ethyl",
+    });
+    const visibleSpanish = evaluateExpression(branches.whenFalse.getText(pageAst), { template });
+    assert.match(visibleEnglish, new RegExp(template.english));
+    assert.doesNotMatch(visibleEnglish, new RegExp(template.label));
+    assert.match(visibleSpanish, new RegExp(template.label));
+  }
 });
 
 // LANG-011 — PLACEHOLDER — MEDIUM. Current: English numbering drops C1 versus C2 and suggests a tie. Expected: both computed positions survive translation.
@@ -564,3 +606,20 @@ for (const language of ["en", "es"]) {
     assert.equal(initial, language);
   });
 }
+
+test("LANG-013 — ACCESSIBILITY — MEDIUM — route locale initializes the server-rendered application", () => {
+  const routeLanguage = findAll(languagePageAst, (node) => ts.isVariableDeclaration(node)
+    && node.name.getText(languagePageAst) === "initialLanguage");
+  assert.equal(routeLanguage.length, 1);
+  assert.equal(routeLanguage[0].initializer.getText(languagePageAst), 'lang === "en" ? "en" : "es"');
+
+  const routeHome = findAll(languagePageAst, (node) => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+    && node.tagName.getText(languagePageAst) === "Home");
+  assert.equal(routeHome.length, 1);
+  assert.equal(jsxAttribute(routeHome[0], "initialLanguage").initializer.expression.getText(languagePageAst), "initialLanguage");
+
+  const initialState = findAll(pageAst, (node) => ts.isCallExpression(node)
+    && node.expression.getText(pageAst) === "useState"
+    && node.typeArguments?.[0]?.getText(pageAst) === "AppLanguage");
+  assert.ok(initialState.some((call) => call.arguments[0]?.getText(pageAst) === "initialLanguage"));
+});

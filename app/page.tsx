@@ -5950,9 +5950,9 @@ function MoleculeHistoryPreview({
   );
 }
 
-export default function Home() {
+export default function Home({ initialLanguage = "es" }: { initialLanguage?: AppLanguage }) {
   // Match the server's first render; restore the route/preference after hydration.
-  const [language, setLanguage] = useState<AppLanguage>("es");
+  const [language, setLanguage] = useState<AppLanguage>(initialLanguage);
   useEffect(() => {
     const initialLanguage = detectInitialLanguage();
     const restore = window.setTimeout(() => setLanguage(initialLanguage), 0);
@@ -9749,7 +9749,7 @@ export default function Home() {
     setPlacementTool({ kind: "ring", template, mode: !isPristineInitialMolecule && ringLibraryContext === "attach" ? "attach" : "replace" });
     setToolPointer(lastToolPointer.current);
     setShowRingPalette(false);
-    setNotice(language === "en" ? `Click a carbon on the canvas to place ${template.label}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
+    setNotice(language === "en" ? `Click a carbon on the canvas to place ${localizedRingTemplateName(template)}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
   };
   const canvasScaleClass = carbonCount <= 10
     ? "chain-short"
@@ -12382,7 +12382,7 @@ export default function Home() {
                       setPlacementTool({ kind: "alkyl", template });
                       setToolPointer(lastToolPointer.current);
                       setShowAlkylPalette(false);
-                      setNotice(language === "en" ? `Click a carbon on the canvas to place ${template.label}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
+                      setNotice(language === "en" ? `Click a carbon on the canvas to place ${localizedCommonAlkylName(template.label)}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
                     }}
                     title={`${t("Añade")} ${localizedCommonAlkylName(template.label)}${localizedAlkylShortcut(template.id)}`}
                   >
