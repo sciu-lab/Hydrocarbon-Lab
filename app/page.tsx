@@ -19,6 +19,7 @@ import { buildHydrocarbonFromIupacName } from "./name-to-molecule";
 import { IUPAC_ROOTS } from "./iupac-prefixes";
 import {
   localizeChemicalNameForDisplay,
+  translateSpanishIupacForDisplay,
   translateSpanishIupacToOpsin,
 } from "./iupac-name-normalization";
 import {
@@ -4584,7 +4585,7 @@ export function buildEnglishReasoningSteps(
   analysis: Analysis,
 ): IupacReasoningStep[] {
   const exocyclicRingFunction = exocyclicRingCarbonFunction(molecule, analysis);
-  const englishName = translateSpanishIupacToOpsin(analysis.name) || analysis.name;
+  const englishName = translateSpanishIupacForDisplay(analysis.name) || analysis.name;
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
   if (analysis.steroidSystem?.constitutionNameEs) {
     const tetrahedralDescriptors = getMainChainTetrahedralDescriptors(molecule, analysis.mainChain);
@@ -5937,7 +5938,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     const steroidName = localizeSupportedSteroidConstitutionName(name, language);
     if (steroidName) return steroidName;
     return language === "en"
-      ? translateSpanishIupacToOpsin(name) || name
+      ? translateSpanishIupacForDisplay(name) || name
       : localizeChemicalNameForDisplay(name, "es");
   };
   const localizedCommonAlkylName = (name: string) => {

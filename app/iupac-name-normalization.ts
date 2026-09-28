@@ -411,6 +411,39 @@ export function translateSpanishIupacToOpsin(value: string) {
   return translateCore(heterocycleName);
 }
 
+const alphabetizedHalogenPrefix = /(?<locants>\d+(?:,\d+)*-)(?<name>(?:(?:di|tri|tetra|penta|hexa|hepta|octa|nona|deca)?(?:fluoro|chloro|bromo|iodo|methyl|ethyl)))(?=-|[a-z]|$)/gi;
+const ignoredMultipliers = /^(?:di|tri|tetra|penta|hexa|hepta|octa|nona|deca)/i;
+
+/** Reorders only the recognized, simple prefix run when halogens are present. */
+function alphabetizeEnglishHalogenPrefixes(value: string) {
+  const matches = [...value.matchAll(alphabetizedHalogenPrefix)];
+  if (!matches.length || matches[0].index !== 0) return value;
+  if (!matches.some((match) => /^(?:di|tri|tetra|penta|hexa|hepta|octa|nona|deca)?(?:fluoro|chloro|bromo|iodo)$/i.test(match.groups?.name ?? ""))) {
+    return value;
+  }
+
+  const lastMatch = matches.at(-1)!;
+  const prefixEnd = lastMatch.index! + lastMatch[0].length;
+  if (matches.some((match, index) => index > 0
+    && !/^-*$/.test(value.slice(matches[index - 1].index! + matches[index - 1][0].length, match.index)))) {
+    return value;
+  }
+  const prefixGroups = matches.map((match) => ({
+    locants: match.groups!.locants.slice(0, -1),
+    name: match.groups!.name,
+    alphabeticalKey: match.groups!.name.replace(ignoredMultipliers, "").toLocaleLowerCase("en"),
+  }));
+  const parent = value.slice(prefixEnd).replace(/^-+/, "");
+  prefixGroups.sort((left, right) => left.alphabeticalKey.localeCompare(right.alphabeticalKey, "en")
+    || left.locants.localeCompare(right.locants, "en", { numeric: true }));
+  return `${prefixGroups.map(({ locants, name }) => `${locants}-${name}`).join("-")}${parent}`;
+}
+
+/** English display localization; OPSIN candidates keep their parser punctuation and source order. */
+export function translateSpanishIupacForDisplay(value: string) {
+  return alphabetizeEnglishHalogenPrefixes(compactHalogenatedName(translateSpanishIupacToOpsin(value)));
+}
+
 /**
  * Public parser boundary. Input normalization is intentionally separate from
  * display localization so parser vocabulary never leaks into the Spanish UI.

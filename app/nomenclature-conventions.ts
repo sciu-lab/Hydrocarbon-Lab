@@ -1,7 +1,6 @@
 import type { AppLanguage } from "./i18n";
 import {
   compactHalogenatedName,
-  hyphenateHalogenatedName,
   stripMethaneHalogenLocants,
 } from "./iupac-name-normalization.ts";
 import { englishIupacRoot, IUPAC_ROOTS } from "./iupac-prefixes.ts";
@@ -281,7 +280,7 @@ export function applyNomenclatureConvention(
     ? compactHalogenatedName(methaneLocantsRemoved)
     : spanish1979
       ? formattedName
-      : hyphenateHalogenatedName(methaneLocantsRemoved);
+      : compactHalogenatedName(methaneLocantsRemoved);
   return `${prefix}${halogenFormattedName}`;
 }
 

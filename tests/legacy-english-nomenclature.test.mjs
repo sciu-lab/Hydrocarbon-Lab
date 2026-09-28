@@ -6,7 +6,10 @@ import { createServer } from "vite";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 import { applyNomenclatureConvention } from "../app/nomenclature-conventions.ts";
 import { legacyProfileDisplayName } from "../app/legacy-profile-display.ts";
-import { translateSpanishIupacToOpsin } from "../app/iupac-name-normalization.ts";
+import {
+  translateSpanishIupacForDisplay,
+  translateSpanishIupacToOpsin,
+} from "../app/iupac-name-normalization.ts";
 import {
   compareLocantSets,
   compareNumberings,
@@ -27,6 +30,8 @@ let buildLegacyEnglishNameModel;
 let legacyEnglishProfileIsSupportedForMolecule;
 let legacySpanishFormatterInput;
 let suggestedIupacNameWithOmittedLocants;
+let buildIupacReasoningSteps;
+let buildEnglishReasoningSteps;
 
 before(async () => {
   server = await createServer({
@@ -38,7 +43,8 @@ before(async () => {
     server: { middlewareMode: true, hmr: false },
   });
   ({ analyzeMolecule, buildLegacyEnglishNameModel, legacyEnglishProfileIsSupportedForMolecule,
-    legacySpanishFormatterInput, suggestedIupacNameWithOmittedLocants } = await server.ssrLoadModule("/app/page.tsx"));
+    legacySpanishFormatterInput, suggestedIupacNameWithOmittedLocants, buildIupacReasoningSteps,
+    buildEnglishReasoningSteps } = await server.ssrLoadModule("/app/page.tsx"));
 });
 
 after(async () => server?.close());
@@ -85,6 +91,48 @@ function attachLinearChain(molecule, length) {
   }
   return firstId;
 }
+
+test("generated haloalkane names preserve Spanish order and localize English citation order", () => {
+  const cases = [
+    ["CC(I)C(C)CCC", "3-metil-2-yodohexano", "2-iodo-3-methylhexane"],
+    ["CC(Br)C(C)CCC", "2-bromo-3-metilhexano", "2-bromo-3-methylhexane"],
+    ["CC(Cl)C(CC)CCC", "2-cloro-3-etilhexano", "2-chloro-3-ethylhexane"],
+    ["CC(F)C(C)CCC", "2-fluoro-3-metilhexano", "2-fluoro-3-methylhexane"],
+    ["CC(Br)C(Cl)C(F)C(I)C", "2-bromo-3-cloro-4-fluoro-5-yodohexano", "2-bromo-3-chloro-4-fluoro-5-iodohexane"],
+    ["CC(Br)C(Br)CCC", "2,3-dibromohexano", "2,3-dibromohexane"],
+  ];
+
+  for (const [smiles, expectedSpanish, expectedEnglish] of cases) {
+    const analysis = analyzeMolecule(fromSmiles(smiles));
+    assert.equal(analysis.name, expectedSpanish, `${smiles} Spanish analysis name`);
+    assert.equal(
+      applyNomenclatureConvention(analysis.name, "current", "es"),
+      expectedSpanish,
+      `${smiles} Spanish display name`,
+    );
+    assert.equal(
+      applyNomenclatureConvention(translateSpanishIupacForDisplay(analysis.name), "current", "en"),
+      expectedEnglish,
+      `${smiles} English display name`,
+    );
+    assert.ok(!expectedSpanish.match(/-(?:hexano|propano|butano)$/), `${smiles} has no artificial ES parent hyphen`);
+    assert.ok(!expectedEnglish.match(/-(?:hexane|propane|butane)$/), `${smiles} has no artificial EN parent hyphen`);
+  }
+
+  const exampleMolecule = fromSmiles("CC(I)C(C)CCC");
+  const example = analyzeMolecule(exampleMolecule);
+  assert.equal(example.chainName, "hexano");
+  assert.deepEqual(example.substituents.map(({ name, locant }) => [name, locant]), [
+    ["metil", 3],
+    ["yodo", 2],
+  ]);
+  const englishReasoning = buildEnglishReasoningSteps(
+    buildIupacReasoningSteps(exampleMolecule, example),
+    exampleMolecule,
+    example,
+  );
+  assert.ok(englishReasoning.some((step) => step.explanation.includes("2-iodo-3-methylhexane")));
+});
 
 test("declares a distinct 1979 English profile and explicit functional hierarchy", () => {
   assert.equal(IUPAC_1979_LEGACY_ENGLISH_PROFILE, "iupac-1979-legacy-en");
