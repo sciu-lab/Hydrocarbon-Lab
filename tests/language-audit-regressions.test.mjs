@@ -59,6 +59,42 @@ function collectAppSource(directory, files = []) {
   return files;
 }
 
+const LANG_002_KEYS = [
+  "Acercar",
+  "Admite grupos funcionales, sustituyentes entre paréntesis y descriptores estereoquímicos E/Z y R/S.",
+  "Ajustar",
+  "Ajustar molécula a la vista",
+  "Alejar",
+  "Constructor molecular",
+  "El anillo elegido compartirá los dos carbonos y el enlace resaltado.",
+  "Fusionar con enlace seleccionado",
+  "Fusionar enlace",
+  "La fusión aromática aún no está disponible.",
+  "La fusión de heterociclos aún no está disponible.",
+  "La fusión reutiliza el enlace resaltado: los dos anillos comparten exactamente dos átomos y un enlace.",
+  "No hay centros E/Z o R/S definidos en esta estructura",
+  "Nombre IUPAC",
+  "Nombre tradicional",
+  "Sistema de anillos detectado",
+  "Unir al carbono seleccionado",
+  "Vista ampliada del constructor molecular",
+  "Zoom del constructor",
+  "solo cicloalcanos de 5 o 6 miembros",
+];
+
+function referencedLiteralTranslationKeys() {
+  const keys = new Set();
+  for (const file of collectAppSource(join(root, "app"))) {
+    const source = readFileSync(file, "utf8");
+    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    for (const call of findAll(ast, (node) => ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "t")) {
+      const key = call.arguments[0];
+      if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) keys.add(key.text);
+    }
+  }
+  return keys;
+}
+
 function jsxAttribute(opening, name) {
   const attr = opening.attributes.properties.find((item) => ts.isJsxAttribute(item) && item.name.text === name);
   assert.ok(attr, `missing ${name} on ${opening.tagName.getText()}`);
@@ -182,16 +218,41 @@ for (const [smiles, configuration] of [["C/C=C/C", "E"], ["C/C=C\\C", "Z"]]) {
 // LANG-002 — MISSING-TRANSLATION — MEDIUM. Current: 20 literal t() keys silently fall back to ES. Expected: complete nonempty EN pairs, with usable ES source keys and matching placeholders.
 test("LANG-002 — MISSING-TRANSLATION — MEDIUM — every literal UI translation call has an English entry", () => {
   const known = new Set([...translationEntries("ENGLISH_UI"), ...translationEntries("dynamicExact")].map(([key]) => key));
-  const missing = new Set();
-  for (const file of collectAppSource(join(root, "app"))) {
-    const source = readFileSync(file, "utf8");
-    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-    for (const call of findAll(ast, (node) => ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "t")) {
-      const key = call.arguments[0];
-      if ((ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) && !known.has(key.text)) missing.add(key.text);
-    }
+  const missing = [...referencedLiteralTranslationKeys()].filter((key) => !known.has(key));
+  assert.deepEqual(missing.sort(), [], `${missing.length} used keys lack an English translation`);
+});
+
+test("LANG-002 — MISSING-TRANSLATION — MEDIUM — every used LANG-002 key has explicit bilingual text and matching placeholders", () => {
+  const used = referencedLiteralTranslationKeys();
+  assert.deepEqual(LANG_002_KEYS.filter((key) => used.has(key)).sort(), [...LANG_002_KEYS].sort(), "the LANG-002 keys must remain used by the app");
+
+  const entries = translationEntries("ENGLISH_UI");
+  const placeholders = (value) => [...value.matchAll(/\$\{[^{}]+\}|\{[^{}]+\}|%\d*\$?[sd]/g)].map(([token]) => token).sort();
+  for (const key of LANG_002_KEYS) {
+    const matchingEntries = entries.filter(([spanish]) => spanish === key);
+    assert.equal(matchingEntries.length, 1, `${key} must have exactly one ENGLISH_UI entry`);
+    const [spanish, english] = matchingEntries[0];
+    assert.ok(spanish.trim(), `${key} is missing its ES source`);
+    assert.ok(english.trim(), `${key} has an empty EN translation`);
+    assert.notEqual(english, key, `${key} returns the key instead of English text`);
+    assert.equal(uiText("es", spanish), spanish, `${key} changed in ES`);
+    assert.equal(uiText("en", spanish), english, `${key} does not resolve to its explicit EN entry`);
+    assert.deepEqual(placeholders(english), placeholders(spanish), `${key} has mismatched placeholders`);
   }
-  assert.deepEqual([...missing].sort(), [], `${missing.size} used keys lack an English translation`);
+});
+
+test("LANG-002 — MISSING-TRANSLATION — MEDIUM — representative EN controls resolve without Spanish leakage", () => {
+  const samples = [
+    ["Vista ampliada del constructor molecular", "Expanded molecular builder view"],
+    ["Fusionar con enlace seleccionado", "Fuse using the selected bond"],
+    ["No hay centros E/Z o R/S definidos en esta estructura", "No E/Z or R/S centers are defined in this structure."],
+  ];
+  for (const [spanish, expectedEnglish] of samples) {
+    const resolvedEnglish = uiText("en", spanish);
+    assert.equal(resolvedEnglish, expectedEnglish);
+    assert.notEqual(resolvedEnglish, spanish);
+    assert.equal(uiText("es", spanish), spanish);
+  }
 });
 
 test("LANG-002 — MISSING-TRANSLATION — MEDIUM — Spanish source keys exist and both language entries are nonempty", () => {
