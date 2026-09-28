@@ -129,6 +129,10 @@ import {
 import { flipCoordinates } from "./coordinate-flip";
 import { readSmilesFileRecord } from "./smiles-file";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
+import {
+  readChemistryDocument as validateChemistryDocument,
+  type PortableStructure,
+} from "./chemistry-document-validation";
 import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
 import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifiedPubChemSystematicDisplayName } from "./verified-common-name-equivalences";
 import { curatedCommonNameForSmiles } from "./curated-common-name-display";
@@ -381,8 +385,6 @@ type HistoryEntry = {
   createdAt: string;
   updatedAt: string;
 };
-
-type PortableStructure = Omit<HistoryEntry, "id">;
 
 type ChemistryDocument = {
   format: "laboratorio-quimica-organica";
@@ -5824,42 +5826,12 @@ function applyPngColorMode(
   context.putImageData(imageData, 0, 0);
 }
 
-function isPortableStructure(value: unknown): value is PortableStructure {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Partial<PortableStructure>;
-  return (
-    typeof item.name === "string"
-    && typeof item.formula === "string"
-    && typeof item.family === "string"
-    && (item.viewMode === "condensed" || item.viewMode === "skeletal")
-    && typeof item.atomCount === "number"
-    && typeof item.createdAt === "string"
-    && typeof item.updatedAt === "string"
-    && Boolean(item.molecule)
-    && Array.isArray(item.molecule?.atoms)
-    && Array.isArray(item.molecule?.bonds)
-  );
-}
-
-function readChemistryDocument(value: unknown): PortableStructure[] {
-  if (!value || typeof value !== "object") {
-    throw new Error("El archivo no contiene un documento químico válido.");
-  }
-  const document = value as Partial<ChemistryDocument>;
-  if (document.format !== "laboratorio-quimica-organica" || document.version !== 1) {
-    throw new Error("Este archivo no pertenece a una versión compatible del laboratorio.");
-  }
-
-  const structures = document.kind === "structure"
-    ? document.structure ? [document.structure] : []
-    : document.kind === "library" && Array.isArray(document.structures)
-      ? document.structures.slice(0, 50)
-      : [];
-
-  if (!structures.length || !structures.every(isPortableStructure)) {
-    throw new Error("El documento no contiene estructuras orgánicas válidas.");
-  }
-  return structures;
+export function readChemistryDocument(value: unknown): PortableStructure[] {
+  return validateChemistryDocument(value, {
+    calculateFormula: molecularFormula,
+    isValenceValid: (molecule) => findMoleculeValenceViolation(molecule) === null,
+    isSupportedElement: (element) => Object.hasOwn(elementValences, element),
+  });
 }
 
 function MoleculeHistoryPreview({

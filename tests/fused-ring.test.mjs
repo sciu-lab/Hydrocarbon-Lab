@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { fuseRingOnBond, removeFusedRingAtom, ringFusionError } from "../app/fused-ring.ts";
+import { readChemistryDocument } from "../app/chemistry-document-validation.ts";
 import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
 import { getSteroidLike6565System } from "../app/fused-ring-nomenclature.ts";
@@ -481,8 +482,12 @@ test("actual commit, fusion, undo and redo preserve exact snapshots as one edit"
 
 test("existing chemistry document and SMILES round trips preserve fused topology", () => {
   const molecule = fuse();
-  const read = action("readChemistryDocument", { isPortableStructure: action("isPortableStructure") });
   const structure = { molecule, name: "Fusionado", formula: "C10H18", family: "polycyclic", viewMode: "skeletal", atomCount: 10, createdAt: "today", updatedAt: "today" };
+  const read = (document) => readChemistryDocument(document, {
+    calculateFormula: () => "C₁₀H₁₈",
+    isValenceValid: () => true,
+    isSupportedElement: () => true,
+  });
   const restored = read(JSON.parse(JSON.stringify({ format: "laboratorio-quimica-organica", version: 1, kind: "structure", structure })))[0];
   assert.deepEqual(restored.molecule, molecule);
   for (const oldProfile of ["traditional", "iupac-1979-legacy-en"]) {
