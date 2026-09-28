@@ -1,25 +1,7 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { savedMolecules } from "../../../db/schema";
-
-type ChemicalElement = "C" | "O" | "N" | "S" | "F" | "Cl" | "Br" | "I";
-type BondOrder = 1 | 2 | 3;
-
-type MoleculePayload = {
-  atoms: Array<{
-    id: number;
-    x: number;
-    y: number;
-    element?: ChemicalElement;
-  }>;
-  bonds: Array<[number, number, BondOrder?]>;
-  rings?: Array<{
-    id: number;
-    kind: "cycloalkane" | "aromatic";
-    atomIds: number[];
-  }>;
-  isMirrored?: boolean;
-};
+import { normalizeMoleculePayload } from "../molecule-payload";
 
 type SavedPayload = {
   name?: string;
@@ -31,106 +13,11 @@ type SavedPayload = {
 
 const MAX_SAVED_ITEMS = 200;
 const VISITOR_ID_PATTERN = /^[a-zA-Z0-9_-]{20,90}$/;
-const ALLOWED_ELEMENTS = new Set<ChemicalElement>([
-  "C",
-  "O",
-  "N",
-  "F",
-  "Cl",
-  "Br",
-  "I",
-]);
 
 function cleanText(value: unknown, fallback: string, maxLength: number) {
   if (typeof value !== "string") return fallback;
   const cleaned = value.replace(/\s+/g, " ").trim();
   return cleaned ? cleaned.slice(0, maxLength) : fallback;
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function normalizeMolecule(value: unknown): MoleculePayload | null {
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as Partial<MoleculePayload>;
-  if (
-    !Array.isArray(candidate.atoms)
-    || !Array.isArray(candidate.bonds)
-    || candidate.atoms.length < 1
-    || candidate.atoms.length > 180
-    || candidate.bonds.length > 360
-  ) {
-    return null;
-  }
-
-  const ids = new Set<number>();
-  const atoms = candidate.atoms.map((atom) => {
-    if (
-      !atom
-      || !Number.isSafeInteger(atom.id)
-      || !isFiniteNumber(atom.x)
-      || !isFiniteNumber(atom.y)
-      || Math.abs(atom.x) > 200
-      || Math.abs(atom.y) > 200
-      || (atom.element !== undefined && !ALLOWED_ELEMENTS.has(atom.element))
-      || ids.has(atom.id)
-    ) {
-      return null;
-    }
-    ids.add(atom.id);
-    return {
-      id: atom.id,
-      x: atom.x,
-      y: atom.y,
-      ...(atom.element && atom.element !== "C" ? { element: atom.element } : {}),
-    };
-  });
-  if (atoms.some((atom) => atom === null)) return null;
-
-  const bonds = candidate.bonds.map((bond) => {
-    if (
-      !Array.isArray(bond)
-      || bond.length < 2
-      || !Number.isSafeInteger(bond[0])
-      || !Number.isSafeInteger(bond[1])
-      || bond[0] === bond[1]
-      || !ids.has(bond[0])
-      || !ids.has(bond[1])
-      || (bond[2] !== undefined && bond[2] !== 1 && bond[2] !== 2 && bond[2] !== 3)
-    ) {
-      return null;
-    }
-    return bond[2] ? [bond[0], bond[1], bond[2]] : [bond[0], bond[1]];
-  });
-  if (bonds.some((bond) => bond === null)) return null;
-
-  let rings: MoleculePayload["rings"];
-  if (candidate.rings !== undefined) {
-    if (!Array.isArray(candidate.rings) || candidate.rings.length > 20) return null;
-    rings = candidate.rings.map((ring) => {
-      if (
-        !ring
-        || !Number.isSafeInteger(ring.id)
-        || (ring.kind !== "cycloalkane" && ring.kind !== "aromatic")
-        || !Array.isArray(ring.atomIds)
-        || ring.atomIds.length < 3
-        || ring.atomIds.length > 20
-        || ring.atomIds.some((id) => !Number.isSafeInteger(id) || !ids.has(id))
-      ) {
-        return null;
-      }
-      return { id: ring.id, kind: ring.kind, atomIds: [...ring.atomIds] };
-    }).filter((ring): ring is NonNullable<typeof ring> => ring !== null);
-    if (rings.length !== candidate.rings.length) return null;
-  }
-
-  return {
-    atoms: atoms as MoleculePayload["atoms"],
-    bonds: bonds as MoleculePayload["bonds"],
-    ...(rings?.length ? { rings } : {}),
-    ...(candidate.isMirrored === true ? { isMirrored: true } : {}),
-  };
 }
 
 async function sha256(value: string) {
@@ -162,12 +49,14 @@ async function resolveOwner(request: Request) {
 
 function toSavedItem(row: typeof savedMolecules.$inferSelect) {
   try {
+    const molecule = normalizeMoleculePayload(JSON.parse(row.moleculeJson));
+    if (!molecule) return null;
     return {
       id: row.id,
       name: row.name,
       formula: row.formula,
       family: row.family,
-      molecule: JSON.parse(row.moleculeJson) as MoleculePayload,
+      molecule,
       viewMode: row.viewMode === "skeletal" ? "skeletal" : "condensed",
       atomCount: row.atomCount,
       createdAt: row.createdAt,
@@ -222,7 +111,7 @@ export async function POST(request: Request) {
 
   try {
     const payload = (await request.json()) as SavedPayload;
-    const molecule = normalizeMolecule(payload.molecule);
+    const molecule = normalizeMoleculePayload(payload.molecule);
     if (!molecule) {
       return Response.json({ error: "La estructura no es válida." }, { status: 400 });
     }
