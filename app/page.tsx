@@ -9656,6 +9656,10 @@ export default function Home() {
     }
     return ringFusionError(molecule, selectedFusionBond.a, selectedFusionBond.b);
   };
+  const localizedRingFusionOptionError = (template: RingTemplate) => {
+    const error = ringFusionOptionError(template);
+    return error ? localizedDynamicText(error) : null;
+  };
   const chooseRingFromLibrary = (template: RingTemplate) => {
     if (selectedFusionBond && selectedBondCanFuse) {
       const error = ringFusionOptionError(template);
@@ -12453,7 +12457,7 @@ export default function Home() {
                         if (!suppressRingPickerClickAfterDrag.current) chooseRingFromLibrary(template);
                       }}
                       disabled={Boolean(ringFusionOptionError(template))}
-                      title={ringFusionOptionError(template) ?? `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}${template.size === 5 || template.size === 6 ? `. ${t("Arrastra sobre un enlace de anillo para fusionar.")}` : ""}`}
+                      title={localizedRingFusionOptionError(template) ?? `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}${template.size === 5 || template.size === 6 ? `. ${t("Arrastra sobre un enlace de anillo para fusionar.")}` : ""}`}
                     >
                       <span className="ring-preview" aria-hidden="true">
                         <svg viewBox="0 0 48 48">

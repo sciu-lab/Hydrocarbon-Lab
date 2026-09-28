@@ -143,6 +143,16 @@ function localizedDynamicTextFor(language) {
   return make(language, (value) => uiText(language, value), (value) => value, (value) => value, dynamicUiText, (value) => value);
 }
 
+function localizedRingFusionOptionErrorFor(language, error) {
+  const expression = variable(pageAst, "localizedRingFusionOptionError").initializer.getText(pageAst);
+  const compiled = ts.transpileModule(
+    `function make(ringFusionOptionError, localizedDynamicText) { const localizedRingFusionOptionError = ${expression}; return localizedRingFusionOptionError; }`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+  ).outputText;
+  const make = new Function(`${compiled}; return make;`)();
+  return make(() => error, localizedDynamicTextFor(language));
+}
+
 function formulaErrorStoredIn(language, error) {
   const candidates = findAll(pageAst, (node) => ts.isCallExpression(node)
     && node.expression.getText(pageAst) === "setFormulaFeedback"
@@ -290,21 +300,27 @@ for (const [createdIn, shownIn] of [["en", "es"], ["es", "en"]]) {
 
 // LANG-004 — LANGUAGE-LEAK — MEDIUM. Current: CP's unsupported-P error remains Spanish in EN. Expected: the same element and support limit are expressed in the selected language.
 test("LANG-004 — LANGUAGE-LEAK — MEDIUM — unsupported CP error is English in EN", () => {
-  const converted = moleculeFromSmiles("CP");
-  assert.equal(converted.ok, false);
-  assert.match(converted.error, /\bP\b/);
-  const visible = localizedDynamicTextFor("en")(converted.error);
-  assert.match(visible, /\bP\b/);
-  assert.doesNotMatch(visible, /\b(?:La estructura|contiene|Por ahora|admite|halógenos)\b/i);
-  assert.notEqual(visible, converted.error);
+  for (const [smiles, element] of [["CP", "P"], ["CB", "B"]]) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, false);
+    assert.match(converted.error, new RegExp(`\\b${element}\\b`));
+    const visible = localizedDynamicTextFor("en")(converted.error);
+    assert.equal(visible, `The structure contains ${element}. The lab currently supports C, O, N, S, and halogens.`);
+    assert.match(visible, /C, O, N, S, and halogens/);
+    assert.doesNotMatch(visible, /\b(?:La estructura|contiene|Por ahora|admite|halógenos)\b/i);
+  }
 });
 
 test("LANG-004 — LANGUAGE-LEAK — MEDIUM — unsupported CP error retains its chemical detail in ES", () => {
-  const converted = moleculeFromSmiles("CP");
-  assert.equal(converted.ok, false);
-  const visible = localizedDynamicTextFor("es")(converted.error);
-  assert.match(visible, /\bP\b/);
-  assert.match(visible, /C, O, N, S/);
+  for (const [smiles, element] of [["CP", "P"], ["CB", "B"]]) {
+    const converted = moleculeFromSmiles(smiles);
+    assert.equal(converted.ok, false);
+    const visible = localizedDynamicTextFor("es")(converted.error);
+    assert.equal(visible, converted.error);
+    assert.match(visible, new RegExp(`\\b${element}\\b`));
+    assert.match(visible, /La estructura contiene/);
+    assert.match(visible, /C, O, N, S y halógenos/);
+  }
 });
 
 // LANG-005 — DYNAMIC-LANGUAGE — MEDIUM. Current: formula feedback may store English and cannot translate it back to ES. Expected: render uses the current locale.
@@ -322,21 +338,35 @@ for (const [createdIn, shownIn] of [["en", "es"], ["es", "en"]]) {
   });
 }
 
-// LANG-006 — LANGUAGE-LEAK — MEDIUM. Current: ring-fusion errors remain Spanish in EN. Expected: invalid selection and carbon-valence details are localized without changing validation.
+// LANG-006 — LANGUAGE-LEAK — MEDIUM. Ring-fusion errors are localized in notices and disabled-option titles.
 for (const [smiles, invalidBond, expected, expectedEnglish] of [
   ["C1CCCCC1", true, /enlace periférico/, /\b(?:ring|bond)\b/i],
   ["C1(C)(C)CCCCC1", false, /valencia del carbono/, /\bvalence\b/i],
 ]) {
-  test(`LANG-006 — LANGUAGE-LEAK — MEDIUM — ${invalidBond ? "invalid ring bond" : "ring-fusion valence"} error is English in EN`, () => {
+  test(`LANG-006 — LANGUAGE-LEAK — MEDIUM — ${invalidBond ? "invalid ring bond" : "ring-fusion valence"} is localized in notices and titles`, () => {
     const parsed = moleculeFromSmiles(smiles);
     assert.equal(parsed.ok, true, parsed.ok ? undefined : parsed.error);
     const [a, b] = parsed.molecule.rings[0].atomIds;
     const error = ringFusionError(parsed.molecule, a, invalidBond ? -1 : b);
     assert.match(error, expected);
-    const visible = localizedDynamicTextFor("en")(error);
-    assert.notEqual(visible, error);
-    assert.doesNotMatch(visible, /\b(?:Selecciona|enlace periférico|La fusión|valencia del carbono)\b/i);
-    assert.match(visible, expectedEnglish);
+    const englishNotice = localizedDynamicTextFor("en")(error);
+    const spanishNotice = localizedDynamicTextFor("es")(error);
+    assert.doesNotMatch(englishNotice, /\b(?:Selecciona|enlace periférico|La fusión|valencia del carbono)\b/i);
+    assert.match(englishNotice, expectedEnglish);
+    assert.equal(spanishNotice, error);
+
+    const title = jsxAttribute(openingWithClass(pageAst, "ring-option"), "title");
+    for (const [language, expectedTitle] of [["en", englishNotice], ["es", error]]) {
+      const visibleTitle = attributeValue(title, pageAst, {
+        language,
+        localizedRingFusionOptionError: localizedRingFusionOptionErrorFor(language, error),
+        t: (value) => uiText(language, value),
+        ringLibraryContext: "fuse",
+        template: { label: "ciclohexano", size: 6 },
+        localizedIupac: (value) => language === "en" ? "cyclohexane" : value,
+      });
+      assert.equal(visibleTitle, expectedTitle);
+    }
   });
 }
 
@@ -385,6 +415,7 @@ for (const language of ["en", "es"]) {
     const visible = attributeValue(title, pageAst, {
       language,
       ringFusionOptionError: () => null,
+      localizedRingFusionOptionError: () => null,
       ringLibraryContext: "fuse",
       template: { label: "ciclohexano", size: 6 },
       t: (value) => uiText(language, value),

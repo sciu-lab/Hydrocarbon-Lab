@@ -518,6 +518,8 @@ const ENGLISH_UI: Record<string, string> = {
   "Fusionar enlace": "Fuse rings",
   "La fusión aromática aún no está disponible.": "Aromatic ring fusion is not yet available.",
   "La fusión de heterociclos aún no está disponible.": "Heterocycle fusion is not yet available.",
+  "Selecciona un enlace periférico de un anillo.": "Select a bond on the outer edge of a ring.",
+  "La fusión superaría la valencia del carbono.": "Ring fusion would exceed carbon's valence.",
   "La fusión reutiliza el enlace resaltado: los dos anillos comparten exactamente dos átomos y un enlace.": "Fusion reuses the highlighted bond: the two rings share exactly two atoms and one bond.",
   "No hay centros E/Z o R/S definidos en esta estructura": "No E/Z or R/S centers are defined in this structure.",
   "Nombre IUPAC": "IUPAC name",
@@ -676,6 +678,10 @@ export function dynamicUiText(language: AppLanguage, value: string | null | unde
   if (!value || language === "es") return value ?? "";
   const exact = dynamicExact[value] ?? ENGLISH_UI[value];
   if (exact) return exact;
+  const unsupportedElement = value.match(/^La estructura contiene ([A-Z][a-z]?)\. Por ahora el laboratorio admite C, O, N, S y halógenos\.$/);
+  if (unsupportedElement) {
+    return `The structure contains ${unsupportedElement[1]}. The lab currently supports C, O, N, S, and halogens.`;
+  }
   const bridgeCount = value.match(/^Un (.+) necesita (\d+) longitudes de puente en su descriptor\.$/);
   if (bridgeCount) {
     const system = ({ biciclo: "bicyclo", triciclo: "tricyclo", tetraciclo: "tetracyclo" } as Record<string, string>)[bridgeCount[1]]
