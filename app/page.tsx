@@ -5938,6 +5938,10 @@ export default function Home() {
     const localized = localizeCommonSubstituentAlias(name, language);
     return language === "es" || localized !== name ? localized : localizedIupac(name);
   };
+  const localizedAlkylShortcut = (templateId: string) => {
+    const shortcut = ({ methyl: "M", ethyl: "E", propyl: "P" }[templateId] ?? "");
+    return shortcut ? ` — ${t("Atajo")}: ${shortcut}` : "";
+  };
   const localizedDynamicText = (value: string | null | undefined) => {
     const source = value ?? "";
     if (!source || language === "es") return source;
@@ -11429,7 +11433,7 @@ export default function Home() {
                 type="button"
                 className="canvas-deselect-button"
                 disabled={selectedId === null && !placementTool && !selectedFusionBond}
-                title="Cancel tool / clear selection — Shortcut: Esc"
+                title={t("Cancelar herramienta / limpiar selección — Atajo: Esc")}
                 aria-label={t("Quitar la selección del canvas")}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={() => {
@@ -12251,7 +12255,7 @@ export default function Home() {
                   }
                 }}
                 aria-expanded={showRingPalette}
-                title="Add ring — Shortcut: R"
+                title={t("Añadir anillo — Atajo: R")}
                 aria-controls="ring-palette"
               >
                 <span aria-hidden="true">⬡</span>
@@ -12300,7 +12304,7 @@ export default function Home() {
                       setShowAlkylPalette(false);
                       setNotice(language === "en" ? `Click a carbon on the canvas to place ${template.label}.` : `Pulsa un carbono del canvas para colocar ${template.label}.`);
                     }}
-                    title={`Add ${localizedCommonAlkylName(template.label)}${({ methyl: " — Shortcut: M", ethyl: " — Shortcut: E", propyl: " — Shortcut: P" }[template.id] ?? "")}`}
+                    title={`${t("Añade")} ${localizedCommonAlkylName(template.label)}${localizedAlkylShortcut(template.id)}`}
                   >
                     <span className="alkyl-formula">{template.formula}</span>
                     <span className="alkyl-copy">
@@ -12449,7 +12453,7 @@ export default function Home() {
                         if (!suppressRingPickerClickAfterDrag.current) chooseRingFromLibrary(template);
                       }}
                       disabled={Boolean(ringFusionOptionError(template))}
-                      title={ringFusionOptionError(template) ?? `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}${template.size === 5 || template.size === 6 ? ". Arrastra sobre un enlace de anillo para fusionar." : ""}`}
+                      title={ringFusionOptionError(template) ?? `${ringLibraryContext === "attach" ? t("Unir") : t("Cargar")} ${localizedIupac(template.label).toLowerCase()}${template.size === 5 || template.size === 6 ? `. ${t("Arrastra sobre un enlace de anillo para fusionar.")}` : ""}`}
                     >
                       <span className="ring-preview" aria-hidden="true">
                         <svg viewBox="0 0 48 48">

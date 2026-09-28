@@ -348,15 +348,20 @@ test("LANG-006 — LANGUAGE-LEAK — MEDIUM — ring-fusion validation remains i
   assert.match(localizedDynamicTextFor("es")(error), /fusión.*valencia/i);
 });
 
-// LANG-007 — ACCESSIBILITY — MEDIUM. Current: Deselect/Rings title help is English in ES. Expected: accessible help and SMILES labels follow the selected language.
-for (const [className, englishPhrase] of [["canvas-deselect-button", /Cancel tool/i], ["ring-button", /Add ring/i]]) {
-  test(`LANG-007 — ACCESSIBILITY — MEDIUM — ${className} help is localized in ES`, () => {
+// LANG-007 — ACCESSIBILITY — MEDIUM. Deselect and ring-button help follows the selected language.
+for (const [className, englishPhrase, spanishPhrase, shortcut] of [
+  ["canvas-deselect-button", /Cancel tool \/ clear selection/i, /Cancelar herramienta \/ limpiar selección/i, "Esc"],
+  ["ring-button", /Add ring/i, /Añadir anillo/i, "R"],
+]) {
+  test(`LANG-007 — ACCESSIBILITY — MEDIUM — ${className} help is localized in EN and ES`, () => {
     const opening = openingWithClass(pageAst, className);
     const title = jsxAttribute(opening, "title");
     const spanish = attributeValue(title, pageAst, { language: "es", t: (value) => uiText("es", value) });
     const english = attributeValue(title, pageAst, { language: "en", t: (value) => uiText("en", value) });
-    assert.doesNotMatch(spanish, englishPhrase);
-    assert.notEqual(spanish, english);
+    assert.match(english, englishPhrase);
+    assert.match(spanish, spanishPhrase);
+    assert.match(english, new RegExp(`\\b${shortcut}\\b`));
+    assert.match(spanish, new RegExp(`\\b${shortcut}\\b`));
   });
 }
 
@@ -385,8 +390,16 @@ for (const language of ["en", "es"]) {
       t: (value) => uiText(language, value),
       localizedIupac: (value) => language === "en" ? "cyclohexane" : value,
     });
-    if (language === "en") assert.doesNotMatch(visible, /Arrastra sobre un enlace de anillo/i);
-    else assert.match(visible, /Arrastra sobre un enlace de anillo/i);
+    if (language === "en") {
+      assert.doesNotMatch(visible, /Arrastra sobre un enlace de anillo/i);
+      assert.match(visible, /Drag a ring onto a ring bond to fuse it/i);
+      assert.match(visible, /cyclohexane/i);
+      assert.equal(visible, "Load cyclohexane. Drag a ring onto a ring bond to fuse it.");
+    } else {
+      assert.match(visible, /Arrastra sobre un enlace de anillo para fusionar\./i);
+      assert.doesNotMatch(visible, /\b(?:Load|Drag|fuse)\b/i);
+      assert.match(visible, /ciclohexano/i);
+    }
   });
 }
 
@@ -394,15 +407,26 @@ for (const language of ["en", "es"]) {
 for (const language of ["en", "es"]) {
   test(`LANG-009 — HARDCODED-UI — MEDIUM — alkyl tooltip is coherent in ${language.toUpperCase()}`, () => {
     const title = jsxAttribute(openingWithClass(pageAst, "alkyl-option"), "title");
-    const visible = attributeValue(title, pageAst, {
-      language,
-      template: { id: "methyl", label: "metilo" },
-      localizedCommonAlkylName: () => language === "en" ? "methyl" : "metilo",
-      t: (value) => uiText(language, value),
-    });
-    assert.match(visible, /\bM\b/);
-    if (language === "es") assert.doesNotMatch(visible, /\b(?:Add|Shortcut)\b/);
-    else assert.match(visible, /methyl/i);
+    for (const sample of [
+      { id: "methyl", spanish: "metilo", english: "methyl", shortcut: "M" },
+      { id: "ethyl", spanish: "etilo", english: "ethyl", shortcut: "E" },
+      { id: "propyl", spanish: "propilo", english: "propyl", shortcut: "P" },
+    ]) {
+      const visible = attributeValue(title, pageAst, {
+        language,
+        template: { id: sample.id, label: sample.spanish },
+        localizedCommonAlkylName: () => language === "en" ? sample.english : sample.spanish,
+        localizedAlkylShortcut: () => ` — ${uiText(language, "Atajo")}: ${sample.shortcut}`,
+        t: (value) => uiText(language, value),
+      });
+      assert.match(visible, new RegExp(`\\b${sample.shortcut}\\b`));
+      if (language === "es") {
+        assert.doesNotMatch(visible, /\b(?:Add|Shortcut)\b/);
+        assert.equal(visible, `Añade ${sample.spanish} — Atajo: ${sample.shortcut}`);
+      } else {
+        assert.match(visible, new RegExp(`Add ${sample.english} — Shortcut: ${sample.shortcut}`, "i"));
+      }
+    }
   });
 }
 
