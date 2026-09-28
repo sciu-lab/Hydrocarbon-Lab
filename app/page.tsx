@@ -532,6 +532,12 @@ export type IupacReasoningStep = {
   title: string;
   explanation: string;
   nameRole?: ReasoningNameFragment["kind"];
+  numberingComparison?: {
+    criterion: "principal-function";
+    selectedLocants: number[];
+    reverseLocants: number[];
+    comparison: -1 | 0 | 1;
+  };
 };
 
 export function splitChemicalNameForWrapping(value: string) {
@@ -4411,6 +4417,7 @@ export function buildIupacReasoningSteps(
   });
 
   let substituentLocantsTie = false;
+  let primaryNumberingComparison: IupacReasoningStep["numberingComparison"];
   if (primaryKind || hasMultipleBonds || analysis.substituents.length) {
     const explanationParts = [
       "Se comparan ambos extremos en este orden: primero la función principal, después los enlaces múltiples y, solo si continúa el empate, los sustituyentes.",
@@ -4446,6 +4453,12 @@ export function buildIupacReasoningSteps(
         hierarchyResolved = true;
       } else if (primaryKind && primaryLocants.length) {
         const primaryComparison = compareNumberLists(primaryLocants, reversedPrimaryLocants);
+        primaryNumberingComparison = {
+          criterion: "principal-function",
+          selectedLocants: [...primaryLocants],
+          reverseLocants: [...reversedPrimaryLocants],
+          comparison: primaryComparison < 0 ? -1 : primaryComparison > 0 ? 1 : 0,
+        };
         if (primaryComparison < 0) {
           explanationParts.push(
             `La función principal resuelve la orientación: queda en ${carbonLocantsText(primaryLocants)}, mientras que desde el extremo contrario quedaría en ${carbonLocantsText(reversedPrimaryLocants)}. Se conserva el conjunto menor; los enlaces múltiples y sustituyentes no pueden invertir esta decisión.`,
@@ -4508,6 +4521,7 @@ export function buildIupacReasoningSteps(
       title: "Numeración razonada",
       explanation: explanationParts.join(" "),
       nameRole: "numbering",
+      ...(primaryNumberingComparison ? { numberingComparison: primaryNumberingComparison } : {}),
     });
   }
 
@@ -4829,6 +4843,9 @@ export function buildEnglishReasoningSteps(
         ? `${primaryLabel ? `The suffix function (${primaryLabel}) keeps its numbering priority; prefix locants are considered afterward.` : "Admissible aromatic-ring numberings are compared using the locants of the groups cited as prefixes."}${aromaticPrefixLocantsText(analysis.substituents, "en") ? ` The assigned numbering places ${aromaticPrefixLocantsText(analysis.substituents, "en")}.` : ""}`
         : hasImplicitAcyclicAldehydeLocant(analysis)
         ? "The aldehyde carbon is part of the parent chain and is assigned position C1. Its position is implicit in the suffix -al, so the locant 1 does not need to be written in the name."
+        : primaryLabel && step.numberingComparison?.criterion === "principal-function"
+          && step.numberingComparison.comparison !== 0
+        ? `The principal group (${primaryLabel}) resolves the numbering direction: the selected locants are ${carbonLocantsText(step.numberingComparison.selectedLocants)}, whereas numbering from the opposite end would give ${carbonLocantsText(step.numberingComparison.reverseLocants)}. The lower locant set determines the orientation.`
         : primaryLabel
         ? `Numbering is chosen to give the principal group (${primaryLabel}) the lowest permitted locant. If both directions remain equivalent, multiple bonds are considered next, followed by substituents at the first point of difference.${unsaturation}`
         : substituentLocantsTie

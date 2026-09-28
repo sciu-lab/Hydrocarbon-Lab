@@ -508,15 +508,47 @@ test("LANG-010 — LANGUAGE-LEAK — MEDIUM — English placement notices never 
 // LANG-011 — PLACEHOLDER — MEDIUM. Current: English numbering drops C1 versus C2 and suggests a tie. Expected: both computed positions survive translation.
 for (const smiles of ["CC(=O)O", "CNCC"]) {
   test(`LANG-011 — PLACEHOLDER — MEDIUM — English numbering preserves C1 versus C2 for ${smiles}`, () => {
-    const { spanish, english } = loadedReasoning(smiles);
-    const es = spanish.find((step) => step.number === "03")?.explanation;
-    const en = english.find((step) => step.number === "03")?.explanation;
+    const { spanish, english, analysis } = loadedReasoning(smiles);
+    const spanishNumbering = spanish.find((step) => step.number === "03");
+    const englishNumbering = english.find((step) => step.number === "03");
+    const es = spanishNumbering?.explanation;
+    const en = englishNumbering?.explanation;
     assert.ok(es && en);
-    assert.match(es, /\bC1\b/);
-    assert.match(es, /\bC2\b/);
-    assert.match(en, /\bC1\b/);
-    assert.match(en, /\bC2\b/);
+    const comparison = spanishNumbering.numberingComparison;
+    assert.ok(comparison, `${smiles} should retain the computed principal-function comparison`);
+    assert.equal(comparison.criterion, "principal-function");
+    assert.notDeepEqual(comparison.selectedLocants, comparison.reverseLocants);
+    const analysisLocants = analysis.functionalGroups
+      .filter((group) => group.kind === analysis.primaryFunctionalGroup)
+      .flatMap((group) => group.carbonIds.map((atomId) => analysis.numberedAtoms.get(atomId)))
+      .filter((locant) => locant !== undefined)
+      .sort((left, right) => left - right);
+    assert.deepEqual(comparison.selectedLocants, analysisLocants);
+    assert.deepEqual(comparison.selectedLocants, [1]);
+    assert.deepEqual(comparison.reverseLocants, [2]);
+    assert.deepEqual(
+      comparison.reverseLocants,
+      comparison.selectedLocants
+        .map((locant) => analysis.mainChain.length + 1 - locant)
+        .sort((left, right) => left - right),
+    );
+    const format = (locants) => locants.map((locant) => `C${locant}`).join(", ");
+    assert.ok(es.includes(format(comparison.selectedLocants)));
+    assert.ok(es.includes(format(comparison.reverseLocants)));
+    assert.ok(en.includes(`selected locants are ${format(comparison.selectedLocants)}`));
+    assert.ok(en.includes(`numbering from the opposite end would give ${format(comparison.reverseLocants)}`));
+    assert.match(en, /principal group .*resolves the numbering direction/i);
     assert.doesNotMatch(en, /if both directions remain equivalent/i);
+
+    if (smiles === "CC(=O)O") {
+      const multipleLocantExample = loadedReasoning("CC(O)CC(O)CC");
+      const spanishMultiple = multipleLocantExample.spanish.find((step) => step.number === "03");
+      const englishMultiple = multipleLocantExample.english.find((step) => step.number === "03");
+      assert.deepEqual(spanishMultiple.numberingComparison.selectedLocants, [2, 4]);
+      assert.deepEqual(spanishMultiple.numberingComparison.reverseLocants, [3, 5]);
+      assert.ok(englishMultiple.explanation.includes("selected locants are C2, C4"));
+      assert.ok(englishMultiple.explanation.includes("opposite end would give C3, C5"));
+    }
   });
 }
 
