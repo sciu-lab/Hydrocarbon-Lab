@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
+import { uiText } from "../app/i18n.ts";
 
 const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -8,7 +9,7 @@ const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf
 test("display preferences are available in Settings, not below the canvas", () => {
   const settings = page.slice(page.indexOf('className="settings-panel"'), page.indexOf('settings-accessibility'));
   assert.match(settings, /Mostrar hidrógenos implícitos/);
-  assert.match(settings, /Numerar anillo/);
+  assert.match(settings, /Numerar carbonos/);
   assert.match(settings, /Tamaño de numeración/);
   assert.match(settings, /Tamaño de grupos funcionales/);
   assert.match(settings, /Tamaño de badges R\/S/);
@@ -39,7 +40,7 @@ test("the settings drawer keeps its controls, shortcuts, and dismiss actions", (
   assert.match(page, /className="settings-scrim"/);
   assert.match(page, /setSettingsOpen\(false\)/);
   assert.match(page, /Mostrar hidrógenos implícitos/);
-  assert.match(page, /Numerar anillo/);
+  assert.match(page, /Numerar carbonos/);
   assert.match(page, /Recordar estereoquímica/);
   assert.match(page, /Atajos de teclado/);
   assert.match(page, /key === "r"/);
@@ -47,6 +48,14 @@ test("the settings drawer keeps its controls, shortcuts, and dismiss actions", (
   assert.match(page, /key === "4"/);
   assert.match(css, /\.settings-panel\s*\{/);
   assert.match(css, /\.settings-toggle\s*\{/);
+});
+
+test("the carbon-numbering label is generic and localized in Settings", () => {
+  const settings = page.slice(page.indexOf('className="settings-panel"'), page.indexOf('settings-accessibility'));
+  assert.match(settings, /t\("Numerar carbonos"\)/);
+  assert.equal(uiText("en", "Numerar carbonos"), "Number carbons");
+  assert.equal(uiText("es", "Numerar carbonos"), "Numerar carbonos");
+  assert.doesNotMatch(settings, /Number ring|Numerar anillo/);
 });
 
 test("settings scale actions adapt to the section width and preserve localized reset behavior", () => {

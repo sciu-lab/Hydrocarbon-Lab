@@ -514,6 +514,7 @@ export type IupacReasoningStep = {
   number: "01" | "02" | "03" | "04" | "05" | "06";
   title: string;
   explanation: string;
+  nameRole?: ReasoningNameFragment["kind"];
 };
 
 export function splitChemicalNameForWrapping(value: string) {
@@ -4338,6 +4339,7 @@ export function buildIupacReasoningSteps(
       number: "01",
       title: "Grupo funcional principal",
       explanation: `${priorityLead} Aporta el sufijo del nombre. ${positionRule}${aromaticNitroGroups.length ? " Los grupos nitro se expresan con el prefijo nitro- y no desplazan esta función de sufijo." : ""}`,
+      nameRole: "function",
     });
   } else if (aromaticNitroGroups.length) {
     steps.push({
@@ -4388,6 +4390,7 @@ export function buildIupacReasoningSteps(
     number: "02",
     title: isRingStructure ? "Anillo principal" : "Cadena principal",
     explanation: parentExplanation,
+    nameRole: "parent",
   });
 
   let substituentLocantsTie = false;
@@ -4487,6 +4490,7 @@ export function buildIupacReasoningSteps(
       number: "03",
       title: "Numeración razonada",
       explanation: explanationParts.join(" "),
+      nameRole: "numbering",
     });
   }
 
@@ -4504,6 +4508,7 @@ export function buildIupacReasoningSteps(
       number: "04",
       title: "Sustituyentes y localizadores",
       explanation: `Con la orientación ya evaluada, ${analysis.substituents.length === 1 ? "se ubica" : "se ubican"} ${joinSpanishList(localizedSubstituents)}. ${hierarchyReminder}`,
+      nameRole: "substituent",
     });
   }
 
@@ -10308,7 +10313,7 @@ export default function Home() {
                 <i aria-hidden="true" />
               </label>
               <label className={`settings-toggle ${!automaticNumberingAvailable ? "is-disabled" : ""}`}>
-                <span>{t("Numerar anillo")}</span>
+                <span>{t("Numerar carbonos")}</span>
                 <input
                   type="checkbox"
                   checked={effectiveShowNumbering}

@@ -17,7 +17,7 @@ const ENGLISH_UI: Record<string, string> = {
   "Cerrar configuración": "Close settings",
   "Preferencias": "Preferences",
   "Mostrar hidrógenos implícitos": "Show implicit H",
-  "Numerar anillo": "Number ring",
+  "Numerar carbonos": "Number carbons",
   "Recordar estereoquímica": "Remember stereochemistry",
   "Mantener nombre IUPAC visible al desplazarse": "Keep IUPAC name visible while scrolling",
   "Muestra una versión compacta del nombre IUPAC mientras trabajas más abajo en el canvas.": "Shows a compact version of the IUPAC name while you work lower down on the canvas.",

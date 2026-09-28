@@ -350,3 +350,140 @@ test("fragments are static text rather than interactive controls", () => {
   assert.match(html, /Posición y sufijo de la cetona/);
   assert.doesNotMatch(html, /<(?:button|input|a)\b|tabindex=|role=/i);
 });
+
+function assertLinkedEvidence(name, steps, fragments) {
+  const parts = buildReasoningNameLinkParts(name, fragments, steps);
+  assert.equal(parts.map((part) => part.text).join(""), name);
+  let cursor = 0;
+  const ranges = [];
+  for (const part of parts) {
+    if (part.stepNumber) {
+      assert.ok(steps.some((step) => step.number === part.stepNumber));
+      ranges.push([cursor, cursor + part.text.length]);
+    }
+    cursor += part.text.length;
+  }
+  for (let index = 1; index < ranges.length; index++) {
+    assert.ok(ranges[index - 1][1] <= ranges[index][0], "interactive ranges never overlap");
+  }
+  for (const [number, fragment] of Object.entries(fragments)) {
+    const start = fragment.start ?? name.indexOf(fragment.text);
+    assert.equal(name.slice(start, start + fragment.text.length), fragment.text);
+    assert.ok(parts.some((part) => part.stepNumber === number || part.relatedStepNumbers?.includes(number)),
+      `step ${number} with explicit name evidence is reachable`);
+  }
+  return parts;
+}
+
+test("benzene triol exposes parent, functional suffix and contained numbering evidence in EN and ES", () => {
+  const compound = analyzed("Oc1cc(O)cc(O)c1");
+  assert.equal(compound.analysis.name, "benceno-1,3,5-triol");
+  for (const language of ["es", "en"]) {
+    const name = language === "en" ? "benzene-1,3,5-triol" : "benceno-1,3,5-triol";
+    assert.equal(translateSpanishIupacToOpsin(compound.analysis.name), "benzene-1,3,5-triol");
+    const { steps, fragments } = derive(compound, name, language);
+    assert.deepEqual(steps.map((step) => step.number), ["01", "02", "03"], "no duplicate reasoning steps");
+    assert.equal(fragments["02"]?.text, language === "en" ? "benzene" : "benceno");
+    assert.equal(steps.find((step) => step.number === "02")?.nameRole, "parent");
+    assert.equal(fragments["01"]?.text, "1,3,5-triol");
+    assert.equal(steps.find((step) => step.number === "01")?.nameRole, "function");
+    assert.equal(fragments["03"]?.text, "1,3,5");
+    assert.match(fragments["03"]?.label, language === "en" ? /Alcohol locants/ : /Localizadores: alcohol/);
+    assert.match(fragments["02"]?.label, language === "en" ? /Aromatic parent ring · 6 carbons/ : /Anillo principal aromático · 6 carbonos/);
+    const parts = assertLinkedEvidence(name, steps, fragments);
+    assert.deepEqual(parts.filter((part) => part.stepNumber).map(({ text, stepNumber, relatedStepNumbers }) =>
+      [text, stepNumber, relatedStepNumbers]), [
+      [language === "en" ? "benzene" : "benceno", "02", []],
+      ["1,3,5-triol", "01", ["03"]],
+    ]);
+    assert.equal(compound.analysis.name, "benceno-1,3,5-triol", "presentation never changes the generated name");
+  }
+});
+
+test("supported monocyclic parents and suffixes share semantic links in EN and ES", () => {
+  const cases = [
+    ["C1CC1", "ciclopropano", "cyclopropane", "cyclopropane"],
+    ["C1CCC1", "ciclobutano", "cyclobutane", "cyclobutane"],
+    ["C1CCCC1", "ciclopentano", "cyclopentane", "cyclopentane"],
+    ["C1CCCCC1", "ciclohexano", "cyclohexane", "cyclohexane"],
+    ["C1=CCCCC1", "ciclohex-1-eno", "cyclohex-1-ene", "cyclohex", "1-ene"],
+    ["C1=CC=CCC1", "ciclohexa-1,3-dieno", "cyclohexa-1,3-diene", "cyclohexa", "1,3-diene"],
+    ["C1#CCCCCCC1", "ciclooct-1-ino", "cyclooct-1-yne", "cyclooct", "1-yne"],
+    ["OC1CCCCC1", "ciclohexanol", "cyclohexanol", "cyclohexan", undefined, "ol"],
+    ["O=C1CCCCC1", "ciclohexanona", "cyclohexanone", "cyclohexan", undefined, "one"],
+    ["O=C1CCC(=O)CC1", "ciclohexano-1,4-diona", "cyclohexane-1,4-dione", "cyclohexane", "1,4", "1,4-dione"],
+    ["O=CC1CCCCC1", "ciclohexanocarbaldehído", "cyclohexanecarbaldehyde", "cyclohexane", undefined, "carbaldehyde"],
+    ["O=C(O)C1CCCCC1", "ácido ciclohexanocarboxílico", "cyclohexanecarboxylic acid", "cyclohexane", undefined, "carboxylic acid"],
+  ];
+  for (const [smiles, nameEs, nameEn, parentEn, numberingEn, suffixEn] of cases) {
+    const compound = analyzed(smiles);
+    assert.equal(compound.analysis.name, nameEs);
+    assert.equal(translateSpanishIupacToOpsin(nameEs), nameEn);
+    for (const language of ["es", "en"]) {
+      const name = language === "en" ? nameEn : nameEs;
+      const { steps, fragments } = derive(compound, name, language);
+      assert.ok(fragments["02"], `${name} has parent evidence`);
+      if (suffixEn) assert.ok(fragments["01"], `${name} has suffix evidence`);
+      if (numberingEn) assert.ok(fragments["03"], `${name} has written locant evidence`);
+      else assert.equal(fragments["03"], undefined, `${name} does not invent an omitted locant`);
+      if (language === "en") {
+        assert.equal(fragments["02"]?.text, parentEn);
+        assert.equal(fragments["03"]?.text, numberingEn);
+        assert.equal(fragments["01"]?.text, suffixEn);
+      }
+      assertLinkedEvidence(name, steps, fragments);
+    }
+  }
+});
+
+test("indivisible aromatic functional parents remain whole, including substituted parents", () => {
+  for (const [smiles, nameEs, nameEn, parentEn] of [
+    ["Oc1ccccc1", "fenol", "phenol", "phenol"],
+    ["Oc1ccc(C)cc1", "4-metilfenol", "4-methylphenol", "phenol"],
+    ["Nc1ccccc1", "anilina", "aniline", "aniline"],
+  ]) {
+    const compound = analyzed(smiles);
+    assert.equal(compound.analysis.name, nameEs);
+    for (const language of ["es", "en"]) {
+      const name = language === "en" ? nameEn : nameEs;
+      const parent = language === "en" ? parentEn : compound.analysis.chainName;
+      const { steps, fragments } = derive(compound, name, language);
+      assert.equal(fragments["01"]?.text, parent);
+      assert.equal(fragments["02"]?.text, parent);
+      const parts = assertLinkedEvidence(name, steps, fragments);
+      const parentLink = parts.find((part) => part.text === parent && part.stepNumber);
+      assert.equal(parentLink?.stepNumber, "01");
+      assert.deepEqual(parentLink?.relatedStepNumbers, ["02"]);
+      assert.equal(parts.filter((part) => part.stepNumber && parent.includes(part.text)).length, 1,
+        "no fabricated parent/suffix morphology");
+      assert.equal(fragments["03"]?.text, name.startsWith("4-") ? "4" : undefined);
+    }
+  }
+});
+
+test("aromatic and cyclic branches retain their substituent links alongside the parent and suffix", () => {
+  for (const smiles of ["c1ccccc1", "Cc1ccccc1", "CC1CCCCC1", "CC1CCC(O)CC1", "CC1CCC(=O)CC1", "CC1CCC(C(=O)O)CC1", "CCC(C)CCC"]) {
+    const compound = analyzed(smiles);
+    for (const language of ["es", "en"]) {
+      const name = language === "en" ? translateSpanishIupacToOpsin(compound.analysis.name) : compound.analysis.name;
+      const { steps, fragments } = derive(compound, name, language);
+      assert.ok(fragments["02"], name);
+      if (compound.analysis.substituents.length) assert.ok(fragments["04"], name);
+      if (compound.analysis.primaryFunctionalGroup) assert.ok(fragments["01"], name);
+      assertLinkedEvidence(name, steps, fragments);
+    }
+  }
+});
+
+test("ring links use semantic step roles and ignore contextual steps and mismatched names", () => {
+  const compound = analyzed("Oc1cc(O)cc(O)c1");
+  const { steps } = derive(compound, "benzene-1,3,5-triol", "en");
+  const remapped = steps.map((step) => ({ ...step, number: `role-${step.nameRole}`, title: "unrelated translated title", explanation: "context" }));
+  const fragments = deriveReasoningNameFragments({ analysis: compound.analysis, displayedName: "benzene-1,3,5-triol", language: "en", steps: remapped, canHighlight: true });
+  assert.deepEqual(Object.keys(fragments).sort(), ["role-function", "role-numbering", "role-parent"]);
+  assertLinkedEvidence("benzene-1,3,5-triol", remapped, fragments);
+  assert.deepEqual(deriveReasoningNameFragments({ analysis: compound.analysis, displayedName: "benzene-1,3,5-triol", language: "en", steps: steps.map(({ number }) => ({ number })), canHighlight: true }), {},
+    "specialized or contextual steps do not inherit evidence merely from step numbers");
+  assert.deepEqual(derive(compound, "benzene-1,2,3-triol", "en").fragments, {});
+  assert.deepEqual(derive(compound, "benzene-1,3,5-triol", "en", false).fragments, {});
+});
