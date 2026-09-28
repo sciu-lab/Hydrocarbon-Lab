@@ -34,9 +34,10 @@ test("obsolete requests are aborted and ignored when the input, panel or request
 test("selection commits the verified candidate graph and only reports success after canvas acceptance", () => {
   assert.match(page, /formulaCandidateResult\.formula !== candidate\.molecularFormula/);
   assert.match(page, /const committed = commit\(\s*candidate\.molecule,/);
-  assert.match(page, /if \(!committed\) \{[\s\S]*?the current molecule was kept[\s\S]*?return;/);
-  assert.match(page, /PubChem identity: \$\{candidate\.iupacName \?\? `PubChem compound \$\{candidate\.cid\}`\} · CID \$\{candidate\.cid\} · \$\{candidate\.molecularFormula\}/);
-  assert.match(page, /Identidad PubChem: \$\{candidate\.iupacName \?\? `Compuesto PubChem \$\{candidate\.cid\}`\} · CID \$\{candidate\.cid\} · \$\{candidate\.molecularFormula\}/);
+  assert.match(page, /if \(!committed\) \{[\s\S]*?id: "formula\.pubchem-rejected", cid: candidate\.cid[\s\S]*?return;/);
+  assert.match(page, /case "formula\.pubchem-rejected":[\s\S]*?the current molecule was kept[\s\S]*?se conservó la molécula actual/);
+  assert.match(page, /case "formula\.pubchem-identity":[\s\S]*?PubChem identity: \$\{name\} · CID \$\{message\.cid\} · \$\{message\.formula\}/);
+  assert.match(page, /Identidad PubChem: \$\{name\} · CID \$\{message\.cid\} · \$\{message\.formula\}/);
 });
 
 test("external name safeguards follow the exact loaded graph and suppress unsupported local variants", () => {

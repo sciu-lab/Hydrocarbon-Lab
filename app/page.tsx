@@ -398,6 +398,23 @@ type HistoryTransferNotice = {
   message: string;
 };
 
+type LocalizedFeedbackMessage =
+  | { id: "source"; source: string }
+  | { id: "smiles.empty" }
+  | { id: "smiles.exported" }
+  | { id: "smiles.imported"; suggestedName: string | null; importedRecords: number | null }
+  | { id: "formula.empty" }
+  | { id: "formula.no-catalog" }
+  | { id: "formula.isomers"; formula: string; count: number; complete: boolean }
+  | { id: "formula.pubchem-rejected"; cid: number }
+  | { id: "formula.pubchem-identity"; cid: number; iupacName: string | null; formula: string; nameUnavailable: boolean }
+  | { id: "formula.isomer-loaded"; nameEn: string; nameEs: string };
+
+type SmilesFeedback = {
+  kind: "success" | "error";
+  message: LocalizedFeedbackMessage;
+};
+
 type NameBuilderFeedback = {
   kind: "success" | "error";
   message: string;
@@ -405,7 +422,7 @@ type NameBuilderFeedback = {
 
 type FormulaBuilderFeedback = {
   kind: "success" | "error" | "info";
-  message: string;
+  message: LocalizedFeedbackMessage;
 };
 
 type HistoryScope = "account" | "device";
@@ -6091,6 +6108,59 @@ export default function Home() {
 
     return dynamicUiText(language, source);
   };
+  const resolveLocalizedFeedbackMessage = (message: LocalizedFeedbackMessage) => {
+    switch (message.id) {
+      case "source":
+        return localizedDynamicText(message.source);
+      case "smiles.empty":
+        return t("Escribe o pega un SMILES antes de cargarlo.");
+      case "smiles.exported":
+        return t("La molécula actual se exportó como archivo .smi compatible con SMILES.");
+      case "smiles.imported": {
+        const name = message.suggestedName
+          ? language === "en" ? localizedIupac(message.suggestedName) : message.suggestedName
+          : language === "en" ? "Local IUPAC name unavailable for this structure" : "Nombre IUPAC local no disponible para esta estructura";
+        const extraRecords = message.importedRecords
+          ? language === "en"
+            ? ` The file contains ${message.importedRecords} records; SciU imported the first molecule.`
+            : ` El archivo contiene ${message.importedRecords} registros; SciU importó la primera molécula.`
+          : "";
+        return language === "en"
+          ? `SMILES imported with OpenChemLib. ${message.suggestedName ? "Suggested IUPAC name" : "Local IUPAC name unavailable for this structure"}${message.suggestedName ? `: ${name}` : ""}.${extraRecords}`
+          : `SMILES importado con OpenChemLib. ${message.suggestedName ? `Nombre IUPAC sugerido: ${name}` : name}.${extraRecords}`;
+      }
+      case "formula.no-catalog":
+        return language === "en"
+          ? "Valid molecular formula, but no verified structures are available in the catalog yet."
+          : "La fórmula molecular es válida, pero todavía no hay estructuras verificadas disponibles en el catálogo.";
+      case "formula.empty":
+        return t("Escribe una fórmula molecular. Ejemplo: C6H12O.");
+      case "formula.isomers":
+        return message.complete
+          ? language === "en"
+            ? `${message.count} constitutional isomers were found for ${message.formula}.`
+            : `Se encontraron ${message.count} isómeros constitucionales para ${message.formula}.`
+          : language === "en"
+            ? `${message.count} representative structures were found for ${message.formula}. The list is not intended to be exhaustive.`
+            : `Se encontraron ${message.count} estructuras representativas para ${message.formula}. La lista no pretende ser exhaustiva.`;
+      case "formula.pubchem-rejected":
+        return language === "en"
+          ? `PubChem CID ${message.cid} could not pass the canvas valence checks; the current molecule was kept.`
+          : `PubChem CID ${message.cid} no superó las comprobaciones de valencia del canvas; se conservó la molécula actual.`;
+      case "formula.pubchem-identity": {
+        const name = message.iupacName
+          ? message.iupacName
+          : language === "en" ? `PubChem compound ${message.cid}` : `Compuesto PubChem ${message.cid}`;
+        return language === "en"
+          ? `PubChem identity: ${name} · CID ${message.cid} · ${message.formula}. ${message.nameUnavailable ? "Local IUPAC name unavailable for this structure." : "Hydrocarbon Lab's local name is calculated separately from the structure."}`
+          : `Identidad PubChem: ${name} · CID ${message.cid} · ${message.formula}. ${message.nameUnavailable ? "Nombre IUPAC local no disponible para esta estructura." : "El nombre local de Hydrocarbon Lab se calcula por separado desde la estructura."}`;
+      }
+      case "formula.isomer-loaded":
+        return language === "en"
+          ? `Molecule updated: ${message.nameEn}.`
+          : `Molécula actualizada: ${message.nameEs}.`;
+    }
+  };
   const localizedDetail = (value: string) => {
     if (language === "es") return value;
     const ringMatch = value.match(/^anillo de (\d+) carbonos$/);
@@ -6244,7 +6314,7 @@ export default function Home() {
   const [smilesPanelOpen, setSmilesPanelOpen] = useState(false);
   const [smilesImporting, setSmilesImporting] = useState(false);
   const [smilesInput, setSmilesInput] = useState("");
-  const [smilesFeedback, setSmilesFeedback] = useState<HistoryTransferNotice | null>(null);
+  const [smilesFeedback, setSmilesFeedback] = useState<SmilesFeedback | null>(null);
   const [formulaPanelOpen, setFormulaPanelOpen] = useState(false);
   const [formulaInput, setFormulaInput] = useState("");
   const [formulaFeedback, setFormulaFeedback] = useState<FormulaBuilderFeedback | null>(null);
@@ -7573,7 +7643,9 @@ export default function Home() {
       setFormulaResult(null);
       setFormulaFeedback({
         kind: "error",
-        message: language === "en" ? t(result.error) : result.error,
+        message: result.error === "Escribe una fórmula molecular. Ejemplo: C6H12O."
+          ? { id: "formula.empty" }
+          : { id: "source", source: result.error },
       });
       return;
     }
@@ -7582,22 +7654,19 @@ export default function Home() {
     if (!result.isomers.length) {
       setFormulaFeedback({
         kind: "info",
-        message: language === "en"
-          ? "Valid molecular formula, but no verified structures are available in the catalog yet."
-          : "La fórmula molecular es válida, pero todavía no hay estructuras verificadas disponibles en el catálogo.",
+        message: { id: "formula.no-catalog" },
       });
       return;
     }
 
     setFormulaFeedback({
       kind: "success",
-      message: result.complete
-        ? language === "en"
-          ? `${result.isomers.length} constitutional isomers were found for ${result.formula}.`
-          : `Se encontraron ${result.isomers.length} isómeros constitucionales para ${result.formula}.`
-        : language === "en"
-          ? `${result.isomers.length} representative structures were found for ${result.formula}. The list is not intended to be exhaustive.`
-          : `Se encontraron ${result.isomers.length} estructuras representativas para ${result.formula}. La lista no pretende ser exhaustiva.`,
+      message: {
+        id: "formula.isomers",
+        formula: result.formula,
+        count: result.isomers.length,
+        complete: result.complete,
+      },
     });
   };
 
@@ -7666,9 +7735,7 @@ export default function Home() {
     if (!committed) {
       setFormulaFeedback({
         kind: "error",
-        message: language === "en"
-          ? `PubChem CID ${candidate.cid} could not pass the canvas valence checks; the current molecule was kept.`
-          : `PubChem CID ${candidate.cid} no superó las comprobaciones de valencia del canvas; se conservó la molécula actual.`,
+        message: { id: "formula.pubchem-rejected", cid: candidate.cid },
       });
       return;
     }
@@ -7687,9 +7754,13 @@ export default function Home() {
     setRingInsertMode("replace");
     setFormulaFeedback({
       kind: "success",
-      message: language === "en"
-        ? `PubChem identity: ${candidate.iupacName ?? `PubChem compound ${candidate.cid}`} · CID ${candidate.cid} · ${candidate.molecularFormula}. ${candidateNameUnavailable ? "Local IUPAC name unavailable for this structure." : "Hydrocarbon Lab's local name is calculated separately from the structure."}`
-        : `Identidad PubChem: ${candidate.iupacName ?? `Compuesto PubChem ${candidate.cid}`} · CID ${candidate.cid} · ${candidate.molecularFormula}. ${candidateNameUnavailable ? "Nombre IUPAC local no disponible para esta estructura." : "El nombre local de Hydrocarbon Lab se calcula por separado desde la estructura."}`,
+      message: {
+        id: "formula.pubchem-identity",
+        cid: candidate.cid,
+        iupacName: candidate.iupacName ?? null,
+        formula: candidate.molecularFormula,
+        nameUnavailable: candidateNameUnavailable,
+      },
     });
   };
 
@@ -7724,9 +7795,7 @@ export default function Home() {
       setShowFunctionalPalette(false);
       setFormulaFeedback({
         kind: "success",
-        message: language === "en"
-          ? `Molecule updated: ${selectedName}.`
-          : `Molécula actualizada: ${selectedName}.`,
+        message: { id: "formula.isomer-loaded", nameEn: isomer.nameEn, nameEs: isomer.nameEs },
       });
       window.requestAnimationFrame(() => {
         window.document.querySelector<HTMLElement>(".molecule-stage")?.scrollIntoView({
@@ -7737,7 +7806,7 @@ export default function Home() {
     } catch (error) {
       setFormulaFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : "No se pudo dibujar este isómero.",
+        message: { id: "source", source: error instanceof Error ? error.message : "No se pudo dibujar este isómero." },
       });
     }
   };
@@ -8503,14 +8572,12 @@ export default function Home() {
       downloadSmilesFile(result.smiles, canonicalIupacName);
       setSmilesFeedback({
         kind: "success",
-        message: t("La molécula actual se exportó como archivo .smi compatible con SMILES."),
+        message: { id: "smiles.exported" },
       });
     } catch (error) {
       setSmilesFeedback({
         kind: "error",
-        message: error instanceof Error
-          ? localizedDynamicText(error.message)
-          : t("No fue posible exportar esta estructura como SMILES."),
+        message: { id: "source", source: error instanceof Error ? error.message : "No fue posible exportar esta estructura como SMILES." },
       });
     }
   };
@@ -8798,12 +8865,15 @@ export default function Home() {
     setSmilesFeedback(null);
     try {
       const smiles = source.trim();
-      if (!smiles) throw new Error(t("Escribe o pega un SMILES antes de cargarlo."));
+      if (!smiles) {
+        setSmilesFeedback({ kind: "error", message: { id: "smiles.empty" } });
+        return;
+      }
       const converted = moleculeFromSmiles(smiles);
       if (!converted.ok) {
-        throw new Error(t(origin.kind === "text" && converted.error === "OpenChemLib no pudo convertir la estructura recibida."
+        throw new Error(origin.kind === "text" && converted.error === "OpenChemLib no pudo convertir la estructura recibida."
           ? "SMILES no válido. Revisa la sintaxis e inténtalo de nuevo."
-          : converted.error));
+          : converted.error);
       }
 
       const next = converted.molecule;
@@ -8822,7 +8892,7 @@ export default function Home() {
             : "Estructura cargada desde texto SMILES. Puedes seguir editándola átomo por átomo.",
       );
       if (!committed) {
-        throw new Error(t("El SMILES fue interpretado, pero el canvas lo bloqueó por una validación de valencia."));
+        throw new Error("El SMILES fue interpretado, pero el canvas lo bloqueó por una validación de valencia.");
       }
 
       if (getTetrahedralStereoCenters(next).length) setShowStereochemistry(true);
@@ -8835,27 +8905,18 @@ export default function Home() {
       setShowFunctionalPalette(false);
       setNameBuilderFeedback(null);
 
-      const extraRecords = origin.kind === "file" && origin.ignoredRecordCount > 0
-        ? language === "en"
-          ? ` The file contains ${origin.ignoredRecordCount + 1} records; SciU imported the first molecule.`
-          : ` El archivo contiene ${origin.ignoredRecordCount + 1} registros; SciU importó la primera molécula.`
-        : "";
       setSmilesFeedback({
         kind: "success",
-        message: suggestedName
-          ? language === "en"
-            ? `SMILES imported with OpenChemLib. Suggested IUPAC name: ${localizedIupac(suggestedName)}.${extraRecords}`
-            : `SMILES importado con OpenChemLib. Nombre IUPAC sugerido: ${suggestedName}.${extraRecords}`
-          : language === "en"
-            ? `SMILES imported with OpenChemLib. Local IUPAC name unavailable for this structure.${extraRecords}`
-            : `SMILES importado con OpenChemLib. Nombre IUPAC local no disponible para esta estructura.${extraRecords}`,
+        message: {
+          id: "smiles.imported",
+          suggestedName,
+          importedRecords: origin.kind === "file" && origin.ignoredRecordCount > 0 ? origin.ignoredRecordCount + 1 : null,
+        },
       });
     } catch (error) {
       setSmilesFeedback({
         kind: "error",
-        message: error instanceof Error
-          ? localizedDynamicText(error.message)
-          : t("No fue posible cargar este SMILES."),
+        message: { id: "source", source: error instanceof Error ? error.message : "No fue posible cargar este SMILES." },
       });
     }
   };
@@ -8869,16 +8930,14 @@ export default function Home() {
     setSmilesFeedback(null);
     try {
       if (file.size > 1_000_000) {
-        throw new Error(t("El archivo SMILES supera el límite de 1 MB."));
+        throw new Error("El archivo SMILES supera el límite de 1 MB.");
       }
       const record = readSmilesFileRecord(await file.text());
       importSmilesString(record.smiles, { kind: "file", name: file.name, ignoredRecordCount: record.ignoredRecordCount });
     } catch (error) {
       setSmilesFeedback({
         kind: "error",
-        message: error instanceof Error
-          ? localizedDynamicText(error.message)
-          : t("No fue posible importar este archivo SMILES."),
+        message: { id: "source", source: error instanceof Error ? error.message : "No fue posible importar este archivo SMILES." },
       });
     } finally {
       setSmilesImporting(false);
@@ -11118,7 +11177,7 @@ export default function Home() {
               {formulaFeedback && (
                 <div className={`formula-builder-feedback ${formulaFeedback.kind}`} role={formulaFeedback.kind === "error" ? "alert" : "status"}>
                   <span aria-hidden="true">{formulaFeedback.kind === "success" ? "✓" : formulaFeedback.kind === "info" ? "i" : "!"}</span>
-                  <p>{localizedDynamicText(formulaFeedback.message)}</p>
+                  <p>{resolveLocalizedFeedbackMessage(formulaFeedback.message)}</p>
                 </div>
               )}
 
@@ -11325,7 +11384,7 @@ export default function Home() {
               {smilesFeedback && (
                 <div id="smiles-feedback" className={`smiles-feedback ${smilesFeedback.kind}`} role={smilesFeedback.kind === "error" ? "alert" : "status"}>
                   <span aria-hidden="true">{smilesFeedback.kind === "success" ? "✓" : "!"}</span>
-                  <p>{smilesFeedback.message}</p>
+                  <p>{resolveLocalizedFeedbackMessage(smilesFeedback.message)}</p>
                 </div>
               )}
             </section>

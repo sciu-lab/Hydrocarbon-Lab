@@ -143,6 +143,16 @@ function localizedDynamicTextFor(language) {
   return make(language, (value) => uiText(language, value), (value) => value, (value) => value, dynamicUiText, (value) => value);
 }
 
+function localizedFeedbackMessageFor(language) {
+  const expression = variable(pageAst, "resolveLocalizedFeedbackMessage").initializer.getText(pageAst);
+  const compiled = ts.transpileModule(
+    `function make(language, t, localizedIupac, localizedDynamicText) { const resolveLocalizedFeedbackMessage = ${expression}; return resolveLocalizedFeedbackMessage; }`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+  ).outputText;
+  const make = new Function(`${compiled}; return make;`)();
+  return make(language, (value) => uiText(language, value), (value) => value, localizedDynamicTextFor(language));
+}
+
 function localizedRingFusionOptionErrorFor(language, error) {
   const expression = variable(pageAst, "localizedRingFusionOptionError").initializer.getText(pageAst);
   const compiled = ts.transpileModule(
@@ -153,7 +163,7 @@ function localizedRingFusionOptionErrorFor(language, error) {
   return make(() => error, localizedDynamicTextFor(language));
 }
 
-function formulaErrorStoredIn(language, error) {
+function formulaErrorStored(error) {
   const candidates = findAll(pageAst, (node) => ts.isCallExpression(node)
     && node.expression.getText(pageAst) === "setFormulaFeedback"
     && node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])
@@ -161,11 +171,18 @@ function formulaErrorStoredIn(language, error) {
   assert.equal(candidates.length, 1, "expected the invalid-formula feedback branch");
   const message = candidates[0].arguments[0].properties.find((item) => ts.isPropertyAssignment(item) && item.name.getText(pageAst) === "message");
   assert.ok(message);
-  return evaluateExpression(message.initializer.getText(pageAst), {
-    language,
-    result: { error },
-    t: (value) => uiText(language, value),
-  });
+  return evaluateExpression(message.initializer.getText(pageAst), { result: { error } });
+}
+
+function emptySmilesFeedbackStored() {
+  const candidates = findAll(pageAst, (node) => ts.isCallExpression(node)
+    && node.expression.getText(pageAst) === "setSmilesFeedback"
+    && node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])
+    && node.arguments[0].getText(pageAst).includes('id: "smiles.empty"'));
+  assert.equal(candidates.length, 1, "expected the empty-SMILES feedback branch");
+  const message = candidates[0].arguments[0].properties.find((item) => ts.isPropertyAssignment(item) && item.name.getText(pageAst) === "message");
+  assert.ok(message);
+  return evaluateExpression(message.initializer.getText(pageAst));
 }
 
 function loadedReasoning(smiles) {
@@ -286,15 +303,23 @@ test("LANG-002 — MISSING-TRANSLATION — MEDIUM — EN/ES placeholders preserv
 for (const [createdIn, shownIn] of [["en", "es"], ["es", "en"]]) {
   test(`LANG-003 — DYNAMIC-LANGUAGE — MEDIUM — direct SMILES error updates ${createdIn.toUpperCase()}→${shownIn.toUpperCase()}`, () => {
     const spanishSource = "Escribe o pega un SMILES antes de cargarlo.";
-    const stored = uiText(createdIn, spanishSource);
+    const stored = emptySmilesFeedbackStored();
     assert.notEqual(uiText("en", spanishSource), uiText("es", spanishSource));
+    assert.deepEqual(stored, { id: "smiles.empty" });
     const visible = evaluateExpression(feedbackExpression("smiles-feedback"), {
       smilesFeedback: { kind: "error", message: stored },
       language: shownIn,
-      localizedDynamicText: localizedDynamicTextFor(shownIn),
-      t: (value) => uiText(shownIn, value),
+      resolveLocalizedFeedbackMessage: localizedFeedbackMessageFor(shownIn),
     });
     assert.equal(visible, uiText(shownIn, spanishSource));
+    assert.equal(evaluateExpression("smilesFeedback.kind", { smilesFeedback: { kind: "error", message: stored } }), "error");
+
+    const successMessage = { id: "smiles.imported", suggestedName: "ciclohexano", importedRecords: 2 };
+    const success = evaluateExpression(feedbackExpression("smiles-feedback"), {
+      smilesFeedback: { kind: "success", message: successMessage },
+      resolveLocalizedFeedbackMessage: localizedFeedbackMessageFor(shownIn),
+    });
+    assert.match(success, shownIn === "en" ? /SMILES imported.*2 records/ : /SMILES importado.*2 registros/);
   });
 }
 
@@ -328,13 +353,22 @@ for (const [createdIn, shownIn] of [["en", "es"], ["es", "en"]]) {
   test(`LANG-005 — DYNAMIC-LANGUAGE — MEDIUM — formula error updates ${createdIn.toUpperCase()}→${shownIn.toUpperCase()}`, () => {
     const result = generateFormulaIsomers("");
     assert.equal(result.ok, false);
-    const stored = formulaErrorStoredIn(createdIn, result.error);
+    const stored = formulaErrorStored(result.error);
+    assert.deepEqual(stored, { id: "formula.empty" });
     const visible = evaluateExpression(feedbackExpression("formula-builder-feedback"), {
       formulaFeedback: { kind: "error", message: stored },
-      localizedDynamicText: localizedDynamicTextFor(shownIn),
-      language: shownIn,
+      resolveLocalizedFeedbackMessage: localizedFeedbackMessageFor(shownIn),
     });
     assert.equal(visible, uiText(shownIn, result.error));
+
+    const formulaMessage = { id: "formula.isomers", formula: "C6H12O", count: 3, complete: true };
+    const formulaFeedback = evaluateExpression(feedbackExpression("formula-builder-feedback"), {
+      formulaFeedback: { kind: "success", message: formulaMessage },
+      resolveLocalizedFeedbackMessage: localizedFeedbackMessageFor(shownIn),
+    });
+    assert.match(formulaFeedback, /C6H12O/);
+    assert.match(formulaFeedback, /3/);
+    assert.match(formulaFeedback, shownIn === "en" ? /constitutional isomers/ : /isómeros constitucionales/);
   });
 }
 

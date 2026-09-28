@@ -191,7 +191,8 @@ test("valid formulas without catalog entries remain distinct from invalid formul
   assert.equal(invalid.ok, false);
 
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /kind: "info",\s*message: language === "en"\s*\? "Valid molecular formula, but no verified structures are available in the catalog yet\."/);
+  assert.match(page, /kind: "info",\s*message: \{ id: "formula\.no-catalog" \}/);
+  assert.match(page, /case "formula\.no-catalog":[\s\S]*?Valid molecular formula, but no verified structures are available in the catalog yet\.[\s\S]*?La fórmula molecular es válida/);
   assert.match(page, /formulaFeedback\.kind === "error" \? "alert" : "status"/);
 });
 
