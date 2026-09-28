@@ -11516,6 +11516,12 @@ export default function Home() {
                   : null;
                 const parallelBondSegments = getParallelBondSegments(positionA, positionB, order);
                 const rawBondSegments = ringDoubleBondSegments ?? parallelBondSegments;
+                // Triple badges are placed clear of their painted circle, the
+                // 5.5 px bond stroke and a 2 px gap. A scaled label buffer must
+                // not invent a collision after that placement already cleared it.
+                const numberObstacleClearance = order === 3
+                  ? Math.min(numberingGeometry.clearance, paintedNumberBadgeRadius + 5.5 / 2 + 2)
+                  : numberingGeometry.clearance;
                 const startNumberObstacle = effectiveShowNumbering
                   && carbonCount > 1
                   && isCarbonAtom(atomA)
@@ -11525,7 +11531,7 @@ export default function Home() {
                         x: positionA.x + skeletalNumberBadgeOffsets.get(a)!.x,
                         y: positionA.y + skeletalNumberBadgeOffsets.get(a)!.y,
                       },
-                      radius: numberingGeometry.clearance,
+                      radius: numberObstacleClearance,
                     }
                   : undefined;
                 const endNumberObstacle = effectiveShowNumbering
@@ -11537,7 +11543,7 @@ export default function Home() {
                         x: positionB.x + skeletalNumberBadgeOffsets.get(b)!.x,
                         y: positionB.y + skeletalNumberBadgeOffsets.get(b)!.y,
                       },
-                      radius: numberingGeometry.clearance,
+                      radius: numberObstacleClearance,
                     }
                   : undefined;
                 const startHeteroObstacle = viewMode === "skeletal" && !isCarbonAtom(atomA)
