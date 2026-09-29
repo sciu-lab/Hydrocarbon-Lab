@@ -10,6 +10,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.Scri
 function harness(overrides = {}) {
   const calls = [];
   const context = {
+    practiceOpen: false,
     historyOpen: false, settingsOpen: false, pngExportOpen: false, canvasExpanded: false,
     placementTool: null, showRingPalette: false, showAlkylPalette: false, showFunctionalPalette: false,
     lastToolPointer: { current: null }, selectedId: 1, selectedFusionBond: null, setFusionSelection: () => {}, molecule: { rings: [] }, previousSelectedId: { current: null },
@@ -48,6 +49,18 @@ test("construction keys route to the existing templates and actions", () => {
   assert.deepEqual(h.calls.at(-1), ["setPlacementTool", { kind: "ring", template: { id: "benzene" }, mode: "replace" }]);
   const empty = harness({ selectedId: null }); empty.press("m");
   assert.deepEqual(empty.calls.at(-1), ["setPlacementTool", { kind: "alkyl", template: { id: "methyl" } }]);
+});
+
+test("Practice blocks Lab construction, bond editing, history and panel shortcuts", () => {
+  const h = harness({ practiceOpen: true });
+  for (const key of ["m", "e", "p", "b", "ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Backspace", "Delete", "Escape", "r", "s", "i", "n"]) {
+    assert.equal(h.press(key), false);
+  }
+  const bond = { target: { closest: selector => selector === "[data-bond-a]" ? { dataset: { bondA: "1", bondB: "2" } } : null } };
+  assert.equal(h.press("2", bond), false);
+  assert.equal(h.press("z", { ctrlKey: true }), false);
+  assert.equal(h.press("y", { ctrlKey: true }), false);
+  assert.deepEqual(h.calls, []);
 });
 
 test("arrow keys route through the shared carbon-placement action", () => {

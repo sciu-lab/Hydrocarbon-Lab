@@ -15,6 +15,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { PracticePanel } from "./practice-panel";
+import { createRestrictedChemicalGenerator } from "./exercise-chemical-generator";
+import { createExerciseChemistryOracles } from "./exercise-chemistry-oracles";
 import { buildHydrocarbonFromIupacName } from "./name-to-molecule";
 import { IUPAC_ROOTS } from "./iupac-prefixes";
 import {
@@ -5876,16 +5879,18 @@ export function readChemistryDocument(value: unknown): PortableStructure[] {
   });
 }
 
-function MoleculeHistoryPreview({
+export function MoleculeHistoryPreview({
   molecule,
   width: previewWidth = 120,
   height: previewHeight = 64,
   ariaLabel,
+  practiceView = false,
 }: {
   molecule: Molecule;
   width?: number;
   height?: number;
   ariaLabel?: string;
+  practiceView?: boolean;
 }) {
   const positions = useMemo(() => {
     // This is the same display-coordinate source used by the main skeletal
@@ -5901,7 +5906,8 @@ function MoleculeHistoryPreview({
     const maxY = Math.max(...points.map((point) => point.y));
     const width = Math.max(maxX - minX, 1);
     const height = Math.max(maxY - minY, 1);
-    const scale = Math.min((previewWidth - 26) / width, (previewHeight - 16) / height, 25);
+    const scale = Math.min((previewWidth - (practiceView ? 64 : 26)) / width,
+      (previewHeight - (practiceView ? 54 : 16)) / height, 25);
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
     return new Map(
@@ -5916,11 +5922,11 @@ function MoleculeHistoryPreview({
         ];
       }),
     );
-  }, [molecule, previewHeight, previewWidth]);
+  }, [molecule, previewHeight, previewWidth, practiceView]);
 
   return (
     <svg
-      className="history-molecule-preview"
+      className={`history-molecule-preview${practiceView ? " practice-molecule-preview" : ""}`}
       viewBox={`0 0 ${previewWidth} ${previewHeight}`}
       role={ariaLabel ? "img" : undefined}
       aria-label={ariaLabel}
@@ -5951,11 +5957,19 @@ function MoleculeHistoryPreview({
         const position = positions.get(atom.id)!;
         const element = atom.element ?? "C";
         const chargeText = atom.charge === 1 ? "+" : atom.charge === -1 ? "−" : "";
+        const isolatedCarbon = practiceView && element === "C" && molecule.atoms.length === 1;
+        const hydrogens = practiceView ? getImplicitHydrogens(atom.id, molecule) : 0;
+        const labeled = element !== "C" || isolatedCarbon;
         return (
           <g key={atom.id} transform={`translate(${position.x} ${position.y})`}>
-            <circle className={element === "C" ? "history-carbon" : "history-hetero"} r={element === "C" ? 3.5 : 7} />
-            {element !== "C" && (
-              <text textAnchor="middle" dominantBaseline="central">{element}{chargeText}</text>
+            <circle className={labeled ? "history-hetero" : "history-carbon"}
+              r={practiceView && labeled ? isolatedCarbon ? 24 : 16 : element === "C" ? 3.5 : 7} />
+            {labeled && (
+              <text textAnchor="middle" dominantBaseline="central">
+                {element}{hydrogens > 0 ? "H" : ""}
+                {hydrogens > 1 && <tspan baselineShift="sub" fontSize="10">{hydrogens}</tspan>}
+                {chargeText && <tspan baselineShift={practiceView ? "super" : undefined} fontSize={practiceView ? 10 : undefined}>{chargeText}</tspan>}
+              </text>
             )}
           </g>
         );
@@ -5964,9 +5978,16 @@ function MoleculeHistoryPreview({
   );
 }
 
+const generatePracticeMolecule = createRestrictedChemicalGenerator(createExerciseChemistryOracles({
+  analyzeMolecule, findMoleculeValenceViolation, detectFunctionalGroups,
+  buildLegacyEnglishNameModel, localNamerCannotSafelyName,
+}));
+
 export default function Home({ initialLanguage = "es" }: { initialLanguage?: AppLanguage }) {
   // Match the server's first render; restore the route/preference after hydration.
   const [language, setLanguage] = useState<AppLanguage>(initialLanguage);
+  const [practiceOpen, setPracticeOpen] = useState(false);
+  const practiceTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const initialLanguage = detectInitialLanguage();
     const restore = window.setTimeout(() => setLanguage(initialLanguage), 0);
@@ -9265,6 +9286,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
 
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
+      if (practiceOpen) return;
       const target = event.target as HTMLElement | null;
       const isEditable = Boolean(target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='textbox'], [role='searchbox']") || target?.isContentEditable);
       if (event.defaultPrevented || event.isComposing || event.key === "Process" || event.repeat) return;
@@ -9429,6 +9451,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   }, [
     historyOpen,
     closeContextualPanels,
+    practiceOpen,
     closeFormulaPanel,
     nameBuilderOpen,
     smilesPanelOpen,
@@ -10022,10 +10045,12 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
         <div className="brand-copy">
           <h1>{t("Laboratorio de Hidrocarburos")}</h1>
         </div>
+        <div className="lab-entry-actions">
         <button
           type="button"
           className="guided-tour-launch"
           ref={guidedTourTriggerRef}
+          disabled={practiceOpen}
           onClick={openGuidedTour}
           aria-expanded={showGuidedTour}
           aria-controls="guided-tour-panel"
@@ -10033,9 +10058,24 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
           <span aria-hidden="true">?</span>
           {guidedTourControlsText.open}
         </button>
+        <button type="button" className="guided-tour-launch practice-launch" ref={practiceTriggerRef}
+          aria-expanded={practiceOpen} aria-controls="practice-panel" onClick={() => {
+            dismissGuidedTour();
+            setPracticeOpen(true);
+          }}>{t("Práctica / Examen")}</button>
+        </div>
       </header>
 
-      {showGuidedTour && (
+      {practiceOpen && <PracticePanel language={language} onLanguageChange={setLanguage}
+        onBackToLab={() => {
+          setPracticeOpen(false);
+          window.requestAnimationFrame(() => practiceTriggerRef.current?.focus());
+        }} generate={generatePracticeMolecule}
+        renderStructure={(molecule, label, width, height) => <MoleculeHistoryPreview molecule={molecule}
+          ariaLabel={label} width={width} height={height} practiceView />} />}
+
+      <div className="lab-workspace" hidden={practiceOpen} inert={practiceOpen}>
+      {!practiceOpen && showGuidedTour && (
         <OverlayPortal active={showGuidedTour}>
           <aside
             className="guided-tour"
@@ -13334,6 +13374,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
             });
           }}>{t("Copiar")}</button>
         </div>
+      </div>
       </div>
     </main>
   );
