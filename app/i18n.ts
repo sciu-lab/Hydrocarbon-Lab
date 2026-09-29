@@ -237,7 +237,6 @@ const ENGLISH_UI: Record<string, string> = {
   "Cadena principal o anillo": "Parent chain or ring",
   "Grupo funcional principal": "Principal functional group",
   "Sin grupo de sufijo": "No suffix group",
-  "Sustituyentes y localizadores": "Substituents and locants",
   "Numeración razonada": "Numbering",
   "Orden alfabético": "Alphabetical order",
   "Sustituyente": "Substituent",
