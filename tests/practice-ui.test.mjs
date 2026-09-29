@@ -13,7 +13,7 @@ import { createExerciseChemistryOracles } from "../app/exercise-chemistry-oracle
 import { createRestrictedChemicalGenerator, exerciseStructuralIdentity } from "../app/exercise-chemical-generator.ts";
 import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemistry.ts";
 import { calculatePracticeMolecule2DLayout } from "../app/practice-molecule-layout.ts";
-import { createPracticeConfig, localizePracticeState, markPracticeQuestionAvailable, nextPracticeQuestion, retryPracticeGeneration, startPractice, submitPracticeAnswer, updatePracticeAnswer } from "../app/practice-session.ts";
+import { createPracticeConfig, endPractice, localizePracticeState, markPracticeQuestionAvailable, nextPracticeQuestion, retryPracticeGeneration, startPractice, startPracticeCorrections, submitPracticeAnswer, updatePracticeAnswer } from "../app/practice-session.ts";
 import { calculatePracticeMetrics } from "../app/practice-metrics.ts";
 
 let server, engine, ui, generate;
@@ -26,7 +26,7 @@ before(async () => {
 });
 after(async () => { await server?.close(); });
 const noop = () => {};
-const actions = { answer: noop, check: noop, next: noop, end: noop, retry: noop, configure: noop, back: noop };
+const actions = { answer: noop, check: noop, next: noop, end: noop, retry: noop, configure: noop, back: noop, correctMistakes: noop };
 const submit = (state, locale = "es") => submitPracticeAnswer(
   markPracticeQuestionAvailable(state, { monotonicMs: 1000, wallTimeMs: 1700000000000 }), locale,
   { monotonicMs: 5500, wallTimeMs: 1700000004500 });
@@ -312,7 +312,8 @@ for (const language of ["es", "en"]) test(`initial summary ${language}: submitte
   assert.ok(html.includes(language === "es" ? "4,5 s" : "4.5 s"));
   assert.ok(html.includes(uiText(language, "Iniciar otra práctica")));
   assert.ok(html.includes(uiText(language, "Volver al laboratorio")));
-  assert.doesNotMatch(html, /<svg|practice-answer|Correct mistakes|Corregir errores|Reviewer|Multiple choice|Construir la molécula/);
+  assert.ok(html.includes(uiText(language, "Corregir errores")));
+  assert.doesNotMatch(html, /<svg|practice-answer|Reviewer|Multiple choice|Construir la molécula/);
   assert.equal(calculatePracticeMetrics(summary.attempts).questionsToReview, 1);
   assert.deepEqual(summary, snapshot);
 });
@@ -383,7 +384,7 @@ test("every Practice label has EN/ES text and the dictionary has no duplicate Pr
 
 test("Practice TypeScript modules typecheck against the real session and generated molecular model", () => {
   const files = ["practice-reference-answer.ts", "practice-session.ts", "practice-panel.tsx", "practice-molecule-layout.ts",
-    "practice-attempt.ts", "practice-timing.ts", "practice-metrics.ts", "practice-summary.tsx"].map((name) =>
+    "practice-attempt.ts", "practice-timing.ts", "practice-metrics.ts", "practice-summary.tsx", "practice-corrections.ts"].map((name) =>
     fileURLToPath(new URL(`../app/${name}`, import.meta.url)).replace(/\\/g, "/"));
   const program = ts.createProgram(files, { strict: true, noEmit: true, skipLibCheck: true,
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler,
@@ -391,4 +392,69 @@ test("Practice TypeScript modules typecheck against the real session and generat
   const diagnostics = ts.getPreEmitDiagnostics(program).filter((diagnostic) =>
     !diagnostic.file || files.includes(diagnostic.file.fileName.replace(/\\/g, "/")));
   assert.deepEqual(diagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")), []);
+});
+
+test("summary offers Correct mistakes only for initial mistakes; empty/perfect sessions omit it", () => {
+  const state = startPractice(config(), generate);
+  const correct = htmlFor(endPractice(submit(updatePracticeAnswer(state, state.question.reference.name))), "en");
+  const incorrect = htmlFor(endPractice(submit(updatePracticeAnswer(state, "wrong"))), "en");
+  const empty = htmlFor(endPractice(state), "en");
+  assert.doesNotMatch(correct, /Correct mistakes/);
+  assert.doesNotMatch(empty, /Correct mistakes/);
+  assert.match(incorrect, /Correct mistakes/);
+});
+
+for (const language of ["es", "en"]) test(`correction view ${language} preserves full SVG graph, empty input and existing feedback controls`, () => {
+  const initial = startPractice(createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59"), generate);
+  const summary = endPractice(submit(updatePracticeAnswer(initial, "wrong")));
+  const correction = localizePracticeState(startPracticeCorrections(summary, generate), language);
+  assertPracticeGraphProjection(correction, 319);
+  const html = htmlFor(correction, language);
+  assert.ok(html.includes(uiText(language, "Corregir errores")));
+  assert.ok(html.includes(uiText(language, "Corrección {current} de {total}").replace("{current}", "1").replace("{total}", "1")));
+  assert.match(html, /id="practice-answer"[^>]*value=""/);
+  assert.ok(html.includes(uiText(language, "Comprobar respuesta")));
+  assert.ok(html.includes(uiText(language, "Finalizar repaso")));
+  assert.doesNotMatch(html, /Nombre de referencia|reference name/);
+  const feedback = submit(updatePracticeAnswer(correction, correction.question.reference.names[language]), language);
+  const rendered = htmlFor(feedback, language);
+  assert.ok(rendered.includes(feedback.question.reference.names[language]));
+  assert.ok(rendered.includes(uiText(language, "Siguiente")));
+  assert.match(rendered, /id="practice-answer"[^>]*disabled=""/);
+  assertPracticeGraphProjection(feedback, 900);
+});
+
+for (const language of ["es", "en"]) test(`correction summary ${language} separates unchanged initial results, mastery and explicit retry`, () => {
+  const initial = startPractice(config(), generate);
+  const summary = endPractice(submit(updatePracticeAnswer(initial, "wrong")));
+  const correction = startPracticeCorrections(summary, generate);
+  const failed = nextPracticeQuestion(submit(updatePracticeAnswer(correction, "wrong")), generate);
+  const html = htmlFor(failed, language);
+  assert.ok(html.includes(uiText(language, "Resultados iniciales")));
+  assert.ok(html.includes(uiText(language, "Correcciones")));
+  assert.ok(html.includes(uiText(language, "Dominio final")));
+  assert.ok(html.includes(uiText(language, "Intentos de corrección")));
+  assert.ok(html.includes(uiText(language, "Reintentar los errores pendientes")));
+  assert.match(html, /0 \/ 1/);
+  const retry = startPracticeCorrections(failed, generate);
+  const fixed = nextPracticeQuestion(submit(updatePracticeAnswer(retry, retry.question.reference.names.es)), generate);
+  const fixedHtml = htmlFor(fixed, language);
+  assert.ok(fixedHtml.includes(uiText(language, "Todos los errores corregidos")));
+  assert.doesNotMatch(fixedHtml, /Retry remaining mistakes|Reintentar los errores pendientes/);
+  assert.match(fixedHtml, /100\s*%/);
+  assert.match(fixedHtml, /0 \/ 1/);
+  assert.match(fixedHtml, /1 \/ 1/);
+  assert.equal(fixed.attempts.at(-1).attemptNumber, 3);
+});
+
+test("reconstruction error renders no SVG/answer/reference and provides retry plus Finish review", () => {
+  const initial = startPractice(config(), generate);
+  const summary = endPractice(submit(updatePracticeAnswer(initial, "wrong")));
+  const error = startPracticeCorrections(summary, () => { throw new Error("private reconstruction failure"); });
+  const html = htmlFor(error, "en");
+  assert.match(html, /role="alert"/);
+  assert.match(html, /original question could not be reconstructed/);
+  assert.match(html, /Finish review/);
+  assert.match(html, /Retry/);
+  assert.doesNotMatch(html, /<svg|practice-answer|private reconstruction failure|reference name/);
 });

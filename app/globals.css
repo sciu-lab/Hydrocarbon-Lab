@@ -9655,6 +9655,7 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .practice-feedback .practice-reference { color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
 .practice-complete h3 { margin-bottom: 20px; }
 .practice-summary h4 { margin: 0 0 16px; font-size: 18px; }
+.practice-corrections { margin: 28px 0; padding-top: 24px; border-top: 2px solid var(--line); }
 .practice-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px; margin: 0; }
 .practice-metric-grid > div { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
 .practice-metric-grid dt { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }

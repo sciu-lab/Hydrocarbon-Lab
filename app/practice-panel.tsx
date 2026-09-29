@@ -10,6 +10,7 @@ import {
   createPracticeConfig, endPractice, localizePracticeState, markPracticeQuestionAvailable, nextPracticeQuestion,
   PRACTICE_LENGTHS, resolvePracticeSeed, retryPracticeGeneration, startPractice,
   submitPracticeAnswer, updatePracticeAnswer,
+  hasPracticeQuestion, isPracticeAnswerState, startPracticeCorrections,
 } from "./practice-session.ts";
 import type { PracticeGenerator, PracticeState } from "./practice-session.ts";
 import { browserPracticeClock } from "./practice-timing.ts";
@@ -37,6 +38,7 @@ type ViewActions = {
   retry(): void;
   configure(): void;
   back(): void;
+  correctMistakes(): void;
 };
 
 function PracticeStructure({ molecule, language, renderStructure }: {
@@ -66,20 +68,29 @@ export function PracticeSessionView({ state, language, renderStructure, actions,
   feedbackRef?: RefObject<HTMLDivElement | null>;
   onQuestionAvailable?(questionId: string, index: number): void;
 }) {
-  const currentId = state.phase === "QUESTION" || state.phase === "FEEDBACK" ? state.question.question.id : null;
-  const currentIndex = state.phase === "QUESTION" || state.phase === "FEEDBACK" ? state.index : -1;
+  const currentId = hasPracticeQuestion(state) ? state.question.question.id : null;
+  const currentIndex = hasPracticeQuestion(state) ? state.index : -1;
   const phase = state.phase;
   const inputRef = useCallback((input: HTMLInputElement | null) => {
     if (answerRef) answerRef.current = input;
     // The DOM commit, rather than generation or render, starts presentation.
-    if (input && phase === "QUESTION" && currentId !== null) onQuestionAvailable?.(currentId, currentIndex);
+    if (input && (phase === "QUESTION" || phase === "CORRECTION_QUESTION") && currentId !== null) onQuestionAvailable?.(currentId, currentIndex);
   }, [answerRef, onQuestionAvailable, phase, currentId, currentIndex]);
   const t = (text: string) => uiText(language, text);
   const categoryLabelFor = (category: ExerciseCategory) => t(PRACTICE_TOPIC_GROUPS.flatMap((group) => [...group.topics])
     .find(([id]) => id === category)![1]);
-  if (state.phase === "COMPLETE") return <PracticeSummary attempts={state.attempts} language={language}
+  if (state.phase === "COMPLETE" || state.phase === "CORRECTION_SUMMARY") return <PracticeSummary attempts={state.attempts} language={language}
     endless={state.config.questionCount === "endless"} categoryLabel={categoryLabelFor}
+    review={state.phase === "CORRECTION_SUMMARY"} onCorrectMistakes={actions.correctMistakes}
     onConfigure={actions.configure} onBackToLab={actions.back} />;
+  if (state.phase === "CORRECTION_ERROR") return <div className="practice-error" role="alert">
+    <h3>{t("Corregir errores")}</h3>
+    <p>{t("No se pudo reconstruir la pregunta original. Puedes reintentar o finalizar el repaso; tus resultados se conservan.")}</p>
+    <div className="practice-actions">
+      <button type="button" onClick={actions.retry}>{t("Reintentar")}</button>
+      <button type="button" onClick={actions.end}>{t("Finalizar repaso")}</button>
+    </div>
+  </div>;
   if (state.phase === "ERROR") return <div className="practice-error" role="alert">
     <p>{t("No se pudo generar esta pregunta. Puedes reintentar o volver a la configuración.")}</p>
     <div className="practice-actions">
@@ -88,20 +99,25 @@ export function PracticeSessionView({ state, language, renderStructure, actions,
       <button type="button" onClick={actions.end}>{t("Terminar práctica")}</button>
     </div>
   </div>;
-  const heading = state.config.questionCount === "endless" ? t("Pregunta {current}") : t("Pregunta {current} de {total}");
+  const correction = state.phase === "CORRECTION_QUESTION" || state.phase === "CORRECTION_FEEDBACK";
+  const feedback = state.phase === "FEEDBACK" || state.phase === "CORRECTION_FEEDBACK";
+  const heading = correction ? t("Corrección {current} de {total}")
+    : state.config.questionCount === "endless" ? t("Pregunta {current}") : t("Pregunta {current} de {total}");
   return <>
+    {correction && <h3>{t("Corregir errores")}</h3>}
     <div className="practice-question-heading">
-      <h3>{heading.replace("{current}", String(state.index + 1)).replace("{total}", String(state.config.questionCount))}</h3>
+      <h3>{heading.replace("{current}", String(correction ? state.correctionIndex + 1 : state.index + 1))
+        .replace("{total}", String(correction ? state.queue.length : state.config.questionCount))}</h3>
       <span className="scope-pill">{categoryLabelFor(state.question.category)}</span>
     </div>
     <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} />
     <form className="practice-answer" onSubmit={(event) => { event.preventDefault(); actions.check(); }}>
       <label htmlFor="practice-answer">{t("¿Cuál es el nombre IUPAC?")}</label>
       <input id="practice-answer" ref={inputRef} value={state.answer} onChange={(event) => actions.answer(event.target.value)}
-        disabled={state.phase === "FEEDBACK" || state.timing === null} autoComplete="off" autoCapitalize="none" spellCheck={false} />
-      {state.phase === "QUESTION" && <button type="submit" className="practice-primary" disabled={!state.answer.trim() || state.timing === null}>{t("Comprobar respuesta")}</button>}
+        disabled={feedback || state.timing === null} autoComplete="off" autoCapitalize="none" spellCheck={false} />
+      {isPracticeAnswerState(state) && <button type="submit" className="practice-primary" disabled={!state.answer.trim() || state.timing === null}>{t("Comprobar respuesta")}</button>}
     </form>
-    {state.phase === "FEEDBACK" && <div className={`practice-feedback ${state.correct ? "is-correct" : ""}`}
+    {feedback && <div className={`practice-feedback ${state.correct ? "is-correct" : ""}`}
       role="status" aria-live="polite" tabIndex={-1} ref={feedbackRef}>
       <strong>{state.correct ? `✓ ${t("Correcto")}` : t("No exactamente.")}</strong>
       <p>{t("Nombre de referencia de Hydrocarbon Lab:")}</p>
@@ -109,7 +125,7 @@ export function PracticeSessionView({ state, language, renderStructure, actions,
       <p>{t("Tiempo de respuesta")}: {formatPracticeResponseTime(state.attempts[state.attempts.length - 1].responseTimeMs, language)}</p>
       <button type="button" className="practice-primary" onClick={actions.next}>{t("Siguiente")}</button>
     </div>}
-    <button type="button" className="practice-end" onClick={actions.end}>{t("Terminar práctica")}</button>
+    <button type="button" className="practice-end" onClick={actions.end}>{correction ? t("Finalizar repaso") : t("Terminar práctica")}</button>
   </>;
 }
 
@@ -129,17 +145,17 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
   const titleRef = useRef<HTMLHeadingElement>(null);
   const answerRef = useRef<HTMLInputElement>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
-  const index = session.phase === "QUESTION" || session.phase === "FEEDBACK" ? session.index : -1;
-  const answerAvailable = session.phase === "QUESTION" && session.timing !== null;
+  const index = hasPracticeQuestion(session) ? session.index : -1;
+  const answerAvailable = isPracticeAnswerState(session) && session.timing !== null;
   const onQuestionAvailable = useCallback((questionId: string, index: number) => {
     const time = clock.read();
     setSession((state) => markPracticeQuestionAvailable(state, time, { questionId, index }));
   }, [clock]);
   useEffect(() => {
-    if (session.phase === "QUESTION") {
+    if (session.phase === "QUESTION" || session.phase === "CORRECTION_QUESTION") {
       if (answerAvailable) answerRef.current?.focus();
     }
-    else if (session.phase === "FEEDBACK") feedbackRef.current?.focus();
+    else if (session.phase === "FEEDBACK" || session.phase === "CORRECTION_FEEDBACK") feedbackRef.current?.focus();
     else titleRef.current?.focus();
   }, [session.phase, index, answerAvailable]);
   const t = (text: string) => uiText(language, text);
@@ -156,6 +172,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
     retry: () => setSession((state) => retryPracticeGeneration(localizePracticeState(state, language), generate)),
     configure: () => { setSession({ phase: "CONFIG" }); setConfigError(false); },
     back: onBackToLab,
+    correctMistakes: () => setSession((state) => startPracticeCorrections(localizePracticeState(state, language), generate)),
   };
   return <section id="practice-panel" className="practice-card" aria-labelledby="practice-title">
     <header className="practice-header">

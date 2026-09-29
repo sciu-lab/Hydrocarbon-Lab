@@ -15,7 +15,7 @@ export type AttemptRecord = Readonly<{
   category: ExerciseCategory;
   questionType: QuestionType;
   structuralIdentity: string;
-  /** Phase 4 creates only 1. The log/metrics contract accommodates later attempts. */
+  /** Initial submission is 1; corrections append increasing numbers. */
   attemptNumber: number;
   answer: string;
   correct: boolean;
@@ -50,7 +50,12 @@ export function appendPracticeAttempt(log: readonly AttemptRecord[], record: Att
   if (!Number.isSafeInteger(record.attemptNumber) || record.attemptNumber < 1) {
     throw new RangeError("Invalid attempt number.");
   }
-  return log.some((entry) => entry.questionId === record.questionId
-    && entry.displayOrdinal === record.displayOrdinal && entry.attemptNumber === record.attemptNumber)
+  return log.some((entry) => practiceQuestionKey(entry) === practiceQuestionKey(record)
+    && entry.attemptNumber === record.attemptNumber)
     ? log : [...log, record];
+}
+
+/** Pedagogical identity within one session; identical molecules are not merged. */
+export function practiceQuestionKey(record: AttemptRecord): string {
+  return JSON.stringify([record.questionId, record.generationIndex, record.displayOrdinal]);
 }

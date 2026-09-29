@@ -3,18 +3,21 @@ import { uiText } from "./i18n.ts";
 import type { ExerciseCategory, QuestionType } from "./exercise-model.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
 import { calculatePracticeMetrics, formatPracticePercentage, formatPracticeResponseTime } from "./practice-metrics.ts";
+import { calculatePracticeMastery } from "./practice-corrections.ts";
 
 const typeLabels: Record<QuestionType, string> = {
   naming: "Nomenclatura", "multiple-choice": "Opción múltiple", build: "Construir la molécula",
 };
 
-export function PracticeSummary({ attempts, language, endless, categoryLabel, onConfigure, onBackToLab }: {
+export function PracticeSummary({ attempts, language, endless, categoryLabel, onConfigure, onBackToLab, review, onCorrectMistakes }: {
   attempts: readonly AttemptRecord[]; language: AppLanguage; endless: boolean;
   categoryLabel(category: ExerciseCategory): string;
   onConfigure(): void; onBackToLab(): void;
+  review: boolean; onCorrectMistakes(): void;
 }) {
   const t = (text: string) => uiText(language, text);
   const metrics = calculatePracticeMetrics(attempts);
+  const mastery = calculatePracticeMastery(attempts);
   const number = (value: number) => new Intl.NumberFormat(language).format(value);
   const percentage = (value: number) => formatPracticePercentage(value, language);
   const duration = (value: number) => metrics.answeredQuestions ? formatPracticeResponseTime(value, language) : "—";
@@ -29,7 +32,7 @@ export function PracticeSummary({ attempts, language, endless, categoryLabel, on
     [t("Mediana del tiempo de respuesta"), duration(metrics.medianResponseTimeMs)],
   ];
   return <div className="practice-complete practice-summary" role="status">
-    <h3>{endless ? t("Resumen de práctica") : t("Práctica completada")}</h3>
+    <h3>{review ? t("Repaso de práctica") : endless ? t("Resumen de práctica") : t("Práctica completada")}</h3>
     <h4>{t("Resultados iniciales")}</h4>
     {!metrics.answeredQuestions && <p>{t("No se enviaron respuestas en esta sesión.")}</p>}
     <dl className="practice-metric-grid">
@@ -50,7 +53,20 @@ export function PracticeSummary({ attempts, language, endless, categoryLabel, on
           <td>{number(row.correct)} / {number(row.answered)}</td><td>{percentage(row.accuracy)}</td></tr>)}</tbody>
       </table>
     </>}
+    {review && <section className="practice-corrections" aria-label={t("Correcciones")}>
+      <h4>{t("Correcciones")}</h4>
+      <dl className="practice-metric-grid">
+        <div><dt>{t("Corregidas")}</dt><dd>{number(mastery.correctedQuestions)} / {number(mastery.originalQuestionsToReview)}</dd></div>
+        <div><dt>{t("Pendientes")}</dt><dd>{number(mastery.remainingMistakes)}</dd></div>
+        <div><dt>{t("Intentos de corrección")}</dt><dd>{number(mastery.correctionAttempts)}</dd></div>
+        <div><dt>{t("Dominio final")}</dt><dd>{number(mastery.finalMasteredQuestions)} / {number(mastery.initialAnswered)}<br />{percentage(mastery.finalMastery)}</dd></div>
+      </dl>
+      {!mastery.remainingMistakes && <p>{t("Todos los errores corregidos")}</p>}
+    </section>}
     <div className="practice-actions">
+      {mastery.remainingMistakes > 0 && <button type="button" className="practice-primary" onClick={onCorrectMistakes}>
+        {review ? t("Reintentar los errores pendientes") : t("Corregir errores")}
+      </button>}
       <button type="button" className="practice-primary" onClick={onConfigure}>{t("Iniciar otra práctica")}</button>
       <button type="button" onClick={onBackToLab}>{t("Volver al laboratorio")}</button>
     </div>
