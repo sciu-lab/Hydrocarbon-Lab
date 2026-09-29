@@ -13,7 +13,8 @@ import { createExerciseChemistryOracles } from "../app/exercise-chemistry-oracle
 import { createRestrictedChemicalGenerator, exerciseStructuralIdentity } from "../app/exercise-chemical-generator.ts";
 import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemistry.ts";
 import { calculatePracticeMolecule2DLayout } from "../app/practice-molecule-layout.ts";
-import { createPracticeConfig, localizePracticeState, nextPracticeQuestion, retryPracticeGeneration, startPractice, submitPracticeAnswer, updatePracticeAnswer } from "../app/practice-session.ts";
+import { createPracticeConfig, localizePracticeState, markPracticeQuestionAvailable, nextPracticeQuestion, retryPracticeGeneration, startPractice, submitPracticeAnswer, updatePracticeAnswer } from "../app/practice-session.ts";
+import { calculatePracticeMetrics } from "../app/practice-metrics.ts";
 
 let server, engine, ui, generate;
 before(async () => {
@@ -25,7 +26,10 @@ before(async () => {
 });
 after(async () => { await server?.close(); });
 const noop = () => {};
-const actions = { answer: noop, check: noop, next: noop, end: noop, retry: noop, configure: noop };
+const actions = { answer: noop, check: noop, next: noop, end: noop, retry: noop, configure: noop, back: noop };
+const submit = (state, locale = "es") => submitPracticeAnswer(
+  markPracticeQuestionAvailable(state, { monotonicMs: 1000, wallTimeMs: 1700000000000 }), locale,
+  { monotonicMs: 5500, wallTimeMs: 1700000004500 });
 const renderStructure = (molecule, label, width, height) => React.createElement(engine.MoleculeHistoryPreview, {
   molecule, ariaLabel: label, width, height, practiceView: true,
 });
@@ -180,7 +184,7 @@ test("duplicate skips, feedback and generation retry keep render/reference bundl
   const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59");
   const first = startPractice(config, generate);
   assertPracticeGraphProjection(first);
-  const feedback = submitPracticeAnswer(updatePracticeAnswer(first, first.question.reference.name), "es");
+  const feedback = submit(updatePracticeAnswer(first, first.question.reference.name), "es");
   assertPracticeGraphProjection(feedback);
   const failed = nextPracticeQuestion(feedback, (_config, index) => {
     if (index < 4) return first.question;
@@ -254,7 +258,7 @@ test("QUESTION has a read-only structure and input without names, analysis, reas
 
 test("correct feedback reveals the localized reference, locks the input and offers only Next", () => {
   const state = startPractice(config(), generate);
-  const feedback = submitPracticeAnswer(updatePracticeAnswer(state, state.question.reference.names.es), "es");
+  const feedback = submit(updatePracticeAnswer(state, state.question.reference.names.es), "es");
   const html = htmlFor(feedback);
   assert.match(html, /✓ Correcto/);
   assert.match(html, /role="status" aria-live="polite"/);
@@ -265,7 +269,7 @@ test("correct feedback reveals the localized reference, locks the input and offe
 });
 
 test("incorrect feedback uses scoped language, then relocalizes without changing its outcome", () => {
-  const state = submitPracticeAnswer(updatePracticeAnswer(startPractice(config(), generate), "wrong"), "es");
+  const state = submit(updatePracticeAnswer(startPractice(config(), generate), "wrong"), "es");
   const es = htmlFor(state), en = htmlFor(state, "en");
   assert.match(es, /No exactamente\./);
   assert.match(en, /Not quite\./);
@@ -275,16 +279,63 @@ test("incorrect feedback uses scoped language, then relocalizes without changing
   assert.doesNotMatch(en, /Invalid chemical name|Try again|Check answer/);
 });
 
-test("COMPLETE offers another practice without score; ERROR offers safe retry/configuration", () => {
-  const complete = htmlFor({ phase: "COMPLETE", config: config() }, "en");
+test("COMPLETE offers initial summary and new practice; ERROR offers safe retry/configuration", () => {
+  const complete = htmlFor({ phase: "COMPLETE", config: config(), attempts: [] }, "en");
   assert.match(complete, /Practice complete/);
   assert.match(complete, /Start another practice/);
-  assert.doesNotMatch(complete, /Score|Accuracy|practice-answer/);
-  const error = htmlFor({ phase: "ERROR", config: config(), index: 0, generationIndex: 0, recentIdentities: [] }, "en");
+  assert.match(complete, /Initial results|First-attempt accuracy/);
+  assert.doesNotMatch(complete, /practice-answer/);
+  const error = htmlFor({ phase: "ERROR", config: config(), index: 0, generationIndex: 0, recentIdentities: [], attempts: [] }, "en");
   assert.match(error, /role="alert"/);
   assert.match(error, /Retry/);
   assert.match(error, /Back to configuration/);
   assert.doesNotMatch(error, /stack|ChemicalGenerationError/);
+});
+
+for (const language of ["es", "en"]) test(`initial summary ${language}: submitted results, timings, groups and real exit actions`, () => {
+  const question = startPractice(config(), generate);
+  const correct = submit(updatePracticeAnswer(question, question.question.reference.names.es));
+  const next = nextPracticeQuestion(correct, generate);
+  const wrong = submit(updatePracticeAnswer(next, "wrong"));
+  const summary = { phase: "COMPLETE", config: config(), attempts: wrong.attempts };
+  const snapshot = structuredClone(summary);
+  const html = htmlFor(summary, language);
+  assert.ok(html.includes(uiText(language, "Resultados iniciales")));
+  assert.ok(html.includes(uiText(language, "Acierto en el primer intento")));
+  assert.ok(html.includes(uiText(language, "Preguntas para repasar")));
+  assert.ok(html.includes(uiText(language, "Acierto por categoría")));
+  assert.ok(html.includes(uiText(language, "Acierto por tipo de pregunta")));
+  assert.ok(html.includes(uiText(language, "Ésteres")));
+  assert.ok(html.includes(uiText(language, "Nomenclatura")));
+  assert.match(html, /1 \/ 2/);
+  assert.match(html, /50\s*%/);
+  assert.ok(html.includes(language === "es" ? "4,5 s" : "4.5 s"));
+  assert.ok(html.includes(uiText(language, "Iniciar otra práctica")));
+  assert.ok(html.includes(uiText(language, "Volver al laboratorio")));
+  assert.doesNotMatch(html, /<svg|practice-answer|Correct mistakes|Corregir errores|Reviewer|Multiple choice|Construir la molécula/);
+  assert.equal(calculatePracticeMetrics(summary.attempts).questionsToReview, 1);
+  assert.deepEqual(summary, snapshot);
+});
+
+test("Endless and empty summaries have defined results and omit unanswered category/type rows", () => {
+  const summary = { phase: "COMPLETE", config: createPracticeConfig(["alkane"], "endless", "en", "summary"), attempts: [] };
+  const html = htmlFor(summary, "en");
+  assert.match(html, /Practice summary/);
+  assert.match(html, /No answers were submitted/);
+  assert.match(html, /0 \/ 0/);
+  assert.doesNotMatch(html, /NaN|Infinity|<table|Practice complete/);
+});
+
+test("summary relocalization preserves log identity, immutable initial metrics and submission language", () => {
+  const question = startPractice(config(), generate);
+  const feedback = submit(updatePracticeAnswer(question, "wrong"));
+  const summary = { phase: "COMPLETE", config: config(), attempts: feedback.attempts };
+  const en = localizePracticeState(summary, "en");
+  assert.equal(en.attempts, summary.attempts);
+  assert.equal(en.attempts[0].localeAtSubmission, "es");
+  assert.deepEqual(calculatePracticeMetrics(en.attempts), calculatePracticeMetrics(summary.attempts));
+  assert.match(htmlFor(en, "en"), /Initial results/);
+  assert.match(htmlFor(en, "es"), /Resultados iniciales/);
 });
 
 test("Practice renderer uses real hydrogen/charge labels and preserves both E/Z geometries", () => {
@@ -311,9 +362,10 @@ test("Practice renderer uses real hydrogen/charge labels and preserves both E/Z 
 });
 
 test("every Practice label has EN/ES text and the dictionary has no duplicate Practice keys", () => {
-  const panel = readFileSync(new URL("../app/practice-panel.tsx", import.meta.url), "utf8");
+  const panel = ["practice-panel.tsx", "practice-summary.tsx"].map((file) => readFileSync(new URL(`../app/${file}`, import.meta.url), "utf8")).join("\n");
   const labels = [...panel.matchAll(/(?:t|uiText)\((?:language, )?"([^"]+)"\)/g)].map((match) => match[1]);
   labels.push(...ui.PRACTICE_TOPIC_GROUPS.flatMap((group) => [group.label, ...group.topics.map(([, label]) => label)]));
+  labels.push("Opción múltiple", "Construir la molécula");
   for (const label of labels) {
     assert.equal(uiText("es", label), label);
     assert.notEqual(uiText("en", label), label, `Missing EN label: ${label}`);
@@ -330,7 +382,8 @@ test("every Practice label has EN/ES text and the dictionary has no duplicate Pr
 });
 
 test("Practice TypeScript modules typecheck against the real session and generated molecular model", () => {
-  const files = ["practice-reference-answer.ts", "practice-session.ts", "practice-panel.tsx", "practice-molecule-layout.ts"].map((name) =>
+  const files = ["practice-reference-answer.ts", "practice-session.ts", "practice-panel.tsx", "practice-molecule-layout.ts",
+    "practice-attempt.ts", "practice-timing.ts", "practice-metrics.ts", "practice-summary.tsx"].map((name) =>
     fileURLToPath(new URL(`../app/${name}`, import.meta.url)).replace(/\\/g, "/"));
   const program = ts.createProgram(files, { strict: true, noEmit: true, skipLibCheck: true,
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler,

@@ -3,6 +3,10 @@ import type { ExerciseCategory, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
 import type { GeneratedExerciseMolecule } from "./exercise-chemical-generator.ts";
 import { matchesHydrocarbonReferenceName } from "./practice-reference-answer.ts";
+import { appendPracticeAttempt, createInitialAttempt } from "./practice-attempt.ts";
+import type { AttemptRecord } from "./practice-attempt.ts";
+import { validatePracticeTime } from "./practice-timing.ts";
+import type { PracticeTime } from "./practice-timing.ts";
 
 export const PRACTICE_LENGTHS = [5, 10, 20, 30, "endless"] as const;
 export const PRACTICE_RECENT_LIMIT = 8;
@@ -15,14 +19,15 @@ type Context = {
   index: number;
   generationIndex: number;
   recentIdentities: readonly string[];
+  attempts: readonly AttemptRecord[];
 };
-type CurrentQuestion = Context & { question: GeneratedExerciseMolecule; answer: string };
+type CurrentQuestion = Context & { question: GeneratedExerciseMolecule; answer: string; timing: PracticeTime | null };
 export type PracticeState =
   | { phase: "CONFIG" }
   | (CurrentQuestion & { phase: "QUESTION" })
   | (CurrentQuestion & { phase: "FEEDBACK"; correct: boolean; submittedLocale: AppLanguage })
   | (Context & { phase: "ERROR" })
-  | { phase: "COMPLETE"; config: SessionConfig };
+  | { phase: "COMPLETE"; config: SessionConfig; attempts: readonly AttemptRecord[] };
 
 /** The optional seed is resolved only at the session boundary, never per question. */
 export function resolvePracticeSeed(seed: string, createPublicSeed: () => string): string {
@@ -54,7 +59,7 @@ function loadQuestion(context: Context, generate: PracticeGenerator): PracticeSt
       if (context.recentIdentities.includes(identity) && offset < PRACTICE_DUPLICATE_LIMIT - 1) continue;
       const recentIdentities = [...context.recentIdentities.filter((item) => item !== identity), identity]
         .slice(-PRACTICE_RECENT_LIMIT);
-      return { ...context, phase: "QUESTION", generationIndex, recentIdentities, question, answer: "" };
+      return { ...context, phase: "QUESTION", generationIndex, recentIdentities, question, answer: "", timing: null };
     } catch {
       // No stack, exception text or partially generated graph enters the UI.
       return { ...context, phase: "ERROR", generationIndex };
@@ -69,7 +74,18 @@ export function startPractice(config: SessionConfig, generate: PracticeGenerator
     || canonical.questionTypes[0] !== "naming" || canonical.difficulty !== "basic") {
     throw new TypeError("Unsupported Practice configuration.");
   }
-  return loadQuestion({ config: canonical, index: 0, generationIndex: 0, recentIdentities: [] }, generate);
+  return loadQuestion({ config: canonical, index: 0, generationIndex: 0, recentIdentities: [], attempts: [] }, generate);
+}
+
+/** Called at the UI commit that makes the answer input available. Idempotent
+ * across theme/locale renders and Strict Mode. A stale presentation cannot
+ * start a timer for another displayed question.
+ */
+export function markPracticeQuestionAvailable(state: PracticeState, time: PracticeTime,
+  expected?: { questionId: string; index: number }): PracticeState {
+  if (state.phase !== "QUESTION" || state.timing !== null
+    || (expected && (expected.questionId !== state.question.question.id || expected.index !== state.index))) return state;
+  return { ...state, timing: validatePracticeTime(time) };
 }
 
 export function updatePracticeAnswer(state: PracticeState, answer: string): PracticeState {
@@ -86,21 +102,25 @@ export function localizePracticeState(state: PracticeState, locale: AppLanguage)
   } };
 }
 
-export function submitPracticeAnswer(state: PracticeState, locale: AppLanguage): PracticeState {
-  if (state.phase !== "QUESTION" || !state.answer.trim()) return state;
+export function submitPracticeAnswer(state: PracticeState, locale: AppLanguage, submitted: PracticeTime): PracticeState {
+  if (state.phase !== "QUESTION" || !state.answer.trim() || !state.timing) return state;
   const localized = localizePracticeState(state, locale) as Extract<PracticeState, { phase: "QUESTION" }>;
-  return { ...localized, phase: "FEEDBACK", submittedLocale: locale,
-    correct: matchesHydrocarbonReferenceName(state.answer, localized.question.reference.name) };
+  const correct = matchesHydrocarbonReferenceName(state.answer, localized.question.reference.name);
+  const record = createInitialAttempt({ question: state.question, displayOrdinal: state.index + 1,
+    generationIndex: state.generationIndex, answer: state.answer, correct, started: state.timing, submitted, locale });
+  const attempts = appendPracticeAttempt(state.attempts, record);
+  if (attempts === state.attempts) return state;
+  return { ...localized, phase: "FEEDBACK", submittedLocale: locale, correct, attempts };
 }
 
 export function nextPracticeQuestion(state: PracticeState, generate: PracticeGenerator): PracticeState {
   if (state.phase !== "FEEDBACK") return state;
   const index = state.index + 1;
   if (state.config.questionCount !== "endless" && index >= state.config.questionCount) {
-    return { phase: "COMPLETE", config: state.config };
+    return { phase: "COMPLETE", config: state.config, attempts: state.attempts };
   }
   return loadQuestion({ config: state.config, index, generationIndex: state.generationIndex + 1,
-    recentIdentities: state.recentIdentities }, generate);
+    recentIdentities: state.recentIdentities, attempts: state.attempts }, generate);
 }
 
 export function retryPracticeGeneration(state: PracticeState, generate: PracticeGenerator): PracticeState {
@@ -108,5 +128,6 @@ export function retryPracticeGeneration(state: PracticeState, generate: Practice
 }
 
 export function endPractice(state: PracticeState): PracticeState {
-  return state.phase === "CONFIG" ? state : { phase: "COMPLETE", config: state.config };
+  return state.phase === "CONFIG" || state.phase === "COMPLETE" ? state
+    : { phase: "COMPLETE", config: state.config, attempts: state.attempts };
 }

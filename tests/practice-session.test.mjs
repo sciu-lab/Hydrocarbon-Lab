@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { EXERCISE_CATEGORIES } from "../app/exercise-model.ts";
 import { createRestrictedChemicalGenerator, ChemicalGenerationError } from "../app/exercise-chemical-generator.ts";
 import {
-  createPracticeConfig, endPractice, localizePracticeState, nextPracticeQuestion,
+  createPracticeConfig, endPractice, localizePracticeState, markPracticeQuestionAvailable, nextPracticeQuestion,
   PRACTICE_DUPLICATE_LIMIT, PRACTICE_RECENT_LIMIT, resolvePracticeSeed, retryPracticeGeneration,
   startPractice, submitPracticeAnswer, updatePracticeAnswer,
 } from "../app/practice-session.ts";
@@ -13,7 +13,10 @@ let chemistry, generate;
 before(async () => { chemistry = await loadExerciseChemistry(); generate = createRestrictedChemicalGenerator(chemistry.oracles); });
 after(async () => { await chemistry?.close(); });
 const configFor = (count = 5, categories = ["alkane"], locale = "es") => createPracticeConfig(categories, count, locale, "PRACTICE-PHASE3");
-const answerCorrectly = (state, locale = "es") => submitPracticeAnswer(updatePracticeAnswer(state, state.question.reference.names[locale]), locale);
+const submit = (state, locale = "es") => submitPracticeAnswer(
+  markPracticeQuestionAvailable(state, { monotonicMs: 1000, wallTimeMs: 1700000000000 }), locale,
+  { monotonicMs: 5500, wallTimeMs: 1700000004500 });
+const answerCorrectly = (state, locale = "es") => submit(updatePracticeAnswer(state, state.question.reference.names[locale]), locale);
 
 test("Practice constructs the existing SessionConfig with Naming/basic and canonical category IDs", () => {
   assert.deepEqual(createPracticeConfig(["alcohol", "alkane", "alcohol"], 10, "en", " exact seed "), {
@@ -44,23 +47,25 @@ for (const count of [5, 10]) test(`finite Practice ${count}: one submission, Nex
     assert.equal(state.index, index);
     assert.deepEqual(state.question, generate(config, state.generationIndex));
     assert.equal(nextPracticeQuestion(state, generate), state);
-    assert.equal(submitPracticeAnswer(state, "es"), state);
+    assert.equal(submitPracticeAnswer(state, "es", { monotonicMs: 5500, wallTimeMs: 5500 }), state);
     const feedback = answerCorrectly(state);
     assert.equal(feedback.phase, "FEEDBACK");
     assert.equal(feedback.correct, true);
-    assert.equal(submitPracticeAnswer(feedback, "en"), feedback);
+    assert.equal(submit(feedback, "en"), feedback);
     assert.equal(updatePracticeAnswer(feedback, "changed"), feedback);
     assert.ok(feedback.recentIdentities.length <= PRACTICE_RECENT_LIMIT);
     assert.equal(Object.hasOwn(feedback, "history"), false);
     state = nextPracticeQuestion(feedback, generate);
   }
-  assert.deepEqual(state, { phase: "COMPLETE", config });
+  assert.equal(state.phase, "COMPLETE");
+  assert.deepEqual(state.config, config);
+  assert.equal(state.attempts.length, count);
   assert.equal(nextPracticeQuestion(state, generate), state);
 });
 
 test("incorrect feedback evaluates against the current locale without a correction loop", () => {
   const state = startPractice(configFor(5, ["ester"]), generate);
-  const feedback = submitPracticeAnswer(updatePracticeAnswer(state, "unrelated-name"), "es");
+  const feedback = submit(updatePracticeAnswer(state, "unrelated-name"), "es");
   assert.equal(feedback.phase, "FEEDBACK");
   assert.equal(feedback.correct, false);
   assert.equal(feedback.submittedLocale, "es");
