@@ -140,6 +140,7 @@ import { curatedCommonNameForSmiles } from "./curated-common-name-display";
 import { legacyProfileDisplayName } from "./legacy-profile-display";
 import { deriveReasoningNameFragments, type ReasoningNameFragment } from "./reasoning-name-fragments";
 import { functionalContributionReasoning, retainedFunctionalParentReasoning } from "./reasoning-functional-groups";
+import { aromaticFunctionalChainReasoning } from "./reasoning-aromatic-substituents";
 import { buildReasoningNameLinkParts } from "./reasoning-name-links";
 import { activateReasoningReference, cancelReasoningHover, scheduleReasoningHover, scrollToReasoningStep } from "./reasoning-name-navigation";
 import {
@@ -2833,7 +2834,7 @@ function longestPathLength(atomIds: readonly number[], skeleton: Molecule) {
 
 /**
  * Legacy ring/chain tie-break used by the simulator: a principal-group chain
- * of at least two carbons wins; without one, an acyclic chain wins only when
+ * wins; without one, an acyclic chain wins only when
  * it is longer than the monocycle. Equal sizes retain the ring as parent.
  */
 function selectChainAgainstMonocycle(
@@ -2883,8 +2884,17 @@ function selectChainAgainstMonocycle(
   const principalOnRing = Boolean(primaryKind && groups.some(
     (group) => group.kind === primaryKind && group.carbonIds.some((id) => ringIds.has(id)),
   ));
+  // A one-carbon alcohol/amine parent attached to phenyl is already expressible
+  // by the functional-chain grammar. The old length > 1 guard incorrectly
+  // sent these structures to ring suffixes (bencenol / bencen-1-amina).
+  // Keep ring carbonyl retained names and unrepresented ring substituents on
+  // their existing paths; this does not add a substituted-aryl grammar.
+  const oneCarbonArylFunctionalParent = ring.kind === "aromatic" && ring.atomIds.length === 6
+    && chosen.carbonCount === 1 && components.length === 1
+    && (primaryKind === "alcohol" || primaryKind === "amine")
+    && groups.every((group) => group.carbonIds.some((id) => chosen.atomIds.includes(id)));
   const useChain = primaryKind
-    ? !principalOnRing && chosen.principalGroupCount > 0 && chosen.carbonCount > 1
+    ? !principalOnRing && chosen.principalGroupCount > 0 && (chosen.carbonCount > 1 || oneCarbonArylFunctionalParent)
     : chosen.carbonCount > ring.atomIds.length;
   if (!useChain) return undefined;
 
@@ -3092,6 +3102,7 @@ function makeFunctionalParentName(
   kind: FunctionalGroupKind,
   locants: number[],
   esterAlkylNames: string[] = [],
+  retainShortAmineLocant = false,
 ) {
   const hydrocarbonName = makeChainName(length, doubleLocants, tripleLocants);
   const stem = hydrocarbonName.endsWith("o") ? hydrocarbonName.slice(0, -1) : hydrocarbonName;
@@ -3140,7 +3151,8 @@ function makeFunctionalParentName(
   }
   if (kind === "ketone") return `${stem}-${locant}-ona`;
   if (kind === "amine") {
-    if (!doubleLocants.length && !tripleLocants.length && length <= 2) return `${stem}amina`;
+    if (!doubleLocants.length && !tripleLocants.length
+      && (length === 1 || length === 2 && !retainShortAmineLocant)) return `${stem}amina`;
     return `${stem}-${locant}-amina`;
   }
   return hydrocarbonName;
@@ -3265,6 +3277,12 @@ function analyzeFunctionalAcyclic(
     ? groups.filter((group) => group.kind === primaryKind && locantForGroup(group, chosen.path))
     : [];
   const primaryGroup = primaryGroups[0];
+  // P-14.3.4.2(b) permits omission for a monosubstituted two-carbon parent.
+  // Phenyl plus a principal function is disubstitution: C1/C2 is meaningful,
+  // so preserve both the phenyl locant and the short amine's suffix locant.
+  // Scope this correction to the existing aromatic-functional chain grammar.
+  const twoCarbonPhenylFunction = chosen.path.length === 2 && Boolean(primaryKind)
+    && chosen.carbonSubstituents.some((item) => item.name === "fenil" && item.atomIds?.length === 6);
   const chainName = primaryKind
     ? makeFunctionalParentName(
         chosen.path.length,
@@ -3275,6 +3293,7 @@ function analyzeFunctionalAcyclic(
         primaryKind === "ester"
           ? primaryGroups.map((group) => esterAlkylName(group.alkylCarbonId, skeleton))
           : [],
+        twoCarbonPhenylFunction,
       )
     : baseHydrocarbonName;
   let substituentParts = formatSubstituentGroups(chosen.substituents, enabledAliases);
@@ -3286,6 +3305,7 @@ function analyzeFunctionalAcyclic(
     chosen.path.length === 2
     && chosen.substituents.length === 1
     && chosen.substituents[0].locant === 1
+    && !twoCarbonPhenylFunction
   ) {
     substituentParts = substituentParts.map((part) => part.replace(/^1-/, ""));
   }
@@ -4330,6 +4350,7 @@ export function buildIupacReasoningSteps(
   );
   const primaryKind = analysis.primaryFunctionalGroup;
   const retainedReasoning = retainedFunctionalParentReasoning(analysis, "es");
+  const arylChainReasoning = aromaticFunctionalChainReasoning(molecule, analysis, "es");
   const aromaticNitroGroups = analysis.family === "aromatic"
     ? analysis.functionalGroups.filter((group) => group.kind === "nitro")
     : [];
@@ -4370,7 +4391,7 @@ export function buildIupacReasoningSteps(
     steps.push({
       number: "01",
       title: "Grupo funcional principal",
-      explanation: retainedReasoning?.function ?? `${priorityLead} Aporta el sufijo del nombre. ${positionRule}${aromaticNitroGroups.length ? " Los grupos nitro se expresan con el prefijo nitro- y no desplazan esta función de sufijo." : ""} ${functionalContributionReasoning(analysis, "function", "es")}`.trim(),
+      explanation: retainedReasoning?.function ?? `${priorityLead} Aporta el sufijo del nombre. ${positionRule}${aromaticNitroGroups.length ? " Los grupos nitro se expresan con el prefijo nitro- y no desplazan esta función de sufijo." : ""} ${functionalContributionReasoning(analysis, "function", "es")} ${arylChainReasoning?.function ?? ""}`.trim(),
       nameRole: "function",
     });
   } else if (aromaticNitroGroups.length) {
@@ -4385,6 +4406,8 @@ export function buildIupacReasoningSteps(
   const heterocycleParentRing = heterocycleRing(molecule);
   if (retainedReasoning) {
     parentExplanation = retainedReasoning.parent;
+  } else if (arylChainReasoning) {
+    parentExplanation = arylChainReasoning.parent;
   } else if (heterocycleParentRing) {
     parentExplanation = `${heterocycleRingCompositionText(molecule, heterocycleParentRing, "es")} El nombre del padre es ${analysis.chainName}; el nombre IUPAC completo es ${analysis.name}.`;
   } else if (analysis.family === "aromatic") {
@@ -4549,7 +4572,7 @@ export function buildIupacReasoningSteps(
     steps.push({
       number: "04",
       title: "Sustituyentes y localizadores",
-      explanation: `Con la orientación ya evaluada, ${analysis.substituents.length === 1 ? "se ubica" : "se ubican"} ${joinSpanishList(localizedSubstituents)}. ${hierarchyReminder} ${functionalContributionReasoning(analysis, "substituent", "es")}`.trim(),
+      explanation: `Con la orientación ya evaluada, ${analysis.substituents.length === 1 ? "se ubica" : "se ubican"} ${joinSpanishList(localizedSubstituents)}. ${hierarchyReminder} ${functionalContributionReasoning(analysis, "substituent", "es")} ${arylChainReasoning?.substituent ?? ""}`.trim(),
       nameRole: "substituent",
     });
   }
@@ -4593,6 +4616,7 @@ export function buildEnglishReasoningSteps(
   analysis: Analysis,
 ): IupacReasoningStep[] {
   const retainedReasoning = retainedFunctionalParentReasoning(analysis, "en");
+  const arylChainReasoning = aromaticFunctionalChainReasoning(molecule, analysis, "en");
   const exocyclicRingFunction = exocyclicRingCarbonFunction(molecule, analysis);
   const englishName = translateSpanishIupacForDisplay(analysis.name) || analysis.name;
   const parentName = translateSpanishIupacToOpsin(analysis.chainName) || analysis.chainName;
@@ -4829,6 +4853,8 @@ export function buildEnglishReasoningSteps(
       const heterocycleParentRing = heterocycleRing(molecule);
       if (retainedReasoning) {
         explanation = retainedReasoning.parent;
+      } else if (arylChainReasoning) {
+        explanation = arylChainReasoning.parent;
       } else if (exocyclicRingFunction) {
         const groupLabel = exocyclicRingFunction.kind === "aldehyde" ? "–CHO" : "–COOH";
         const suffix = exocyclicRingFunction.kind === "aldehyde" ? "carbaldehyde" : "carboxylic acid";
@@ -4897,6 +4923,7 @@ export function buildEnglishReasoningSteps(
 
     if ((step.nameRole === "function" && !retainedReasoning) || step.nameRole === "substituent") {
       explanation = `${explanation} ${functionalContributionReasoning(analysis, step.nameRole, "en")}`.trim();
+      if (arylChainReasoning) explanation = `${explanation} ${arylChainReasoning[step.nameRole]}`.trim();
     }
     return {
       ...step,

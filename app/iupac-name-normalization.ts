@@ -286,6 +286,10 @@ function translateCore(value: string) {
     .replace(/fenol/g, "phenol")
     .replace(/fenoxi/g, "phenoxy")
     .replace(/fenil/g, "phenyl")
+    // Phenyl can be glued directly to its functional-chain parent. Preserve
+    // the English meth/eth roots even without a word or hyphen boundary.
+    .replace(/phenylmet(?=an|en|in)/g, "phenylmeth")
+    .replace(/phenylet(?=an|en|in)/g, "phenyleth")
     .replace(/cloro/g, "chloro")
     .replace(/yodo/g, "iodo")
     .replace(
