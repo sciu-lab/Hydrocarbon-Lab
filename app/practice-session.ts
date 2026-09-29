@@ -129,7 +129,7 @@ export function submitPracticeAnswer(state: PracticeState, locale: AppLanguage, 
   if (!isPracticeAnswerState(state) || !state.answer.trim() || !state.timing) return state;
   const config = normalizeSessionConfig({ ...state.config, locale });
   const question = { ...state.question, reference: { ...state.question.reference, name: state.question.reference.names[locale] } };
-  const correct = matchesHydrocarbonReferenceName(state.answer, question.reference.name);
+  const correct = matchesHydrocarbonReferenceName(state.answer, question.reference.name, locale);
   if (state.phase === "CORRECTION_QUESTION") {
     const record = createCorrectionAttempt(state.original, state.attempts,
       { answer: state.answer, correct, started: state.timing, submitted, locale });

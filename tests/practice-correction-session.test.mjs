@@ -204,3 +204,20 @@ test("all admitted categories reconstruct ES/EN chemistry, full graphs and their
     }
   }
 });
+
+test("Correction Loop uses the shared Naming evaluator for an unaccented answer to a real Spanish reference", () => {
+  const cfg = createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference");
+  const question = startPractice(cfg, generate);
+  assert.equal(question.question.reference.names.es, "ácido octanoico");
+  const first = submitPracticeAnswer(updatePracticeAnswer(markPracticeQuestionAvailable(question, time(1000)), "respuesta errónea"), "es", time(2000));
+  assert.equal(first.correct, false);
+  const summary = endPractice(first);
+  const correction = startPracticeCorrections(summary, generate);
+  assert.equal(correction.phase, "CORRECTION_QUESTION");
+  assert.equal(correction.question.reference.name, "ácido octanoico");
+  const ready = markPracticeQuestionAvailable(correction, time(3000));
+  const feedback = submitPracticeAnswer(updatePracticeAnswer(ready, "acido octanoico"), "es", time(5000));
+  assert.equal(feedback.phase, "CORRECTION_FEEDBACK");
+  assert.equal(feedback.correct, true);
+  assert.equal(feedback.attempts.at(-1).attemptNumber, 2);
+});

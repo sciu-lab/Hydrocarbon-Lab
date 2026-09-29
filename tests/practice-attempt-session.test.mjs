@@ -52,6 +52,23 @@ test("unavailable, blank, abandoned questions and generation errors never create
   assert.deepEqual(endPractice(failed).attempts, []);
 });
 
+test("normal Practice accepts an unaccented Spanish answer for a real acid reference while EN stays exact", () => {
+  const acidConfig = createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference");
+  const question = startPractice(acidConfig, generate);
+  assert.equal(question.question.reference.names.es, "ácido octanoico");
+  const spanish = submitPracticeAnswer(updatePracticeAnswer(ready(question), "acido octanoico"), "es", time(5500));
+  assert.equal(spanish.phase, "FEEDBACK");
+  assert.equal(spanish.correct, true);
+  assert.equal(spanish.attempts[0].correct, true);
+
+  const english = localizePracticeState(ready(question), "en");
+  assert.equal(english.question.reference.name, "octanoic acid");
+  const wrongEnglish = submitPracticeAnswer(updatePracticeAnswer(english, "acido octanoico"), "en", time(5500));
+  assert.equal(wrongEnglish.correct, false);
+  const correctEnglish = submitPracticeAnswer(updatePracticeAnswer(english, "octanoic acid"), "en", time(5500));
+  assert.equal(correctEnglish.correct, true);
+});
+
 test("fake-clock presentation 1000 to Submit 5500 is frozen at 4500 even with Next at 20000", () => {
   let now = 1000;
   const clock = createPracticeClock(() => now, () => 1700000000000 + now);
