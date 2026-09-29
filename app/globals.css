@@ -9641,6 +9641,7 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .practice-question-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 24px 0 16px; }
 .practice-question-heading .scope-pill { display: inline-flex; }
 .practice-structure { width: 100%; min-width: 0; }
+.practice-structure.is-reviewing { position: sticky; top: 8px; z-index: 2; background: var(--paper); border-radius: 12px; }
 .practice-structure .practice-molecule-preview { height: 300px; background-color: var(--canvas); border-color: var(--line); }
 .practice-molecule-preview line { stroke: var(--ink); stroke-width: 2.4; }
 .practice-molecule-preview .history-carbon { fill: var(--ink); }
@@ -9667,6 +9668,20 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .practice-metrics-table th:nth-child(2) { width: 38%; }
 .practice-timing-note { font-size: 13px; }
 .practice-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.practice-review { min-width: 0; margin: 22px 0; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--canvas); overflow-wrap: anywhere; }
+.practice-review h3 { margin-top: 0; scroll-margin-top: 370px; }
+.practice-review-answers { margin: 20px 0; }
+.practice-review-answers dt { color: var(--muted); margin-top: 12px; }
+.practice-review-answers dd { margin: 4px 0 0; color: var(--ink); font-weight: 700; }
+.practice-review-issue { padding: 14px; border-left: 4px solid var(--blue); background: var(--paper); }
+.practice-review-steps { padding: 0; list-style: none; display: grid; gap: 14px; }
+.practice-review-steps li { min-width: 0; }
+.practice-review-steps button { width: 100%; text-align: left; white-space: normal; }
+.practice-review-steps button[aria-pressed="true"] { border-color: var(--blue); background: var(--paper); box-shadow: inset 4px 0 var(--blue); }
+.practice-review-steps p { margin: 8px 0; line-height: 1.6; }
+.practice-molecule-preview line[data-review-highlight="true"] { stroke: var(--blue); stroke-width: 4; }
+.practice-molecule-preview g[data-review-highlight="true"] circle { stroke: var(--blue); stroke-width: 3; }
+.practice-molecule-preview .practice-review-locant { fill: var(--blue); font-size: 12px; font-weight: 800; }
 .practice-end { margin-top: 24px; }
 html[data-theme="dark"] .practice-mode button[aria-pressed="true"] { background: var(--canvas); }
 @media (max-width: 640px) {

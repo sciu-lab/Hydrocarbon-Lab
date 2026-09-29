@@ -3,6 +3,13 @@ export type AppLanguage = "es" | "en";
 export const LANGUAGE_STORAGE_KEY = "hydrocarbon-lab-language";
 
 const ENGLISH_UI: Record<string, string> = {
+  "Revisar respuesta": "Review answer",
+  "Revisión detallada": "Detailed review",
+  "Tu respuesta": "Student answer",
+  "Idioma de la respuesta enviada": "Submitted answer language",
+  "Selecciona un paso para resaltar sus átomos y enlaces.": "Select a step to highlight its atoms and bonds.",
+  "Volver al feedback": "Back to feedback",
+  "No se pudo abrir la revisión. Puedes continuar la práctica; tus resultados se conservan.": "The review could not be opened. You can continue practice; your results are preserved.",
   "Práctica / Examen": "Practice / Exam",
   "Práctica": "Practice",
   "Examen": "Exam",

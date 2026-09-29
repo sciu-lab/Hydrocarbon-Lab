@@ -17,6 +17,8 @@ import { browserPracticeClock } from "./practice-timing.ts";
 import type { PracticeClock } from "./practice-timing.ts";
 import { formatPracticeResponseTime } from "./practice-metrics.ts";
 import { PracticeSummary } from "./practice-summary.tsx";
+import type { PracticeReviewer, ReviewHighlights, ReviewModel } from "./practice-review.ts";
+import { PracticeReviewPanel } from "./practice-review-panel.tsx";
 
 export const PRACTICE_TOPIC_GROUPS = [
   { label: "Hidrocarburos", topics: [["alkane", "Alcanos"], ["alkene", "Alquenos"], ["alkyne", "Alquinos"]] },
@@ -29,7 +31,7 @@ export const PRACTICE_TOPIC_GROUPS = [
   { label: "Estereoquímica", topics: [["ez", "Estereoquímica E/Z"]] },
 ] as const;
 
-type StructureRenderer = (molecule: GeneratedMolecule, label: string, width: number, height: number) => ReactNode;
+type StructureRenderer = (molecule: GeneratedMolecule, label: string, width: number, height: number, highlights?: ReviewHighlights) => ReactNode;
 type ViewActions = {
   answer(value: string): void;
   check(): void;
@@ -41,8 +43,9 @@ type ViewActions = {
   correctMistakes(): void;
 };
 
-function PracticeStructure({ molecule, language, renderStructure }: {
+function PracticeStructure({ molecule, language, renderStructure, highlights }: {
   molecule: GeneratedMolecule; language: AppLanguage; renderStructure: StructureRenderer;
+  highlights?: ReviewHighlights;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
@@ -52,22 +55,25 @@ function PracticeStructure({ molecule, language, renderStructure }: {
     observer.observe(container.current);
     return () => observer.disconnect();
   }, []);
-  return <div className="practice-structure" ref={container}>
-    {renderStructure(molecule, uiText(language, "Estructura molecular de la pregunta"), width, 300)}
+  return <div className={`practice-structure${highlights ? " is-reviewing" : ""}`} ref={container}>
+    {renderStructure(molecule, uiText(language, "Estructura molecular de la pregunta"), width, 300, highlights)}
     <p>{uiText(language, "Cada vértice representa un carbono; sus hidrógenos son implícitos.")}</p>
   </div>;
 }
 
-/** Stateless presentation makes answer hiding, disabled controls and feedback testable. */
-export function PracticeSessionView({ state, language, renderStructure, actions, answerRef, feedbackRef, onQuestionAvailable }: {
+/** Session data stays read-only; review selection is local presentation state. */
+export function PracticeSessionView({ state, language, renderStructure, review, actions, answerRef, feedbackRef, onQuestionAvailable }: {
   state: Exclude<PracticeState, { phase: "CONFIG" }>;
   language: AppLanguage;
   renderStructure: StructureRenderer;
+  review: PracticeReviewer;
   actions: ViewActions;
   answerRef?: RefObject<HTMLInputElement | null>;
   feedbackRef?: RefObject<HTMLDivElement | null>;
   onQuestionAvailable?(questionId: string, index: number): void;
 }) {
+  const [reviewState, setReviewState] = useState<{ model: ReviewModel; activeStep: string } | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const currentId = hasPracticeQuestion(state) ? state.question.question.id : null;
   const currentIndex = hasPracticeQuestion(state) ? state.index : -1;
   const phase = state.phase;
@@ -101,6 +107,18 @@ export function PracticeSessionView({ state, language, renderStructure, actions,
   </div>;
   const correction = state.phase === "CORRECTION_QUESTION" || state.phase === "CORRECTION_FEEDBACK";
   const feedback = state.phase === "FEEDBACK" || state.phase === "CORRECTION_FEEDBACK";
+  const attempt = feedback ? state.attempts[state.attempts.length - 1] : null;
+  const reviewKey = attempt ? `${attempt.questionId}:${attempt.generationIndex}:${attempt.attemptNumber}` : null;
+  const openReview = feedback && reviewState && attempt
+    && reviewState.model.questionId === attempt.questionId
+    && reviewState.model.generationIndex === attempt.generationIndex
+    && reviewState.model.attemptNumber === attempt.attemptNumber ? reviewState : null;
+  const highlights = openReview?.model.steps.find((step) => step.id === openReview.activeStep);
+  const closeReview = () => {
+    setReviewState(null); setReviewError(null);
+    window.requestAnimationFrame(() => feedbackRef?.current?.focus());
+  };
+  const advance = () => { closeReview(); actions.next(); };
   const heading = correction ? t("Corrección {current} de {total}")
     : state.config.questionCount === "endless" ? t("Pregunta {current}") : t("Pregunta {current} de {total}");
   return <>
@@ -110,31 +128,44 @@ export function PracticeSessionView({ state, language, renderStructure, actions,
         .replace("{total}", String(correction ? state.queue.length : state.config.questionCount))}</h3>
       <span className="scope-pill">{categoryLabelFor(state.question.category)}</span>
     </div>
-    <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} />
-    <form className="practice-answer" onSubmit={(event) => { event.preventDefault(); actions.check(); }}>
+    <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} highlights={highlights} />
+    {!openReview && <form className="practice-answer" onSubmit={(event) => { event.preventDefault(); actions.check(); }}>
       <label htmlFor="practice-answer">{t("¿Cuál es el nombre IUPAC?")}</label>
       <input id="practice-answer" ref={inputRef} value={state.answer} onChange={(event) => actions.answer(event.target.value)}
         disabled={feedback || state.timing === null} autoComplete="off" autoCapitalize="none" spellCheck={false} />
       {isPracticeAnswerState(state) && <button type="submit" className="practice-primary" disabled={!state.answer.trim() || state.timing === null}>{t("Comprobar respuesta")}</button>}
-    </form>
-    {feedback && <div className={`practice-feedback ${state.correct ? "is-correct" : ""}`}
+    </form>}
+    {openReview && <PracticeReviewPanel model={openReview.model} language={language} activeStep={openReview.activeStep}
+      onSelectStep={(activeStep) => setReviewState({ ...openReview, activeStep })} onClose={closeReview} onNext={advance} />}
+    {feedback && !openReview && <div className={`practice-feedback ${state.correct ? "is-correct" : ""}`}
       role="status" aria-live="polite" tabIndex={-1} ref={feedbackRef}>
       <strong>{state.correct ? `✓ ${t("Correcto")}` : t("No exactamente.")}</strong>
       <p>{t("Nombre de referencia de Hydrocarbon Lab:")}</p>
       <p className="practice-reference">{state.question.reference.name}</p>
       <p>{t("Tiempo de respuesta")}: {formatPracticeResponseTime(state.attempts[state.attempts.length - 1].responseTimeMs, language)}</p>
-      <button type="button" className="practice-primary" onClick={actions.next}>{t("Siguiente")}</button>
+      {reviewError === reviewKey && <p role="alert">{t("No se pudo abrir la revisión. Puedes continuar la práctica; tus resultados se conservan.")}</p>}
+      <div className="practice-actions">
+        <button type="button" onClick={() => {
+          try {
+            const model = review(state.question, attempt!);
+            setReviewState({ model, activeStep: model.steps[0].id }); setReviewError(null);
+            window.requestAnimationFrame(() => document.getElementById("practice-review-title")?.focus());
+          } catch { setReviewError(reviewKey); }
+        }}>{t("Revisar respuesta")}</button>
+        <button type="button" className="practice-primary" onClick={advance}>{t("Siguiente")}</button>
+      </div>
     </div>}
     <button type="button" className="practice-end" onClick={actions.end}>{correction ? t("Finalizar repaso") : t("Terminar práctica")}</button>
   </>;
 }
 
-export function PracticePanel({ language, onLanguageChange, onBackToLab, generate, renderStructure, clock = browserPracticeClock }: {
+export function PracticePanel({ language, onLanguageChange, onBackToLab, generate, renderStructure, review, clock = browserPracticeClock }: {
   language: AppLanguage;
   onLanguageChange(language: AppLanguage): void;
   onBackToLab(): void;
   generate: PracticeGenerator;
   renderStructure: StructureRenderer;
+  review: PracticeReviewer;
   clock?: PracticeClock;
 }) {
   const [session, setSession] = useState<PracticeState>({ phase: "CONFIG" });
@@ -218,7 +249,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       <button type="submit" className="practice-primary" disabled={!categories.length}>{t("Iniciar práctica")}</button>
     </form> : <>
       <p className="practice-seed">{t("Semilla")}: <code>{localized.config.seed}</code></p>
-      <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} actions={actions}
+      <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} review={review} actions={actions}
         answerRef={answerRef} feedbackRef={feedbackRef} onQuestionAvailable={onQuestionAvailable} />
     </>}
   </section>;

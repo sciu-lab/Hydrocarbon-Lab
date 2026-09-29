@@ -16,6 +16,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { PracticePanel } from "./practice-panel";
+import { createPracticeReviewer, reviewBondId } from "./practice-review";
+import type { ReviewHighlights } from "./practice-review";
 import { calculatePracticeMolecule2DLayout } from "./practice-molecule-layout";
 import { createRestrictedChemicalGenerator } from "./exercise-chemical-generator";
 import { createExerciseChemistryOracles } from "./exercise-chemistry-oracles";
@@ -5886,12 +5888,14 @@ export function MoleculeHistoryPreview({
   height: previewHeight = 64,
   ariaLabel,
   practiceView = false,
+  reviewHighlights,
 }: {
   molecule: Molecule;
   width?: number;
   height?: number;
   ariaLabel?: string;
   practiceView?: boolean;
+  reviewHighlights?: ReviewHighlights;
 }) {
   const positions = useMemo(() => {
     // This is the same display-coordinate source used by the main skeletal
@@ -5950,6 +5954,7 @@ export function MoleculeHistoryPreview({
             data-bond-start={practiceView ? bond[0] : undefined}
             data-bond-end={practiceView ? bond[1] : undefined}
             data-bond-order={practiceView ? order : undefined}
+            data-review-highlight={practiceView && reviewHighlights?.highlightBondIds.includes(reviewBondId(bond[0], bond[1])) ? "true" : undefined}
             x1={start.x + normalX * offset}
             y1={start.y + normalY * offset}
             x2={end.x + normalX * offset}
@@ -5965,7 +5970,9 @@ export function MoleculeHistoryPreview({
         const hydrogens = practiceView ? getImplicitHydrogens(atom.id, molecule) : 0;
         const labeled = element !== "C" || isolatedCarbon;
         return (
-          <g key={atom.id} data-atom-id={practiceView ? atom.id : undefined} transform={`translate(${position.x} ${position.y})`}>
+          <g key={atom.id} data-atom-id={practiceView ? atom.id : undefined}
+            data-review-highlight={practiceView && reviewHighlights?.highlightAtomIds.includes(atom.id) ? "true" : undefined}
+            transform={`translate(${position.x} ${position.y})`}>
             <circle className={labeled ? "history-hetero" : "history-carbon"}
               r={practiceView && labeled ? isolatedCarbon ? 24 : 16 : element === "C" ? 3.5 : 7} />
             {labeled && (
@@ -5973,6 +5980,11 @@ export function MoleculeHistoryPreview({
                 {element}{hydrogens > 0 ? "H" : ""}
                 {hydrogens > 1 && <tspan baselineShift="sub" fontSize="10">{hydrogens}</tspan>}
                 {chargeText && <tspan baselineShift={practiceView ? "super" : undefined} fontSize={practiceView ? 10 : undefined}>{chargeText}</tspan>}
+              </text>
+            )}
+            {practiceView && reviewHighlights?.numbering?.some((entry) => entry.atomId === atom.id) && (
+              <text className="practice-review-locant" textAnchor="middle" y={labeled ? -28 : -14}>
+                {reviewHighlights.numbering.find((entry) => entry.atomId === atom.id)!.locant}
               </text>
             )}
           </g>
@@ -5986,6 +5998,7 @@ const generatePracticeMolecule = createRestrictedChemicalGenerator(createExercis
   analyzeMolecule, findMoleculeValenceViolation, detectFunctionalGroups,
   buildLegacyEnglishNameModel, localNamerCannotSafelyName,
 }));
+const reviewPracticeAnswer = createPracticeReviewer({ analyzeMolecule, buildLegacyEnglishNameModel });
 
 export default function Home({ initialLanguage = "es" }: { initialLanguage?: AppLanguage }) {
   // Match the server's first render; restore the route/preference after hydration.
@@ -10074,9 +10087,9 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
         onBackToLab={() => {
           setPracticeOpen(false);
           window.requestAnimationFrame(() => practiceTriggerRef.current?.focus());
-        }} generate={generatePracticeMolecule}
-        renderStructure={(molecule, label, width, height) => <MoleculeHistoryPreview molecule={molecule}
-          ariaLabel={label} width={width} height={height} practiceView />} />}
+        }} generate={generatePracticeMolecule} review={reviewPracticeAnswer}
+        renderStructure={(molecule, label, width, height, highlights) => <MoleculeHistoryPreview molecule={molecule}
+          ariaLabel={label} width={width} height={height} practiceView reviewHighlights={highlights} />} />}
 
       <div className="lab-workspace" hidden={practiceOpen} inert={practiceOpen}>
       {!practiceOpen && showGuidedTour && (
