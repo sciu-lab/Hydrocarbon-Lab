@@ -10,9 +10,10 @@ import ts from "typescript";
 import { uiText } from "../app/i18n.ts";
 import { EXERCISE_CATEGORIES } from "../app/exercise-model.ts";
 import { createExerciseChemistryOracles } from "../app/exercise-chemistry-oracles.ts";
-import { createRestrictedChemicalGenerator } from "../app/exercise-chemical-generator.ts";
+import { createRestrictedChemicalGenerator, exerciseStructuralIdentity } from "../app/exercise-chemical-generator.ts";
 import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemistry.ts";
-import { createPracticeConfig, localizePracticeState, startPractice, submitPracticeAnswer, updatePracticeAnswer } from "../app/practice-session.ts";
+import { calculatePracticeMolecule2DLayout } from "../app/practice-molecule-layout.ts";
+import { createPracticeConfig, localizePracticeState, nextPracticeQuestion, retryPracticeGeneration, startPractice, submitPracticeAnswer, updatePracticeAnswer } from "../app/practice-session.ts";
 
 let server, engine, ui, generate;
 before(async () => {
@@ -32,6 +33,185 @@ const config = () => createPracticeConfig(["ester"], 5, "es", "PRACTICE-UI");
 const htmlFor = (state, language = "es") => renderToStaticMarkup(React.createElement(ui.PracticeSessionView, {
   state: localizePracticeState(state, language), language, actions, renderStructure,
 }));
+
+function assertPracticeGraphProjection(state, width = 600) {
+  const original = structuredClone(state.question);
+  let received;
+  const html = renderToStaticMarkup(React.createElement(ui.PracticeSessionView, {
+    state, language: state.config.locale, actions,
+    renderStructure: (graph, label, _width, height) => {
+      received = structuredClone(graph);
+      return renderStructure(graph, label, width, height);
+    },
+  }));
+  assert.deepEqual(received, original.molecule);
+  assert.equal(exerciseStructuralIdentity(received), original.reference.structuralIdentity);
+  assert.deepEqual(createExerciseChemistryOracles(engine).reference(received).names, original.reference.names);
+  const attribute = (attributes, name) => new RegExp(`\\b${name}="([^"]*)"`).exec(attributes)?.[1];
+  const points = new Map();
+  for (const [, attributes] of html.matchAll(/<g\b([^>]*data-atom-id[^>]*)>/g)) {
+    const id = +attribute(attributes, "data-atom-id");
+    const transform = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(attribute(attributes, "transform"));
+    assert.ok(transform);
+    assert.ok(!points.has(id), `atom ${id} is rendered once`);
+    points.set(id, { x: +transform[1], y: +transform[2] });
+  }
+  assert.deepEqual([...points.keys()].sort((a, b) => a - b), received.atoms.map((atom) => atom.id).sort((a, b) => a - b));
+  const edge = (a, b) => `${Math.min(a, b)}:${Math.max(a, b)}`;
+  const strokes = new Map();
+  for (const [, attributes] of html.matchAll(/<line\b([^>]*)>/g)) {
+    const a = +attribute(attributes, "data-bond-start"), b = +attribute(attributes, "data-bond-end");
+    const order = +attribute(attributes, "data-bond-order");
+    const key = edge(a, b);
+    const entry = strokes.get(key) ?? { a, b, order, lines: [] };
+    assert.equal(entry.order, order);
+    const line = Object.fromEntries(["x1", "y1", "x2", "y2"].map((name) => [name, +attribute(attributes, name)]));
+    entry.lines.push(line);
+    strokes.set(key, entry);
+  }
+  assert.deepEqual([...strokes.keys()].sort(), received.bonds.map(([a, b]) => edge(a, b)).sort());
+  for (const [a, b, order = 1] of received.bonds) {
+    const entry = strokes.get(edge(a, b));
+    assert.equal(entry.order, order);
+    assert.equal(entry.lines.length, order);
+    // The strokes' centers must terminate at their own atom positions, not at
+    // another parent vertex. Relative geometry avoids fixed pixel snapshots.
+    for (const [coordinate, vertex] of [["x1", entry.a], ["y1", entry.a], ["x2", entry.b], ["y2", entry.b]]) {
+      const mean = entry.lines.reduce((sum, line) => sum + line[coordinate] / order, 0);
+      assert.ok(Math.abs(mean - points.get(vertex)[coordinate[0]]) < 1e-8);
+    }
+  }
+  for (const ring of received.rings ?? []) {
+    ring.atomIds.forEach((id, i) => assert.ok(strokes.has(edge(id, ring.atomIds[(i + 1) % ring.atomIds.length]))));
+  }
+  const bounds = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(html);
+  for (const point of points.values()) {
+    assert.ok(Number.isFinite(point.x) && point.x > 0 && point.x < +bounds[1]);
+    assert.ok(Number.isFinite(point.y) && point.y > 0 && point.y < +bounds[2]);
+  }
+  for (const { lines } of strokes.values()) for (const line of lines) {
+    assert.ok(line.x1 >= 0 && line.x1 <= +bounds[1] && line.x2 >= 0 && line.x2 <= +bounds[1]);
+    assert.ok(line.y1 >= 0 && line.y1 <= +bounds[2] && line.y2 >= 0 && line.y2 <= +bounds[2]);
+  }
+  const svgGraph = { ...received, atoms: received.atoms.map((atom) => ({ ...atom, ...points.get(atom.id) })),
+    bonds: [...strokes.values()].map(({ a, b, order }) => {
+      const source = received.bonds.find(([left, right]) => edge(left, right) === edge(a, b));
+      return source[3] ? [a, b, order, true] : [a, b, order];
+    }) };
+  assert.equal(exerciseStructuralIdentity(svgGraph), original.reference.structuralIdentity);
+  assert.deepEqual(state.question, original, "projection must not mutate the generated question");
+  return { received, points, html };
+}
+
+test("PRACTICE-003: generated ethyl/methyl cyclopentane reaches the renderer with visible branches", () => {
+  const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59");
+  const state = startPractice(config, generate);
+  const { molecule, reference } = state.question;
+  assert.equal(state.generationIndex, 0);
+  assert.equal(molecule.atoms.length, 8);
+  assert.deepEqual(molecule.bonds, [[1, 2, 1], [2, 3, 1], [3, 4, 1], [4, 5, 1], [5, 1, 1], [2, 6, 1], [6, 7, 1], [5, 8, 1]]);
+  assert.deepEqual(molecule.rings, [{ id: 1, kind: "cycloalkane", atomIds: [1, 2, 3, 4, 5] }]);
+  assert.equal(reference.structuralIdentity, "daD@@DjURjjj`@");
+  assert.equal(reference.name, "1-etil-3-metilciclopentano");
+  assert.equal(reference.names.en, "1-ethyl-3-methylcyclopentane");
+  assert.equal(reference.smiles, "CCC1CC(C)CC1");
+  assert.equal(reference.formula, "C₈H₁₆");
+  let received;
+  const html = renderToStaticMarkup(React.createElement(ui.PracticeSessionView, {
+    state, language: "es", actions, renderStructure: (graph, ...args) => {
+      received = structuredClone(graph);
+      return renderStructure(graph, ...args);
+    },
+  }));
+  assert.deepEqual(received, molecule);
+  assert.equal(exerciseStructuralIdentity(received), reference.structuralIdentity);
+  assert.deepEqual(createExerciseChemistryOracles(engine).reference(received).names, reference.names);
+  const points = [...html.matchAll(/<g[^>]*transform="translate\(([-\d.]+) ([-\d.]+)\)"/g)]
+    .map((match) => ({ x: +match[1], y: +match[2] }));
+  assert.equal(points.length, molecule.atoms.length);
+  const positions = new Map(molecule.atoms.map((atom, index) => [atom.id, points[index]]));
+  const length = ([a, b]) => Math.hypot(positions.get(a).x - positions.get(b).x, positions.get(a).y - positions.get(b).y);
+  const ringLength = Math.max(...molecule.bonds.slice(0, 5).map(length));
+  for (const branch of molecule.bonds.slice(5)) {
+    assert.ok(length(branch) / ringLength > 0.5, `branch ${branch[0]}-${branch[1]} must not collapse relative to the ring`);
+  }
+  assertPracticeGraphProjection(state);
+});
+
+for (const category of ["simple-carbocycle", "aromatic", "alkane", "halogenated"]) {
+  test(`Practice ${category}: complete graph, visible branches and unclipped SVG at desktop/mobile widths`, () => {
+    const config = createPracticeConfig([category], 5, "es", "PRACTICE-003:coverage");
+    let foundBranch = false;
+    for (let index = 0; index < 16; index += 1) {
+      const question = generate(config, index);
+      const state = { phase: "QUESTION", config, index, generationIndex: index, recentIdentities: [], question, answer: "" };
+      const parent = new Set(engine.analyzeMolecule(question.molecule).mainChain);
+      foundBranch ||= question.molecule.atoms.some((atom) => (atom.element ?? "C") === "C" && !parent.has(atom.id));
+      for (const width of [319, 900]) {
+        const { points, html } = assertPracticeGraphProjection(state, width);
+        const lengths = question.molecule.bonds.map(([a, b]) => Math.hypot(points.get(a).x - points.get(b).x, points.get(a).y - points.get(b).y));
+        if (!lengths.length) {
+          assert.equal(question.molecule.atoms.length, 1);
+          assert.match(html, /CH<tspan[^>]*>4<\/tspan>/);
+          continue;
+        }
+        assert.ok(Math.min(...lengths) / Math.max(...lengths) > 0.5, `${category}/${index} preserves comparable bond lengths`);
+        const vertices = [...points.values()];
+        for (let a = 0; a < vertices.length; a += 1) for (let b = a + 1; b < vertices.length; b += 1) {
+          assert.ok(Math.hypot(vertices[a].x - vertices[b].x, vertices[a].y - vertices[b].y) / Math.min(...lengths) > 0.15,
+            `${category}/${index} keeps separate atoms visible`);
+        }
+      }
+    }
+    assert.ok(foundBranch, `${category} coverage must actually include carbon branches`);
+  });
+}
+
+test("all Practice families project every atom/bond/ring from the same localized reference graph", () => {
+  for (const category of EXERCISE_CATEGORIES) {
+    const config = createPracticeConfig([category], 5, "es", "PRACTICE-003:all");
+    const state = startPractice(config, generate);
+    assertPracticeGraphProjection(state, 319);
+    assertPracticeGraphProjection(localizePracticeState(state, "en"), 900);
+  }
+});
+
+test("duplicate skips, feedback and generation retry keep render/reference bundles synchronized", () => {
+  const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59");
+  const first = startPractice(config, generate);
+  assertPracticeGraphProjection(first);
+  const feedback = submitPracticeAnswer(updatePracticeAnswer(first, first.question.reference.name), "es");
+  assertPracticeGraphProjection(feedback);
+  const failed = nextPracticeQuestion(feedback, (_config, index) => {
+    if (index < 4) return first.question;
+    throw new Error("forced generator failure after duplicate skips");
+  });
+  assert.equal(failed.phase, "ERROR");
+  assert.equal(failed.generationIndex, 4);
+  assert.equal(Object.hasOwn(failed, "question"), false);
+  const recovered = retryPracticeGeneration(failed, generate);
+  assert.equal(recovered.phase, "QUESTION");
+  assert.equal(recovered.generationIndex, 4);
+  assertPracticeGraphProjection(recovered);
+  assert.deepEqual(recovered.question, generate(config, 4));
+});
+
+test("Practice ring projection is invariant to coordinate units without changing the source graph", () => {
+  const state = startPractice(createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59"), generate);
+  const molecule = state.question.molecule;
+  const snapshot = structuredClone(molecule);
+  const parent = engine.analyzeMolecule(molecule).mainChain;
+  const expected = calculatePracticeMolecule2DLayout(molecule, parent);
+  for (const factor of [0.01, 1, 100]) {
+    const scaled = { ...molecule, atoms: molecule.atoms.map((atom) => ({ ...atom, x: atom.x * factor, y: atom.y * factor })) };
+    const actual = calculatePracticeMolecule2DLayout(scaled, parent);
+    assert.equal(exerciseStructuralIdentity(scaled), state.question.reference.structuralIdentity);
+    for (const [id, point] of expected) {
+      assert.ok(Math.hypot(actual.get(id).x - point.x, actual.get(id).y - point.y) < 1e-8);
+    }
+  }
+  assert.deepEqual(molecule, snapshot);
+});
 
 test("Practice entry is adjacent to How to use, controls its view, and preserves the mounted Lab", () => {
   const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -150,7 +330,7 @@ test("every Practice label has EN/ES text and the dictionary has no duplicate Pr
 });
 
 test("Practice TypeScript modules typecheck against the real session and generated molecular model", () => {
-  const files = ["practice-reference-answer.ts", "practice-session.ts", "practice-panel.tsx"].map((name) =>
+  const files = ["practice-reference-answer.ts", "practice-session.ts", "practice-panel.tsx", "practice-molecule-layout.ts"].map((name) =>
     fileURLToPath(new URL(`../app/${name}`, import.meta.url)).replace(/\\/g, "/"));
   const program = ts.createProgram(files, { strict: true, noEmit: true, skipLibCheck: true,
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler,

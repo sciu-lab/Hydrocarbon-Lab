@@ -16,6 +16,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { PracticePanel } from "./practice-panel";
+import { calculatePracticeMolecule2DLayout } from "./practice-molecule-layout";
 import { createRestrictedChemicalGenerator } from "./exercise-chemical-generator";
 import { createExerciseChemistryOracles } from "./exercise-chemistry-oracles";
 import { buildHydrocarbonFromIupacName } from "./name-to-molecule";
@@ -5895,7 +5896,7 @@ export function MoleculeHistoryPreview({
   const positions = useMemo(() => {
     // This is the same display-coordinate source used by the main skeletal
     // canvas. It only produces a compact, non-interactive SVG projection.
-    const displayPositions = calculateMolecule2DLayout(
+    const displayPositions = (practiceView ? calculatePracticeMolecule2DLayout : calculateMolecule2DLayout)(
       molecule,
       analyzeMolecule(molecule).mainChain,
     );
@@ -5946,6 +5947,9 @@ export function MoleculeHistoryPreview({
         return offsets.map((offset, index) => (
           <line
             key={`${bond[0]}-${bond[1]}-${index}`}
+            data-bond-start={practiceView ? bond[0] : undefined}
+            data-bond-end={practiceView ? bond[1] : undefined}
+            data-bond-order={practiceView ? order : undefined}
             x1={start.x + normalX * offset}
             y1={start.y + normalY * offset}
             x2={end.x + normalX * offset}
@@ -5961,7 +5965,7 @@ export function MoleculeHistoryPreview({
         const hydrogens = practiceView ? getImplicitHydrogens(atom.id, molecule) : 0;
         const labeled = element !== "C" || isolatedCarbon;
         return (
-          <g key={atom.id} transform={`translate(${position.x} ${position.y})`}>
+          <g key={atom.id} data-atom-id={practiceView ? atom.id : undefined} transform={`translate(${position.x} ${position.y})`}>
             <circle className={labeled ? "history-hetero" : "history-carbon"}
               r={practiceView && labeled ? isolatedCarbon ? 24 : 16 : element === "C" ? 3.5 : 7} />
             {labeled && (
