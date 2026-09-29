@@ -1,7 +1,7 @@
 import { Molecule as OCLMolecule, SmilesParser } from "openchemlib";
 import { EXERCISE_CATEGORIES, GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
 import type { ExerciseCategory, QuestionIdentity, SessionConfig } from "./exercise-model.ts";
-import { deriveQuestionIdentity } from "./exercise-seed.ts";
+import { deriveGenerationIdentity } from "./exercise-seed.ts";
 import { createSeededRng, deriveSeed } from "./seeded-rng.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import type { ExerciseChemistryOracles } from "./exercise-chemistry-oracles.ts";
@@ -26,6 +26,7 @@ export class ChemicalGenerationError extends Error {
 }
 
 export type GeneratedExerciseMolecule = {
+  /** Locale-independent generation context, separate from the session identity. */
   question: QuestionIdentity;
   category: ExerciseCategory;
   /** Structural source of truth: the production editable molecular graph. */
@@ -88,7 +89,8 @@ function usableName(name: string) {
 
 /** Stateless synchronous core. Callers bind the existing engine via the oracle
  * adapter; this module imports no React or page.tsx. Difficulty has no recipe
- * thresholds. Phase 1 already includes difficulty and locale in question seeds.
+ * thresholds. Generation seeds retain v1 difficulty semantics and exclude the
+ * requested presentation locale.
  */
 export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOracles) {
   return function generate(
@@ -100,7 +102,7 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
     if (canonical.generatorVersion !== GENERATOR_VERSION || !canonical.questionTypes.includes("naming")) {
       throw new ChemicalGenerationError("unsupported-request", "Chemical generation currently requires a Naming configuration.");
     }
-    const question = deriveQuestionIdentity(canonical, questionIndex);
+    const question = deriveGenerationIdentity(canonical, questionIndex);
     const category = createSeededRng(deriveSeed(question.seed, "chemical-category")).pick(canonical.categories);
     // An optional requested category is an assertion, not an override of the
     // seed's selection. Otherwise one question identity could describe two graphs.

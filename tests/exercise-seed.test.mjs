@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 
-import { deriveQuestionIdentity } from "../app/exercise-seed.ts";
+import { deriveGenerationIdentity, deriveQuestionIdentity } from "../app/exercise-seed.ts";
 import { normalizeSessionConfig, serializeSessionConfig } from "../app/exercise-model.ts";
 import { createSeededRng } from "../app/seeded-rng.ts";
 
@@ -109,4 +109,52 @@ test("session reconstruction matches in two fresh Node processes with entropy an
     return { identity, values: [rng.next(), rng.int(-5, 5), rng.pick(["a", "b"]), rng.shuffle([1, 2, 3])] };
   });
   assert.deepEqual(first, expected);
+});
+
+test("generation identity is locale-neutral while preserving v1 ES seeds and localized session identity", () => {
+  const english = Object.freeze({ ...config, locale: "en" });
+  for (const index of [0, 1, 10]) {
+    const original = deriveQuestionIdentity(config, index);
+    const es = deriveGenerationIdentity(config, index);
+    const en = deriveGenerationIdentity(english, index);
+    assert.deepEqual(es, original);
+    assert.deepEqual(en, es);
+    assert.deepEqual(draws(en.seed), draws(es.seed));
+    assert.notEqual(deriveQuestionIdentity(english, index).seed, original.seed);
+  }
+  assert.equal(english.locale, "en");
+  assert.equal(normalizeSessionConfig(english).locale, "en");
+  assert.equal(JSON.parse(serializeSessionConfig(english)).locale, "en");
+});
+
+test("generation identity retains canonical ordering, index isolation and all other v1 seed fields", () => {
+  const original = deriveGenerationIdentity(config, 0);
+  const reordered = Object.fromEntries(Object.entries({
+    ...config, locale: "en", categories: ["alkane", "alcohol", "alkane"],
+  }).reverse());
+  assert.deepEqual(deriveGenerationIdentity(reordered, 0), original);
+  for (const change of [
+    { mode: "exam" }, { questionCount: 13 }, { questionCount: "endless" },
+    { seed: "CHEM-B8G4" }, { difficulty: "advanced" },
+    { categories: ["ether"] }, { questionTypes: ["naming", "build"] },
+  ]) {
+    assert.notEqual(deriveGenerationIdentity({ ...config, ...change }, 0).seed, original.seed);
+  }
+  assert.notEqual(deriveGenerationIdentity(config, 1).seed, original.seed);
+  assert.notEqual(deriveGenerationIdentity(config, 10).seed, original.seed);
+  const restored = normalizeSessionConfig(JSON.parse(serializeSessionConfig(reordered)));
+  assert.deepEqual(deriveGenerationIdentity(restored, 0), original);
+});
+
+test("generation projection validates the original locale, version and index before deriving seeds", () => {
+  for (const locale of ["fr", undefined, null]) {
+    assert.throws(() => deriveGenerationIdentity({ ...config, locale }, 0), TypeError);
+  }
+  assert.throws(() => deriveGenerationIdentity({ ...config, generatorVersion: 2 }, 0), RangeError);
+  for (const index of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, "0"]) {
+    assert.throws(() => deriveGenerationIdentity(config, index), RangeError);
+  }
+  const endless = { ...config, questionCount: "endless" };
+  assert.deepEqual(deriveGenerationIdentity(endless, Number.MAX_SAFE_INTEGER),
+    deriveGenerationIdentity({ ...endless, locale: "en" }, Number.MAX_SAFE_INTEGER));
 });

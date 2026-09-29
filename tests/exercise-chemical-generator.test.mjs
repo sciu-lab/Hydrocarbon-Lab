@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import { build } from "vite";
 import { EXERCISE_CATEGORIES, normalizeSessionConfig } from "../app/exercise-model.ts";
-import { deriveQuestionIdentity } from "../app/exercise-seed.ts";
+import { deriveGenerationIdentity, deriveQuestionIdentity } from "../app/exercise-seed.ts";
 import { createSeededRng } from "../app/seeded-rng.ts";
 import {
   ChemicalGenerationError, createRestrictedChemicalGenerator, deriveChemicalCandidateSeed,
@@ -222,7 +222,7 @@ test("locale/difficulty remain part of Phase 1 identity while a fixed candidate 
   const config = configFor("halogenated");
   const changed = { ...config, locale: "en", difficulty: "advanced" };
   assert.notEqual(deriveQuestionIdentity(config, 0).seed, deriveQuestionIdentity(changed, 0).seed);
-  const seed = deriveChemicalCandidateSeed(deriveQuestionIdentity(config, 0).seed, "halogenated", 0);
+  const seed = deriveChemicalCandidateSeed(deriveGenerationIdentity(config, 0).seed, "halogenated", 0);
   const graph = buildExerciseChemicalCandidate("halogenated", seed);
   assert.deepEqual(buildExerciseChemicalCandidate("halogenated", seed), graph);
   const names = chemistry.oracles.reference(graph).names;
@@ -230,10 +230,55 @@ test("locale/difficulty remain part of Phase 1 identity while a fixed candidate 
   assert.equal(generate(changed, 0).reference.name, generate(changed, 0).reference.names.en);
 });
 
+function assertLocaleNeutral(es, en) {
+  assert.equal(en.category, es.category);
+  assert.deepEqual(en.molecule, es.molecule);
+  assert.equal(en.reference.formula, es.reference.formula);
+  assert.equal(en.reference.smiles, es.reference.smiles);
+  assert.equal(en.reference.structuralIdentity, es.reference.structuralIdentity);
+  assert.equal(en.generation.candidateSeed, es.generation.candidateSeed);
+  assert.equal(en.generation.attempt, es.generation.attempt);
+  assert.equal(es.reference.name, es.reference.names.es);
+  assert.equal(en.reference.name, en.reference.names.en);
+  // Everything except the selected reference name must remain identical,
+  // including generation context, bilingual names, metadata and rejections.
+  assert.deepEqual({ ...en, reference: { ...en.reference, name: es.reference.name } }, es);
+}
+
+for (const category of EXERCISE_CATEGORIES) {
+  test(`locale-neutral ${category}: ES/EN preserve exact graph, oracles, candidate seed and attempt`, () => {
+    for (const seed of ["CHEM-PHASE2", "sweep:0"]) {
+      const config = configFor(category, seed);
+      for (const index of [0, 1, 10]) {
+        assertLocaleNeutral(generate(config, index), generate({ ...config, locale: "en" }, index));
+      }
+    }
+  });
+}
+
+test("locale-neutral multi-category selection uses the same generation stream", () => {
+  const config = { ...configFor("alkane"), categories: [...EXERCISE_CATEGORIES] };
+  for (const index of [0, 1, 10]) {
+    const es = generate(config, index);
+    assert.ok(config.categories.includes(es.category));
+    assertLocaleNeutral(es, generate({ ...config, locale: "en" }, index));
+  }
+});
+
+test("locale-neutral halogens preserve chemistry while localizing substituents and alphabetization", () => {
+  const config = configFor("halogenated", "halo:1");
+  const es = generate(config, 0);
+  const en = generate({ ...config, locale: "en" }, 0);
+  assertLocaleNeutral(es, en);
+  assert.equal(es.reference.name, "6-bromo-2-metil-6-yododecano");
+  assert.equal(en.reference.name, "6-bromo-6-iodo-2-methyldecane");
+  assert.notEqual(es.reference.name, en.reference.name);
+});
+
 test("deterministically rejected candidates retry on isolated sub-seeds without changing question 4", () => {
   const config = configFor("halogenated", "retry-isolation");
   const before = generate(config, 4);
-  const firstSeed = deriveChemicalCandidateSeed(deriveQuestionIdentity(config, 2).seed, "halogenated", 0);
+  const firstSeed = deriveChemicalCandidateSeed(deriveGenerationIdentity(config, 2).seed, "halogenated", 0);
   const rejectedIdentity = exerciseStructuralIdentity(buildExerciseChemicalCandidate("halogenated", firstSeed));
   assert.notEqual(before.reference.structuralIdentity, rejectedIdentity);
   const retryGenerator = createRestrictedChemicalGenerator({
@@ -247,6 +292,7 @@ test("deterministically rejected candidates retry on isolated sub-seeds without 
   assert.ok(retried.generation.attempt > 0);
   assert.equal(retried.generation.rejections[0].reason, "naming-unavailable");
   assert.deepEqual(retryGenerator(config, 2), retried);
+  assertLocaleNeutral(retried, retryGenerator({ ...config, locale: "en" }, 2));
   const unrelatedRng = createSeededRng(retried.generation.candidateSeed);
   for (let index = 0; index < 10000; index += 1) unrelatedRng.next();
   assert.deepEqual(retryGenerator(config, 4), before);
@@ -306,7 +352,8 @@ test("canonical identity ignores atom IDs, ordering, orientation and layout with
 test("separate fresh Node processes reproduce every category with entropy and clock APIs disabled", () => {
   const helper = new URL("./helpers/exercise-chemistry.mjs", import.meta.url).href;
   const core = new URL("../app/exercise-chemical-generator.ts", import.meta.url).href;
-  const configs = JSON.stringify(EXERCISE_CATEGORIES.map((category) => configFor(category)));
+  const configs = EXERCISE_CATEGORIES.flatMap((category) =>
+    ["es", "en"].map((locale) => ({ ...configFor(category), locale })));
   const source = `
     const {loadExerciseChemistry} = await import(${JSON.stringify(helper)});
     const {createRestrictedChemicalGenerator} = await import(${JSON.stringify(core)});
@@ -317,11 +364,11 @@ test("separate fresh Node processes reproduce every category with entropy and cl
       Math.random=()=>{throw new Error("Math.random forbidden");};
       globalThis.Date=class {constructor(){throw new Error("Date forbidden");} static now(){throw new Error("Date.now forbidden");}};
       Object.defineProperty(globalThis.crypto,"randomUUID",{value:()=>{throw new Error("randomUUID forbidden");}});
-      console.log(JSON.stringify(${configs}.map((config)=>generate(config,0))));
+      console.log(JSON.stringify(${JSON.stringify(configs)}.map((config)=>generate(config,0))));
     } finally { globalThis.Date=originalDate; Math.random=originalRandom; await chemistry.close(); }
   `;
   const run = () => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", source], { encoding: "utf8", timeout: 30000 }));
-  const expected = EXERCISE_CATEGORIES.map((category) => generate(configFor(category), 0));
+  const expected = configs.map((config) => generate(config, 0));
   assert.deepEqual(run(), expected);
   assert.deepEqual(run(), expected);
 });

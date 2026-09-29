@@ -1,4 +1,4 @@
-import { serializeSessionConfig } from "./exercise-model.ts";
+import { normalizeSessionConfig, serializeSessionConfig } from "./exercise-model.ts";
 import type { QuestionIdentity, SessionConfig } from "./exercise-model.ts";
 import { deriveSeed } from "./seeded-rng.ts";
 
@@ -14,4 +14,14 @@ export function deriveQuestionIdentity(config: SessionConfig, index: number): Qu
     seed,
     generatorVersion: config.generatorVersion,
   };
+}
+
+/** Generation projection discards the requested presentation locale. The fixed
+ * "es" slot is a v1 compatibility anchor, preserving the frozen chemical seeds
+ * and graphs. Other fields, including mode and questionCount, retain their v1
+ * semantics; the complete session identity above remains locale-sensitive.
+ */
+export function deriveGenerationIdentity(config: SessionConfig, index: number): QuestionIdentity {
+  const canonical = normalizeSessionConfig(config);
+  return deriveQuestionIdentity({ ...canonical, locale: "es" }, index);
 }
