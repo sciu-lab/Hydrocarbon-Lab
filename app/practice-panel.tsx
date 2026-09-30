@@ -19,6 +19,8 @@ import { formatPracticeResponseTime } from "./practice-metrics.ts";
 import { PracticeSummary } from "./practice-summary.tsx";
 import type { PracticeReviewer, ReviewHighlights, ReviewModel } from "./practice-review.ts";
 import { PracticeReviewPanel } from "./practice-review-panel.tsx";
+import { isMultipleChoiceQuestion } from "./practice-question.ts";
+import type { PracticeQuestionType } from "./practice-question.ts";
 
 export const PRACTICE_TOPIC_GROUPS = [
   { label: "Hidrocarburos", topics: [["alkane", "Alcanos"], ["alkene", "Alquenos"], ["alkyne", "Alquinos"]] },
@@ -98,6 +100,7 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
     </div>
   </div>;
   if (state.phase === "ERROR") return <div className="practice-error" role="alert">
+    {state.reason === "insufficient-safe-distractors" && <p>{t("No se encontraron suficientes opciones seguras para estos temas. Prueba otra semilla o Nomenclatura.")}</p>}
     <p>{t("No se pudo generar esta pregunta. Puedes reintentar o volver a la configuración.")}</p>
     <div className="practice-actions">
       <button type="button" onClick={actions.retry}>{t("Reintentar")}</button>
@@ -107,6 +110,7 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
   </div>;
   const correction = state.phase === "CORRECTION_QUESTION" || state.phase === "CORRECTION_FEEDBACK";
   const feedback = state.phase === "FEEDBACK" || state.phase === "CORRECTION_FEEDBACK";
+  const mcq = isMultipleChoiceQuestion(state.question) ? state.question : null;
   const attempt = feedback ? state.attempts[state.attempts.length - 1] : null;
   const reviewKey = attempt ? `${attempt.questionId}:${attempt.generationIndex}:${attempt.attemptNumber}` : null;
   const openReview = feedback && reviewState && attempt
@@ -130,10 +134,24 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
     </div>
     <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} highlights={highlights} />
     {!openReview && <form className="practice-answer" onSubmit={(event) => { event.preventDefault(); actions.check(); }}>
+      {mcq ? <fieldset className="practice-options">
+        <legend>{t("¿Cuál es el nombre IUPAC correcto?")}</legend>
+        {mcq.options.map((option, index) => <label key={option.id}
+          className={`practice-option${feedback && option.correct ? " is-correct" : ""}${feedback && state.answer === option.id && !option.correct ? " is-incorrect" : ""}`}>
+          <input type="radio" name="practice-option" value={option.id} ref={index === 0 ? inputRef : undefined}
+            checked={state.answer === option.id} disabled={feedback || state.timing === null}
+            onChange={() => actions.answer(option.id)} />
+          <span><b>{String.fromCharCode(65 + index)}.</b> {option.name[language]}
+            {feedback && option.correct && <strong> · ✓ {t("Correcto")}</strong>}
+            {feedback && state.answer === option.id && !option.correct && <strong> · ✗ {t("Tu respuesta")}</strong>}
+          </span>
+        </label>)}
+      </fieldset> : <>
       <label htmlFor="practice-answer">{t("¿Cuál es el nombre IUPAC?")}</label>
       <input id="practice-answer" ref={inputRef} value={state.answer} onChange={(event) => actions.answer(event.target.value)}
         disabled={feedback || state.timing === null} autoComplete="off" autoCapitalize="none" spellCheck={false} />
-      {isPracticeAnswerState(state) && <button type="submit" className="practice-primary" disabled={!state.answer.trim() || state.timing === null}>{t("Comprobar respuesta")}</button>}
+      </>}
+      {isPracticeAnswerState(state) && <button type="submit" className="practice-primary" disabled={!(mcq ? mcq.options.some((option) => option.id === state.answer) : state.answer.trim()) || state.timing === null}>{t("Comprobar respuesta")}</button>}
     </form>}
     {openReview && <PracticeReviewPanel model={openReview.model} language={language} activeStep={openReview.activeStep}
       onSelectStep={(activeStep) => setReviewState({ ...openReview, activeStep })} onClose={closeReview} onNext={advance} />}
@@ -170,6 +188,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
 }) {
   const [session, setSession] = useState<PracticeState>({ phase: "CONFIG" });
   const [categories, setCategories] = useState<ExerciseCategory[]>(["alkane"]);
+  const [questionTypes, setQuestionTypes] = useState<PracticeQuestionType[]>(["naming"]);
   const [count, setCount] = useState<number | "endless">(10);
   const [seed, setSeed] = useState("");
   const [configError, setConfigError] = useState(false);
@@ -223,7 +242,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       setConfigError(false);
       try {
         const resolved = resolvePracticeSeed(seed, () => `practice-${crypto.randomUUID()}`);
-        setSession(startPractice(createPracticeConfig(categories, count, language, resolved), generate));
+        setSession(startPractice(createPracticeConfig(categories, count, language, resolved, questionTypes), generate));
       } catch { setConfigError(true); }
     }}>
       <p>{t("Practica nombres con estructuras generadas. Tu molécula del laboratorio se conserva.")}</p>
@@ -238,15 +257,22 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
         </fieldset>)}
       </div>
       {!categories.length && <p role="status">{t("Selecciona al menos un tema.")}</p>}
+      <fieldset className="practice-question-types"><legend>{t("Tipos de pregunta")}</legend>
+        {(["naming", "multiple-choice"] as const).map((type) => <label key={type}>
+          <input type="checkbox" checked={questionTypes.includes(type)} onChange={(event) => setQuestionTypes((current) =>
+            event.target.checked ? [...current, type] : current.filter((item) => item !== type))} />
+          {t(type === "naming" ? "Nomenclatura" : "Opción múltiple")}
+        </label>)}
+      </fieldset>
+      {!questionTypes.length && <p role="status">{t("Selecciona al menos un tipo de pregunta.")}</p>}
       <div className="practice-config-fields">
-        <label>{t("Tipo de pregunta")}<input value={t("Nomenclatura")} readOnly /></label>
         <label>{t("Preguntas")}<select value={count} onChange={(event) => setCount(event.target.value === "endless" ? "endless" : Number(event.target.value))}>
           {PRACTICE_LENGTHS.map((length) => <option key={length} value={length}>{length === "endless" ? t("Sin límite") : length}</option>)}
         </select></label>
         <label>{t("Semilla (opcional)")}<input value={seed} onChange={(event) => setSeed(event.target.value)} autoComplete="off" spellCheck={false} /></label>
       </div>
       {configError && <p role="alert">{t("No se pudo iniciar la práctica. Revisa los temas y vuelve a intentarlo.")}</p>}
-      <button type="submit" className="practice-primary" disabled={!categories.length}>{t("Iniciar práctica")}</button>
+      <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length}>{t("Iniciar práctica")}</button>
     </form> : <>
       <p className="practice-seed">{t("Semilla")}: <code>{localized.config.seed}</code></p>
       <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} review={review} actions={actions}

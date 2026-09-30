@@ -1,5 +1,6 @@
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
-import type { GeneratedExerciseMolecule } from "./exercise-chemical-generator.ts";
+import { isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import type { PracticeQuestion, GeneratedMultipleChoiceQuestion } from "./practice-question.ts";
 import { exerciseStructuralIdentity } from "./exercise-chemical-generator.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
 import type { AppLanguage } from "./i18n.ts";
@@ -50,7 +51,7 @@ export type PracticeNamingAnalysis = {
   functionalGroups: { kind: string; atomIds: number[]; carbonIds: number[]; carbonId: number;
     heteroAtomId: number; alkylCarbonId?: number }[];
 };
-export type PracticeReviewer = (question: GeneratedExerciseMolecule, attempt: AttemptRecord) => ReviewModel;
+export type PracticeReviewer = (question: PracticeQuestion, attempt: AttemptRecord) => ReviewModel;
 export const reviewBondId = (a: number, b: number) => `${Math.min(a, b)}:${Math.max(a, b)}`;
 const unique = (ids: readonly number[]) => [...new Set(ids)].sort((a, b) => a - b);
 const term = (name: string): ReviewTerm => ({ es: name, en: englishStructuralSubstituentName(name) });
@@ -186,11 +187,43 @@ export function createPracticeReviewer<A extends PracticeNamingAnalysis>(engine:
       throw new Error("Review reference analysis mismatch.");
     }
     const steps = buildPracticeReviewSteps(question.molecule, analysis, legacy, question.reference.names);
+    let issues: readonly ReviewIssue[];
+    if (isMultipleChoiceQuestion(question)) {
+      issues = reviewMultipleChoiceSelection(question, attempt, steps);
+    } else {
+      if (attempt.questionType !== "naming") throw new Error("Review type mismatch.");
+      issues = attempt.correct ? [] : diagnosePracticeAnswer(question, attempt, analysis, legacy, steps);
+    }
     return {
       version: 1, questionId: attempt.questionId, generationIndex: attempt.generationIndex, attemptNumber: attempt.attemptNumber,
       status: attempt.correct ? "CORRECT" : "INCORRECT", submittedLocale: attempt.localeAtSubmission,
       studentAnswer: attempt.answer, reference: { names: { ...question.reference.names }, structuralIdentity: attempt.structuralIdentity },
-      steps, issues: attempt.correct ? [] : diagnosePracticeAnswer(question, attempt, analysis, legacy, steps),
+      steps, issues,
     };
   };
+}
+
+function reviewMultipleChoiceSelection(question: GeneratedMultipleChoiceQuestion, attempt: AttemptRecord,
+  steps: readonly ReviewStep[]): readonly ReviewIssue[] {
+  const option = question.options.find((item) => item.id === attempt.selectedOptionId);
+  if (!validateMultipleChoiceQuestion(question) || attempt.questionType !== "multiple-choice" || attempt.optionSetIdentity !== question.optionSetIdentity
+    || !option || option.correct !== attempt.correct) throw new Error("Review option identity mismatch.");
+  if (option.kind === "reference") return [];
+  const { diagnosticCode: code, transformation: transform } = option.origin;
+  let params: ReviewParams = {}, step: ReviewStep | undefined;
+  if (transform.kind === "replace-parent-length") {
+    params = { expected: transform.from, actual: transform.to }; step = steps.find((item) => item.kind === "parent");
+  } else if (transform.kind === "replace-locant") {
+    params = { expected: transform.from, actual: transform.to };
+    step = steps.find((item) => item.kind === (transform.component === "function" ? "function" : transform.component)
+      && (transform.component !== "substituent" || !transform.name || item.id === `substituent:${transform.name}`));
+  } else if (transform.kind === "omit-substituent") {
+    params = { name: term(transform.name) }; step = steps.find((item) => item.id === `substituent:${transform.name}`);
+  } else if (transform.kind === "opposite-ez-descriptor") {
+    params = { descriptor: transform.from, locant: transform.locant }; step = steps.find((item) => item.id === `ez:${transform.locant}`);
+  } else throw new Error("Unsupported review provenance.");
+  if (!step) throw new Error("Review provenance has no structural step.");
+  return [{ code, messageKey: code === "WRONG_PARENT_LENGTH" ? "review.mcq.parent-length"
+    : code === "MISSING_SUBSTITUENT" ? "review.mcq.omitted-substituent" : `review.issue.${code}`,
+  params, relatedAtomIds: step.highlightAtomIds, relatedBondIds: step.highlightBondIds }];
 }

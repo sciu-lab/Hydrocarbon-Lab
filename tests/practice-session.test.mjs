@@ -175,7 +175,7 @@ test("generator failure hides exception data, retries the same context and permi
 });
 
 test("Practice does not activate Exam, future question types or misleading difficulty", () => {
-  for (const change of [{ mode: "exam" }, { questionTypes: ["build"] }, { questionTypes: ["naming", "multiple-choice"] }, { difficulty: "advanced" }]) {
+  for (const change of [{ mode: "exam" }, { questionTypes: ["build"] }, { questionTypes: ["naming", "build"] }, { difficulty: "advanced" }]) {
     assert.throws(() => startPractice({ ...configFor(), ...change }, generate));
   }
 });

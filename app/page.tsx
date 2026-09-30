@@ -16,6 +16,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { PracticePanel } from "./practice-panel";
+import { createPracticeQuestionGenerator } from "./practice-question";
+import { createDeterministicDistractorEngine } from "./practice-distractor-engine";
 import { createPracticeReviewer, reviewBondId } from "./practice-review";
 import type { ReviewHighlights } from "./practice-review";
 import { calculatePracticeMolecule2DLayout } from "./practice-molecule-layout";
@@ -5994,10 +5996,12 @@ export function MoleculeHistoryPreview({
   );
 }
 
-const generatePracticeMolecule = createRestrictedChemicalGenerator(createExerciseChemistryOracles({
+const practiceChemistryOracles = createExerciseChemistryOracles({
   analyzeMolecule, findMoleculeValenceViolation, detectFunctionalGroups,
   buildLegacyEnglishNameModel, localNamerCannotSafelyName,
-}));
+});
+const generatePracticeMolecule = createPracticeQuestionGenerator(createRestrictedChemicalGenerator(practiceChemistryOracles),
+  createDeterministicDistractorEngine({ analyzeMolecule, buildLegacyEnglishNameModel }, practiceChemistryOracles));
 const reviewPracticeAnswer = createPracticeReviewer({ analyzeMolecule, buildLegacyEnglishNameModel });
 
 export default function Home({ initialLanguage = "es" }: { initialLanguage?: AppLanguage }) {

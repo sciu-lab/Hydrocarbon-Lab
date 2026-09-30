@@ -3,6 +3,10 @@ export type AppLanguage = "es" | "en";
 export const LANGUAGE_STORAGE_KEY = "hydrocarbon-lab-language";
 
 const ENGLISH_UI: Record<string, string> = {
+  "Tipos de pregunta": "Question types",
+  "Selecciona al menos un tipo de pregunta.": "Select at least one question type.",
+  "¿Cuál es el nombre IUPAC correcto?": "What is the correct IUPAC name?",
+  "No se encontraron suficientes opciones seguras para estos temas. Prueba otra semilla o Nomenclatura.": "Not enough safe options were found for these topics. Try another seed or Naming.",
   "Revisar respuesta": "Review answer",
   "Revisión detallada": "Detailed review",
   "Tu respuesta": "Student answer",

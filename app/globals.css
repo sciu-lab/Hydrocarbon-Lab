@@ -9683,6 +9683,16 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .practice-molecule-preview g[data-review-highlight="true"] circle { stroke: var(--blue); stroke-width: 3; }
 .practice-molecule-preview .practice-review-locant { fill: var(--blue); font-size: 12px; font-weight: 800; }
 .practice-end { margin-top: 24px; }
+.practice-question-types { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
+.practice-question-types label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.practice-options { min-width: 0; border: 0; padding: 0; display: grid; gap: 12px; }
+.practice-options legend { margin-bottom: 14px; font-weight: 700; }
+.practice-answer .practice-option { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 48px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.practice-answer .practice-option input { width: 20px; height: 20px; flex: 0 0 20px; }
+.practice-option span { min-width: 0; overflow-wrap: anywhere; }
+.practice-option:focus-within { outline: 3px solid var(--blue); outline-offset: 2px; }
+.practice-option.is-correct { border-color: var(--blue); background: var(--canvas); }
+.practice-option.is-incorrect { border-style: dashed; }
 html[data-theme="dark"] .practice-mode button[aria-pressed="true"] { background: var(--canvas); }
 @media (max-width: 640px) {
   .site-header { flex-wrap: wrap; }

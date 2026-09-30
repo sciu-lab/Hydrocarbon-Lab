@@ -1,5 +1,6 @@
 import type { ExerciseCategory, GeneratorVersion, QuestionType } from "./exercise-model.ts";
-import type { GeneratedExerciseMolecule } from "./exercise-chemical-generator.ts";
+import { isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import type { PracticeQuestion } from "./practice-question.ts";
 import type { AppLanguage } from "./i18n.ts";
 import type { PracticeTime } from "./practice-timing.ts";
 import { practiceResponseTimeMs } from "./practice-timing.ts";
@@ -18,6 +19,9 @@ export type AttemptRecord = Readonly<{
   /** Initial submission is 1; corrections append increasing numbers. */
   attemptNumber: number;
   answer: string;
+  selectedOptionId?: string;
+  /** Bilingual order, identities and provenance; never a molecular graph. */
+  optionSetIdentity?: string;
   correct: boolean;
   /** Absolute epoch milliseconds for audit; not used to calculate duration. */
   startedAt: number;
@@ -27,7 +31,8 @@ export type AttemptRecord = Readonly<{
 }>;
 
 export function createInitialAttempt(input: {
-  question: GeneratedExerciseMolecule; displayOrdinal: number; generationIndex: number;
+  question: PracticeQuestion; displayOrdinal: number; generationIndex: number;
+  selectedOptionId?: string;
   answer: string; correct: boolean; started: PracticeTime; submitted: PracticeTime; locale: AppLanguage;
 }): AttemptRecord {
   if (!Number.isSafeInteger(input.displayOrdinal) || input.displayOrdinal < 1
@@ -35,10 +40,15 @@ export function createInitialAttempt(input: {
     throw new RangeError("Invalid Practice attempt position.");
   }
   const { question, reference } = input.question;
+  if (isMultipleChoiceQuestion(input.question)) {
+    const selected = input.question.options.find((option) => option.id === input.selectedOptionId);
+    if (!validateMultipleChoiceQuestion(input.question) || !selected || selected.correct !== input.correct) throw new Error("Invalid MCQ submission.");
+  }
   return {
     questionId: question.id, displayOrdinal: input.displayOrdinal, generationIndex: input.generationIndex,
     questionSeed: question.seed, generatorVersion: question.generatorVersion,
-    category: input.question.category, questionType: "naming", structuralIdentity: reference.structuralIdentity,
+    category: input.question.category, questionType: isMultipleChoiceQuestion(input.question) ? "multiple-choice" : "naming", structuralIdentity: reference.structuralIdentity,
+    ...(isMultipleChoiceQuestion(input.question) ? { selectedOptionId: input.selectedOptionId, optionSetIdentity: input.question.optionSetIdentity } : {}),
     attemptNumber: 1, answer: input.answer, correct: input.correct,
     startedAt: input.started.wallTimeMs, submittedAt: input.submitted.wallTimeMs,
     responseTimeMs: practiceResponseTimeMs(input.started, input.submitted), localeAtSubmission: input.locale,

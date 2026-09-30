@@ -26,7 +26,7 @@ export const DISTRACTOR_RECIPE_SUPPORT: Readonly<Record<DistractorDiagnosticCode
 
 export type DistractorTransformation =
   | Readonly<{ kind: "opposite-ez-descriptor"; locant: number; from: "E" | "Z"; to: "E" | "Z" }>
-  | Readonly<{ kind: "replace-locant"; component: "substituent" | "function" | "unsaturation"; from: number; to: number }>
+  | Readonly<{ kind: "replace-locant"; component: "substituent" | "function" | "unsaturation"; from: number; to: number; name?: string }>
   | Readonly<{ kind: "reverse-numbering"; locants: readonly Readonly<{ component: "substituent" | "function" | "unsaturation"; from: number; to: number }>[] }>
   | Readonly<{ kind: "omit-substituent"; name: string; locant: number }>
   | Readonly<{ kind: "swap-prefix-order"; prefixes: readonly [string, string] }>
@@ -51,6 +51,12 @@ export type MultipleChoiceDistractorOption = Readonly<{
     recipeId: string;
     diagnosticCode: DistractorDiagnosticCode;
     transformation: DistractorTransformation;
+    /** Restricted producers prove an alternative graph using the existing oracles. */
+    verification?: Readonly<{
+      kind: "validated-alternative-graph";
+      referenceStructuralIdentity: string;
+      alternativeStructuralIdentity: string;
+    }>;
   }>;
 }>;
 
@@ -93,6 +99,21 @@ const transformationForDiagnostic: Readonly<Partial<Record<DistractorDiagnosticC
   WRONG_EZ_DESCRIPTOR: "opposite-ez-descriptor",
 };
 
+export const VERIFIED_GRAPH_RECIPES = Object.freeze([
+  "WRONG_SUBSTITUENT_LOCANT", "MISSING_SUBSTITUENT", "WRONG_FUNCTIONAL_GROUP_LOCANT",
+  "WRONG_UNSATURATION_LOCANT", "WRONG_PARENT_LENGTH",
+] as const);
+
+function hasGraphVerification(input: Record<string, unknown>, origin: Record<string, unknown>, code: string) {
+  const proof = origin.verification;
+  return VERIFIED_GRAPH_RECIPES.some((recipe) => recipe === code)
+    && typeof input.referenceStructuralIdentity === "string" && Boolean(input.referenceStructuralIdentity)
+    && isRecord(proof) && proof.kind === "validated-alternative-graph"
+    && proof.referenceStructuralIdentity === input.referenceStructuralIdentity
+    && typeof proof.alternativeStructuralIdentity === "string" && Boolean(proof.alternativeStructuralIdentity)
+    && proof.alternativeStructuralIdentity !== proof.referenceStructuralIdentity;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -114,7 +135,8 @@ function validTransformation(code: DistractorDiagnosticCode, value: unknown): bo
       : code === "WRONG_FUNCTIONAL_GROUP_LOCANT" ? "function"
         : code === "WRONG_UNSATURATION_LOCANT" ? "unsaturation" : null;
     return value.component === expectedComponent && Number.isSafeInteger(value.from) && Number(value.from) > 0
-      && Number.isSafeInteger(value.to) && Number(value.to) > 0 && value.from !== value.to;
+      && Number.isSafeInteger(value.to) && Number(value.to) > 0 && value.from !== value.to
+      && (value.name === undefined || (typeof value.name === "string" && Boolean(value.name.trim())));
   }
   if (value.kind === "reverse-numbering") {
     return code === "WRONG_NUMBERING_DIRECTION" && Array.isArray(value.locants) && value.locants.length >= 2
@@ -221,7 +243,9 @@ export function validateMultipleChoiceOptions(input: unknown): MultipleChoiceOpt
       }
       const code = origin.diagnosticCode as DistractorDiagnosticCode;
       if (DISTRACTOR_RECIPE_SUPPORT[code] === "NOT_SAFE_AS_DISTRACTOR") add("UNSAFE_RECIPE", id);
-      if (DISTRACTOR_RECIPE_SUPPORT[code] === "SUPPORTED_WITH_RESTRICTIONS") add("RECIPE_REQUIRES_RESTRICTIONS", id);
+      if (DISTRACTOR_RECIPE_SUPPORT[code] === "SUPPORTED_WITH_RESTRICTIONS" && !hasGraphVerification(input, origin, code)) {
+        add("RECIPE_REQUIRES_RESTRICTIONS", id);
+      }
       if (!validTransformation(code, origin.transformation)) add("INVALID_TRANSFORMATION_METADATA", id);
       if (code === "WRONG_EZ_DESCRIPTOR" && isRecord(origin.transformation)
         && origin.transformation.kind === "opposite-ez-descriptor"

@@ -78,7 +78,7 @@ test("recipe order is explicit; generation is repeatable, locale-neutral, and st
   const first = generateDistractors(input);
   const second = generateDistractors(input);
   assert.deepEqual(first, second);
-  assert.deepEqual(DISTRACTOR_RECIPE_ORDER, ["WRONG_EZ_DESCRIPTOR"]);
+  assert.deepEqual(DISTRACTOR_RECIPE_ORDER, ["WRONG_EZ_DESCRIPTOR", "WRONG_SUBSTITUENT_LOCANT", "MISSING_SUBSTITUENT", "WRONG_FUNCTIONAL_GROUP_LOCANT", "WRONG_UNSATURATION_LOCANT", "WRONG_PARENT_LENGTH"]);
 
   const changedQuestionSeed = `independent:${molecule.question.seed}`;
   const sameGraphDifferentQuestion = { ...molecule, question: { ...molecule.question, seed: changedQuestionSeed } };

@@ -1,4 +1,7 @@
-# Practice Multiple Choice contract (Phase 7.1)
+# Practice Multiple Choice contract
+
+The following sections record the frozen Phase 7.1/7.2 foundation. The completed
+Phase 7 integration and expanded producer restrictions are documented at the end.
 
 This phase defines localized option records, recipe provenance and a pure option-set
 validator. It does not generate options or add a Multiple Choice question flow.
@@ -87,3 +90,60 @@ No wall clock or ambient randomness is used.
 All other taxonomy recipes remain `NOT_IMPLEMENTED_IN_7_2` and produce no candidates.
 The engine does not guarantee three distractors, create a four-option question, or
 order/shuffle answer choices; those concerns belong to later phases.
+
+## Completed Phase 7
+
+`practice-distractor-recipes.ts` extends the existing E/Z producer when production
+chemistry oracles are supplied. Without these oracles the original E/Z producer
+retains its original vectors. The expanded canonical recipe order appends
+substituent locant, omitted substituent, functional locant, unsaturation locant and
+parent length. Alphabetical order, reversed numbering and suffix remain blocked:
+these may describe the same structure or an ambiguous interpretation and lack a
+validated producer. Unsafe registry entries remain blocked as well.
+
+Graph recipes retain at most three proven variants each, in stable traversal order.
+This bounds the candidate pool and stops additional expensive naming once the
+recipe has sufficient variants. It changes neither safety checks nor chemistry.
+
+Expanded producers copy graphs, never names alone. Each alternative must pass the
+existing chemical/domain validator, production bilingual naming and structural
+identity oracle. Structured naming models must differ only in the declared field.
+Locant and omission recipes also preserve the actual parent atom set. A simple
+carbon branch must have exactly one single-bond attachment; selecting one branch
+among several is permitted only when every other model field remains unchanged.
+Functional relocation is limited to a single alcohol, amine or ketone; multiple
+bond relocation to one unspecified alkene/alkyne bond. Parent length extends a
+chain terminal or expands a simple saturated ring, with all other named fields
+unchanged. No arbitrary polycycles, unsupported groups or new naming algorithm.
+
+Restricted provenance includes reference and alternative structural identities.
+The option validator requires proof bound to the current reference; that proof is
+an internal trusted-producer contract, not a proof verifier for untrusted text.
+
+`practice-question.ts` separates candidate eligibility (three unique, safe
+distractors) from four-option assembly. It takes one candidate per recipe first,
+then additional variants. Isolated `mcq:selection:<recipe>:v1` streams choose
+variants; `mcq:option-order:v1` shuffles the four options. IDs are semantic seed
+contexts; A/B/C/D are labels only. Complete bilingual option order, IDs and
+provenance form `optionSetIdentity`, an exact serialized signature rather than a
+collision-prone hash. The reference graph and chemical seed are unchanged.
+
+Practice searches at most 12 real generation indices for MCQ, retaining the
+accepted index; Naming retains its four-context duplicate avoidance. A bounded
+failure displays a localized safe error. All categories have partial or full
+coverage; eligibility is always tested on the individual molecule. Mixed sessions
+shuffle blocks containing one of each selected type with an isolated block seed.
+Naming remains the default and Naming-only frozen vectors remain unchanged.
+
+There is one append-only Attempt Log, one timer and one metrics/correction system.
+MCQ attempts store the selected stable option ID and option signature, plus the
+displayed answer as audit metadata. Corrections reconstruct by actual generation
+index and stored type, verifying graph/question identity and exact option signature.
+Selection resets, timing restarts on availability and attempt numbers grow from
+history. Initial metrics still use only attempt number 1.
+
+The existing Detailed Reviewer receives the selected option's typed provenance,
+not a new string diagnosis. Its correct graph walkthrough is unchanged. Locale
+changes select bilingual option text and reference name while retaining IDs,
+order, selection, timing, outcomes and diagnosis. Build, Exam and persistence are
+not introduced.

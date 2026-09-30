@@ -99,7 +99,8 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
     options: { category?: ExerciseCategory; maxAttempts?: number } = {},
   ): GeneratedExerciseMolecule {
     const canonical = normalizeSessionConfig(config);
-    if (canonical.generatorVersion !== GENERATOR_VERSION || !canonical.questionTypes.includes("naming")) {
+    if (canonical.generatorVersion !== GENERATOR_VERSION
+      || !canonical.questionTypes.some((type) => type === "naming" || type === "multiple-choice")) {
       throw new ChemicalGenerationError("unsupported-request", "Chemical generation currently requires a Naming configuration.");
     }
     const question = deriveGenerationIdentity(canonical, questionIndex);

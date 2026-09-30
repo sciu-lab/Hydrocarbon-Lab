@@ -15,6 +15,9 @@ import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemi
 import { calculatePracticeMolecule2DLayout } from "../app/practice-molecule-layout.ts";
 import { createPracticeConfig, endPractice, localizePracticeState, markPracticeQuestionAvailable, nextPracticeQuestion, retryPracticeGeneration, startPractice, startPracticeCorrections, submitPracticeAnswer, updatePracticeAnswer } from "../app/practice-session.ts";
 import { calculatePracticeMetrics } from "../app/practice-metrics.ts";
+import { createPracticeQuestionGenerator } from "../app/practice-question.ts";
+import { createDeterministicDistractorEngine } from "../app/practice-distractor-engine.ts";
+import { createPracticeReviewer } from "../app/practice-review.ts";
 
 let server, engine, ui, generate;
 before(async () => {
@@ -37,6 +40,33 @@ const config = () => createPracticeConfig(["ester"], 5, "es", "PRACTICE-UI");
 const htmlFor = (state, language = "es") => renderToStaticMarkup(React.createElement(ui.PracticeSessionView, {
   state: localizePracticeState(state, language), language, actions, renderStructure,
 }));
+
+for (const language of ["es", "en"]) test(`MCQ ${language}: four accessible options, selection, feedback and exact correction presentation`, () => {
+  const wrapper = createPracticeQuestionGenerator(generate, createDeterministicDistractorEngine(engine, createExerciseChemistryOracles(engine)));
+  const c = createPracticeConfig(["alcohol"], "endless", language, "MCQ-UI", ["multiple-choice"]);
+  let state = markPracticeQuestionAvailable(startPractice(c, wrapper), { monotonicMs: 1, wallTimeMs: 1 });
+  const render = (s) => renderToStaticMarkup(React.createElement(ui.PracticeSessionView, {
+    state: s, language, actions, renderStructure, review: createPracticeReviewer(engine),
+  }));
+  let html = render(state);
+  assert.equal((html.match(/type="radio"/g) ?? []).length, 4);
+  assert.match(html, /<fieldset class="practice-options">/);
+  assert.match(html, /<button[^>]*type="submit"[^>]*disabled/);
+  assert.doesNotMatch(html, /is-correct|data-correct|✓/);
+  const original = state.question.options;
+  const wrong = original.find((option) => !option.correct).id;
+  state = updatePracticeAnswer(state, wrong);
+  html = render(state); assert.equal((html.match(/checked=""/g) ?? []).length, 1);
+  state = submitPracticeAnswer(state, language, { monotonicMs: 1001, wallTimeMs: 1001 });
+  html = render(state); assert.match(html, /is-correct/); assert.match(html, /is-incorrect/);
+  assert.equal((html.match(/disabled=""/g) ?? []).length, 4);
+  assert.ok(html.includes(uiText(language, "Revisar respuesta")));
+  state = startPracticeCorrections(endPractice(state), wrapper);
+  assert.deepEqual(state.question.options, original); assert.equal(state.answer, "");
+  html = render(state); assert.equal((html.match(/type="radio"/g) ?? []).length, 4);
+  assert.doesNotMatch(html, /checked=""/);
+  assert.ok(html.includes(uiText(language, "Corregir errores")));
+});
 
 function assertPracticeGraphProjection(state, width = 600) {
   const original = structuredClone(state.question);
@@ -235,13 +265,14 @@ for (const language of ["es", "en"]) test(`configuration ${language}: topics, de
   assert.ok(html.includes(uiText(language, "Práctica / Examen")));
   assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>/);
   assert.match(html, new RegExp(`<button[^>]*disabled=""[^>]*>${uiText(language, "Examen")} · ${uiText(language, "Próximamente")}`));
-  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 17);
-  assert.equal((html.match(/checked=""/g) ?? []).length, 1);
+  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 19);
+  assert.equal((html.match(/checked=""/g) ?? []).length, 2);
   assert.match(html, /<option value="10" selected="">10<\/option>/);
   assert.match(html, /<option value="endless">/);
   assert.ok(html.includes(uiText(language, "Semilla (opcional)")));
   assert.ok(html.includes(uiText(language, "Iniciar práctica")));
-  assert.doesNotMatch(html, /Multiple Choice|Build the Molecule|Difficulty|Dificultad|score|Score|timer/);
+  assert.ok(html.includes(uiText(language, "Opción múltiple")));
+  assert.doesNotMatch(html, /Build the Molecule|Difficulty|Dificultad|score|Score|timer/);
   assert.deepEqual(ui.PRACTICE_TOPIC_GROUPS.flatMap((group) => group.topics.map(([id]) => id)).sort(), [...EXERCISE_CATEGORIES].sort());
 });
 

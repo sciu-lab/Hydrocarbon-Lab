@@ -7,8 +7,12 @@ import { validateMultipleChoiceOptions } from "./practice-multiple-choice.ts";
 import type { LocalizedOptionName, MultipleChoiceDistractorOption } from "./practice-multiple-choice.ts";
 import { matchesHydrocarbonReferenceName, normalizeReferenceNameTypography } from "./practice-reference-answer.ts";
 import { createSeededRng, deriveSeed } from "./seeded-rng.ts";
+import type { ExerciseChemistryOracles } from "./exercise-chemistry-oracles.ts";
+import { generateGraphDistractors } from "./practice-distractor-recipes.ts";
+import { VERIFIED_GRAPH_RECIPES } from "./practice-multiple-choice.ts";
+import { validateExerciseDomain } from "./exercise-domain.ts";
 
-export const DISTRACTOR_RECIPE_ORDER = Object.freeze(["WRONG_EZ_DESCRIPTOR"] as const);
+export const DISTRACTOR_RECIPE_ORDER = Object.freeze(["WRONG_EZ_DESCRIPTOR", ...VERIFIED_GRAPH_RECIPES] as const);
 
 export type DistractorNamingEngine = {
   analyzeMolecule(molecule: GeneratedMolecule): PracticeNamingAnalysis;
@@ -49,8 +53,8 @@ export function dedupeDistractorCandidates(
 }
 
 /** Pure deterministic candidate producer; it neither mutates nor replaces chemistry. */
-export function createDeterministicDistractorEngine(engine: DistractorNamingEngine): DeterministicDistractorEngine {
-  return function generateDistractorCandidates({ generatedMolecule, questionSeed }: DistractorEngineInput) {
+export function createDeterministicDistractorEngine(engine: DistractorNamingEngine, oracles?: ExerciseChemistryOracles): DeterministicDistractorEngine {
+  const generateEz: DeterministicDistractorEngine = function generateDistractorCandidates({ generatedMolecule, questionSeed }: DistractorEngineInput) {
     const question = generatedMolecule.question;
     if (typeof questionSeed !== "string" || !questionSeed || questionSeed !== question.seed) {
       throw new Error("Distractor question seed does not match the generated question.");
@@ -130,6 +134,24 @@ export function createDeterministicDistractorEngine(engine: DistractorNamingEngi
     if (!deduped.length) return [];
     const validation = validateMultipleChoiceOptions({ referenceNames: names, options: [referenceOption, ...deduped] });
     return validation.valid ? deduped : [];
+  };
+  return (input) => {
+    const ez = generateEz(input);
+    if (!oracles) return ez;
+    try {
+      const source = input.generatedMolecule;
+      if (!validateExerciseDomain(source.molecule, source.category, oracles).valid) return [];
+      const reference = oracles.reference(source.molecule);
+      if (exerciseStructuralIdentity(source.molecule) !== source.reference.structuralIdentity
+        || !reference.namingSupported || !sameReference(reference.names, source.reference.names)) return [];
+      const candidates = dedupeDistractorCandidates([...ez, ...generateGraphDistractors(input, engine, oracles)])
+        .sort((a, b) => DISTRACTOR_RECIPE_ORDER.indexOf(a.origin.diagnosticCode as typeof DISTRACTOR_RECIPE_ORDER[number])
+          - DISTRACTOR_RECIPE_ORDER.indexOf(b.origin.diagnosticCode as typeof DISTRACTOR_RECIPE_ORDER[number]));
+      return validateMultipleChoiceOptions({ referenceNames: source.reference.names,
+        referenceStructuralIdentity: source.reference.structuralIdentity,
+        options: [{ id: deriveSeed(input.questionSeed, "mcq:reference"), kind: "reference", name: source.reference.names,
+          correct: true, origin: { kind: "reference" } }, ...candidates] }).valid ? candidates : [];
+    } catch { return []; }
   };
 }
 

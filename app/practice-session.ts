@@ -1,7 +1,8 @@
 import { GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
 import type { ExerciseCategory, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
-import type { GeneratedExerciseMolecule } from "./exercise-chemical-generator.ts";
+import { isMultipleChoiceQuestion, schedulePracticeQuestionType, InsufficientSafeDistractorsError, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import type { PracticeQuestion, PracticeQuestionGenerator, PracticeQuestionType } from "./practice-question.ts";
 import { matchesHydrocarbonReferenceName } from "./practice-reference-answer.ts";
 import { appendPracticeAttempt, createInitialAttempt } from "./practice-attempt.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
@@ -12,7 +13,8 @@ import { createCorrectionAttempt, createCorrectionQueue, reconstructPracticeCorr
 export const PRACTICE_LENGTHS = [5, 10, 20, 30, "endless"] as const;
 export const PRACTICE_RECENT_LIMIT = 8;
 export const PRACTICE_DUPLICATE_LIMIT = 4;
-export type PracticeGenerator = (config: SessionConfig, index: number) => GeneratedExerciseMolecule;
+export type PracticeGenerator = PracticeQuestionGenerator;
+export const PRACTICE_MCQ_SEARCH_LIMIT = 12;
 
 type Context = {
   config: SessionConfig;
@@ -22,20 +24,20 @@ type Context = {
   recentIdentities: readonly string[];
   attempts: readonly AttemptRecord[];
 };
-type CurrentQuestion = Context & { question: GeneratedExerciseMolecule; answer: string; timing: PracticeTime | null };
+type CurrentQuestion = Context & { question: PracticeQuestion; answer: string; timing: PracticeTime | null };
 type CorrectionContext = {
   config: SessionConfig; attempts: readonly AttemptRecord[];
   queue: readonly AttemptRecord[]; correctionIndex: number;
 };
 type CorrectionQuestion = CorrectionContext & {
   original: AttemptRecord; index: number; generationIndex: number;
-  question: GeneratedExerciseMolecule; answer: string; timing: PracticeTime | null;
+  question: PracticeQuestion; answer: string; timing: PracticeTime | null;
 };
 export type PracticeState =
   | { phase: "CONFIG" }
   | (CurrentQuestion & { phase: "QUESTION" })
   | (CurrentQuestion & { phase: "FEEDBACK"; correct: boolean; submittedLocale: AppLanguage })
-  | (Context & { phase: "ERROR" })
+  | (Context & { phase: "ERROR"; reason?: "insufficient-safe-distractors" })
   | { phase: "COMPLETE"; config: SessionConfig; attempts: readonly AttemptRecord[] }
   | { phase: "CORRECTION_SUMMARY"; config: SessionConfig; attempts: readonly AttemptRecord[] }
   | (CorrectionQuestion & { phase: "CORRECTION_QUESTION" })
@@ -61,12 +63,13 @@ export function resolvePracticeSeed(seed: string, createPublicSeed: () => string
 
 export function createPracticeConfig(
   categories: readonly ExerciseCategory[], questionCount: number | "endless", locale: AppLanguage, seed: string,
+  questionTypes: readonly PracticeQuestionType[] = ["naming"],
 ): SessionConfig {
   if (!(PRACTICE_LENGTHS as readonly (number | string)[]).includes(questionCount)) {
     throw new RangeError("Unsupported Practice length.");
   }
   return normalizeSessionConfig({
-    mode: "practice", questionTypes: ["naming"], categories, difficulty: "basic",
+    mode: "practice", questionTypes, categories, difficulty: "basic",
     locale, seed, generatorVersion: GENERATOR_VERSION, questionCount,
   });
 }
@@ -74,27 +77,33 @@ export function createPracticeConfig(
 function loadQuestion(context: Context, generate: PracticeGenerator): PracticeState {
   // Search at most four independent Phase 2 contexts. If the domain/selection
   // is too small, accept a repeat rather than hang. Never alter the public seed.
-  for (let offset = 0; offset < PRACTICE_DUPLICATE_LIMIT; offset += 1) {
+  const questionType = schedulePracticeQuestionType(context.config, context.index);
+  const limit = questionType === "multiple-choice" ? PRACTICE_MCQ_SEARCH_LIMIT : PRACTICE_DUPLICATE_LIMIT;
+  let repeat: Extract<PracticeState, { phase: "QUESTION" }> | null = null;
+  for (let offset = 0; offset < limit; offset += 1) {
     const generationIndex = context.generationIndex + offset;
     try {
-      const question = generate(context.config, generationIndex);
+      const question = generate(context.config, generationIndex, { questionType, displayIndex: context.index });
+      if (isMultipleChoiceQuestion(question) !== (questionType === "multiple-choice")) throw new Error("Question type mismatch.");
+      if (isMultipleChoiceQuestion(question) && !validateMultipleChoiceQuestion(question)) throw new Error("Invalid option payload.");
       const identity = question.reference.structuralIdentity;
-      if (context.recentIdentities.includes(identity) && offset < PRACTICE_DUPLICATE_LIMIT - 1) continue;
       const recentIdentities = [...context.recentIdentities.filter((item) => item !== identity), identity]
         .slice(-PRACTICE_RECENT_LIMIT);
-      return { ...context, phase: "QUESTION", generationIndex, recentIdentities, question, answer: "", timing: null };
-    } catch {
+      const accepted: Extract<PracticeState, { phase: "QUESTION" }> = { ...context, phase: "QUESTION", generationIndex, recentIdentities, question, answer: "", timing: null };
+      if (context.recentIdentities.includes(identity) && offset < limit - 1) { repeat = accepted; continue; }
+      return accepted;
+    } catch (error) {
+      if (error instanceof InsufficientSafeDistractorsError) continue;
       // No stack, exception text or partially generated graph enters the UI.
       return { ...context, phase: "ERROR", generationIndex };
     }
   }
-  throw new Error("Unreachable bounded question search.");
+  return repeat ?? { ...context, phase: "ERROR", reason: "insufficient-safe-distractors" };
 }
 
 export function startPractice(config: SessionConfig, generate: PracticeGenerator): PracticeState {
   const canonical = normalizeSessionConfig(config);
-  if (canonical.mode !== "practice" || canonical.questionTypes.length !== 1
-    || canonical.questionTypes[0] !== "naming" || canonical.difficulty !== "basic") {
+  if (canonical.mode !== "practice" || canonical.questionTypes.includes("build") || canonical.difficulty !== "basic") {
     throw new TypeError("Unsupported Practice configuration.");
   }
   return loadQuestion({ config: canonical, index: 0, generationIndex: 0, recentIdentities: [], attempts: [] }, generate);
@@ -129,15 +138,20 @@ export function submitPracticeAnswer(state: PracticeState, locale: AppLanguage, 
   if (!isPracticeAnswerState(state) || !state.answer.trim() || !state.timing) return state;
   const config = normalizeSessionConfig({ ...state.config, locale });
   const question = { ...state.question, reference: { ...state.question.reference, name: state.question.reference.names[locale] } };
-  const correct = matchesHydrocarbonReferenceName(state.answer, question.reference.name, locale);
+  const mcq = isMultipleChoiceQuestion(question);
+  const selected = mcq ? question.options.find((option) => option.id === state.answer) : undefined;
+  if (mcq && !selected) return state;
+  const correct = mcq ? selected!.correct : matchesHydrocarbonReferenceName(state.answer, question.reference.name, locale);
+  const answer = selected ? selected.name[locale] : state.answer;
   if (state.phase === "CORRECTION_QUESTION") {
     const record = createCorrectionAttempt(state.original, state.attempts,
-      { answer: state.answer, correct, started: state.timing, submitted, locale });
+      { answer, correct, started: state.timing, submitted, locale, ...(mcq ? { selectedOptionId: state.answer } : {}) });
     const attempts = appendPracticeAttempt(state.attempts, record);
     return { ...state, config, question, phase: "CORRECTION_FEEDBACK", submittedLocale: locale, correct, attempts };
   }
   const record = createInitialAttempt({ question: state.question, displayOrdinal: state.index + 1,
-    generationIndex: state.generationIndex, answer: state.answer, correct, started: state.timing, submitted, locale });
+    generationIndex: state.generationIndex, answer, correct, started: state.timing, submitted, locale,
+    ...(mcq ? { selectedOptionId: state.answer } : {}) });
   const attempts = appendPracticeAttempt(state.attempts, record);
   if (attempts === state.attempts) return state;
   return { ...state, config, question, phase: "FEEDBACK", submittedLocale: locale, correct, attempts };
