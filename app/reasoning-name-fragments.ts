@@ -361,7 +361,13 @@ export function deriveReasoningNameFragments(input: FragmentInput): Record<strin
   const fragments = deriveExistingReasoningNameFragments(input);
   const { analysis, displayedName, language, steps, canHighlight } = input;
   const name = displayedName.trim();
-  if (!canHighlight || !/^[a-záéíóúüñ0-9, -]+$/i.test(name)
+  const complexEther = analysis.substituents.some((item) => item.complex
+    && analysis.functionalGroups.some((group) => group.kind === "ether" && group.atomIds?.length
+      && item.atomIds?.length === group.atomIds.length
+      && group.atomIds.every((id) => item.atomIds!.includes(id))));
+  const supportedText = /^[a-záéíóúüñ0-9, -]+$/i.test(name)
+    || complexEther && /^[a-záéíóúüñ0-9(), -]+$/i.test(name);
+  if (!canHighlight || !supportedText
     || !["acyclic", "cycloalkane", "aromatic"].includes(analysis.family)) return fragments;
   // Consume the analyzed result or an available local profile output. The caller
   // supplies the existing selector's results; this layer never creates variants.

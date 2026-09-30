@@ -70,17 +70,17 @@ export function matchFunctionalParentSuffix(parent: string, group: string | unde
 }
 
 function prefixGroups(analysis: FunctionalReasoningAnalysis) {
-  const groups = new Map<string, { locants: number[]; contributions: FunctionalContribution[]; atomIds: number[] }>();
+  const groups = new Map<string, { locants: number[]; contributions: FunctionalContribution[]; atomIds: number[]; complex: boolean }>();
   for (const item of analysis.substituents) {
-    if (item.complex) continue;
-    const entry = groups.get(item.name) ?? { locants: [], contributions: [], atomIds: [] };
-    entry.locants.push(item.locant);
-    entry.atomIds.push(...item.atomIds ?? []);
     // The naming engine already associates each functional prefix with its atoms.
     // Match that provenance, not a word such as "amino" somewhere in the name.
     const origins = analysis.functionalGroups.filter((group) => group.atomIds?.length
       && item.atomIds?.length === group.atomIds.length
       && group.atomIds.every((id) => item.atomIds!.includes(id)));
+    if (item.complex && !origins.some((group) => group.kind === "ether")) continue;
+    const entry = groups.get(item.name) ?? { locants: [], contributions: [], atomIds: [], complex: Boolean(item.complex) };
+    entry.locants.push(item.locant);
+    entry.atomIds.push(...item.atomIds ?? []);
     entry.contributions.push(...origins.map((group) => ({
       group: group.kind, role: "prefix" as const, atomIds: group.atomIds!,
     })));
@@ -156,15 +156,17 @@ export function functionalNameEvidence(
     }
   }
 
-  for (const [source, { locants, contributions, atomIds }] of prefixGroups(analysis)) {
+  for (const [source, { locants, contributions, atomIds, complex }] of prefixGroups(analysis)) {
     const named = localized(source, language);
     const sorted = [...locants].sort((a, b) => a - b).join(",");
-    const prefixPattern = new RegExp(`(?:^|-)(${escapePattern(sorted)}-(?:di|tri|tetra|penta|hexa|hepta|octa|nona|deca)?${escapePattern(named)})`, "g");
+    const prefix = complex ? `(?:bis|tris|tetrakis|pentakis|hexakis)?\\(${escapePattern(named)}\\)`
+      : `(?:di|tri|tetra|penta|hexa|hepta|octa|nona|deca)?${escapePattern(named)}`;
+    const prefixPattern = new RegExp(`(?:^|-)(${escapePattern(sorted)}-${prefix})`, "g");
     const body = name.slice(bodyStart, bodyEnd);
     const matches = [...body.matchAll(prefixPattern)];
     // The engine also omits repeated 1,1,... locants on methane, while keeping
     // the multiplier. Copy that whole emitted prefix rather than discarding it.
-    const implicitMatch = new RegExp(`^((?:di|tri|tetra|penta|hexa|hepta|octa|nona|deca)?${escapePattern(named)})`).exec(body);
+    const implicitMatch = new RegExp(`^(${prefix})`).exec(body);
     const implicit = !matches.length && implicitMatch && locants.every((locant) => locant === 1);
     if (matches.length === 1 || implicit) {
       const match = matches[0];

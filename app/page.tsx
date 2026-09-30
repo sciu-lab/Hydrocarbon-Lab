@@ -2693,6 +2693,21 @@ function alkoxyName(startId: number, skeleton: Molecule) {
   return length && alkaneRoots[length] ? `${alkaneRoots[length]}oxi` : "alcoxi";
 }
 
+function etherAlkoxySubstituent(startId: number, oxygenId: number, skeleton: Molecule) {
+  const component = new Set(carbonComponent(startId, skeleton));
+  const bonds = skeleton.bonds.filter(([a, b]) => component.has(a) && component.has(b));
+  // Reuse the existing rooted alkyl analysis only for saturated acyclic fragments.
+  // The attachment to O is the substituent root, not an arbitrary chain end.
+  if (bonds.length !== component.size - 1 || bonds.some((bond) => getBondOrder(bond) !== 1)) {
+    return { name: alkoxyName(startId, skeleton), complex: false };
+  }
+  const alkyl = nameSubstituent(startId, oxygenId, buildAdjacency(skeleton));
+  return {
+    name: alkyl.name.endsWith("il") ? `${alkyl.name.slice(0, -2)}oxi` : "alcoxi",
+    complex: alkyl.complex,
+  };
+}
+
 function esterAlkylName(startId: number | undefined, skeleton: Molecule) {
   if (!startId) return "alquilo";
   const length = simpleAlkylLength(startId, skeleton);
@@ -3034,12 +3049,12 @@ function functionalPrefixSubstituents(
     if (!locant) return;
     if (group.kind === primaryKind) return;
 
-    const addPrefix = (name: string) => {
+    const addPrefix = (name: string, complex = false) => {
       prefixes.push({
         locant,
         name,
         sortName: stripForAlphabetizing(name),
-        complex: false,
+        complex,
         atomIds: group.atomIds,
       });
     };
@@ -3050,7 +3065,10 @@ function functionalPrefixSubstituents(
     } else if (group.kind === "ether") {
       const parentCarbonId = group.carbonIds.find((candidate) => path.includes(candidate));
       const otherCarbonId = group.carbonIds.find((candidate) => candidate !== parentCarbonId);
-      if (otherCarbonId) addPrefix(alkoxyName(otherCarbonId, skeleton));
+      if (otherCarbonId) {
+        const alkoxy = etherAlkoxySubstituent(otherCarbonId, group.heteroAtomId, skeleton);
+        addPrefix(alkoxy.name, alkoxy.complex);
+      }
     } else if (group.kind === "alcohol") {
       addPrefix("hidroxi");
     } else if (group.kind === "ketone") {
@@ -4835,7 +4853,10 @@ export function buildEnglishReasoningSteps(
     ? analysis.functionalGroups.filter((group) => group.kind === "nitro")
     : [];
   const substituentList = analysis.substituents
-    .map((item) => `${item.locant}-${translateSpanishIupacToOpsin(item.name) || item.name}`)
+    .map((item) => {
+      const name = translateSpanishIupacToOpsin(item.name) || item.name;
+      return `${item.locant}-${item.complex ? `(${name})` : name}`;
+    })
     .join(", ");
   const multipleBonds = [
     ...analysis.doubleBondLocants.map((locant) => `C${locant}=C${locant + 1}`),
