@@ -64,3 +64,26 @@ attempts, or provide UI.
 Detailed Reviewer remains the shared diagnostic vocabulary. Later MCQ review can
 reuse an option's recipe and diagnostic code; it should not infer provenance again
 from the selected option's text.
+
+## Deterministic candidate engine (Phase 7.2)
+
+`createDeterministicDistractorEngine` binds the existing naming engine and accepts a
+`GeneratedExerciseMolecule` plus its matching `questionSeed`. It returns zero or more
+typed bilingual distractor options. It validates the source graph/reference, derives
+an explicit stereo descriptor from the graph, checks each candidate with the existing
+Practice evaluator and `validateMultipleChoiceOptions`, then returns only safe,
+normalized-unique options. Invalid or unsupported chemistry fails closed to `[]`; a
+seed that does not identify the supplied question is an input error.
+
+The canonical recipe order is frozen as `WRONG_EZ_DESCRIPTOR`. That recipe is
+implemented only for a generated `ez` molecule whose explicit graph E/Z descriptors
+and both engine-produced reference names agree. It flips exactly one structured
+descriptor; the molecule and all other name text remain unchanged. If the molecule
+has multiple explicit descriptors, a recipe-isolated stream derived from
+`deriveSeed(questionSeed, "mcq:distractor:WRONG_EZ_DESCRIPTOR:variant")` chooses one
+from locant-sorted variants. Candidate IDs are also derived from the question seed.
+No wall clock or ambient randomness is used.
+
+All other taxonomy recipes remain `NOT_IMPLEMENTED_IN_7_2` and produce no candidates.
+The engine does not guarantee three distractors, create a four-option question, or
+order/shuffle answer choices; those concerns belong to later phases.
