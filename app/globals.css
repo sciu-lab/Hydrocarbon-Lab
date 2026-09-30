@@ -9613,6 +9613,21 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .lab-entry-actions .guided-tour-launch { margin-left: 0; min-height: 44px; }
 .lab-workspace[hidden] { display: none; }
 .practice-card { max-width: 1050px; margin: 24px auto; padding: clamp(16px, 3vw, 30px); border: 1px solid var(--line); border-radius: 22px; background: var(--paper); box-shadow: 0 14px 40px rgba(24, 49, 45, .06); }
+.practice-build-working, .practice-build-editor { min-width: 0; max-width: 100%; }
+.practice-build-target { overflow-wrap: anywhere; }
+.practice-build-editor .builder-card { position: relative; top: auto; width: 100%; min-width: 0; transform: none; }
+.practice-build-editor .molecule-workspace { min-width: 0; }
+.practice-build-editor .molecule-canvas { min-height: 320px; }
+.practice-build-editor .construction-head { position: relative; top: auto; }
+.practice-build-editor .construction-context-slot { position: relative; width: 100%; }
+.practice-build-editor button { padding: 8px; }
+@media (max-width: 420px) {
+  .practice-build-editor .construction-actions { flex-wrap: wrap; }
+  .practice-build-editor .card-heading { flex-wrap: wrap; }
+  .practice-build-editor .heading-actions { display: flex; flex-wrap: wrap; }
+  .practice-build-editor .view-mode-switch { flex-wrap: wrap; max-width: 100%; }
+  .practice-build-editor .builder-card { padding: 8px; }
+}
 .practice-card h2, .practice-card h3 { margin: 0; color: var(--ink); }
 .practice-card h2 { font-size: clamp(20px, 3vw, 27px); }
 .practice-card p { line-height: 1.5; color: var(--muted); }

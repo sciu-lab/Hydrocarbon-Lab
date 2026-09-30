@@ -6,7 +6,7 @@ import { matchesHydrocarbonReferenceName, normalizeReferenceNameTypography } fro
 export type LocalizedOptionName = Readonly<Record<AppLanguage, string>>;
 
 /** Existing Reviewer codes are the recipe taxonomy; UNKNOWN is intentionally absent. */
-export type DistractorDiagnosticCode = Exclude<ReviewIssueCode, "UNKNOWN_MISMATCH">;
+export type DistractorDiagnosticCode = Exclude<ReviewIssueCode, "UNKNOWN_MISMATCH" | "UNKNOWN_STRUCTURAL_MISMATCH">;
 export type DistractorRecipeStatus = "SUPPORTED" | "SUPPORTED_WITH_RESTRICTIONS" | "NOT_SAFE_AS_DISTRACTOR";
 
 export const DISTRACTOR_RECIPE_SUPPORT: Readonly<Record<DistractorDiagnosticCode, DistractorRecipeStatus>> = {

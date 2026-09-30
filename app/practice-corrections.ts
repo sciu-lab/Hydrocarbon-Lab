@@ -1,5 +1,6 @@
 import type { SessionConfig } from "./exercise-model.ts";
-import { isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import { isBuildQuestion, isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import type { StructuralEvaluation } from "./practice-structural-answer.ts";
 import type { PracticeQuestion, PracticeQuestionGenerator } from "./practice-question.ts";
 import { practiceQuestionKey } from "./practice-attempt.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
@@ -60,7 +61,7 @@ export function calculatePracticeMastery(log: readonly AttemptRecord[]): Mastery
  */
 export function reconstructPracticeCorrection(config: SessionConfig, original: AttemptRecord,
   generate: PracticeQuestionGenerator): PracticeQuestion {
-  if (original.attemptNumber !== 1 || original.correct || original.questionType === "build"
+  if (original.attemptNumber !== 1 || original.correct
     || original.generatorVersion !== config.generatorVersion) throw new Error("Invalid correction context.");
   const generated = generate(config, original.generationIndex, { questionType: original.questionType, displayIndex: original.displayOrdinal - 1 });
   if (generated.reference.structuralIdentity !== original.structuralIdentity
@@ -69,6 +70,7 @@ export function reconstructPracticeCorrection(config: SessionConfig, original: A
     throw new Error("Correction reconstruction mismatch.");
   }
   if (isMultipleChoiceQuestion(generated) !== (original.questionType === "multiple-choice")
+    || isBuildQuestion(generated) !== (original.questionType === "build")
     || (isMultipleChoiceQuestion(generated) && (!validateMultipleChoiceQuestion(generated)
       || generated.optionSetIdentity !== original.optionSetIdentity))) {
     throw new Error("Correction option reconstruction mismatch.");
@@ -79,6 +81,7 @@ export function reconstructPracticeCorrection(config: SessionConfig, original: A
 export function createCorrectionAttempt(original: AttemptRecord, log: readonly AttemptRecord[], input: {
   answer: string; correct: boolean; started: PracticeTime; submitted: PracticeTime; locale: AppLanguage;
   selectedOptionId?: string;
+  structuralAnswer?: StructuralEvaluation;
 }): AttemptRecord {
   const history = log.filter((record) => practiceQuestionKey(record) === practiceQuestionKey(original));
   const first = history.find((record) => record.attemptNumber === 1);
@@ -87,9 +90,13 @@ export function createCorrectionAttempt(original: AttemptRecord, log: readonly A
   }
   const attemptNumber = history.reduce((maximum, record) => Math.max(maximum, record.attemptNumber), 1) + 1;
   if (!Number.isSafeInteger(attemptNumber)) throw new RangeError("Invalid correction attempt number.");
+  if (first.questionType === "build" && (!input.structuralAnswer?.checks.submissionValid
+    || !input.structuralAnswer.submittedSmiles || input.structuralAnswer.correct !== input.correct
+    || ["INVALID_SUBMISSION", "UNSUPPORTED_COMPARISON"].includes(input.structuralAnswer.status))) throw new Error("Invalid Build correction.");
   return {
     ...first, attemptNumber, answer: input.answer, correct: input.correct,
     ...(first.questionType === "multiple-choice" ? { selectedOptionId: input.selectedOptionId } : {}),
+    ...(first.questionType === "build" ? { structuralAnswer: structuredClone(input.structuralAnswer!) } : {}),
     startedAt: input.started.wallTimeMs, submittedAt: input.submitted.wallTimeMs,
     responseTimeMs: practiceResponseTimeMs(input.started, input.submitted), localeAtSubmission: input.locale,
   };

@@ -265,13 +265,14 @@ for (const language of ["es", "en"]) test(`configuration ${language}: topics, de
   assert.ok(html.includes(uiText(language, "Práctica / Examen")));
   assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>/);
   assert.match(html, new RegExp(`<button[^>]*disabled=""[^>]*>${uiText(language, "Examen")} · ${uiText(language, "Próximamente")}`));
-  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 19);
+  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 20);
   assert.equal((html.match(/checked=""/g) ?? []).length, 2);
   assert.match(html, /<option value="10" selected="">10<\/option>/);
   assert.match(html, /<option value="endless">/);
   assert.ok(html.includes(uiText(language, "Semilla (opcional)")));
   assert.ok(html.includes(uiText(language, "Iniciar práctica")));
   assert.ok(html.includes(uiText(language, "Opción múltiple")));
+  assert.ok(html.includes(uiText(language, "Construir la molécula")));
   assert.doesNotMatch(html, /Build the Molecule|Difficulty|Dificultad|score|Score|timer/);
   assert.deepEqual(ui.PRACTICE_TOPIC_GROUPS.flatMap((group) => group.topics.map(([id]) => id)).sort(), [...EXERCISE_CATEGORIES].sort());
 });

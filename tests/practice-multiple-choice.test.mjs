@@ -111,9 +111,9 @@ test("locale changes option text only; stable IDs and recipe identity are shared
   assert.ok(validate(options).valid);
 });
 
-test("the distractor taxonomy reuses every Reviewer diagnostic except its non-recipe UNKNOWN fallback", () => {
+test("the distractor taxonomy excludes the textual and structural UNKNOWN fallbacks", () => {
   assert.deepEqual(Object.keys(DISTRACTOR_RECIPE_SUPPORT).sort(),
-    Object.keys(REVIEW_DIAGNOSIS_SUPPORT).filter((code) => code !== "UNKNOWN_MISMATCH").sort());
+    Object.keys(REVIEW_DIAGNOSIS_SUPPORT).filter((code) => !["UNKNOWN_MISMATCH", "UNKNOWN_STRUCTURAL_MISMATCH"].includes(code)).sort());
 });
 
 test("option core and Exercise Model types pass strict TypeScript checking", async () => {

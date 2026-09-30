@@ -56,7 +56,7 @@ test("Settings, History, Saved, expanded canvas and Export share the body portal
 
 test("modal scroll locks are shared and modal controls retain their own scrolling", () => {
   assert.match(page, /if \(!canvasExpanded && !pngExportOpen && !historyOpen && !settingsOpen\) return undefined/);
-  assert.match(page, /\[canvasExpanded, pngExportOpen, historyOpen, settingsOpen\]/);
+  assert.match(page, /\[isolatedBuild, canvasExpanded, pngExportOpen, historyOpen, settingsOpen\]/);
   assert.equal((page.match(/body\.style\.overflow = "hidden"/g) ?? []).length, 1, "only the shared scroll-lock effect sets body overflow");
   assert.match(page, /const scrollY = window\.scrollY;[\s\S]*?if \(settingsOpen\) \{\s*body\.style\.position = "fixed";\s*body\.style\.top = `-\$\{scrollY\}px`;\s*body\.style\.width = "100%";\s*\}[\s\S]*?if \(settingsOpen\) window\.scrollTo\(0, scrollY\)/);
   assert.match(page, /window\.innerWidth - window\.document\.documentElement\.clientWidth/);

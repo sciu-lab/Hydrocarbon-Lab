@@ -11,6 +11,7 @@ import {
   PRACTICE_LENGTHS, resolvePracticeSeed, retryPracticeGeneration, startPractice,
   submitPracticeAnswer, updatePracticeAnswer,
   hasPracticeQuestion, isPracticeAnswerState, startPracticeCorrections,
+  updatePracticeStructure, submitPracticeStructure,
 } from "./practice-session.ts";
 import type { PracticeGenerator, PracticeState } from "./practice-session.ts";
 import { browserPracticeClock } from "./practice-timing.ts";
@@ -19,7 +20,11 @@ import { formatPracticeResponseTime } from "./practice-metrics.ts";
 import { PracticeSummary } from "./practice-summary.tsx";
 import type { PracticeReviewer, ReviewHighlights, ReviewModel } from "./practice-review.ts";
 import { PracticeReviewPanel } from "./practice-review-panel.tsx";
-import { isMultipleChoiceQuestion } from "./practice-question.ts";
+import { isBuildQuestion, isMultipleChoiceQuestion } from "./practice-question.ts";
+import type { StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
+import { PracticeBuildEditor } from "./practice-build-editor.tsx";
+import type { BuildEditorRenderer } from "./practice-build-editor.tsx";
+import { moleculeFromSmiles } from "./openchemlib-adapter.ts";
 import type { PracticeQuestionType } from "./practice-question.ts";
 
 export const PRACTICE_TOPIC_GROUPS = [
@@ -43,6 +48,7 @@ type ViewActions = {
   configure(): void;
   back(): void;
   correctMistakes(): void;
+  structure?(molecule: GeneratedMolecule): void;
 };
 
 function PracticeStructure({ molecule, language, renderStructure, highlights }: {
@@ -64,10 +70,11 @@ function PracticeStructure({ molecule, language, renderStructure, highlights }: 
 }
 
 /** Session data stays read-only; review selection is local presentation state. */
-export function PracticeSessionView({ state, language, renderStructure, review, actions, answerRef, feedbackRef, onQuestionAvailable }: {
+export function PracticeSessionView({ state, language, renderStructure, renderBuilder, review, actions, answerRef, feedbackRef, onQuestionAvailable }: {
   state: Exclude<PracticeState, { phase: "CONFIG" }>;
   language: AppLanguage;
   renderStructure: StructureRenderer;
+  renderBuilder?: BuildEditorRenderer;
   review: PracticeReviewer;
   actions: ViewActions;
   answerRef?: RefObject<HTMLInputElement | null>;
@@ -84,6 +91,11 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
     // The DOM commit, rather than generation or render, starts presentation.
     if (input && (phase === "QUESTION" || phase === "CORRECTION_QUESTION") && currentId !== null) onQuestionAvailable?.(currentId, currentIndex);
   }, [answerRef, onQuestionAvailable, phase, currentId, currentIndex]);
+  const structureAction = actions.structure;
+  const buildChange = useCallback((molecule: GeneratedMolecule) => structureAction?.(molecule), [structureAction]);
+  const buildReady = useCallback(() => {
+    if (currentId !== null && (phase === "QUESTION" || phase === "CORRECTION_QUESTION")) onQuestionAvailable?.(currentId, currentIndex);
+  }, [currentId, currentIndex, phase, onQuestionAvailable]);
   const t = (text: string) => uiText(language, text);
   const categoryLabelFor = (category: ExerciseCategory) => t(PRACTICE_TOPIC_GROUPS.flatMap((group) => [...group.topics])
     .find(([id]) => id === category)![1]);
@@ -111,6 +123,7 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
   const correction = state.phase === "CORRECTION_QUESTION" || state.phase === "CORRECTION_FEEDBACK";
   const feedback = state.phase === "FEEDBACK" || state.phase === "CORRECTION_FEEDBACK";
   const mcq = isMultipleChoiceQuestion(state.question) ? state.question : null;
+  const build = isBuildQuestion(state.question);
   const attempt = feedback ? state.attempts[state.attempts.length - 1] : null;
   const reviewKey = attempt ? `${attempt.questionId}:${attempt.generationIndex}:${attempt.attemptNumber}` : null;
   const openReview = feedback && reviewState && attempt
@@ -118,6 +131,8 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
     && reviewState.model.generationIndex === attempt.generationIndex
     && reviewState.model.attemptNumber === attempt.attemptNumber ? reviewState : null;
   const highlights = openReview?.model.steps.find((step) => step.id === openReview.activeStep);
+  const submittedGraph = build && attempt?.structuralAnswer?.submittedSmiles
+    ? moleculeFromSmiles(attempt.structuralAnswer.submittedSmiles) : null;
   const closeReview = () => {
     setReviewState(null); setReviewError(null);
     window.requestAnimationFrame(() => feedbackRef?.current?.focus());
@@ -132,8 +147,31 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
         .replace("{total}", String(correction ? state.queue.length : state.config.questionCount))}</h3>
       <span className="scope-pill">{categoryLabelFor(state.question.category)}</span>
     </div>
-    <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} highlights={highlights} />
-    {!openReview && <form className="practice-answer" onSubmit={(event) => { event.preventDefault(); actions.check(); }}>
+    {build ? <>
+      <h3>{t("Construir la molécula")}</h3>
+      <p className="practice-build-target">{t("Objetivo")}: <strong>{state.question.reference.name}</strong></p>
+      {!openReview && !feedback && renderBuilder && <PracticeBuildEditor
+        key={`${state.question.question.id}:${correction ? state.attempts.length : 0}`}
+        language={language} disabled={false} renderBuilder={renderBuilder} onChange={buildChange} onReady={buildReady} />}
+      {feedback && !openReview && state.studentMolecule && <>
+        <h3>{t("Tu estructura")}</h3>
+        <PracticeStructure molecule={state.studentMolecule} language={language} renderStructure={renderStructure} />
+      </>}
+      {openReview && <>
+        {submittedGraph?.ok && <><h3>{t("Tu estructura")}</h3>
+          <PracticeStructure molecule={submittedGraph.molecule} language={language} renderStructure={renderStructure} /></>}
+        <h3>{t("Estructura de referencia")}</h3>
+        <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} highlights={highlights} />
+      </>}
+      {isPracticeAnswerState(state) && <>
+        {state.buildError && <p role="alert">{t(state.buildError === "INVALID_SUBMISSION"
+          ? "La estructura no es válida dentro del dominio de práctica. Corrígela y vuelve a comprobar."
+          : "No se pudo comparar la estructura. Tus intentos se conservan; puedes reintentar.")}</p>}
+        <button type="button" className="practice-primary" disabled={!state.studentMolecule || !state.timing || !renderBuilder}
+          onClick={actions.check}>{t("Comprobar estructura")}</button>
+      </>}
+    </> : <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} highlights={highlights} />}
+    {!openReview && !build && <form className="practice-answer" onSubmit={(event) => { event.preventDefault(); actions.check(); }}>
       {mcq ? <fieldset className="practice-options">
         <legend>{t("¿Cuál es el nombre IUPAC correcto?")}</legend>
         {mcq.options.map((option, index) => <label key={option.id}
@@ -157,7 +195,7 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
       onSelectStep={(activeStep) => setReviewState({ ...openReview, activeStep })} onClose={closeReview} onNext={advance} />}
     {feedback && !openReview && <div className={`practice-feedback ${state.correct ? "is-correct" : ""}`}
       role="status" aria-live="polite" tabIndex={-1} ref={feedbackRef}>
-      <strong>{state.correct ? `✓ ${t("Correcto")}` : t("No exactamente.")}</strong>
+      <strong>{state.correct ? `✓ ${t(build ? "Estructura correcta" : "Correcto")}` : t("No exactamente.")}</strong>
       <p>{t("Nombre de referencia de Hydrocarbon Lab:")}</p>
       <p className="practice-reference">{state.question.reference.name}</p>
       <p>{t("Tiempo de respuesta")}: {formatPracticeResponseTime(state.attempts[state.attempts.length - 1].responseTimeMs, language)}</p>
@@ -177,12 +215,14 @@ export function PracticeSessionView({ state, language, renderStructure, review, 
   </>;
 }
 
-export function PracticePanel({ language, onLanguageChange, onBackToLab, generate, renderStructure, review, clock = browserPracticeClock }: {
+export function PracticePanel({ language, onLanguageChange, onBackToLab, generate, renderStructure, renderBuilder, evaluateStructure, review, clock = browserPracticeClock }: {
   language: AppLanguage;
   onLanguageChange(language: AppLanguage): void;
   onBackToLab(): void;
   generate: PracticeGenerator;
   renderStructure: StructureRenderer;
+  renderBuilder?: BuildEditorRenderer;
+  evaluateStructure?: StructuralAnswerEvaluator;
   review: PracticeReviewer;
   clock?: PracticeClock;
 }) {
@@ -210,12 +250,16 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
   }, [session.phase, index, answerAvailable]);
   const t = (text: string) => uiText(language, text);
   const localized = localizePracticeState(session, language);
+  const structure = useCallback((molecule: GeneratedMolecule) => setSession((state) => updatePracticeStructure(state, molecule)), []);
   const actions: ViewActions = {
+    structure,
     answer: (value) => setSession((state) => updatePracticeAnswer(state, value)),
     check: () => {
       // Capture the press once, outside React's replayable state updater.
       const submitted = clock.read();
-      setSession((state) => submitPracticeAnswer(state, language, submitted));
+      setSession((state) => hasPracticeQuestion(state) && isBuildQuestion(state.question)
+        ? evaluateStructure ? submitPracticeStructure(state, language, submitted, evaluateStructure) : state
+        : submitPracticeAnswer(state, language, submitted));
     },
     next: () => setSession((state) => nextPracticeQuestion(localizePracticeState(state, language), generate)),
     end: () => setSession((state) => endPractice(localizePracticeState(state, language))),
@@ -258,10 +302,10 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       </div>
       {!categories.length && <p role="status">{t("Selecciona al menos un tema.")}</p>}
       <fieldset className="practice-question-types"><legend>{t("Tipos de pregunta")}</legend>
-        {(["naming", "multiple-choice"] as const).map((type) => <label key={type}>
+        {(["naming", "multiple-choice", "build"] as const).map((type) => <label key={type}>
           <input type="checkbox" checked={questionTypes.includes(type)} onChange={(event) => setQuestionTypes((current) =>
             event.target.checked ? [...current, type] : current.filter((item) => item !== type))} />
-          {t(type === "naming" ? "Nomenclatura" : "Opción múltiple")}
+          {t(type === "naming" ? "Nomenclatura" : type === "build" ? "Construir la molécula" : "Opción múltiple")}
         </label>)}
       </fieldset>
       {!questionTypes.length && <p role="status">{t("Selecciona al menos un tipo de pregunta.")}</p>}
@@ -275,7 +319,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length}>{t("Iniciar práctica")}</button>
     </form> : <>
       <p className="practice-seed">{t("Semilla")}: <code>{localized.config.seed}</code></p>
-      <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} review={review} actions={actions}
+      <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} renderBuilder={renderBuilder} review={review} actions={actions}
         answerRef={answerRef} feedbackRef={feedbackRef} onQuestionAvailable={onQuestionAvailable} />
     </>}
   </section>;

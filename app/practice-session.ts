@@ -1,7 +1,9 @@
 import { GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
 import type { ExerciseCategory, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
-import { isMultipleChoiceQuestion, schedulePracticeQuestionType, InsufficientSafeDistractorsError, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import { isBuildQuestion, isMultipleChoiceQuestion, schedulePracticeQuestionType, InsufficientSafeDistractorsError, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import type { StructuralAnswerEvaluator, StructuralEvaluation } from "./practice-structural-answer.ts";
+import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import type { PracticeQuestion, PracticeQuestionGenerator, PracticeQuestionType } from "./practice-question.ts";
 import { matchesHydrocarbonReferenceName } from "./practice-reference-answer.ts";
 import { appendPracticeAttempt, createInitialAttempt } from "./practice-attempt.ts";
@@ -24,12 +26,13 @@ type Context = {
   recentIdentities: readonly string[];
   attempts: readonly AttemptRecord[];
 };
-type CurrentQuestion = Context & { question: PracticeQuestion; answer: string; timing: PracticeTime | null };
+type BuildWorkingState = { studentMolecule?: GeneratedMolecule; buildError?: "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" };
+type CurrentQuestion = Context & BuildWorkingState & { question: PracticeQuestion; answer: string; timing: PracticeTime | null };
 type CorrectionContext = {
   config: SessionConfig; attempts: readonly AttemptRecord[];
   queue: readonly AttemptRecord[]; correctionIndex: number;
 };
-type CorrectionQuestion = CorrectionContext & {
+type CorrectionQuestion = CorrectionContext & BuildWorkingState & {
   original: AttemptRecord; index: number; generationIndex: number;
   question: PracticeQuestion; answer: string; timing: PracticeTime | null;
 };
@@ -85,6 +88,7 @@ function loadQuestion(context: Context, generate: PracticeGenerator): PracticeSt
     try {
       const question = generate(context.config, generationIndex, { questionType, displayIndex: context.index });
       if (isMultipleChoiceQuestion(question) !== (questionType === "multiple-choice")) throw new Error("Question type mismatch.");
+      if (isBuildQuestion(question) !== (questionType === "build")) throw new Error("Question type mismatch.");
       if (isMultipleChoiceQuestion(question) && !validateMultipleChoiceQuestion(question)) throw new Error("Invalid option payload.");
       const identity = question.reference.structuralIdentity;
       const recentIdentities = [...context.recentIdentities.filter((item) => item !== identity), identity]
@@ -103,7 +107,7 @@ function loadQuestion(context: Context, generate: PracticeGenerator): PracticeSt
 
 export function startPractice(config: SessionConfig, generate: PracticeGenerator): PracticeState {
   const canonical = normalizeSessionConfig(config);
-  if (canonical.mode !== "practice" || canonical.questionTypes.includes("build") || canonical.difficulty !== "basic") {
+  if (canonical.mode !== "practice" || canonical.difficulty !== "basic") {
     throw new TypeError("Unsupported Practice configuration.");
   }
   return loadQuestion({ config: canonical, index: 0, generationIndex: 0, recentIdentities: [], attempts: [] }, generate);
@@ -135,6 +139,7 @@ export function localizePracticeState(state: PracticeState, locale: AppLanguage)
 }
 
 export function submitPracticeAnswer(state: PracticeState, locale: AppLanguage, submitted: PracticeTime): PracticeState {
+  if (hasPracticeQuestion(state) && isBuildQuestion(state.question)) return state;
   if (!isPracticeAnswerState(state) || !state.answer.trim() || !state.timing) return state;
   const config = normalizeSessionConfig({ ...state.config, locale });
   const question = { ...state.question, reference: { ...state.question.reference, name: state.question.reference.names[locale] } };
@@ -155,6 +160,33 @@ export function submitPracticeAnswer(state: PracticeState, locale: AppLanguage, 
   const attempts = appendPracticeAttempt(state.attempts, record);
   if (attempts === state.attempts) return state;
   return { ...state, config, question, phase: "FEEDBACK", submittedLocale: locale, correct, attempts };
+}
+
+/** Builder commits only its isolated working graph. Locale/reset preserve timing. */
+export function updatePracticeStructure(state: PracticeState, molecule: GeneratedMolecule): PracticeState {
+  return isPracticeAnswerState(state) && isBuildQuestion(state.question)
+    ? { ...state, studentMolecule: structuredClone(molecule), buildError: undefined } : state;
+}
+
+export function submitPracticeStructure(state: PracticeState, locale: AppLanguage, submitted: PracticeTime,
+  evaluate: StructuralAnswerEvaluator): PracticeState {
+  if (!isPracticeAnswerState(state) || !isBuildQuestion(state.question) || !state.timing || !state.studentMolecule) return state;
+  let structuralAnswer: StructuralEvaluation;
+  try { structuralAnswer = evaluate({ referenceMolecule: state.question.molecule,
+    submittedMolecule: state.studentMolecule, category: state.question.category }); }
+  catch { return { ...state, buildError: "UNSUPPORTED_COMPARISON" }; }
+  if (["INVALID_SUBMISSION", "UNSUPPORTED_COMPARISON"].includes(structuralAnswer.status)) {
+    return { ...state, buildError: structuralAnswer.status as "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" };
+  }
+  const input = { answer: structuralAnswer.submittedSmiles!, correct: structuralAnswer.correct, structuralAnswer,
+    started: state.timing, submitted, locale };
+  const record = state.phase === "CORRECTION_QUESTION" ? createCorrectionAttempt(state.original, state.attempts, input)
+    : createInitialAttempt({ ...input, question: state.question, displayOrdinal: state.index + 1, generationIndex: state.generationIndex });
+  const attempts = appendPracticeAttempt(state.attempts, record);
+  const feedback = { correct: structuralAnswer.correct, submittedLocale: locale, attempts, answer: input.answer, buildError: undefined };
+  return state.phase === "CORRECTION_QUESTION"
+    ? { ...state, ...feedback, phase: "CORRECTION_FEEDBACK" }
+    : { ...state, ...feedback, phase: "FEEDBACK" };
 }
 
 export function nextPracticeQuestion(state: PracticeState, generate: PracticeGenerator): PracticeState {

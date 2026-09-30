@@ -1,5 +1,5 @@
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
-import { isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import { isBuildQuestion, isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
 import type { PracticeQuestion, GeneratedMultipleChoiceQuestion } from "./practice-question.ts";
 import { exerciseStructuralIdentity } from "./exercise-chemical-generator.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
@@ -27,7 +27,7 @@ export type ReviewIssueCode =
   | "WRONG_PARENT_CHAIN" | "WRONG_PARENT_LENGTH" | "WRONG_NUMBERING_DIRECTION"
   | "MISSING_SUBSTITUENT" | "EXTRA_SUBSTITUENT" | "WRONG_SUBSTITUENT_LOCANT"
   | "WRONG_ALPHABETICAL_ORDER" | "WRONG_FUNCTIONAL_GROUP" | "WRONG_FUNCTIONAL_GROUP_LOCANT"
-  | "WRONG_UNSATURATION_LOCANT" | "WRONG_SUFFIX" | "WRONG_EZ_DESCRIPTOR" | "UNKNOWN_MISMATCH";
+  | "WRONG_UNSATURATION_LOCANT" | "WRONG_SUFFIX" | "WRONG_EZ_DESCRIPTOR" | "UNKNOWN_MISMATCH" | "UNKNOWN_STRUCTURAL_MISMATCH";
 export type ReviewIssue = {
   code: ReviewIssueCode; messageKey: string; params: ReviewParams;
   relatedAtomIds: readonly number[]; relatedBondIds: readonly string[];
@@ -188,7 +188,12 @@ export function createPracticeReviewer<A extends PracticeNamingAnalysis>(engine:
     }
     const steps = buildPracticeReviewSteps(question.molecule, analysis, legacy, question.reference.names);
     let issues: readonly ReviewIssue[];
-    if (isMultipleChoiceQuestion(question)) {
+    if (isBuildQuestion(question)) {
+      if (attempt.questionType !== "build" || !attempt.structuralAnswer?.checks.submissionValid
+        || attempt.structuralAnswer.correct !== attempt.correct) throw new Error("Review Build type mismatch.");
+      issues = attempt.correct ? [] : [{ code: "UNKNOWN_STRUCTURAL_MISMATCH", messageKey: "review.build.mismatch",
+        params: {}, relatedAtomIds: [], relatedBondIds: [] }];
+    } else if (isMultipleChoiceQuestion(question)) {
       issues = reviewMultipleChoiceSelection(question, attempt, steps);
     } else {
       if (attempt.questionType !== "naming") throw new Error("Review type mismatch.");

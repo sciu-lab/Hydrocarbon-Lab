@@ -1,5 +1,6 @@
 import type { ExerciseCategory, GeneratorVersion, QuestionType } from "./exercise-model.ts";
-import { isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import { isBuildQuestion, isMultipleChoiceQuestion, validateMultipleChoiceQuestion } from "./practice-question.ts";
+import type { StructuralEvaluation } from "./practice-structural-answer.ts";
 import type { PracticeQuestion } from "./practice-question.ts";
 import type { AppLanguage } from "./i18n.ts";
 import type { PracticeTime } from "./practice-timing.ts";
@@ -22,6 +23,8 @@ export type AttemptRecord = Readonly<{
   selectedOptionId?: string;
   /** Bilingual order, identities and provenance; never a molecular graph. */
   optionSetIdentity?: string;
+  /** Compact chemical submission and the frozen comparison; no editor state. */
+  structuralAnswer?: StructuralEvaluation;
   correct: boolean;
   /** Absolute epoch milliseconds for audit; not used to calculate duration. */
   startedAt: number;
@@ -33,6 +36,7 @@ export type AttemptRecord = Readonly<{
 export function createInitialAttempt(input: {
   question: PracticeQuestion; displayOrdinal: number; generationIndex: number;
   selectedOptionId?: string;
+  structuralAnswer?: StructuralEvaluation;
   answer: string; correct: boolean; started: PracticeTime; submitted: PracticeTime; locale: AppLanguage;
 }): AttemptRecord {
   if (!Number.isSafeInteger(input.displayOrdinal) || input.displayOrdinal < 1
@@ -44,10 +48,14 @@ export function createInitialAttempt(input: {
     const selected = input.question.options.find((option) => option.id === input.selectedOptionId);
     if (!validateMultipleChoiceQuestion(input.question) || !selected || selected.correct !== input.correct) throw new Error("Invalid MCQ submission.");
   }
+  if (isBuildQuestion(input.question) && (!input.structuralAnswer?.checks.submissionValid
+    || !input.structuralAnswer.submittedSmiles || input.structuralAnswer.correct !== input.correct
+    || ["INVALID_SUBMISSION", "UNSUPPORTED_COMPARISON"].includes(input.structuralAnswer.status))) throw new Error("Invalid Build submission.");
   return {
     questionId: question.id, displayOrdinal: input.displayOrdinal, generationIndex: input.generationIndex,
     questionSeed: question.seed, generatorVersion: question.generatorVersion,
-    category: input.question.category, questionType: isMultipleChoiceQuestion(input.question) ? "multiple-choice" : "naming", structuralIdentity: reference.structuralIdentity,
+    category: input.question.category, questionType: isBuildQuestion(input.question) ? "build" : isMultipleChoiceQuestion(input.question) ? "multiple-choice" : "naming", structuralIdentity: reference.structuralIdentity,
+    ...(isBuildQuestion(input.question) ? { structuralAnswer: structuredClone(input.structuralAnswer!) } : {}),
     ...(isMultipleChoiceQuestion(input.question) ? { selectedOptionId: input.selectedOptionId, optionSetIdentity: input.question.optionSetIdentity } : {}),
     attemptNumber: 1, answer: input.answer, correct: input.correct,
     startedAt: input.started.wallTimeMs, submittedAt: input.submitted.wallTimeMs,

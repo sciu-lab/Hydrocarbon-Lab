@@ -303,7 +303,7 @@ test("explicit bounded failure contracts cover unsupported requests and oracle e
   for (const options of [{ category: "ether" }, { category: "sulfur" }, ...[0, 17, 0.5, NaN].map((maxAttempts) => ({ maxAttempts }))]) {
     assert.throws(() => generate(config, 0, options), (error) => error instanceof ChemicalGenerationError && error.code === "unsupported-request");
   }
-  assert.throws(() => generate({ ...config, questionTypes: ["build"] }, 0), ChemicalGenerationError);
+  assert.ok(generate({ ...config, questionTypes: ["build"] }, 0).reference.structuralIdentity);
   const impossible = createRestrictedChemicalGenerator({
     ...chemistry.oracles, reference: (molecule) => ({ ...chemistry.oracles.reference(molecule), names: { es: "", en: "-" } }),
   });

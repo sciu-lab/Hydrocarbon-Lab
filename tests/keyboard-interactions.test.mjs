@@ -11,6 +11,7 @@ function harness(overrides = {}) {
   const calls = [];
   const context = {
     practiceOpen: false,
+    isolatedBuild: false, buildEditor: undefined,
     historyOpen: false, settingsOpen: false, pngExportOpen: false, canvasExpanded: false,
     placementTool: null, showRingPalette: false, showAlkylPalette: false, showFunctionalPalette: false,
     lastToolPointer: { current: null }, selectedId: 1, selectedFusionBond: null, setFusionSelection: () => {}, molecule: { rings: [] }, previousSelectedId: { current: null },

@@ -7,20 +7,22 @@ import type { DeterministicDistractorEngine, DistractorCandidate } from "./pract
 import { validateMultipleChoiceOptions } from "./practice-multiple-choice.ts";
 import type { MultipleChoiceOption } from "./practice-multiple-choice.ts";
 
-export type PracticeQuestionType = "naming" | "multiple-choice";
+export type PracticeQuestionType = "naming" | "multiple-choice" | "build";
 export type PracticeQuestionContext = { questionType: PracticeQuestionType; displayIndex: number };
 export type GeneratedMultipleChoiceQuestion = GeneratedExerciseMolecule & {
   type: "multiple-choice"; options: readonly MultipleChoiceOption[]; correctOptionId: string; optionSetIdentity: string;
 };
-export type PracticeQuestion = (GeneratedExerciseMolecule & { type?: "naming" }) | GeneratedMultipleChoiceQuestion;
+export type PracticeQuestion = (GeneratedExerciseMolecule & { type?: "naming" | "build" }) | GeneratedMultipleChoiceQuestion;
 export type PracticeQuestionGenerator = (config: SessionConfig, generationIndex: number, context?: PracticeQuestionContext) => PracticeQuestion;
 export const isMultipleChoiceQuestion = (question: PracticeQuestion): question is GeneratedMultipleChoiceQuestion => question.type === "multiple-choice";
+export const isBuildQuestion = (question: PracticeQuestion) => question.type === "build";
 export class InsufficientSafeDistractorsError extends Error {
   constructor() { super("insufficient-safe-distractors"); }
 }
 export function schedulePracticeQuestionType(config: SessionConfig, displayIndex: number): PracticeQuestionType {
   if (!Number.isSafeInteger(displayIndex) || displayIndex < 0) throw new RangeError("Invalid scheduling position.");
-  const types = config.questionTypes.filter((type): type is PracticeQuestionType => type !== "build");
+  const types = config.questionTypes;
+  if (!types.length) throw new Error("No question types.");
   if (types.length === 1) return types[0];
   const block = Math.floor(displayIndex / types.length);
   const seed = deriveSeed(deriveGenerationIdentity(config, block).seed, "practice:question-types:block:v1");
@@ -65,6 +67,7 @@ export function createPracticeQuestionGenerator(generate: (config: SessionConfig
   return (config, index, context) => {
     const question = generate(config, index);
     const type = context?.questionType ?? schedulePracticeQuestionType(config, index);
+    if (type === "build") return { ...question, type: "build" };
     return type === "naming" ? question : assembleMultipleChoiceQuestion(question,
       distractors({ generatedMolecule: question, questionSeed: question.question.seed }));
   };

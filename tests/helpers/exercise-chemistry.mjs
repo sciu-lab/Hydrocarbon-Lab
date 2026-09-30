@@ -13,7 +13,8 @@ export async function loadExerciseChemistry() {
   });
   try {
     const engine = await server.ssrLoadModule("/app/page.tsx");
-    return { oracles: createExerciseChemistryOracles(engine), engine, close: () => server.close() };
+    return { oracles: createExerciseChemistryOracles(engine), engine,
+      loadModule: (path) => server.ssrLoadModule(path), close: () => server.close() };
   } catch (error) {
     await server.close();
     throw error;

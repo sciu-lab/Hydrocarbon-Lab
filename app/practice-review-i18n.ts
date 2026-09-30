@@ -3,6 +3,7 @@ import type { ReviewParams } from "./practice-review.ts";
 
 /** Review models persist message identities and chemical parameters, never this prose. */
 const MESSAGES: Record<string, { es: string; en: string }> = {
+  "review.build.mismatch": { es: "Tu estructura no es equivalente al objetivo. Se muestra la estructura de referencia y su análisis.", en: "Your structure is not equivalent to the target. The reference structure and its analysis are shown." },
   "review.title.parent": { es: "Estructura principal", en: "Parent structure" },
   "review.title.function": { es: "Grupo funcional", en: "Functional group" },
   "review.title.numbering": { es: "Numeración", en: "Numbering" },

@@ -16,6 +16,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { PracticePanel } from "./practice-panel";
+import type { BuildEditorProps } from "./practice-build-editor";
+import { createStructuralAnswerEvaluator } from "./practice-structural-answer";
 import { createPracticeQuestionGenerator } from "./practice-question";
 import { createDeterministicDistractorEngine } from "./practice-distractor-engine";
 import { createPracticeReviewer, reviewBondId } from "./practice-review";
@@ -6023,18 +6025,22 @@ const practiceChemistryOracles = createExerciseChemistryOracles({
 });
 const generatePracticeMolecule = createPracticeQuestionGenerator(createRestrictedChemicalGenerator(practiceChemistryOracles),
   createDeterministicDistractorEngine({ analyzeMolecule, buildLegacyEnglishNameModel }, practiceChemistryOracles));
+const evaluatePracticeStructure = createStructuralAnswerEvaluator(practiceChemistryOracles);
 const reviewPracticeAnswer = createPracticeReviewer({ analyzeMolecule, buildLegacyEnglishNameModel });
 
-export default function Home({ initialLanguage = "es" }: { initialLanguage?: AppLanguage }) {
+export default function Home({ initialLanguage = "es", buildEditor }: { initialLanguage?: AppLanguage; buildEditor?: BuildEditorProps }) {
+  const isolatedBuild = Boolean(buildEditor);
   // Match the server's first render; restore the route/preference after hydration.
-  const [language, setLanguage] = useState<AppLanguage>(initialLanguage);
+  const [labLanguage, setLanguage] = useState<AppLanguage>(initialLanguage);
+  const language = buildEditor?.language ?? labLanguage;
   const [practiceOpen, setPracticeOpen] = useState(false);
   const practiceTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
+    if (isolatedBuild) return;
     const initialLanguage = detectInitialLanguage();
     const restore = window.setTimeout(() => setLanguage(initialLanguage), 0);
     return () => window.clearTimeout(restore);
-  }, []);
+  }, [isolatedBuild]);
   const t = (spanish: string) => uiText(language, spanish);
   const localizedIupac = (name: string) => {
     if (name === COMPLEX_NAME_UNAVAILABLE_MESSAGE) return t(COMPLEX_NAME_UNAVAILABLE_MESSAGE);
@@ -6312,7 +6318,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   const [savedBusy, setSavedBusy] = useState(false);
   const [historyTransferNotice, setHistoryTransferNotice] = useState<HistoryTransferNotice | null>(null);
   const [showHydrogens, setShowHydrogens] = useState(true);
-  const [showNumbering, setShowNumbering] = useState(true);
+  const [showNumbering, setShowNumbering] = useState(!isolatedBuild);
   const [showSteroidRingLabels, setShowSteroidRingLabels] = useState(true);
   const [numberingScale, setNumberingScale] = useState(DEFAULT_NUMBERING_SCALE);
   const [numberingScalePreferenceReady, setNumberingScalePreferenceReady] = useState(false);
@@ -6325,7 +6331,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [fusionSelection, setFusionSelection] = useState<{ molecule: Molecule; a: number; b: number } | null>(null);
   const selectedFusionBond = fusionSelection?.molecule === molecule ? fusionSelection : null;
-  const [showIupacName, setShowIupacName] = useState(true);
+  const [showIupacName, setShowIupacName] = useState(!isolatedBuild);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(DEFAULT_PANEL_POSITIONS);
   const [draggingPanelId, setDraggingPanelId] = useState<MovablePanelId | null>(null);
   const [raisedPanelId, setRaisedPanelId] = useState<MovablePanelId | null>(null);
@@ -6340,7 +6346,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   const externalSourceManuallySelectedRef = useRef(false);
   const [externalInfoCollapsed, setExternalInfoCollapsed] = useState(false);
   const [nomenclatureConvention, setNomenclatureConvention] = useState<NomenclatureConvention>("current");
-  const [showStereochemistry, setShowStereochemistry] = useState(false);
+  const [showStereochemistry, setShowStereochemistry] = useState(isolatedBuild);
   const [advancedScreenReaderEnabled, setAdvancedScreenReaderEnabled] = useState(false);
   const [highContrastEnabled, setHighContrastEnabled] = useState(false);
   const [largeTextEnabled, setLargeTextEnabled] = useState(false);
@@ -6483,6 +6489,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   const compoundLookupNamesRef = useRef<string[]>([]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const restoreDismissedHints = window.setTimeout(() => {
       try {
         setShowSkeletalHint(window.sessionStorage.getItem(SKELETAL_HINT_DISMISSED_STORAGE_KEY) !== "true");
@@ -6492,9 +6499,10 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       }
     }, 0);
     return () => window.clearTimeout(restoreDismissedHints);
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     let decision: ReturnType<typeof readGuidedTourDecision> = null;
     try {
       decision = readGuidedTourDecision(window.localStorage);
@@ -6502,7 +6510,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       // The first-visit guide remains available when browser storage is blocked.
     }
     dispatchGuidedTour({ type: "initialize", decision });
-  }, []);
+  }, [isolatedBuild]);
 
   const rememberGuidedTourDecision = useCallback((decision: "completed" | "skipped") => {
     try {
@@ -6594,6 +6602,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   }, []);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!canvasExpanded && !pngExportOpen && !historyOpen && !settingsOpen) return undefined;
     const body = window.document.body;
     const scrollY = window.scrollY;
@@ -6618,7 +6627,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       body.style.width = previousWidth;
       if (settingsOpen) window.scrollTo(0, scrollY);
     };
-  }, [canvasExpanded, pngExportOpen, historyOpen, settingsOpen]);
+  }, [isolatedBuild, canvasExpanded, pngExportOpen, historyOpen, settingsOpen]);
 
   useEffect(() => {
     if (!canvasExpanded || pngExportOpen) return undefined;
@@ -6830,15 +6839,17 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   }, [canonicalIupacName]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const restore = window.setTimeout(() => {
       const restored = readPanelPositions();
       panelPositionsRef.current = restored;
       setPanelPositions(restored);
     }, 0);
     return () => window.clearTimeout(restore);
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     let enabled = false;
     try {
       enabled = window.localStorage.getItem(PANEL_DRAG_ENABLED_STORAGE_KEY) === "on";
@@ -6850,19 +6861,21 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       setPanelDragPreferenceReady(true);
     }, 0);
     return () => window.clearTimeout(restore);
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!panelDragPreferenceReady) return;
     try {
       window.localStorage.setItem(PANEL_DRAG_ENABLED_STORAGE_KEY, panelDraggingEnabled ? "on" : "off");
     } catch {
       // The preference remains usable for the current session without storage.
     }
-  }, [panelDragPreferenceReady, panelDraggingEnabled]);
+  }, [isolatedBuild, panelDragPreferenceReady, panelDraggingEnabled]);
 
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!showIupacName || !compoundContextKey || !compoundIdentity) return undefined;
 
     const controller = new AbortController();
@@ -6898,7 +6911,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       window.clearTimeout(debounceTimer);
       controller.abort();
     };
-  }, [compoundContextKey, compoundContextRetryToken, compoundIdentity, language, showIupacName]);
+  }, [isolatedBuild, compoundContextKey, compoundContextRetryToken, compoundIdentity, language, showIupacName]);
 
   useEffect(() => {
     externalSourceManuallySelectedRef.current = false;
@@ -7139,6 +7152,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     : filteredSavedEntries;
 
   useEffect(() => {
+    if (isolatedBuild) return;
     try {
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     } catch {
@@ -7154,9 +7168,10 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     if (nextPath !== window.location.pathname) {
       window.history.replaceState(window.history.state, "", `${nextPath}${window.location.search}${window.location.hash}`);
     }
-  }, [language]);
+  }, [isolatedBuild, language]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const restorePreference = window.setTimeout(() => {
       try {
         setShowStereochemistry(window.localStorage.getItem(STEREOCHEMISTRY_STORAGE_KEY) === "on");
@@ -7167,9 +7182,10 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       }
     }, 0);
     return () => window.clearTimeout(restorePreference);
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!stereochemistryPreferenceReady) return;
     try {
       window.localStorage.setItem(
@@ -7179,9 +7195,10 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     } catch {
       // The control remains usable for the current session without storage.
     }
-  }, [showStereochemistry, stereochemistryPreferenceReady]);
+  }, [isolatedBuild, showStereochemistry, stereochemistryPreferenceReady]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const restorePreference = window.setTimeout(() => {
       try {
         const stored = window.localStorage.getItem(NUMBERING_SCALE_STORAGE_KEY);
@@ -7195,18 +7212,20 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       }
     }, 0);
     return () => window.clearTimeout(restorePreference);
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!numberingScalePreferenceReady) return;
     try {
       window.localStorage.setItem(NUMBERING_SCALE_STORAGE_KEY, String(numberingScale));
     } catch {
       // The current session still keeps the chosen scale when storage is unavailable.
     }
-  }, [numberingScale, numberingScalePreferenceReady]);
+  }, [isolatedBuild, numberingScale, numberingScalePreferenceReady]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const restorePreference = window.setTimeout(() => {
       try {
         const stored = window.localStorage.getItem(FUNCTIONAL_GROUP_SCALE_STORAGE_KEY);
@@ -7220,18 +7239,20 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       }
     }, 0);
     return () => window.clearTimeout(restorePreference);
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!functionalGroupScalePreferenceReady) return;
     try {
       window.localStorage.setItem(FUNCTIONAL_GROUP_SCALE_STORAGE_KEY, String(functionalGroupScale));
     } catch {
       // The current session still keeps the chosen scale when storage is unavailable.
     }
-  }, [functionalGroupScale, functionalGroupScalePreferenceReady]);
+  }, [isolatedBuild, functionalGroupScale, functionalGroupScalePreferenceReady]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const restorePreference = window.setTimeout(() => {
       try {
         const stored = window.localStorage.getItem(TETRAHEDRAL_BADGE_SCALE_STORAGE_KEY);
@@ -7245,20 +7266,22 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       }
     }, 0);
     return () => window.clearTimeout(restorePreference);
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!tetrahedralBadgeScalePreferenceReady) return;
     try {
       window.localStorage.setItem(TETRAHEDRAL_BADGE_SCALE_STORAGE_KEY, String(tetrahedralBadgeScale));
     } catch {
       // The current session still keeps the chosen scale when storage is unavailable.
     }
-  }, [tetrahedralBadgeScale, tetrahedralBadgeScalePreferenceReady]);
+  }, [isolatedBuild, tetrahedralBadgeScale, tetrahedralBadgeScalePreferenceReady]);
 
 
   useEffect(() => {
     let cancelled = false;
+    if (isolatedBuild) return;
     const visitorId = getHistoryVisitorId();
 
     if (usesLocalLibrary()) {
@@ -7357,17 +7380,19 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const storedTheme = window.localStorage.getItem("hydrocarbon-theme");
     if (storedTheme === "auto" || storedTheme === "light" || storedTheme === "dark") {
       const restoreTheme = window.setTimeout(() => setThemePreference(storedTheme), 0);
       return () => window.clearTimeout(restoreTheme);
     }
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     const systemPreference = window.matchMedia("(prefers-color-scheme: dark)");
     const updateAutomaticTheme = () => {
       const hour = new Date().getHours();
@@ -7380,12 +7405,13 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       systemPreference.removeEventListener("change", updateAutomaticTheme);
       window.clearInterval(clock);
     };
-  }, []);
+  }, [isolatedBuild]);
 
   useEffect(() => {
+    if (isolatedBuild) return;
     document.documentElement.dataset.theme = isDarkTheme ? "dark" : "light";
     document.documentElement.style.colorScheme = isDarkTheme ? "dark" : "light";
-  }, [isDarkTheme]);
+  }, [isolatedBuild, isDarkTheme]);
 
   useEffect(() => {
     if (!historyOpen) return;
@@ -7427,7 +7453,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   }, [settingsOpen]);
 
   useEffect(() => {
-    if (!historyReady || !historyIdentity || historyClearing) return;
+    if (isolatedBuild || !historyReady || !historyIdentity || historyClearing) return;
     const signature = JSON.stringify({ molecule, viewMode });
     if (signature === lastPersistedSignature.current) return;
 
@@ -7498,6 +7524,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
 
     return () => window.clearTimeout(timer);
   }, [
+    isolatedBuild,
     analysis.formula,
     canonicalIupacName,
     historyFamilyLabel,
@@ -9303,7 +9330,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     setNotice("Molécula nueva: comienza desde un átomo de carbono.");
     setSelectedId(1);
     setNomenclatureConvention("current");
-    setShowStereochemistry(false);
+    setShowStereochemistry(isolatedBuild);
     setRingInsertMode("replace");
     setShowRingPalette(false);
     setShowFunctionalPalette(false);
@@ -9329,6 +9356,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
       if (practiceOpen) return;
+      if (buildEditor?.disabled) return;
       const target = event.target as HTMLElement | null;
       const isEditable = Boolean(target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='textbox'], [role='searchbox']") || target?.isContentEditable);
       if (event.defaultPrevented || event.isComposing || event.key === "Process" || event.repeat) return;
@@ -9448,6 +9476,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       }
 
       const key = event.key.toLocaleLowerCase("es");
+      if (isolatedBuild && ["s", "i", "1", "2"].includes(key)) return;
       if (key === "z" && !event.shiftKey) {
         event.preventDefault();
         undo();
@@ -9493,7 +9522,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
   }, [
     historyOpen,
     closeContextualPanels,
-    practiceOpen,
+    practiceOpen, isolatedBuild, buildEditor?.disabled,
     closeFormulaPanel,
     nameBuilderOpen,
     smilesPanelOpen,
@@ -9923,6 +9952,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     : null;
 
   useEffect(() => {
+    if (isolatedBuild) return;
     if (!showGuidedTour) {
       return undefined;
     }
@@ -10050,7 +10080,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
       document.removeEventListener("scroll", reposition, true);
       resizeObserver?.disconnect();
     };
-  }, [
+  }, [isolatedBuild,
     analysis.name,
     guidedTourCopyText.action,
     guidedTourCopyText.description,
@@ -10063,908 +10093,11 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
     showGuidedTour,
   ]);
 
-  return (
-    <main
-      className={[
-        "app-shell",
-        highContrastEnabled && "a11y-high-contrast",
-        largeTextEnabled && "a11y-large-text",
-        doubleBondPatternEnabled && "a11y-double-bond-pattern",
-        largeTargetsEnabled && "a11y-large-targets",
-        dyslexiaTypefaceEnabled && "a11y-dyslexia-typeface",
-        simplifiedModeEnabled && "a11y-simplified-mode",
-        highlightInteractivesEnabled && "a11y-highlight-interactives",
-      ].filter(Boolean).join(" ")}
-      inert={historyOpen || settingsOpen || pngExportOpen || canvasExpanded}
-      onPointerDownCapture={() => {
-        dismissValenceAlert();
-      }}
-    >
-      <header className="site-header">
-        <div className="brand-mark">
-          <img src="../sciu-eye.png" alt="Sciu Science" />
-        </div>
-        <div className="brand-copy">
-          <h1>{t("Laboratorio de Hidrocarburos")}</h1>
-        </div>
-        <div className="lab-entry-actions">
-        <button
-          type="button"
-          className="guided-tour-launch"
-          ref={guidedTourTriggerRef}
-          disabled={practiceOpen}
-          onClick={openGuidedTour}
-          aria-expanded={showGuidedTour}
-          aria-controls="guided-tour-panel"
-        >
-          <span aria-hidden="true">?</span>
-          {guidedTourControlsText.open}
-        </button>
-        <button type="button" className="guided-tour-launch practice-launch" ref={practiceTriggerRef}
-          aria-expanded={practiceOpen} aria-controls="practice-panel" onClick={() => {
-            dismissGuidedTour();
-            setPracticeOpen(true);
-          }}>{t("Práctica / Examen")}</button>
-        </div>
-      </header>
-
-      {practiceOpen && <PracticePanel language={language} onLanguageChange={setLanguage}
-        onBackToLab={() => {
-          setPracticeOpen(false);
-          window.requestAnimationFrame(() => practiceTriggerRef.current?.focus());
-        }} generate={generatePracticeMolecule} review={reviewPracticeAnswer}
-        renderStructure={(molecule, label, width, height, highlights) => <MoleculeHistoryPreview molecule={molecule}
-          ariaLabel={label} width={width} height={height} practiceView reviewHighlights={highlights} />} />}
-
-      <div className="lab-workspace" hidden={practiceOpen} inert={practiceOpen}>
-      {!practiceOpen && showGuidedTour && (
-        <OverlayPortal active={showGuidedTour}>
-          <aside
-            className="guided-tour"
-            id="guided-tour-panel"
-            ref={guidedTourPanelRef}
-            data-guided-tour-step={guidedTourState.step + 1}
-            data-guided-tour-side={guidedTourPosition?.side}
-            data-positioned={guidedTourPosition ? "true" : undefined}
-            style={guidedTourPosition ? { top: guidedTourPosition.top, left: guidedTourPosition.left } : undefined}
-            role="region"
-            aria-labelledby="guided-tour-title"
-            aria-describedby="guided-tour-description"
-          >
-            <div className="guided-tour-heading">
-              <span className="guided-tour-progress" role="status" aria-live="polite">
-                {guidedTourControlsText.progress(guidedTourState.step)}
-              </span>
-              <button
-                type="button"
-                className="guided-tour-close"
-                onClick={dismissGuidedTour}
-                aria-label={guidedTourControlsText.close}
-                title={guidedTourControlsText.close}
-              >
-                ×
-              </button>
-            </div>
-            <h2 id="guided-tour-title">{guidedTourCopyText.title}</h2>
-            <p id="guided-tour-description">{guidedTourCopyText.description}</p>
-            {guidedTourCopyText.followUp && <p className="guided-tour-follow-up">{guidedTourCopyText.followUp}</p>}
-            {guidedTourCopyText.exampleAction && (
-              <button
-                type="button"
-                className="guided-tour-inline-action"
-                onClick={() => {
-                  if (guidedTourAcetonePreset) loadPreset(guidedTourAcetonePreset);
-                  if (guidedTourState.step === 3) {
-                    openReasoningHelpFromUserAction();
-                  }
-                }}
-              >
-                {guidedTourCopyText.exampleAction}
-              </button>
-            )}
-            {guidedTourCopyText.action && (
-              <button
-                type="button"
-                className="guided-tour-inline-action"
-                onClick={() => {
-                  if (guidedTourState.step === 3) {
-                    openReasoningHelpFromUserAction();
-                  } else if (guidedTourAcetonePreset) {
-                    loadPreset(guidedTourAcetonePreset);
-                  }
-                }}
-              >
-                {guidedTourCopyText.action}
-              </button>
-            )}
-            {guidedTourCopyText.exampleNote && <small className="guided-tour-example-note">{guidedTourCopyText.exampleNote}</small>}
-            <div className="guided-tour-actions">
-              <button type="button" className="guided-tour-skip" onClick={dismissGuidedTour}>
-                {guidedTourControlsText.skip}
-              </button>
-              <div>
-                <button
-                  type="button"
-                  className="guided-tour-previous"
-                  onClick={() => dispatchGuidedTour({ type: "previous" })}
-                  disabled={guidedTourState.step === 0}
-                >
-                  {guidedTourControlsText.previous}
-                </button>
-                <button type="button" className="guided-tour-next" onClick={advanceGuidedTour}>
-                  {guidedTourState.step === GUIDED_TOUR_STEP_COUNT - 1
-                    ? guidedTourControlsText.finish
-                    : guidedTourControlsText.next}
-                </button>
-              </div>
-            </div>
-          </aside>
-        </OverlayPortal>
-      )}
-
-      {historyOpen && (
-        <OverlayPortal active={historyOpen}>
-        <div className="history-overlay">
-          <button
-            className="history-scrim"
-            onClick={() => setHistoryOpen(false)}
-            aria-label={t("Cerrar historial")}
-          />
-          <aside
-            className="history-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="history-title"
-          >
-            <div className="history-drawer-heading">
-              <div>
-                <p className="eyebrow">{t("Biblioteca personal")}</p>
-                <h2 id="history-title">{t("Mi laboratorio químico")}</h2>
-              </div>
-              <button
-                className="history-close"
-                ref={historyCloseButtonRef}
-                onClick={() => setHistoryOpen(false)}
-                aria-label={t("Cerrar historial")}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="library-tabs" role="tablist" aria-label={t("Secciones de mi laboratorio")}>
-              <button
-                className={librarySection === "history" ? "active" : ""}
-                onClick={() => {
-                  setLibrarySection("history");
-                  setHistoryQuery("");
-                  setHistoryTransferNotice(null);
-                }}
-                role="tab"
-                aria-selected={librarySection === "history"}
-              >
-                <span aria-hidden="true">↺</span>
-                <span>{t("Historial")}<small>{t("Automático")}</small></span>
-                <strong>{historyEntries.length}</strong>
-              </button>
-              <button
-                className={librarySection === "saved" ? "active" : ""}
-                onClick={() => {
-                  setLibrarySection("saved");
-                  setHistoryQuery("");
-                  setHistoryTransferNotice(null);
-                }}
-                role="tab"
-                aria-selected={librarySection === "saved"}
-              >
-                <span aria-hidden="true">★</span>
-                <span>{t("Guardados")}<small>{t("Elegidos por ti")}</small></span>
-                <strong>{savedEntries.length}</strong>
-              </button>
-            </div>
-
-            {librarySection === "history" ? (
-              <div className="history-transfer-toolbar" aria-label={t("Exportar o borrar el historial químico")}>
-                <button
-                  onClick={exportHistoryLibrary}
-                  disabled={!historyEntries.length || historyClearing}
-                  title={historyEntries.length
-                    ? t("Descargar el historial en un único documento")
-                    : t("El historial todavía no contiene estructuras")}
-                >
-                  <span aria-hidden="true">↓</span>
-                  {t("Exportar historial")}
-                </button>
-                <button
-                  className="history-clear-all"
-                  onClick={clearHistory}
-                  disabled={!historyEntries.length || historyClearing || historySyncState === "saving"}
-                  title={historyEntries.length
-                    ? t("Borrar únicamente el historial; Guardados se conservará")
-                    : t("El historial ya está vacío")}
-                  aria-label={t("Borrar todo mi historial sin eliminar Guardados")}
-                >
-                  <span aria-hidden="true">⌫</span>
-                  {historyClearing ? t("Borrando…") : t("Borrar historial")}
-                </button>
-              </div>
-            ) : (
-              <div className="history-transfer-toolbar" aria-label={t("Importar y exportar estructuras guardadas")}>
-                <label className={historyImporting || !historyIdentity ? "disabled" : ""}>
-                  <span aria-hidden="true">↑</span>
-                  {historyImporting ? t("Importando…") : t("Importar .quimica")}
-                  <input
-                    type="file"
-                    accept=".quimica,.json,application/json"
-                    onChange={importChemistryDocument}
-                    disabled={historyImporting || !historyIdentity}
-                    aria-label={t("Importar documento químico a Guardados")}
-                  />
-                </label>
-                <button
-                  onClick={exportSavedLibrary}
-                  disabled={!savedEntries.length}
-                  title={savedEntries.length
-                    ? t("Descargar todas las estructuras guardadas en un único documento")
-                    : t("Añade una estructura a Guardados antes de exportar")}
-                >
-                  <span aria-hidden="true">↓</span>
-                  {t("Exportar guardados")}
-                </button>
-              </div>
-            )}
-
-            {historyTransferNotice && (
-              <div className={`history-transfer-notice transfer-${historyTransferNotice.kind}`} role="status">
-                <span aria-hidden="true">{historyTransferNotice.kind === "success" ? "✓" : "!"}</span>
-                <p>{localizedDynamicText(historyTransferNotice.message)}</p>
-                <button
-                  onClick={() => setHistoryTransferNotice(null)}
-                  aria-label={t("Cerrar aviso de archivo")}
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
-            {librarySection === "saved" ? (
-              <div className="history-current-card">
-                <MoleculeHistoryPreview molecule={molecule} />
-                <div>
-                  <span>{t("Estructura actual")}</span>
-                  <strong>{localizedCanonicalIupacName}</strong>
-                  <small>{analysis.formula} · {localizedHistoryFamilyLabel}</small>
-                </div>
-                <button onClick={saveCurrentStructure} disabled={!historyIdentity || savedBusy}>
-                  {savedBusy ? t("Guardando…") : t("Añadir a Guardados")}
-                </button>
-              </div>
-            ) : (
-              <div className={`history-sync history-sync-${historySyncState}`} role="status">
-                <span aria-hidden="true" />
-                <div>
-                  <strong>{localizedDynamicText(historyMessage)}</strong>
-                  <small>
-                    {historyScope === "account"
-                      ? t("El historial se recupera cuando vuelves con la misma cuenta.")
-                      : t("El historial se recupera cuando vuelves desde este navegador.")}
-                  </small>
-                </div>
-              </div>
-            )}
-
-            <label className="history-search">
-              <span aria-hidden="true">⌕</span>
-              <input
-                type="search"
-                value={historyQuery}
-                onChange={(event) => setHistoryQuery(event.target.value)}
-                placeholder={language === "en" ? `Search ${librarySection === "history" ? "history" : "Saved"}` : `Buscar en ${librarySection === "history" ? "el historial" : "Guardados"}`}
-                aria-label={language === "en" ? `Search ${librarySection === "history" ? "my history" : "Saved"}` : `Buscar en ${librarySection === "history" ? "mi historial" : "Guardados"}`}
-              />
-              {historyQuery && (
-                <button onClick={() => setHistoryQuery("")} aria-label={t("Limpiar búsqueda")}>×</button>
-              )}
-            </label>
-
-            <div className="history-list-heading">
-              <div>
-                <strong>{librarySection === "history" ? t("Versiones recientes") : t("Estructuras guardadas")}</strong>
-                <small>
-                  {librarySection === "history"
-                    ? t("Se guarda una versión única después de cada pausa.")
-                    : t("Esta sección solo contiene lo que decides conservar.")}
-                </small>
-              </div>
-              <span>{filteredLibraryEntries.length}</span>
-            </div>
-
-            <div className="history-list">
-              {historySyncState === "loading" ? (
-                <div className="history-empty">
-                  <span className="history-loader" aria-hidden="true" />
-                  <strong>{t("Cargando tus estructuras…")}</strong>
-                </div>
-              ) : filteredLibraryEntries.length ? (
-                filteredLibraryEntries.map((entry) => (
-                  <article className="history-item" key={entry.id}>
-                    <button
-                      className="history-item-open"
-                      onClick={() => restoreLibraryEntry(entry, librarySection)}
-                      aria-label={language === "en" ? `Open ${localizedIupac(entry.name)}` : `Abrir ${entry.name}`}
-                    >
-                      <MoleculeHistoryPreview molecule={entry.molecule} />
-                      <span className="history-item-copy">
-                        <strong>{localizedIupac(entry.name)}</strong>
-                        <span>{entry.formula} · {language === "en" ? t(entry.family) : entry.family}</span>
-                        <small>{formatHistoryDate(entry.updatedAt, language)} · {entry.atomCount} {entry.atomCount === 1 ? t("átomo") : t("átomos")}</small>
-                      </span>
-                    </button>
-                    <div className="history-item-actions">
-                      <button
-                        className="history-download"
-                        onClick={() => exportHistoryEntry(entry)}
-                        aria-label={language === "en" ? `Download ${localizedIupac(entry.name)} as a chemistry document` : `Descargar ${entry.name} como documento químico`}
-                        title={language === "en" ? "Download .quimica file" : "Descargar archivo .quimica"}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        className="history-delete"
-                        onClick={() => librarySection === "history"
-                          ? deleteHistoryEntry(entry)
-                          : deleteSavedEntry(entry)}
-                        aria-label={language === "en" ? `Remove ${localizedIupac(entry.name)} from ${librarySection === "history" ? "my history" : "Saved"}` : `Eliminar ${entry.name} de ${librarySection === "history" ? "mi historial" : "Guardados"}`}
-                        title={librarySection === "history" ? t("Eliminar del historial") : t("Eliminar de Guardados")}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="history-empty">
-                  <span aria-hidden="true">⌬</span>
-                  <strong>
-                    {historyQuery
-                      ? (language === "en" ? "No matches found" : "No encontramos coincidencias")
-                      : librarySection === "history"
-                        ? t("Tu historial comienza aquí")
-                        : t("Todavía no tienes estructuras guardadas")}
-                  </strong>
-                  <p>
-                    {historyQuery
-                      ? t("Prueba con el nombre IUPAC, la fórmula o la familia del compuesto.")
-                      : librarySection === "history"
-                        ? t("Construye una molécula y aparecerán aquí sus versiones recientes.")
-                        : t("Añade la estructura actual o importa un archivo .quimica para conservarlo aparte del historial.")}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <p className="history-privacy-note">
-              <span aria-hidden="true">✓</span>
-              {t("Historial y Guardados permanecen separados y cada visitante ve únicamente sus propias estructuras.")}
-            </p>
-          </aside>
-        </div>
-        </OverlayPortal>
-      )}
-
-      {settingsOpen && (
-        <OverlayPortal active={settingsOpen}>
-        <div className="settings-overlay">
-          <button
-            className="settings-scrim"
-            type="button"
-            onClick={closeSettings}
-            aria-label={t("Cerrar configuración")}
-          />
-          <aside
-            className="settings-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="settings-title"
-          >
-            <div className="settings-panel-heading">
-              <div>
-                <p className="eyebrow">⚙ {t("Configuración")}</p>
-                <h2 id="settings-title">{t("Configuración")}</h2>
-              </div>
-              <button
-                type="button"
-                className="settings-close"
-                ref={settingsCloseButtonRef}
-                onClick={closeSettings}
-                aria-label={t("Cerrar configuración")}
-              >
-                ×
-              </button>
-            </div>
-
-            <section className="settings-section" aria-labelledby="settings-options-title">
-              <h3 id="settings-options-title">{t("Preferencias")}</h3>
-              <label className="settings-toggle">
-                <span>{t("Mostrar hidrógenos implícitos")}</span>
-                <input
-                  type="checkbox"
-                  checked={showHydrogens}
-                  onChange={(event) => setShowHydrogens(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className={`settings-toggle ${!automaticNumberingAvailable ? "is-disabled" : ""}`}>
-                <span>{t("Numerar carbonos")}</span>
-                <input
-                  type="checkbox"
-                  checked={effectiveShowNumbering}
-                  disabled={!automaticNumberingAvailable}
-                  onChange={(event) => setShowNumbering(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Resaltar sustituyentes")}</span>
-                <input
-                  type="checkbox"
-                  checked={highlightSubstituents}
-                  onChange={(event) => {
-                    const enabled = event.target.checked;
-                    setHighlightSubstituents(enabled);
-                    setNotice(
-                      enabled
-                        ? "Sustituyentes resaltados en amarillo para diferenciarlos de la cadena principal."
-                        : "Color uniforme activado: cadena principal y sustituyentes comparten el mismo color.",
-                    );
-                  }}
-                />
-                <i aria-hidden="true" />
-              </label>
-              {analysis.steroidSystem?.numbering && (
-                <label className="settings-toggle">
-                  <span>{t("Mostrar etiquetas de anillos esteroideos")}</span>
-                  <input type="checkbox" checked={showSteroidRingLabels} onChange={(event) => setShowSteroidRingLabels(event.target.checked)} />
-                  <i aria-hidden="true" />
-                </label>
-              )}
-              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de numeración")}>
-                <strong>{t("Tamaño de numeración")}</strong>
-                <div className="settings-scale-actions">
-                  <input type="range" min={MIN_NUMBERING_SCALE} max={MAX_NUMBERING_SCALE} step={NUMBERING_SCALE_STEP} value={numberingScale} disabled={!automaticNumberingAvailable} onChange={(event) => updateNumberingScale(Number(event.target.value))} aria-label={t("Tamaño de numeración")} />
-                  <output aria-live="polite">{Math.round(numberingScale * 100)} %</output>
-                  <button type="button" disabled={numberingScale === DEFAULT_NUMBERING_SCALE} onClick={() => updateNumberingScale(DEFAULT_NUMBERING_SCALE)}>{t("Restablecer")}</button>
-                </div>
-              </div>
-              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de grupos funcionales")}>
-                <strong>{t("Tamaño de grupos funcionales")}</strong>
-                <div className="settings-scale-actions">
-                  <input type="range" min={MIN_FUNCTIONAL_GROUP_SCALE} max={MAX_FUNCTIONAL_GROUP_SCALE} step={FUNCTIONAL_GROUP_SCALE_STEP} value={functionalGroupScale} onChange={(event) => updateFunctionalGroupScale(Number(event.target.value))} aria-label={t("Tamaño de grupos funcionales")} />
-                  <output aria-live="polite">{Math.round(functionalGroupScale * 100)} %</output>
-                  <button type="button" disabled={functionalGroupScale === DEFAULT_FUNCTIONAL_GROUP_SCALE} onClick={() => updateFunctionalGroupScale(DEFAULT_FUNCTIONAL_GROUP_SCALE)}>{t("Restablecer")}</button>
-                </div>
-              </div>
-              <label className="settings-toggle">
-                <span>{t("Recordar estereoquímica")}</span>
-                <input
-                  type="checkbox"
-                  checked={showStereochemistry}
-                  onChange={(event) => setShowStereochemistry(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Mover paneles libremente")}</span>
-                <input
-                  type="checkbox"
-                  checked={panelDraggingEnabled}
-                  onChange={(event) => setPanelDraggingEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de badges R/S")}>
-                <div>
-                  <strong>{t("Tamaño de badges R/S")}</strong>
-                  <small>{t("Ajusta el círculo y la letra de los centros tetraédricos")}</small>
-                </div>
-                <div className="settings-scale-actions">
-                  <input
-                    type="range"
-                    min={MIN_TETRAHEDRAL_BADGE_SCALE}
-                    max={MAX_TETRAHEDRAL_BADGE_SCALE}
-                    step={TETRAHEDRAL_BADGE_SCALE_STEP}
-                    value={tetrahedralBadgeScale}
-                    onChange={(event) => updateTetrahedralBadgeScale(Number(event.target.value))}
-                    aria-label={t("Tamaño de badges R/S")}
-                  />
-                  <output aria-live="polite">{Math.round(tetrahedralBadgeScale * 100)} %</output>
-                  <button
-                    type="button"
-                    disabled={tetrahedralBadgeScale === DEFAULT_TETRAHEDRAL_BADGE_SCALE}
-                    onClick={() => updateTetrahedralBadgeScale(DEFAULT_TETRAHEDRAL_BADGE_SCALE)}
-                  >{t("Restablecer")}</button>
-                </div>
-              </div>
-              <button
-                className="settings-panel-reset"
-                type="button"
-                onClick={resetAllPanelPositions}
-              >
-                {t("Restablecer posición de paneles")}
-              </button>
-            </section>
-
-            <section className="settings-section settings-accessibility" aria-labelledby="settings-accessibility-title">
-              <h3 id="settings-accessibility-title">{t("Accesibilidad opcional")}</h3>
-              <label className="settings-toggle">
-                <span>{t("Lectores de pantalla avanzados")}</span>
-                <input
-                  type="checkbox"
-                  checked={advancedScreenReaderEnabled}
-                  onChange={(event) => setAdvancedScreenReaderEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Contraste alto AA")}</span>
-                <input
-                  type="checkbox"
-                  checked={highContrastEnabled}
-                  onChange={(event) => setHighContrastEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Texto ampliado")}</span>
-                <input
-                  type="checkbox"
-                  checked={largeTextEnabled}
-                  onChange={(event) => setLargeTextEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Patrón en enlaces dobles")}</span>
-                <input
-                  type="checkbox"
-                  checked={doubleBondPatternEnabled}
-                  onChange={(event) => setDoubleBondPatternEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Botones ampliados")}</span>
-                <input
-                  type="checkbox"
-                  checked={largeTargetsEnabled}
-                  onChange={(event) => setLargeTargetsEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Tipografía para dislexia")}</span>
-                <input
-                  type="checkbox"
-                  checked={dyslexiaTypefaceEnabled}
-                  onChange={(event) => setDyslexiaTypefaceEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Modo simplificado")}</span>
-                <input
-                  type="checkbox"
-                  checked={simplifiedModeEnabled}
-                  onChange={(event) => setSimplifiedModeEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="settings-toggle">
-                <span>{t("Destacar interactivos")}</span>
-                <input
-                  type="checkbox"
-                  checked={highlightInteractivesEnabled}
-                  onChange={(event) => setHighlightInteractivesEnabled(event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-            </section>
-
-            <section className="settings-section settings-shortcuts" aria-labelledby="settings-shortcuts-title">
-              <h3 id="settings-shortcuts-title">{t("Atajos de teclado")}</h3>
-              {([
-                [["Ctrl", "Z"], "Deshacer"],
-                [["Ctrl", "Y"], "Rehacer"],
-                [["B"], "Benzene"],
-                [["R"], "Ring"],
-                [["M / E / P"], "Methyl / Ethyl / Propyl"],
-                [["Ctrl", "S"], "Guardar"],
-                [["Ctrl", "Shift", "S"], "Exportar"],
-                [["Ctrl", "I"], "Importar"],
-                [["Ctrl", "N"], "Nueva molécula"],
-                [["Delete / Supr"], "Borrar"],
-                [["Esc"], "Deseleccionar"],
-                [["Ctrl", "1"], "Por nombre"],
-                [["Ctrl", "2"], "SMILES"],
-                [["Ctrl", "3"], "Semides."],
-                [["Ctrl", "4"], "Esquelética"],
-              ] satisfies [string[], string][]).map(([keys, label]) => (
-                <div className="settings-shortcut" key={`${keys.join("-")}-${label}`}>
-                  <span className="shortcut-keys">
-                    {keys.map((key, index) => (
-                      <span key={key}>
-                        {index > 0 && <b aria-hidden="true">+</b>}
-                        <kbd>{key}</kbd>
-                      </span>
-                    ))}
-                  </span>
-                  <span>{t(label)}</span>
-                </div>
-              ))}
-            </section>
-          </aside>
-        </div>
-        </OverlayPortal>
-      )}
-
-      {pngExportOpen && (
-        <OverlayPortal active={pngExportOpen}>
-        <div className="png-export-overlay">
-          <button
-            className="png-export-scrim"
-            type="button"
-            onClick={() => setPngExportOpen(false)}
-            aria-label={t("Cerrar opciones de exportación de imagen")}
-          />
-          <section
-            className="png-export-dialog"
-            style={structureColorStyle}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="png-export-title"
-          >
-            <div className="png-export-heading">
-              <div>
-                <p className="eyebrow">{imageExportFormat.toUpperCase()}</p>
-                <h2 id="png-export-title">{t("Exportar imagen")}</h2>
-                <p>{t("Elige el formato, el tamaño, el fondo y el modo de color antes de descargar.")}</p>
-              </div>
-              <button
-                type="button"
-                className="png-export-close"
-                ref={pngExportCloseButtonRef}
-                onClick={() => setPngExportOpen(false)}
-                aria-label={t("Cerrar opciones de exportación de imagen")}
-              >
-                ×
-              </button>
-            </div>
-
-            <div
-              className={`png-live-preview background-${pngBackgroundMode} color-${pngColorMode}`}
-              style={exportColorStyle}
-              aria-label={t("Vista previa de exportación")}
-            >
-              <div dangerouslySetInnerHTML={{ __html: pngPreviewMarkup }} />
-            </div>
-
-            <fieldset className="png-export-options">
-              <legend>{t("Formato")}</legend>
-              <div className="png-format-grid">
-                {(["png", "svg"] as const).map((format) => (
-                  <label key={format} className={imageExportFormat === format ? "is-selected" : ""}>
-                    <input
-                      type="radio"
-                      name="image-export-format"
-                      checked={imageExportFormat === format}
-                      onChange={() => setImageExportFormat(format)}
-                    />
-                    <strong>{format.toUpperCase()}</strong>
-                    <span>{t(format === "png" ? "Imagen por píxeles" : "Vector escalable")}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <fieldset className="png-export-options png-selection-options">
-              <legend>{t("Selección activa")}</legend>
-              <label className={pngIncludeSelection ? "is-selected" : ""}>
-                <input
-                  type="checkbox"
-                  checked={pngIncludeSelection}
-                  disabled={selectedId === null}
-                  onChange={(event) => {
-                    const includeSelection = event.target.checked;
-                    setPngIncludeSelection(includeSelection);
-                    updatePngPreview(includeSelection, pngBackgroundMode, pngColorMode, exportColors);
-                  }}
-                />
-                <span className="png-selection-check" aria-hidden="true">{pngIncludeSelection ? "✓" : ""}</span>
-                <span>
-                  <strong>{t("Exportar con el átomo o grupo seleccionado")}</strong>
-                  <small>{selectedId === null
-                    ? t("No hay una selección activa en el canvas.")
-                    : t("Desmárcalo para ocultar el halo de selección en la imagen.")}</small>
-                </span>
-              </label>
-            </fieldset>
-
-            {imageExportFormat === "png" && (
-              <fieldset className="png-export-options">
-                <legend>{t("Tamaño PNG")}</legend>
-                <div className="png-resolution-grid">
-                  {([1, 2, 4] as const).map((scale) => (
-                    <label key={scale} className={!pngUsingCustomSize && pngExportScale === scale ? "is-selected" : ""}>
-                      <input
-                        type="radio"
-                        name="png-resolution"
-                        checked={!pngUsingCustomSize && pngExportScale === scale}
-                        onChange={() => applyPngResolutionPreset(scale)}
-                      />
-                      <strong>{scale}×</strong>
-                      <span>{t(scale === 1 ? "Estándar" : scale === 2 ? "Alta" : "Máxima")}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="png-manual-size">
-                  <div className="png-dimension-inputs">
-                    <label>
-                      <span>{t("Ancho")}</span>
-                      <span className="png-pixel-input">
-                        <input
-                          id="png-export-width"
-                          type="number"
-                          min={MIN_EXPORT_PIXELS}
-                          max={MAX_EXPORT_PIXELS}
-                          step="1"
-                          inputMode="numeric"
-                          value={pngExportWidth}
-                          onChange={(event) => updateManualPngDimension("width", event.target.value)}
-                          onBlur={() => commitManualPngDimension("width")}
-                          aria-label={t("Ancho del PNG en píxeles")}
-                        />
-                        <small>px</small>
-                      </span>
-                    </label>
-                    <span aria-hidden="true">×</span>
-                    <label>
-                      <span>{t("Alto")}</span>
-                      <span className="png-pixel-input">
-                        <input
-                          id="png-export-height"
-                          type="number"
-                          min={MIN_EXPORT_PIXELS}
-                          max={MAX_EXPORT_PIXELS}
-                          step="1"
-                          inputMode="numeric"
-                          value={pngExportHeight}
-                          onChange={(event) => updateManualPngDimension("height", event.target.value)}
-                          onBlur={() => commitManualPngDimension("height")}
-                          aria-label={t("Alto del PNG en píxeles")}
-                        />
-                        <small>px</small>
-                      </span>
-                    </label>
-                  </div>
-                  <label className="png-aspect-lock">
-                    <input
-                      type="checkbox"
-                      checked={pngLockAspectRatio}
-                      onChange={(event) => setPngLockAspectRatio(event.target.checked)}
-                    />
-                    <span>{t("Mantener proporción")}</span>
-                  </label>
-                  <p>{t("Puedes escribir un tamaño exacto entre 200 y 8000 píxeles.")}</p>
-                </div>
-              </fieldset>
-            )}
-
-            <fieldset className="png-export-options">
-              <legend>{t("Fondo")}</legend>
-              <div className="png-background-grid">
-                {([
-                  ["canvas", "Con fondo", "Usa el color del canvas actual."],
-                  ["transparent", "Sin fondo", "Conserva la transparencia del archivo."],
-                ] as const).map(([mode, label, detail]) => (
-                  <label key={mode} className={pngBackgroundMode === mode ? "is-selected" : ""}>
-                    <input
-                      type="radio"
-                      name="png-background"
-                      checked={pngBackgroundMode === mode}
-                      onChange={() => {
-                        setPngBackgroundMode(mode);
-                        updatePngPreview(pngIncludeSelection, mode, pngColorMode, exportColors);
-                      }}
-                    />
-                    <span className={`png-background-swatch ${mode}`} aria-hidden="true" />
-                    <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <fieldset className="png-export-options">
-              <legend>{t("Modo de color")}</legend>
-              <div className="png-color-mode-grid">
-                {([
-                  ["color", "Color", "Permite elegir colores para la imagen exportada."],
-                  ["grayscale", "Escala de grises", "Convierte la imagen a grises para imprimir."],
-                  ["monochrome", "Blanco y negro", "Usa alto contraste para fotocopias e impresoras."],
-                ] as const).map(([mode, label, detail]) => (
-                  <label key={mode} className={pngColorMode === mode ? "is-selected" : ""}>
-                    <input
-                      type="radio"
-                      name="png-color-mode"
-                      checked={pngColorMode === mode}
-                      onChange={() => {
-                        setPngColorMode(mode);
-                        updatePngPreview(pngIncludeSelection, pngBackgroundMode, mode, exportColors);
-                      }}
-                    />
-                    <span className={`png-color-mode-swatch ${mode}`} aria-hidden="true" />
-                    <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            {pngColorMode === "color" && (
-              <fieldset className="png-export-options png-export-color-controls" style={exportColorStyle}>
-                <legend>{t("Colores de exportación")}</legend>
-                <p>{t("Estos colores se aplican solo al archivo exportado.")}</p>
-                <div className="structure-color-controls">
-                  {([
-                    ["main", "Cadena principal", "main-key"],
-                    ["functional", "Grupo funcional", "functional-key"],
-                    ["substituent", "Sustituyentes", "branch-key"],
-                  ] as const).map(([key, label, swatchClass]) => (
-                    <label key={key}>
-                      <span><i className={swatchClass} aria-hidden="true" />{t(label)}</span>
-                      <input
-                        type="color"
-                        value={exportColors[key]}
-                        onChange={(event) => {
-                          const palette = { ...exportColors, [key]: event.target.value };
-                          setExportColors(palette);
-                          updatePngPreview(pngIncludeSelection, pngBackgroundMode, pngColorMode, palette);
-                        }}
-                        aria-label={t(`Elegir color de ${label.toLowerCase()}`)}
-                      />
-                    </label>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="reset-structure-colors"
-                  onClick={() => {
-                    const palette = {
-                      main: DEFAULT_STRUCTURE_COLORS.main,
-                      functional: DEFAULT_STRUCTURE_COLORS.functional,
-                      substituent: DEFAULT_STRUCTURE_COLORS.branch,
-                    };
-                    setExportColors(palette);
-                    updatePngPreview(pngIncludeSelection, pngBackgroundMode, pngColorMode, palette);
-                  }}
-                >
-                  {t("Restaurar colores")}
-                </button>
-              </fieldset>
-            )}
-
-            <div className="png-export-actions">
-              <button type="button" className="png-export-cancel" onClick={() => setPngExportOpen(false)}>
-                {t("Cancelar")}
-              </button>
-              <button type="button" className="png-export-download" onClick={exportCanvasImage}>
-                <span aria-hidden="true">↓</span>
-                {t(imageExportFormat === "png" ? "Descargar PNG" : "Descargar SVG")}
-              </button>
-            </div>
-          </section>
-        </div>
-        </OverlayPortal>
-      )}
-
-      <div className="workspace-grid" ref={workspaceGridRef}>
+  const onBuildChange = buildEditor?.onChange;
+  const onBuildReady = buildEditor?.onReady;
+  useEffect(() => { onBuildChange?.(cloneMolecule(molecule)); }, [molecule, onBuildChange]);
+  useEffect(() => { onBuildReady?.(); }, [onBuildReady]);
+  const editorView = (
         <section
           id="structure-panel"
           className={`builder-card movable-panel ${panelDraggingEnabled ? "" : "is-drag-disabled"} ${raisedPanelId === "structure-panel" ? "is-raised" : ""} ${draggingPanelId === "structure-panel" ? "is-dragging" : ""}`}
@@ -10989,6 +10122,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
                 data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "tools" ? "tools" : undefined}
                 data-guided-tour-target={showGuidedTour && guidedTourTarget === "tools" ? "active" : undefined}
               >
+              {!isolatedBuild && <>
               <button
                 className={`name-builder-toggle ${nameBuilderOpen ? "active" : ""}`}
                 onClick={() => {
@@ -11051,6 +10185,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
               >
                 {language === "en" ? "Examples" : "Ejemplos"}
               </button>
+              </>}
               <div className="view-mode-switch" role="group" aria-label={t("Tipo de representación molecular")}>
                 <button
                   className={viewMode === "condensed" ? "active" : ""}
@@ -11083,7 +10218,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
                 </button>
                 <button onClick={undo} disabled={!undoStack.length} title={t("Deshacer")}>↶</button>
                 <button onClick={redo} disabled={!future.length} title={t("Rehacer")}>↷</button>
-                <button className="new-button" onClick={newMolecule}>{t("Nueva")}</button>
+                {!isolatedBuild && <button className="new-button" onClick={newMolecule}>{t("Nueva")}</button>}
               </div>}
               </div>
               <span className="drag-indicator" title={t("Arrastrar panel")} aria-hidden="true">⠿</span>
@@ -11584,6 +10719,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
             </span>}
             {clickRipples.map((ripple) => <span key={ripple.id} className="builder-click-ripple" style={{ left: ripple.x, top: ripple.y }} onAnimationEnd={() => setClickRipples((items) => items.filter((item) => item.id !== ripple.id))} />)}
             <div className="canvas-toolbar-left" role="group" aria-label={t("Acciones del canvas")}>
+              {!isolatedBuild && <>
               <button
                 ref={canvasExpandButtonRef}
                 type="button"
@@ -11606,6 +10742,7 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
                 <span aria-hidden="true">📷</span>
                 {t("Exportar PNG/SVG")}
               </button>
+              </>}
               <button
                 type="button"
                 className="canvas-deselect-button"
@@ -12848,6 +11985,916 @@ export default function Home({ initialLanguage = "es" }: { initialLanguage?: App
             </div>
           </ViewportPortal>
         </section>
+  );
+  if (buildEditor) return <div className="practice-build-editor" inert={buildEditor.disabled}>
+    {editorView}
+    <div className="construction-context-slot" ref={toolPanelSlotRef} />
+  </div>;
+
+  return (
+    <main
+      className={[
+        "app-shell",
+        highContrastEnabled && "a11y-high-contrast",
+        largeTextEnabled && "a11y-large-text",
+        doubleBondPatternEnabled && "a11y-double-bond-pattern",
+        largeTargetsEnabled && "a11y-large-targets",
+        dyslexiaTypefaceEnabled && "a11y-dyslexia-typeface",
+        simplifiedModeEnabled && "a11y-simplified-mode",
+        highlightInteractivesEnabled && "a11y-highlight-interactives",
+      ].filter(Boolean).join(" ")}
+      inert={historyOpen || settingsOpen || pngExportOpen || canvasExpanded}
+      onPointerDownCapture={() => {
+        dismissValenceAlert();
+      }}
+    >
+      <header className="site-header">
+        <div className="brand-mark">
+          <img src="../sciu-eye.png" alt="Sciu Science" />
+        </div>
+        <div className="brand-copy">
+          <h1>{t("Laboratorio de Hidrocarburos")}</h1>
+        </div>
+        <div className="lab-entry-actions">
+        <button
+          type="button"
+          className="guided-tour-launch"
+          ref={guidedTourTriggerRef}
+          disabled={practiceOpen}
+          onClick={openGuidedTour}
+          aria-expanded={showGuidedTour}
+          aria-controls="guided-tour-panel"
+        >
+          <span aria-hidden="true">?</span>
+          {guidedTourControlsText.open}
+        </button>
+        <button type="button" className="guided-tour-launch practice-launch" ref={practiceTriggerRef}
+          aria-expanded={practiceOpen} aria-controls="practice-panel" onClick={() => {
+            dismissGuidedTour();
+            setPracticeOpen(true);
+          }}>{t("Práctica / Examen")}</button>
+        </div>
+      </header>
+
+      {practiceOpen && <PracticePanel language={language} onLanguageChange={setLanguage}
+        onBackToLab={() => {
+          setPracticeOpen(false);
+          window.requestAnimationFrame(() => practiceTriggerRef.current?.focus());
+        }} generate={generatePracticeMolecule} review={reviewPracticeAnswer} evaluateStructure={evaluatePracticeStructure}
+        renderBuilder={(props) => <Home buildEditor={props} />}
+        renderStructure={(molecule, label, width, height, highlights) => <MoleculeHistoryPreview molecule={molecule}
+          ariaLabel={label} width={width} height={height} practiceView reviewHighlights={highlights} />} />}
+
+      <div className="lab-workspace" hidden={practiceOpen} inert={practiceOpen}>
+      {!practiceOpen && showGuidedTour && (
+        <OverlayPortal active={showGuidedTour}>
+          <aside
+            className="guided-tour"
+            id="guided-tour-panel"
+            ref={guidedTourPanelRef}
+            data-guided-tour-step={guidedTourState.step + 1}
+            data-guided-tour-side={guidedTourPosition?.side}
+            data-positioned={guidedTourPosition ? "true" : undefined}
+            style={guidedTourPosition ? { top: guidedTourPosition.top, left: guidedTourPosition.left } : undefined}
+            role="region"
+            aria-labelledby="guided-tour-title"
+            aria-describedby="guided-tour-description"
+          >
+            <div className="guided-tour-heading">
+              <span className="guided-tour-progress" role="status" aria-live="polite">
+                {guidedTourControlsText.progress(guidedTourState.step)}
+              </span>
+              <button
+                type="button"
+                className="guided-tour-close"
+                onClick={dismissGuidedTour}
+                aria-label={guidedTourControlsText.close}
+                title={guidedTourControlsText.close}
+              >
+                ×
+              </button>
+            </div>
+            <h2 id="guided-tour-title">{guidedTourCopyText.title}</h2>
+            <p id="guided-tour-description">{guidedTourCopyText.description}</p>
+            {guidedTourCopyText.followUp && <p className="guided-tour-follow-up">{guidedTourCopyText.followUp}</p>}
+            {guidedTourCopyText.exampleAction && (
+              <button
+                type="button"
+                className="guided-tour-inline-action"
+                onClick={() => {
+                  if (guidedTourAcetonePreset) loadPreset(guidedTourAcetonePreset);
+                  if (guidedTourState.step === 3) {
+                    openReasoningHelpFromUserAction();
+                  }
+                }}
+              >
+                {guidedTourCopyText.exampleAction}
+              </button>
+            )}
+            {guidedTourCopyText.action && (
+              <button
+                type="button"
+                className="guided-tour-inline-action"
+                onClick={() => {
+                  if (guidedTourState.step === 3) {
+                    openReasoningHelpFromUserAction();
+                  } else if (guidedTourAcetonePreset) {
+                    loadPreset(guidedTourAcetonePreset);
+                  }
+                }}
+              >
+                {guidedTourCopyText.action}
+              </button>
+            )}
+            {guidedTourCopyText.exampleNote && <small className="guided-tour-example-note">{guidedTourCopyText.exampleNote}</small>}
+            <div className="guided-tour-actions">
+              <button type="button" className="guided-tour-skip" onClick={dismissGuidedTour}>
+                {guidedTourControlsText.skip}
+              </button>
+              <div>
+                <button
+                  type="button"
+                  className="guided-tour-previous"
+                  onClick={() => dispatchGuidedTour({ type: "previous" })}
+                  disabled={guidedTourState.step === 0}
+                >
+                  {guidedTourControlsText.previous}
+                </button>
+                <button type="button" className="guided-tour-next" onClick={advanceGuidedTour}>
+                  {guidedTourState.step === GUIDED_TOUR_STEP_COUNT - 1
+                    ? guidedTourControlsText.finish
+                    : guidedTourControlsText.next}
+                </button>
+              </div>
+            </div>
+          </aside>
+        </OverlayPortal>
+      )}
+
+      {historyOpen && (
+        <OverlayPortal active={historyOpen}>
+        <div className="history-overlay">
+          <button
+            className="history-scrim"
+            onClick={() => setHistoryOpen(false)}
+            aria-label={t("Cerrar historial")}
+          />
+          <aside
+            className="history-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-title"
+          >
+            <div className="history-drawer-heading">
+              <div>
+                <p className="eyebrow">{t("Biblioteca personal")}</p>
+                <h2 id="history-title">{t("Mi laboratorio químico")}</h2>
+              </div>
+              <button
+                className="history-close"
+                ref={historyCloseButtonRef}
+                onClick={() => setHistoryOpen(false)}
+                aria-label={t("Cerrar historial")}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="library-tabs" role="tablist" aria-label={t("Secciones de mi laboratorio")}>
+              <button
+                className={librarySection === "history" ? "active" : ""}
+                onClick={() => {
+                  setLibrarySection("history");
+                  setHistoryQuery("");
+                  setHistoryTransferNotice(null);
+                }}
+                role="tab"
+                aria-selected={librarySection === "history"}
+              >
+                <span aria-hidden="true">↺</span>
+                <span>{t("Historial")}<small>{t("Automático")}</small></span>
+                <strong>{historyEntries.length}</strong>
+              </button>
+              <button
+                className={librarySection === "saved" ? "active" : ""}
+                onClick={() => {
+                  setLibrarySection("saved");
+                  setHistoryQuery("");
+                  setHistoryTransferNotice(null);
+                }}
+                role="tab"
+                aria-selected={librarySection === "saved"}
+              >
+                <span aria-hidden="true">★</span>
+                <span>{t("Guardados")}<small>{t("Elegidos por ti")}</small></span>
+                <strong>{savedEntries.length}</strong>
+              </button>
+            </div>
+
+            {librarySection === "history" ? (
+              <div className="history-transfer-toolbar" aria-label={t("Exportar o borrar el historial químico")}>
+                <button
+                  onClick={exportHistoryLibrary}
+                  disabled={!historyEntries.length || historyClearing}
+                  title={historyEntries.length
+                    ? t("Descargar el historial en un único documento")
+                    : t("El historial todavía no contiene estructuras")}
+                >
+                  <span aria-hidden="true">↓</span>
+                  {t("Exportar historial")}
+                </button>
+                <button
+                  className="history-clear-all"
+                  onClick={clearHistory}
+                  disabled={!historyEntries.length || historyClearing || historySyncState === "saving"}
+                  title={historyEntries.length
+                    ? t("Borrar únicamente el historial; Guardados se conservará")
+                    : t("El historial ya está vacío")}
+                  aria-label={t("Borrar todo mi historial sin eliminar Guardados")}
+                >
+                  <span aria-hidden="true">⌫</span>
+                  {historyClearing ? t("Borrando…") : t("Borrar historial")}
+                </button>
+              </div>
+            ) : (
+              <div className="history-transfer-toolbar" aria-label={t("Importar y exportar estructuras guardadas")}>
+                <label className={historyImporting || !historyIdentity ? "disabled" : ""}>
+                  <span aria-hidden="true">↑</span>
+                  {historyImporting ? t("Importando…") : t("Importar .quimica")}
+                  <input
+                    type="file"
+                    accept=".quimica,.json,application/json"
+                    onChange={importChemistryDocument}
+                    disabled={historyImporting || !historyIdentity}
+                    aria-label={t("Importar documento químico a Guardados")}
+                  />
+                </label>
+                <button
+                  onClick={exportSavedLibrary}
+                  disabled={!savedEntries.length}
+                  title={savedEntries.length
+                    ? t("Descargar todas las estructuras guardadas en un único documento")
+                    : t("Añade una estructura a Guardados antes de exportar")}
+                >
+                  <span aria-hidden="true">↓</span>
+                  {t("Exportar guardados")}
+                </button>
+              </div>
+            )}
+
+            {historyTransferNotice && (
+              <div className={`history-transfer-notice transfer-${historyTransferNotice.kind}`} role="status">
+                <span aria-hidden="true">{historyTransferNotice.kind === "success" ? "✓" : "!"}</span>
+                <p>{localizedDynamicText(historyTransferNotice.message)}</p>
+                <button
+                  onClick={() => setHistoryTransferNotice(null)}
+                  aria-label={t("Cerrar aviso de archivo")}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {librarySection === "saved" ? (
+              <div className="history-current-card">
+                <MoleculeHistoryPreview molecule={molecule} />
+                <div>
+                  <span>{t("Estructura actual")}</span>
+                  <strong>{localizedCanonicalIupacName}</strong>
+                  <small>{analysis.formula} · {localizedHistoryFamilyLabel}</small>
+                </div>
+                <button onClick={saveCurrentStructure} disabled={!historyIdentity || savedBusy}>
+                  {savedBusy ? t("Guardando…") : t("Añadir a Guardados")}
+                </button>
+              </div>
+            ) : (
+              <div className={`history-sync history-sync-${historySyncState}`} role="status">
+                <span aria-hidden="true" />
+                <div>
+                  <strong>{localizedDynamicText(historyMessage)}</strong>
+                  <small>
+                    {historyScope === "account"
+                      ? t("El historial se recupera cuando vuelves con la misma cuenta.")
+                      : t("El historial se recupera cuando vuelves desde este navegador.")}
+                  </small>
+                </div>
+              </div>
+            )}
+
+            <label className="history-search">
+              <span aria-hidden="true">⌕</span>
+              <input
+                type="search"
+                value={historyQuery}
+                onChange={(event) => setHistoryQuery(event.target.value)}
+                placeholder={language === "en" ? `Search ${librarySection === "history" ? "history" : "Saved"}` : `Buscar en ${librarySection === "history" ? "el historial" : "Guardados"}`}
+                aria-label={language === "en" ? `Search ${librarySection === "history" ? "my history" : "Saved"}` : `Buscar en ${librarySection === "history" ? "mi historial" : "Guardados"}`}
+              />
+              {historyQuery && (
+                <button onClick={() => setHistoryQuery("")} aria-label={t("Limpiar búsqueda")}>×</button>
+              )}
+            </label>
+
+            <div className="history-list-heading">
+              <div>
+                <strong>{librarySection === "history" ? t("Versiones recientes") : t("Estructuras guardadas")}</strong>
+                <small>
+                  {librarySection === "history"
+                    ? t("Se guarda una versión única después de cada pausa.")
+                    : t("Esta sección solo contiene lo que decides conservar.")}
+                </small>
+              </div>
+              <span>{filteredLibraryEntries.length}</span>
+            </div>
+
+            <div className="history-list">
+              {historySyncState === "loading" ? (
+                <div className="history-empty">
+                  <span className="history-loader" aria-hidden="true" />
+                  <strong>{t("Cargando tus estructuras…")}</strong>
+                </div>
+              ) : filteredLibraryEntries.length ? (
+                filteredLibraryEntries.map((entry) => (
+                  <article className="history-item" key={entry.id}>
+                    <button
+                      className="history-item-open"
+                      onClick={() => restoreLibraryEntry(entry, librarySection)}
+                      aria-label={language === "en" ? `Open ${localizedIupac(entry.name)}` : `Abrir ${entry.name}`}
+                    >
+                      <MoleculeHistoryPreview molecule={entry.molecule} />
+                      <span className="history-item-copy">
+                        <strong>{localizedIupac(entry.name)}</strong>
+                        <span>{entry.formula} · {language === "en" ? t(entry.family) : entry.family}</span>
+                        <small>{formatHistoryDate(entry.updatedAt, language)} · {entry.atomCount} {entry.atomCount === 1 ? t("átomo") : t("átomos")}</small>
+                      </span>
+                    </button>
+                    <div className="history-item-actions">
+                      <button
+                        className="history-download"
+                        onClick={() => exportHistoryEntry(entry)}
+                        aria-label={language === "en" ? `Download ${localizedIupac(entry.name)} as a chemistry document` : `Descargar ${entry.name} como documento químico`}
+                        title={language === "en" ? "Download .quimica file" : "Descargar archivo .quimica"}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        className="history-delete"
+                        onClick={() => librarySection === "history"
+                          ? deleteHistoryEntry(entry)
+                          : deleteSavedEntry(entry)}
+                        aria-label={language === "en" ? `Remove ${localizedIupac(entry.name)} from ${librarySection === "history" ? "my history" : "Saved"}` : `Eliminar ${entry.name} de ${librarySection === "history" ? "mi historial" : "Guardados"}`}
+                        title={librarySection === "history" ? t("Eliminar del historial") : t("Eliminar de Guardados")}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="history-empty">
+                  <span aria-hidden="true">⌬</span>
+                  <strong>
+                    {historyQuery
+                      ? (language === "en" ? "No matches found" : "No encontramos coincidencias")
+                      : librarySection === "history"
+                        ? t("Tu historial comienza aquí")
+                        : t("Todavía no tienes estructuras guardadas")}
+                  </strong>
+                  <p>
+                    {historyQuery
+                      ? t("Prueba con el nombre IUPAC, la fórmula o la familia del compuesto.")
+                      : librarySection === "history"
+                        ? t("Construye una molécula y aparecerán aquí sus versiones recientes.")
+                        : t("Añade la estructura actual o importa un archivo .quimica para conservarlo aparte del historial.")}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <p className="history-privacy-note">
+              <span aria-hidden="true">✓</span>
+              {t("Historial y Guardados permanecen separados y cada visitante ve únicamente sus propias estructuras.")}
+            </p>
+          </aside>
+        </div>
+        </OverlayPortal>
+      )}
+
+      {settingsOpen && (
+        <OverlayPortal active={settingsOpen}>
+        <div className="settings-overlay">
+          <button
+            className="settings-scrim"
+            type="button"
+            onClick={closeSettings}
+            aria-label={t("Cerrar configuración")}
+          />
+          <aside
+            className="settings-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+          >
+            <div className="settings-panel-heading">
+              <div>
+                <p className="eyebrow">⚙ {t("Configuración")}</p>
+                <h2 id="settings-title">{t("Configuración")}</h2>
+              </div>
+              <button
+                type="button"
+                className="settings-close"
+                ref={settingsCloseButtonRef}
+                onClick={closeSettings}
+                aria-label={t("Cerrar configuración")}
+              >
+                ×
+              </button>
+            </div>
+
+            <section className="settings-section" aria-labelledby="settings-options-title">
+              <h3 id="settings-options-title">{t("Preferencias")}</h3>
+              <label className="settings-toggle">
+                <span>{t("Mostrar hidrógenos implícitos")}</span>
+                <input
+                  type="checkbox"
+                  checked={showHydrogens}
+                  onChange={(event) => setShowHydrogens(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className={`settings-toggle ${!automaticNumberingAvailable ? "is-disabled" : ""}`}>
+                <span>{t("Numerar carbonos")}</span>
+                <input
+                  type="checkbox"
+                  checked={effectiveShowNumbering}
+                  disabled={!automaticNumberingAvailable}
+                  onChange={(event) => setShowNumbering(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Resaltar sustituyentes")}</span>
+                <input
+                  type="checkbox"
+                  checked={highlightSubstituents}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setHighlightSubstituents(enabled);
+                    setNotice(
+                      enabled
+                        ? "Sustituyentes resaltados en amarillo para diferenciarlos de la cadena principal."
+                        : "Color uniforme activado: cadena principal y sustituyentes comparten el mismo color.",
+                    );
+                  }}
+                />
+                <i aria-hidden="true" />
+              </label>
+              {analysis.steroidSystem?.numbering && (
+                <label className="settings-toggle">
+                  <span>{t("Mostrar etiquetas de anillos esteroideos")}</span>
+                  <input type="checkbox" checked={showSteroidRingLabels} onChange={(event) => setShowSteroidRingLabels(event.target.checked)} />
+                  <i aria-hidden="true" />
+                </label>
+              )}
+              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de numeración")}>
+                <strong>{t("Tamaño de numeración")}</strong>
+                <div className="settings-scale-actions">
+                  <input type="range" min={MIN_NUMBERING_SCALE} max={MAX_NUMBERING_SCALE} step={NUMBERING_SCALE_STEP} value={numberingScale} disabled={!automaticNumberingAvailable} onChange={(event) => updateNumberingScale(Number(event.target.value))} aria-label={t("Tamaño de numeración")} />
+                  <output aria-live="polite">{Math.round(numberingScale * 100)} %</output>
+                  <button type="button" disabled={numberingScale === DEFAULT_NUMBERING_SCALE} onClick={() => updateNumberingScale(DEFAULT_NUMBERING_SCALE)}>{t("Restablecer")}</button>
+                </div>
+              </div>
+              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de grupos funcionales")}>
+                <strong>{t("Tamaño de grupos funcionales")}</strong>
+                <div className="settings-scale-actions">
+                  <input type="range" min={MIN_FUNCTIONAL_GROUP_SCALE} max={MAX_FUNCTIONAL_GROUP_SCALE} step={FUNCTIONAL_GROUP_SCALE_STEP} value={functionalGroupScale} onChange={(event) => updateFunctionalGroupScale(Number(event.target.value))} aria-label={t("Tamaño de grupos funcionales")} />
+                  <output aria-live="polite">{Math.round(functionalGroupScale * 100)} %</output>
+                  <button type="button" disabled={functionalGroupScale === DEFAULT_FUNCTIONAL_GROUP_SCALE} onClick={() => updateFunctionalGroupScale(DEFAULT_FUNCTIONAL_GROUP_SCALE)}>{t("Restablecer")}</button>
+                </div>
+              </div>
+              <label className="settings-toggle">
+                <span>{t("Recordar estereoquímica")}</span>
+                <input
+                  type="checkbox"
+                  checked={showStereochemistry}
+                  onChange={(event) => setShowStereochemistry(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Mover paneles libremente")}</span>
+                <input
+                  type="checkbox"
+                  checked={panelDraggingEnabled}
+                  onChange={(event) => setPanelDraggingEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de badges R/S")}>
+                <div>
+                  <strong>{t("Tamaño de badges R/S")}</strong>
+                  <small>{t("Ajusta el círculo y la letra de los centros tetraédricos")}</small>
+                </div>
+                <div className="settings-scale-actions">
+                  <input
+                    type="range"
+                    min={MIN_TETRAHEDRAL_BADGE_SCALE}
+                    max={MAX_TETRAHEDRAL_BADGE_SCALE}
+                    step={TETRAHEDRAL_BADGE_SCALE_STEP}
+                    value={tetrahedralBadgeScale}
+                    onChange={(event) => updateTetrahedralBadgeScale(Number(event.target.value))}
+                    aria-label={t("Tamaño de badges R/S")}
+                  />
+                  <output aria-live="polite">{Math.round(tetrahedralBadgeScale * 100)} %</output>
+                  <button
+                    type="button"
+                    disabled={tetrahedralBadgeScale === DEFAULT_TETRAHEDRAL_BADGE_SCALE}
+                    onClick={() => updateTetrahedralBadgeScale(DEFAULT_TETRAHEDRAL_BADGE_SCALE)}
+                  >{t("Restablecer")}</button>
+                </div>
+              </div>
+              <button
+                className="settings-panel-reset"
+                type="button"
+                onClick={resetAllPanelPositions}
+              >
+                {t("Restablecer posición de paneles")}
+              </button>
+            </section>
+
+            <section className="settings-section settings-accessibility" aria-labelledby="settings-accessibility-title">
+              <h3 id="settings-accessibility-title">{t("Accesibilidad opcional")}</h3>
+              <label className="settings-toggle">
+                <span>{t("Lectores de pantalla avanzados")}</span>
+                <input
+                  type="checkbox"
+                  checked={advancedScreenReaderEnabled}
+                  onChange={(event) => setAdvancedScreenReaderEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Contraste alto AA")}</span>
+                <input
+                  type="checkbox"
+                  checked={highContrastEnabled}
+                  onChange={(event) => setHighContrastEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Texto ampliado")}</span>
+                <input
+                  type="checkbox"
+                  checked={largeTextEnabled}
+                  onChange={(event) => setLargeTextEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Patrón en enlaces dobles")}</span>
+                <input
+                  type="checkbox"
+                  checked={doubleBondPatternEnabled}
+                  onChange={(event) => setDoubleBondPatternEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Botones ampliados")}</span>
+                <input
+                  type="checkbox"
+                  checked={largeTargetsEnabled}
+                  onChange={(event) => setLargeTargetsEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Tipografía para dislexia")}</span>
+                <input
+                  type="checkbox"
+                  checked={dyslexiaTypefaceEnabled}
+                  onChange={(event) => setDyslexiaTypefaceEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Modo simplificado")}</span>
+                <input
+                  type="checkbox"
+                  checked={simplifiedModeEnabled}
+                  onChange={(event) => setSimplifiedModeEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="settings-toggle">
+                <span>{t("Destacar interactivos")}</span>
+                <input
+                  type="checkbox"
+                  checked={highlightInteractivesEnabled}
+                  onChange={(event) => setHighlightInteractivesEnabled(event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+            </section>
+
+            <section className="settings-section settings-shortcuts" aria-labelledby="settings-shortcuts-title">
+              <h3 id="settings-shortcuts-title">{t("Atajos de teclado")}</h3>
+              {([
+                [["Ctrl", "Z"], "Deshacer"],
+                [["Ctrl", "Y"], "Rehacer"],
+                [["B"], "Benzene"],
+                [["R"], "Ring"],
+                [["M / E / P"], "Methyl / Ethyl / Propyl"],
+                [["Ctrl", "S"], "Guardar"],
+                [["Ctrl", "Shift", "S"], "Exportar"],
+                [["Ctrl", "I"], "Importar"],
+                [["Ctrl", "N"], "Nueva molécula"],
+                [["Delete / Supr"], "Borrar"],
+                [["Esc"], "Deseleccionar"],
+                [["Ctrl", "1"], "Por nombre"],
+                [["Ctrl", "2"], "SMILES"],
+                [["Ctrl", "3"], "Semides."],
+                [["Ctrl", "4"], "Esquelética"],
+              ] satisfies [string[], string][]).map(([keys, label]) => (
+                <div className="settings-shortcut" key={`${keys.join("-")}-${label}`}>
+                  <span className="shortcut-keys">
+                    {keys.map((key, index) => (
+                      <span key={key}>
+                        {index > 0 && <b aria-hidden="true">+</b>}
+                        <kbd>{key}</kbd>
+                      </span>
+                    ))}
+                  </span>
+                  <span>{t(label)}</span>
+                </div>
+              ))}
+            </section>
+          </aside>
+        </div>
+        </OverlayPortal>
+      )}
+
+      {pngExportOpen && (
+        <OverlayPortal active={pngExportOpen}>
+        <div className="png-export-overlay">
+          <button
+            className="png-export-scrim"
+            type="button"
+            onClick={() => setPngExportOpen(false)}
+            aria-label={t("Cerrar opciones de exportación de imagen")}
+          />
+          <section
+            className="png-export-dialog"
+            style={structureColorStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="png-export-title"
+          >
+            <div className="png-export-heading">
+              <div>
+                <p className="eyebrow">{imageExportFormat.toUpperCase()}</p>
+                <h2 id="png-export-title">{t("Exportar imagen")}</h2>
+                <p>{t("Elige el formato, el tamaño, el fondo y el modo de color antes de descargar.")}</p>
+              </div>
+              <button
+                type="button"
+                className="png-export-close"
+                ref={pngExportCloseButtonRef}
+                onClick={() => setPngExportOpen(false)}
+                aria-label={t("Cerrar opciones de exportación de imagen")}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              className={`png-live-preview background-${pngBackgroundMode} color-${pngColorMode}`}
+              style={exportColorStyle}
+              aria-label={t("Vista previa de exportación")}
+            >
+              <div dangerouslySetInnerHTML={{ __html: pngPreviewMarkup }} />
+            </div>
+
+            <fieldset className="png-export-options">
+              <legend>{t("Formato")}</legend>
+              <div className="png-format-grid">
+                {(["png", "svg"] as const).map((format) => (
+                  <label key={format} className={imageExportFormat === format ? "is-selected" : ""}>
+                    <input
+                      type="radio"
+                      name="image-export-format"
+                      checked={imageExportFormat === format}
+                      onChange={() => setImageExportFormat(format)}
+                    />
+                    <strong>{format.toUpperCase()}</strong>
+                    <span>{t(format === "png" ? "Imagen por píxeles" : "Vector escalable")}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="png-export-options png-selection-options">
+              <legend>{t("Selección activa")}</legend>
+              <label className={pngIncludeSelection ? "is-selected" : ""}>
+                <input
+                  type="checkbox"
+                  checked={pngIncludeSelection}
+                  disabled={selectedId === null}
+                  onChange={(event) => {
+                    const includeSelection = event.target.checked;
+                    setPngIncludeSelection(includeSelection);
+                    updatePngPreview(includeSelection, pngBackgroundMode, pngColorMode, exportColors);
+                  }}
+                />
+                <span className="png-selection-check" aria-hidden="true">{pngIncludeSelection ? "✓" : ""}</span>
+                <span>
+                  <strong>{t("Exportar con el átomo o grupo seleccionado")}</strong>
+                  <small>{selectedId === null
+                    ? t("No hay una selección activa en el canvas.")
+                    : t("Desmárcalo para ocultar el halo de selección en la imagen.")}</small>
+                </span>
+              </label>
+            </fieldset>
+
+            {imageExportFormat === "png" && (
+              <fieldset className="png-export-options">
+                <legend>{t("Tamaño PNG")}</legend>
+                <div className="png-resolution-grid">
+                  {([1, 2, 4] as const).map((scale) => (
+                    <label key={scale} className={!pngUsingCustomSize && pngExportScale === scale ? "is-selected" : ""}>
+                      <input
+                        type="radio"
+                        name="png-resolution"
+                        checked={!pngUsingCustomSize && pngExportScale === scale}
+                        onChange={() => applyPngResolutionPreset(scale)}
+                      />
+                      <strong>{scale}×</strong>
+                      <span>{t(scale === 1 ? "Estándar" : scale === 2 ? "Alta" : "Máxima")}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="png-manual-size">
+                  <div className="png-dimension-inputs">
+                    <label>
+                      <span>{t("Ancho")}</span>
+                      <span className="png-pixel-input">
+                        <input
+                          id="png-export-width"
+                          type="number"
+                          min={MIN_EXPORT_PIXELS}
+                          max={MAX_EXPORT_PIXELS}
+                          step="1"
+                          inputMode="numeric"
+                          value={pngExportWidth}
+                          onChange={(event) => updateManualPngDimension("width", event.target.value)}
+                          onBlur={() => commitManualPngDimension("width")}
+                          aria-label={t("Ancho del PNG en píxeles")}
+                        />
+                        <small>px</small>
+                      </span>
+                    </label>
+                    <span aria-hidden="true">×</span>
+                    <label>
+                      <span>{t("Alto")}</span>
+                      <span className="png-pixel-input">
+                        <input
+                          id="png-export-height"
+                          type="number"
+                          min={MIN_EXPORT_PIXELS}
+                          max={MAX_EXPORT_PIXELS}
+                          step="1"
+                          inputMode="numeric"
+                          value={pngExportHeight}
+                          onChange={(event) => updateManualPngDimension("height", event.target.value)}
+                          onBlur={() => commitManualPngDimension("height")}
+                          aria-label={t("Alto del PNG en píxeles")}
+                        />
+                        <small>px</small>
+                      </span>
+                    </label>
+                  </div>
+                  <label className="png-aspect-lock">
+                    <input
+                      type="checkbox"
+                      checked={pngLockAspectRatio}
+                      onChange={(event) => setPngLockAspectRatio(event.target.checked)}
+                    />
+                    <span>{t("Mantener proporción")}</span>
+                  </label>
+                  <p>{t("Puedes escribir un tamaño exacto entre 200 y 8000 píxeles.")}</p>
+                </div>
+              </fieldset>
+            )}
+
+            <fieldset className="png-export-options">
+              <legend>{t("Fondo")}</legend>
+              <div className="png-background-grid">
+                {([
+                  ["canvas", "Con fondo", "Usa el color del canvas actual."],
+                  ["transparent", "Sin fondo", "Conserva la transparencia del archivo."],
+                ] as const).map(([mode, label, detail]) => (
+                  <label key={mode} className={pngBackgroundMode === mode ? "is-selected" : ""}>
+                    <input
+                      type="radio"
+                      name="png-background"
+                      checked={pngBackgroundMode === mode}
+                      onChange={() => {
+                        setPngBackgroundMode(mode);
+                        updatePngPreview(pngIncludeSelection, mode, pngColorMode, exportColors);
+                      }}
+                    />
+                    <span className={`png-background-swatch ${mode}`} aria-hidden="true" />
+                    <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="png-export-options">
+              <legend>{t("Modo de color")}</legend>
+              <div className="png-color-mode-grid">
+                {([
+                  ["color", "Color", "Permite elegir colores para la imagen exportada."],
+                  ["grayscale", "Escala de grises", "Convierte la imagen a grises para imprimir."],
+                  ["monochrome", "Blanco y negro", "Usa alto contraste para fotocopias e impresoras."],
+                ] as const).map(([mode, label, detail]) => (
+                  <label key={mode} className={pngColorMode === mode ? "is-selected" : ""}>
+                    <input
+                      type="radio"
+                      name="png-color-mode"
+                      checked={pngColorMode === mode}
+                      onChange={() => {
+                        setPngColorMode(mode);
+                        updatePngPreview(pngIncludeSelection, pngBackgroundMode, mode, exportColors);
+                      }}
+                    />
+                    <span className={`png-color-mode-swatch ${mode}`} aria-hidden="true" />
+                    <span><strong>{t(label)}</strong><small>{t(detail)}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {pngColorMode === "color" && (
+              <fieldset className="png-export-options png-export-color-controls" style={exportColorStyle}>
+                <legend>{t("Colores de exportación")}</legend>
+                <p>{t("Estos colores se aplican solo al archivo exportado.")}</p>
+                <div className="structure-color-controls">
+                  {([
+                    ["main", "Cadena principal", "main-key"],
+                    ["functional", "Grupo funcional", "functional-key"],
+                    ["substituent", "Sustituyentes", "branch-key"],
+                  ] as const).map(([key, label, swatchClass]) => (
+                    <label key={key}>
+                      <span><i className={swatchClass} aria-hidden="true" />{t(label)}</span>
+                      <input
+                        type="color"
+                        value={exportColors[key]}
+                        onChange={(event) => {
+                          const palette = { ...exportColors, [key]: event.target.value };
+                          setExportColors(palette);
+                          updatePngPreview(pngIncludeSelection, pngBackgroundMode, pngColorMode, palette);
+                        }}
+                        aria-label={t(`Elegir color de ${label.toLowerCase()}`)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="reset-structure-colors"
+                  onClick={() => {
+                    const palette = {
+                      main: DEFAULT_STRUCTURE_COLORS.main,
+                      functional: DEFAULT_STRUCTURE_COLORS.functional,
+                      substituent: DEFAULT_STRUCTURE_COLORS.branch,
+                    };
+                    setExportColors(palette);
+                    updatePngPreview(pngIncludeSelection, pngBackgroundMode, pngColorMode, palette);
+                  }}
+                >
+                  {t("Restaurar colores")}
+                </button>
+              </fieldset>
+            )}
+
+            <div className="png-export-actions">
+              <button type="button" className="png-export-cancel" onClick={() => setPngExportOpen(false)}>
+                {t("Cancelar")}
+              </button>
+              <button type="button" className="png-export-download" onClick={exportCanvasImage}>
+                <span aria-hidden="true">↓</span>
+                {t(imageExportFormat === "png" ? "Descargar PNG" : "Descargar SVG")}
+              </button>
+            </div>
+          </section>
+        </div>
+        </OverlayPortal>
+      )}
+
+      <div className="workspace-grid" ref={workspaceGridRef}>
+        {!practiceOpen && editorView}
 
         <div className="information-column">
         <section className="intro-strip" aria-label={t("Instrucciones breves")}>

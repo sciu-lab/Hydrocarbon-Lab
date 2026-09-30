@@ -3,6 +3,14 @@ export type AppLanguage = "es" | "en";
 export const LANGUAGE_STORAGE_KEY = "hydrocarbon-lab-language";
 
 const ENGLISH_UI: Record<string, string> = {
+  "Objetivo": "Target",
+  "Reiniciar estructura": "Reset structure",
+  "Comprobar estructura": "Check structure",
+  "Estructura correcta": "Correct structure",
+  "Tu estructura": "Your structure",
+  "Estructura de referencia": "Reference structure",
+  "La estructura no es válida dentro del dominio de práctica. Corrígela y vuelve a comprobar.": "The structure is not valid within the practice domain. Edit it and check again.",
+  "No se pudo comparar la estructura. Tus intentos se conservan; puedes reintentar.": "The structure could not be compared. Your attempts are preserved; you can retry.",
   "Tipos de pregunta": "Question types",
   "Selecciona al menos un tipo de pregunta.": "Select at least one question type.",
   "¿Cuál es el nombre IUPAC correcto?": "What is the correct IUPAC name?",
