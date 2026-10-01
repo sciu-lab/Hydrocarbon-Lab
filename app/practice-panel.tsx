@@ -21,7 +21,10 @@ import { PracticeSummary } from "./practice-summary.tsx";
 import type { PracticeReviewer, ReviewHighlights, ReviewModel } from "./practice-review.ts";
 import { PracticeReviewPanel } from "./practice-review-panel.tsx";
 import { isBuildQuestion, isMultipleChoiceQuestion } from "./practice-question.ts";
-import type { StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
+import type { BuildSubmissionValidator, StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
+import { ExamPanel } from "./exam-panel.tsx";
+import { createExamConfig, EXAM_LENGTHS, startExam } from "./exam-session.ts";
+import type { ExamState } from "./exam-session.ts";
 import { PracticeBuildEditor } from "./practice-build-editor.tsx";
 import type { BuildEditorRenderer } from "./practice-build-editor.tsx";
 import { moleculeFromSmiles } from "./openchemlib-adapter.ts";
@@ -38,7 +41,7 @@ export const PRACTICE_TOPIC_GROUPS = [
   { label: "Estereoquímica", topics: [["ez", "Estereoquímica E/Z"]] },
 ] as const;
 
-type StructureRenderer = (molecule: GeneratedMolecule, label: string, width: number, height: number, highlights?: ReviewHighlights) => ReactNode;
+export type StructureRenderer = (molecule: GeneratedMolecule, label: string, width: number, height: number, highlights?: ReviewHighlights) => ReactNode;
 type ViewActions = {
   answer(value: string): void;
   check(): void;
@@ -51,7 +54,7 @@ type ViewActions = {
   structure?(molecule: GeneratedMolecule): void;
 };
 
-function PracticeStructure({ molecule, language, renderStructure, highlights }: {
+export function PracticeStructure({ molecule, language, renderStructure, highlights }: {
   molecule: GeneratedMolecule; language: AppLanguage; renderStructure: StructureRenderer;
   highlights?: ReviewHighlights;
 }) {
@@ -70,7 +73,7 @@ function PracticeStructure({ molecule, language, renderStructure, highlights }: 
 }
 
 /** Session data stays read-only; review selection is local presentation state. */
-export function PracticeSessionView({ state, language, renderStructure, renderBuilder, review, actions, answerRef, feedbackRef, onQuestionAvailable }: {
+export function PracticeSessionView({ state, language, renderStructure, renderBuilder, review, actions, answerRef, feedbackRef, onQuestionAvailable, endLabel, showBuildReference = false }: {
   state: Exclude<PracticeState, { phase: "CONFIG" }>;
   language: AppLanguage;
   renderStructure: StructureRenderer;
@@ -80,6 +83,8 @@ export function PracticeSessionView({ state, language, renderStructure, renderBu
   answerRef?: RefObject<HTMLInputElement | null>;
   feedbackRef?: RefObject<HTMLDivElement | null>;
   onQuestionAvailable?(questionId: string, index: number): void;
+  endLabel?: string;
+  showBuildReference?: boolean;
 }) {
   const [reviewState, setReviewState] = useState<{ model: ReviewModel; activeStep: string } | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
@@ -157,6 +162,10 @@ export function PracticeSessionView({ state, language, renderStructure, renderBu
         <h3>{t("Tu estructura")}</h3>
         <PracticeStructure molecule={state.studentMolecule} language={language} renderStructure={renderStructure} />
       </>}
+      {feedback && !openReview && showBuildReference && <>
+        <h3>{t("Estructura de referencia")}</h3>
+        <PracticeStructure molecule={state.question.molecule} language={language} renderStructure={renderStructure} />
+      </>}
       {openReview && <>
         {submittedGraph?.ok && <><h3>{t("Tu estructura")}</h3>
           <PracticeStructure molecule={submittedGraph.molecule} language={language} renderStructure={renderStructure} /></>}
@@ -211,11 +220,11 @@ export function PracticeSessionView({ state, language, renderStructure, renderBu
         <button type="button" className="practice-primary" onClick={advance}>{t("Siguiente")}</button>
       </div>
     </div>}
-    <button type="button" className="practice-end" onClick={actions.end}>{correction ? t("Finalizar repaso") : t("Terminar práctica")}</button>
+    <button type="button" className="practice-end" onClick={actions.end}>{endLabel ?? (correction ? t("Finalizar repaso") : t("Terminar práctica"))}</button>
   </>;
 }
 
-export function PracticePanel({ language, onLanguageChange, onBackToLab, generate, renderStructure, renderBuilder, evaluateStructure, review, clock = browserPracticeClock }: {
+export function PracticePanel({ language, onLanguageChange, onBackToLab, generate, renderStructure, renderBuilder, evaluateStructure, validateStructure, review, clock = browserPracticeClock, initialMode = "practice" }: {
   language: AppLanguage;
   onLanguageChange(language: AppLanguage): void;
   onBackToLab(): void;
@@ -223,10 +232,14 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
   renderStructure: StructureRenderer;
   renderBuilder?: BuildEditorRenderer;
   evaluateStructure?: StructuralAnswerEvaluator;
+  validateStructure?: BuildSubmissionValidator;
+  initialMode?: "practice" | "exam";
   review: PracticeReviewer;
   clock?: PracticeClock;
 }) {
   const [session, setSession] = useState<PracticeState>({ phase: "CONFIG" });
+  const [mode, setMode] = useState(initialMode);
+  const [exam, setExam] = useState<ExamState | null>(null);
   const [categories, setCategories] = useState<ExerciseCategory[]>(["alkane"]);
   const [questionTypes, setQuestionTypes] = useState<PracticeQuestionType[]>(["naming"]);
   const [count, setCount] = useState<number | "endless">(10);
@@ -268,6 +281,10 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
     back: onBackToLab,
     correctMistakes: () => setSession((state) => startPracticeCorrections(localizePracticeState(state, language), generate)),
   };
+  if (exam) return <ExamPanel initialState={exam} language={language} onLanguageChange={onLanguageChange}
+    onBackToLab={onBackToLab} onConfigure={() => { setExam(null); setConfigError(false); }}
+    renderStructure={renderStructure} renderBuilder={renderBuilder} evaluateStructure={evaluateStructure}
+    validateStructure={validateStructure} review={review} clock={clock} />;
   return <section id="practice-panel" className="practice-card" aria-labelledby="practice-title">
     <header className="practice-header">
       <h2 id="practice-title" tabIndex={-1} ref={titleRef}>{t("Práctica / Examen")}</h2>
@@ -278,18 +295,19 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       <button type="button" onClick={onBackToLab}>{t("Volver al laboratorio")}</button>
     </header>
     <div className="practice-mode" role="group" aria-label={t("Modo de práctica")}>
-      <button type="button" aria-pressed="true">{t("Práctica")}</button>
-      <button type="button" disabled>{t("Examen")} · {t("Próximamente")}</button>
+      <button type="button" aria-pressed={mode === "practice"} disabled={session.phase !== "CONFIG"} onClick={() => setMode("practice")}>{t("Práctica")}</button>
+      <button type="button" aria-pressed={mode === "exam"} disabled={session.phase !== "CONFIG"} onClick={() => { setMode("exam"); if (count === "endless") setCount(10); }}>{t("Examen")}</button>
     </div>
     {localized.phase === "CONFIG" ? <form className="practice-config" onSubmit={(event) => {
       event.preventDefault();
       setConfigError(false);
       try {
         const resolved = resolvePracticeSeed(seed, () => `practice-${crypto.randomUUID()}`);
-        setSession(startPractice(createPracticeConfig(categories, count, language, resolved, questionTypes), generate));
+        if (mode === "exam") setExam(startExam(createExamConfig(categories, Number(count), language, resolved, questionTypes), generate));
+        else setSession(startPractice(createPracticeConfig(categories, count, language, resolved, questionTypes), generate));
       } catch { setConfigError(true); }
     }}>
-      <p>{t("Practica nombres con estructuras generadas. Tu molécula del laboratorio se conserva.")}</p>
+      <p>{t(mode === "exam" ? "Responde todas las preguntas y revisa tus borradores antes de enviar el examen. Tu molécula del laboratorio se conserva." : "Practica nombres con estructuras generadas. Tu molécula del laboratorio se conserva.")}</p>
       <h3>{t("Temas")}</h3>
       <div className="practice-topics">
         {PRACTICE_TOPIC_GROUPS.map((group) => <fieldset key={group.label}>
@@ -311,12 +329,12 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       {!questionTypes.length && <p role="status">{t("Selecciona al menos un tipo de pregunta.")}</p>}
       <div className="practice-config-fields">
         <label>{t("Preguntas")}<select value={count} onChange={(event) => setCount(event.target.value === "endless" ? "endless" : Number(event.target.value))}>
-          {PRACTICE_LENGTHS.map((length) => <option key={length} value={length}>{length === "endless" ? t("Sin límite") : length}</option>)}
+          {(mode === "exam" ? EXAM_LENGTHS : PRACTICE_LENGTHS).map((length) => <option key={length} value={length}>{length === "endless" ? t("Sin límite") : length}</option>)}
         </select></label>
         <label>{t("Semilla (opcional)")}<input value={seed} onChange={(event) => setSeed(event.target.value)} autoComplete="off" spellCheck={false} /></label>
       </div>
-      {configError && <p role="alert">{t("No se pudo iniciar la práctica. Revisa los temas y vuelve a intentarlo.")}</p>}
-      <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length}>{t("Iniciar práctica")}</button>
+      {configError && <p role="alert">{t(mode === "exam" ? "No se pudo iniciar el examen. Revisa los temas y vuelve a intentarlo." : "No se pudo iniciar la práctica. Revisa los temas y vuelve a intentarlo.")}</p>}
+      <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length}>{t(mode === "exam" ? "Iniciar examen" : "Iniciar práctica")}</button>
     </form> : <>
       <p className="practice-seed">{t("Semilla")}: <code>{localized.config.seed}</code></p>
       <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} renderBuilder={renderBuilder} review={review} actions={actions}

@@ -17,7 +17,7 @@ import {
 import { createPortal } from "react-dom";
 import { PracticePanel } from "./practice-panel";
 import type { BuildEditorProps } from "./practice-build-editor";
-import { createStructuralAnswerEvaluator } from "./practice-structural-answer";
+import { createStructuralAnswerEvaluator, createBuildSubmissionValidator } from "./practice-structural-answer";
 import { createPracticeQuestionGenerator } from "./practice-question";
 import { createDeterministicDistractorEngine } from "./practice-distractor-engine";
 import { createPracticeReviewer, reviewBondId } from "./practice-review";
@@ -6034,6 +6034,7 @@ const practiceChemistryOracles = createExerciseChemistryOracles({
 const generatePracticeMolecule = createPracticeQuestionGenerator(createRestrictedChemicalGenerator(practiceChemistryOracles),
   createDeterministicDistractorEngine({ analyzeMolecule, buildLegacyEnglishNameModel }, practiceChemistryOracles));
 const evaluatePracticeStructure = createStructuralAnswerEvaluator(practiceChemistryOracles);
+const validateStudentStructure = createBuildSubmissionValidator(practiceChemistryOracles);
 const reviewPracticeAnswer = createPracticeReviewer({ analyzeMolecule, buildLegacyEnglishNameModel });
 
 export default function Home({ initialLanguage = "es", buildEditor }: { initialLanguage?: AppLanguage; buildEditor?: BuildEditorProps }) {
@@ -6282,7 +6283,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   const localizedRingTemplateDetail = (template: RingTemplate) =>
     language === "en" && template.detailEn ? template.detailEn : localizedDetail(template.detail);
   const [molecule, setMolecule] = useState<Molecule>(() =>
-    makeChain(1),
+    buildEditor?.initialMolecule ? cloneMolecule(buildEditor.initialMolecule) : makeChain(1),
   );
   const [isPristineInitialMolecule, setIsPristineInitialMolecule] = useState(true);
   const [undoPristineStates, setUndoPristineStates] = useState<boolean[]>([]);
@@ -12049,6 +12050,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
           setPracticeOpen(false);
           window.requestAnimationFrame(() => practiceTriggerRef.current?.focus());
         }} generate={generatePracticeMolecule} review={reviewPracticeAnswer} evaluateStructure={evaluatePracticeStructure}
+        validateStructure={validateStudentStructure}
         renderBuilder={(props) => <Home buildEditor={props} />}
         renderStructure={(molecule, label, width, height, highlights) => <MoleculeHistoryPreview molecule={molecule}
           ariaLabel={label} width={width} height={height} practiceView reviewHighlights={highlights} />} />}

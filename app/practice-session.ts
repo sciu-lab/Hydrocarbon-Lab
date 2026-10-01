@@ -1,11 +1,12 @@
 import { GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
 import type { ExerciseCategory, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
-import { isBuildQuestion, isMultipleChoiceQuestion, schedulePracticeQuestionType, InsufficientSafeDistractorsError, validateMultipleChoiceQuestion } from "./practice-question.ts";
-import type { StructuralAnswerEvaluator, StructuralEvaluation } from "./practice-structural-answer.ts";
+import { isBuildQuestion } from "./practice-question.ts";
+import type { StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import type { PracticeQuestion, PracticeQuestionGenerator, PracticeQuestionType } from "./practice-question.ts";
-import { matchesHydrocarbonReferenceName } from "./practice-reference-answer.ts";
+import { selectSessionQuestion } from "./session-question-selection.ts";
+import { evaluateSessionAnswer } from "./session-answer-evaluation.ts";
 import { appendPracticeAttempt, createInitialAttempt } from "./practice-attempt.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
 import { validatePracticeTime } from "./practice-timing.ts";
@@ -13,10 +14,8 @@ import type { PracticeTime } from "./practice-timing.ts";
 import { createCorrectionAttempt, createCorrectionQueue, reconstructPracticeCorrection } from "./practice-corrections.ts";
 
 export const PRACTICE_LENGTHS = [5, 10, 20, 30, "endless"] as const;
-export const PRACTICE_RECENT_LIMIT = 8;
-export const PRACTICE_DUPLICATE_LIMIT = 4;
+export { PRACTICE_RECENT_LIMIT, PRACTICE_DUPLICATE_LIMIT, PRACTICE_MCQ_SEARCH_LIMIT } from "./session-question-selection.ts";
 export type PracticeGenerator = PracticeQuestionGenerator;
-export const PRACTICE_MCQ_SEARCH_LIMIT = 12;
 
 type Context = {
   config: SessionConfig;
@@ -78,31 +77,11 @@ export function createPracticeConfig(
 }
 
 function loadQuestion(context: Context, generate: PracticeGenerator): PracticeState {
-  // Search at most four independent Phase 2 contexts. If the domain/selection
-  // is too small, accept a repeat rather than hang. Never alter the public seed.
-  const questionType = schedulePracticeQuestionType(context.config, context.index);
-  const limit = questionType === "multiple-choice" ? PRACTICE_MCQ_SEARCH_LIMIT : PRACTICE_DUPLICATE_LIMIT;
-  let repeat: Extract<PracticeState, { phase: "QUESTION" }> | null = null;
-  for (let offset = 0; offset < limit; offset += 1) {
-    const generationIndex = context.generationIndex + offset;
-    try {
-      const question = generate(context.config, generationIndex, { questionType, displayIndex: context.index });
-      if (isMultipleChoiceQuestion(question) !== (questionType === "multiple-choice")) throw new Error("Question type mismatch.");
-      if (isBuildQuestion(question) !== (questionType === "build")) throw new Error("Question type mismatch.");
-      if (isMultipleChoiceQuestion(question) && !validateMultipleChoiceQuestion(question)) throw new Error("Invalid option payload.");
-      const identity = question.reference.structuralIdentity;
-      const recentIdentities = [...context.recentIdentities.filter((item) => item !== identity), identity]
-        .slice(-PRACTICE_RECENT_LIMIT);
-      const accepted: Extract<PracticeState, { phase: "QUESTION" }> = { ...context, phase: "QUESTION", generationIndex, recentIdentities, question, answer: "", timing: null };
-      if (context.recentIdentities.includes(identity) && offset < limit - 1) { repeat = accepted; continue; }
-      return accepted;
-    } catch (error) {
-      if (error instanceof InsufficientSafeDistractorsError) continue;
-      // No stack, exception text or partially generated graph enters the UI.
-      return { ...context, phase: "ERROR", generationIndex };
-    }
-  }
-  return repeat ?? { ...context, phase: "ERROR", reason: "insufficient-safe-distractors" };
+  const selection = selectSessionQuestion(context, generate);
+  if (!selection.ok) return { ...context, phase: "ERROR", generationIndex: selection.generationIndex,
+    ...(selection.reason ? { reason: selection.reason } : {}) };
+  return { ...context, phase: "QUESTION", generationIndex: selection.generationIndex,
+    recentIdentities: selection.recentIdentities, question: selection.question, answer: "", timing: null };
 }
 
 export function startPractice(config: SessionConfig, generate: PracticeGenerator): PracticeState {
@@ -143,20 +122,18 @@ export function submitPracticeAnswer(state: PracticeState, locale: AppLanguage, 
   if (!isPracticeAnswerState(state) || !state.answer.trim() || !state.timing) return state;
   const config = normalizeSessionConfig({ ...state.config, locale });
   const question = { ...state.question, reference: { ...state.question.reference, name: state.question.reference.names[locale] } };
-  const mcq = isMultipleChoiceQuestion(question);
-  const selected = mcq ? question.options.find((option) => option.id === state.answer) : undefined;
-  if (mcq && !selected) return state;
-  const correct = mcq ? selected!.correct : matchesHydrocarbonReferenceName(state.answer, question.reference.name, locale);
-  const answer = selected ? selected.name[locale] : state.answer;
+  const graded = evaluateSessionAnswer(question, state.answer, locale);
+  if (!graded.ok) return state;
+  const { correct, answer } = graded;
   if (state.phase === "CORRECTION_QUESTION") {
     const record = createCorrectionAttempt(state.original, state.attempts,
-      { answer, correct, started: state.timing, submitted, locale, ...(mcq ? { selectedOptionId: state.answer } : {}) });
+      { answer, correct, started: state.timing, submitted, locale, ...(graded.selectedOptionId ? { selectedOptionId: graded.selectedOptionId } : {}) });
     const attempts = appendPracticeAttempt(state.attempts, record);
     return { ...state, config, question, phase: "CORRECTION_FEEDBACK", submittedLocale: locale, correct, attempts };
   }
   const record = createInitialAttempt({ question: state.question, displayOrdinal: state.index + 1,
     generationIndex: state.generationIndex, answer, correct, started: state.timing, submitted, locale,
-    ...(mcq ? { selectedOptionId: state.answer } : {}) });
+    ...(graded.selectedOptionId ? { selectedOptionId: graded.selectedOptionId } : {}) });
   const attempts = appendPracticeAttempt(state.attempts, record);
   if (attempts === state.attempts) return state;
   return { ...state, config, question, phase: "FEEDBACK", submittedLocale: locale, correct, attempts };
@@ -171,13 +148,9 @@ export function updatePracticeStructure(state: PracticeState, molecule: Generate
 export function submitPracticeStructure(state: PracticeState, locale: AppLanguage, submitted: PracticeTime,
   evaluate: StructuralAnswerEvaluator): PracticeState {
   if (!isPracticeAnswerState(state) || !isBuildQuestion(state.question) || !state.timing || !state.studentMolecule) return state;
-  let structuralAnswer: StructuralEvaluation;
-  try { structuralAnswer = evaluate({ referenceMolecule: state.question.molecule,
-    submittedMolecule: state.studentMolecule, category: state.question.category }); }
-  catch { return { ...state, buildError: "UNSUPPORTED_COMPARISON" }; }
-  if (["INVALID_SUBMISSION", "UNSUPPORTED_COMPARISON"].includes(structuralAnswer.status)) {
-    return { ...state, buildError: structuralAnswer.status as "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" };
-  }
+  const graded = evaluateSessionAnswer(state.question, "", locale, state.studentMolecule, evaluate);
+  if (!graded.ok) return { ...state, buildError: graded.reason === "INVALID_SUBMISSION" ? "INVALID_SUBMISSION" : "UNSUPPORTED_COMPARISON" };
+  const structuralAnswer = graded.structuralAnswer!;
   const input = { answer: structuralAnswer.submittedSmiles!, correct: structuralAnswer.correct, structuralAnswer,
     started: state.timing, submitted, locale };
   const record = state.phase === "CORRECTION_QUESTION" ? createCorrectionAttempt(state.original, state.attempts, input)

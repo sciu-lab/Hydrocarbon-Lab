@@ -20,6 +20,21 @@ export type StructuralEvaluation = {
 export type StructuralAnswerEvaluator = (input: {
   referenceMolecule: GeneratedMolecule; submittedMolecule: GeneratedMolecule; category: ExerciseCategory;
 }) => StructuralEvaluation;
+export type BuildSubmissionValidation = { valid: true } | { valid: false; reason: "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" };
+export type BuildSubmissionValidator = (molecule: GeneratedMolecule) => BuildSubmissionValidation;
+
+/** Submission-only validation: no target, identity comparison or correctness. */
+export function createBuildSubmissionValidator(oracles: ExerciseChemistryOracles): BuildSubmissionValidator {
+  return (molecule) => {
+    try {
+      if (!molecule || molecule.atoms?.length > 120 || molecule.bonds?.length > 150) return { valid: false, reason: "INVALID_SUBMISSION" };
+      const chemical = validateExerciseChemistry(molecule, oracles);
+      if (!chemical.valid) return { valid: false, reason: chemical.reason.endsWith("oracle-failed") ? "UNSUPPORTED_COMPARISON" : "INVALID_SUBMISSION" };
+      return EXERCISE_CATEGORIES.some((category) => validateExerciseDomain(molecule, category, oracles).valid)
+        ? { valid: true } : { valid: false, reason: "INVALID_SUBMISSION" };
+    } catch { return { valid: false, reason: "UNSUPPORTED_COMPARISON" }; }
+  };
+}
 
 const atomicNumbers = { C: 6, O: 8, N: 7, F: 9, Cl: 17, Br: 35, I: 53 };
 /** Coordinates never enter constitutional canonicalization. No tautomer, salt,
@@ -55,6 +70,7 @@ function stereo(source: GeneratedMolecule) {
 /** Uses the real validation oracles, never their generated names. An invalid
  * drawing is recoverable without an AttemptRecord; toolkit failures are technical. */
 export function createStructuralAnswerEvaluator(oracles: ExerciseChemistryOracles): StructuralAnswerEvaluator {
+  const validateSubmission = createBuildSubmissionValidator(oracles);
   return ({ referenceMolecule, submittedMolecule, category }) => {
     const result: StructuralEvaluation = { version: 1, correct: false, status: "UNSUPPORTED_COMPARISON",
       referenceIdentity: null, submittedIdentity: null, submittedSmiles: null,
@@ -62,15 +78,8 @@ export function createStructuralAnswerEvaluator(oracles: ExerciseChemistryOracle
     try {
       if (!validateExerciseDomain(referenceMolecule, category, oracles).valid) return result;
       result.checks.referenceValid = true;
-      if (!submittedMolecule || submittedMolecule.atoms?.length > 120 || submittedMolecule.bonds?.length > 150) {
-        return { ...result, status: "INVALID_SUBMISSION" };
-      }
-      const chemical = validateExerciseChemistry(submittedMolecule, oracles);
-      if (!chemical.valid) return { ...result, status: chemical.reason.endsWith("oracle-failed")
-        ? "UNSUPPORTED_COMPARISON" : "INVALID_SUBMISSION" };
-      if (!EXERCISE_CATEGORIES.some((candidate) => validateExerciseDomain(submittedMolecule, candidate, oracles).valid)) {
-        return { ...result, status: "INVALID_SUBMISSION" };
-      }
+      const validation = validateSubmission(submittedMolecule);
+      if (!validation.valid) return { ...result, status: validation.reason };
       result.checks.submissionValid = true;
       const reference = buildConstitutionalIdentity(referenceMolecule), submission = buildConstitutionalIdentity(submittedMolecule);
       const refStereo = stereo(referenceMolecule), subStereo = stereo(submittedMolecule);

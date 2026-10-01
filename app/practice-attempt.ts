@@ -38,12 +38,17 @@ export function createInitialAttempt(input: {
   selectedOptionId?: string;
   structuralAnswer?: StructuralEvaluation;
   answer: string; correct: boolean; started: PracticeTime; submitted: PracticeTime; locale: AppLanguage;
+  /** Exam's accumulated monotonic visit duration; Practice uses its interval. */
+  responseTimeMs?: number;
 }): AttemptRecord {
   if (!Number.isSafeInteger(input.displayOrdinal) || input.displayOrdinal < 1
     || !Number.isSafeInteger(input.generationIndex) || input.generationIndex < 0) {
     throw new RangeError("Invalid Practice attempt position.");
   }
   const { question, reference } = input.question;
+  if (input.responseTimeMs !== undefined && (!Number.isFinite(input.responseTimeMs) || input.responseTimeMs < 0)) {
+    throw new RangeError("Invalid accumulated response time.");
+  }
   if (isMultipleChoiceQuestion(input.question)) {
     const selected = input.question.options.find((option) => option.id === input.selectedOptionId);
     if (!validateMultipleChoiceQuestion(input.question) || !selected || selected.correct !== input.correct) throw new Error("Invalid MCQ submission.");
@@ -59,7 +64,7 @@ export function createInitialAttempt(input: {
     ...(isMultipleChoiceQuestion(input.question) ? { selectedOptionId: input.selectedOptionId, optionSetIdentity: input.question.optionSetIdentity } : {}),
     attemptNumber: 1, answer: input.answer, correct: input.correct,
     startedAt: input.started.wallTimeMs, submittedAt: input.submitted.wallTimeMs,
-    responseTimeMs: practiceResponseTimeMs(input.started, input.submitted), localeAtSubmission: input.locale,
+    responseTimeMs: input.responseTimeMs ?? practiceResponseTimeMs(input.started, input.submitted), localeAtSubmission: input.locale,
   };
 }
 

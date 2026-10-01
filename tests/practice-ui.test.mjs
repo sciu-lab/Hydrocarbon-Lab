@@ -258,13 +258,13 @@ test("Practice entry is adjacent to How to use, controls its view, and preserves
   assert.match(css, /\.practice-question-heading \.scope-pill\s*\{\s*display: inline-flex;/);
 });
 
-for (const language of ["es", "en"]) test(`configuration ${language}: topics, defaults, disabled Exam and no future controls`, () => {
+for (const language of ["es", "en"]) test(`configuration ${language}: topics, defaults, enabled Exam and no future controls`, () => {
   const html = renderToStaticMarkup(React.createElement(ui.PracticePanel, {
     language, onLanguageChange: noop, onBackToLab: noop, generate, renderStructure,
   }));
   assert.ok(html.includes(uiText(language, "Práctica / Examen")));
   assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>/);
-  assert.match(html, new RegExp(`<button[^>]*disabled=""[^>]*>${uiText(language, "Examen")} · ${uiText(language, "Próximamente")}`));
+  assert.match(html, new RegExp(`<button[^>]*aria-pressed="false"[^>]*>${uiText(language, "Examen")}</button>`));
   assert.equal((html.match(/type="checkbox"/g) ?? []).length, 20);
   assert.equal((html.match(/checked=""/g) ?? []).length, 2);
   assert.match(html, /<option value="10" selected="">10<\/option>/);
