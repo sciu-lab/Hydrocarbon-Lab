@@ -1,0 +1,277 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "RING-0001",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "C1CC1",
+    "expected": {
+      "en": "cyclopropane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "minimum",
+      "simple-ring"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon saturated monocycle"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0002",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "C1CCCCC1",
+    "expected": {
+      "en": "cyclohexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "simple-ring"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "six-carbon saturated monocycle"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0003",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CC1CC1",
+    "expected": {
+      "en": "methylcyclopropane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "omitted-locant",
+      "smaller-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "cyclopropane parent with one methyl"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0004",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CC1(C)CCC1",
+    "expected": {
+      "en": "1,1-dimethylcyclobutane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "geminal",
+      "explicit-locants"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "cyclobutane parent, methyls at same carbon 1"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0005",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CC1CCCC1C",
+    "expected": {
+      "en": "1,2-dimethylcyclopentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "numbering",
+      "unspecified-stereo"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "cyclopentane parent, adjacent methyls 1,2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0006",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CCC1CCCCC1C",
+    "expected": {
+      "en": "1-ethyl-2-methylcyclohexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "alphabetical-tie",
+      "unspecified-stereo"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "cyclohexane parent, tied 1,2 set"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  }
+]

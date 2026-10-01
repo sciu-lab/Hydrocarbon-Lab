@@ -1,0 +1,418 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0001",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC",
+    "expected": {
+      "en": "methoxymethane"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "dimethyl ether"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "minimum"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "methane parent and methoxy prefix"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0002",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COCC",
+    "expected": {
+      "en": "methoxyethane"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "ethyl methyl ether"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "ethane parent, methoxy at sole distinguishable position"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0003",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCOCC",
+    "expected": {
+      "en": "ethoxyethane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "symmetry",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "ethane parent and ethoxy prefix"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0004",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COCCC",
+    "expected": {
+      "en": "1-methoxypropane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "terminal-attachment",
+      "historical-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "propane parent with methoxy 1"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0005",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)C",
+    "expected": {
+      "en": "2-methoxypropane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "secondary-attachment",
+      "historical-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "propane parent with methoxy 2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0006",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCOC(C)CC",
+    "expected": {
+      "en": "2-ethoxybutane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "parent-choice",
+      "historical-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "butane parent, ethoxy at 2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0007",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)CC(C)C",
+    "expected": {
+      "en": "2-methoxy-4-methylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "alphabetical-tie",
+      "historical-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "pentane parent, locant set 2,4 both directions"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0008",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)C(C)C",
+    "expected": {
+      "en": "2-methoxy-3-methylbutane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "alphabetical-tie",
+      "smaller-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "butane parent, tied 2,3 set"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0009",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)CCC(C)C",
+    "expected": {
+      "en": "2-methoxy-5-methylhexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "alphabetical-tie",
+      "larger-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ethers)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "hexane parent, tied 2,5 set"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  }
+]

@@ -1,0 +1,323 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "AROMATIC-0001",
+    "category": "aromatics",
+    "domainCategory": "aromatic",
+    "smiles": "c1ccccc1",
+    "expected": {
+      "en": "benzene"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aromatic",
+      "minimum"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22 (monocyclic parent hydrides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "six-carbon aromatic parent"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AROMATIC-0002",
+    "category": "aromatics",
+    "domainCategory": "aromatic",
+    "smiles": "Cc1ccccc1",
+    "expected": {
+      "en": "methylbenzene"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "toluene"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aromatic",
+      "omitted-locant",
+      "systematic-parent"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22 (monocyclic parent hydrides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "benzene with one methyl"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AROMATIC-0003",
+    "category": "aromatics",
+    "domainCategory": "aromatic",
+    "smiles": "CCc1ccccc1",
+    "expected": {
+      "en": "ethylbenzene"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aromatic",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22 (monocyclic parent hydrides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "benzene with one ethyl"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AROMATIC-0004",
+    "category": "aromatics",
+    "domainCategory": "aromatic",
+    "smiles": "Cc1ccccc1C",
+    "expected": {
+      "en": "1,2-dimethylbenzene"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aromatic",
+      "ortho",
+      "explicit-locants"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22 (monocyclic parent hydrides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "benzene with adjacent methyls at 1,2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AROMATIC-0005",
+    "category": "aromatics",
+    "domainCategory": "aromatic",
+    "smiles": "Cc1cccc(C)c1",
+    "expected": {
+      "en": "1,3-dimethylbenzene"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aromatic",
+      "meta",
+      "numbering"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22 (monocyclic parent hydrides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "benzene with methyls at 1,3"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AROMATIC-0006",
+    "category": "aromatics",
+    "domainCategory": "aromatic",
+    "smiles": "Cc1ccc(C)cc1",
+    "expected": {
+      "en": "1,4-dimethylbenzene"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aromatic",
+      "para",
+      "symmetry"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22 (monocyclic parent hydrides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "benzene with opposite methyls at 1,4"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AROMATIC-0007",
+    "category": "aromatics",
+    "domainCategory": "aromatic",
+    "smiles": "CCc1ccccc1C",
+    "expected": {
+      "en": "1-ethyl-2-methylbenzene"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aromatic",
+      "alphabetical-tie"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22 (monocyclic parent hydrides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "benzene, tied 1,2 set"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  }
+]

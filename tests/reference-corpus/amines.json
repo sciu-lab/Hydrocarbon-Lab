@@ -1,0 +1,318 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "AMINE-0001",
+    "category": "amines",
+    "domainCategory": "amine",
+    "smiles": "CN",
+    "expected": {
+      "en": "methanamine"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amine",
+      "minimum"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-62.2.1.2 (primary amines, suffix method)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "one-carbon parent with amine suffix"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMINE-0002",
+    "category": "amines",
+    "domainCategory": "amine",
+    "smiles": "CCN",
+    "expected": {
+      "en": "ethanamine"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amine",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-62.2.1.2 (primary amines, suffix method)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "monosubstituted two-carbon parent with amine suffix"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMINE-0003",
+    "category": "amines",
+    "domainCategory": "amine",
+    "smiles": "CCCN",
+    "expected": {
+      "en": "propan-1-amine"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amine",
+      "explicit-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-62.2.1.2 (primary amines, suffix method)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon parent, amine at 1"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMINE-0004",
+    "category": "amines",
+    "domainCategory": "amine",
+    "smiles": "CC(N)C",
+    "expected": {
+      "en": "propan-2-amine"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amine",
+      "positional-isomer"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-62.2.1.2 (primary amines, suffix method)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon parent, amine at 2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMINE-0005",
+    "category": "amines",
+    "domainCategory": "amine",
+    "smiles": "CC(C)CN",
+    "expected": {
+      "en": "2-methylpropan-1-amine"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amine",
+      "branching"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-62.2.1.2 (primary amines, suffix method)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon parent containing amine carbon 1, methyl 2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMINE-0006",
+    "category": "amines",
+    "domainCategory": "amine",
+    "smiles": "CC(N)(C)C",
+    "expected": {
+      "en": "2-methylpropan-2-amine"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amine",
+      "tertiary-carbon",
+      "primary-amine"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-62.2.1.2 (primary amines, suffix method)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon parent, amine and methyl at 2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMINE-0007",
+    "category": "amines",
+    "domainCategory": "amine",
+    "smiles": "CCC(N)C",
+    "expected": {
+      "en": "butan-2-amine"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amine",
+      "numbering"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-62.2.1.2 (primary amines, suffix method)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "four-carbon parent, amine at 2 rather than 3"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  }
+]

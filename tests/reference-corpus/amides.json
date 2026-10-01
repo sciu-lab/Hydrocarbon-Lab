@@ -1,0 +1,276 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0001",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "NC=O",
+    "expected": {
+      "en": "methanamide"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "formamide"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "minimum"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (substitutive amides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "one-carbon systematic amide"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0002",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "CC(=O)N",
+    "expected": {
+      "en": "ethanamide"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "acetamide"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "systematic-parent"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (substitutive amides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "two-carbon systematic amide"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0003",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "CCC(=O)N",
+    "expected": {
+      "en": "propanamide"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "terminal-suffix"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (substitutive amides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon amide parent including carbonyl carbon 1"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0004",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "CCCC(=O)N",
+    "expected": {
+      "en": "butanamide"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "longer-chain"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (substitutive amides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "four-carbon amide parent including carbonyl carbon 1"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0005",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "CC(C)C(=O)N",
+    "expected": {
+      "en": "2-methylpropanamide"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "branching"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (substitutive amides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon amide parent, methyl 2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0006",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "CC(C)(C)C(=O)N",
+    "expected": {
+      "en": "2,2-dimethylpropanamide"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "repeated-substituents"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (substitutive amides)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Rule application, not a claim that this molecule is a printed example."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4 / P-14.4 / P-14.5 (locants, numbering, citation order)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply suffix priority, then lowest locants and prefix citation order; omission only in the stated cases."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; rule/graph review, not human sign-off",
+      "derivation": "three-carbon amide parent, methyls 2,2"
+    },
+    "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  }
+]

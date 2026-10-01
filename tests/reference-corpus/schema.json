@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:hydrocarbon-lab:reference-name-corpus:1",
+  "title": "Reference Name Corpus v1 family file",
+  "type": "array",
+  "minItems": 1,
+  "items": { "$ref": "#/definitions/record" },
+  "definitions": {
+    "text": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "names": {
+      "type": "object", "additionalProperties": false, "required": ["en"],
+      "properties": { "en": { "$ref": "#/definitions/text" }, "es": { "$ref": "#/definitions/text" } }
+    },
+    "alternatives": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "en": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/definitions/text" } },
+        "es": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/definitions/text" } }
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "reference", "url", "note"],
+      "properties": {
+        "type": { "enum": ["iupac-rule", "literature", "opsin", "pubchem"] },
+        "reference": { "$ref": "#/definitions/text" },
+        "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "note": { "$ref": "#/definitions/text" }
+      }
+    },
+    "record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "id", "category", "domainCategory", "smiles", "expected", "profile", "features", "authority", "source", "verification"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "id": { "type": "string", "pattern": "^(ALKANE|ALKENE|ALKYNE|ALCOHOL|ALDEHYDE|KETONE|ETHER|ESTER|ACID|AMINE|AMIDE|AROMATIC|RING)-[0-9]{4}$" },
+        "category": { "enum": ["alkanes", "alkenes", "alkynes", "alcohols", "aldehydes", "ketones", "ethers", "esters", "carboxylic-acids", "amines", "amides", "aromatics", "rings"] },
+        "domainCategory": { "$ref": "#/definitions/text" },
+        "smiles": { "$ref": "#/definitions/text" },
+        "expected": { "$ref": "#/definitions/names" },
+        "acceptedAlternatives": { "$ref": "#/definitions/alternatives" },
+        "profile": { "enum": ["hydrocarbon-lab-current-systematic-en-v1"] },
+        "features": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/definitions/text" } },
+        "authority": { "enum": ["gold", "silver", "generated"] },
+        "source": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/definitions/source" } },
+        "verification": {
+          "type": "object", "additionalProperties": false,
+          "required": ["manual", "opsinRoundTrip", "pubchemCrossCheck"],
+          "properties": {
+            "manual": { "type": "boolean" }, "opsinRoundTrip": { "type": "boolean" }, "pubchemCrossCheck": { "type": "boolean" }
+          }
+        },
+        "review": {
+          "type": "object", "additionalProperties": false,
+          "required": ["date", "method", "reviewer", "derivation"],
+          "properties": {
+            "date": { "type": "string", "format": "date" },
+            "method": { "enum": ["independent-rule-derivation", "published-exact-example", "structural-only", "generated"] },
+            "reviewer": { "$ref": "#/definitions/text" },
+            "derivation": { "$ref": "#/definitions/text" }
+          }
+        },
+        "notes": { "type": "string" }
+      },
+      "allOf": [{
+        "if": { "properties": { "authority": { "const": "gold" } } },
+        "then": {
+          "required": ["review"],
+          "properties": {
+            "verification": { "properties": { "manual": { "const": true } } },
+            "review": { "properties": { "method": { "enum": ["independent-rule-derivation", "published-exact-example"] } } },
+            "source": { "contains": { "properties": { "type": { "const": "iupac-rule" } } } }
+          }
+        }
+      }]
+    }
+  }
+}
