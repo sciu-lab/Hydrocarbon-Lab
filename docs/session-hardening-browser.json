@@ -1,0 +1,473 @@
+{
+  "practiceOrdinals": [
+    "Question 1 of 15",
+    "Question 2 of 15",
+    "Question 3 of 15",
+    "Question 4 of 15",
+    "Question 5 of 15",
+    "Question 6 of 15",
+    "Question 7 of 15",
+    "Question 8 of 15",
+    "Question 9 of 15",
+    "Question 10 of 15",
+    "Question 11 of 15",
+    "Question 12 of 15",
+    "Question 13 of 15",
+    "Question 14 of 15",
+    "Question 15 of 15"
+  ],
+  "examOrdinals": [
+    "Question 1 of 15",
+    "Question 2 of 15",
+    "Question 3 of 15",
+    "Question 4 of 15",
+    "Question 5 of 15",
+    "Question 6 of 15",
+    "Question 7 of 15",
+    "Question 8 of 15",
+    "Question 9 of 15",
+    "Question 10 of 15",
+    "Question 11 of 15",
+    "Question 12 of 15",
+    "Question 13 of 15",
+    "Question 14 of 15",
+    "Question 15 of 15"
+  ],
+  "countInput": [
+    {
+      "value": "",
+      "enabled": false
+    },
+    {
+      "value": "0",
+      "enabled": false
+    },
+    {
+      "value": "-1",
+      "enabled": false
+    },
+    {
+      "value": "1.5",
+      "enabled": false
+    },
+    {
+      "value": "1",
+      "enabled": true
+    },
+    {
+      "value": "7",
+      "enabled": true
+    },
+    {
+      "value": "15",
+      "enabled": true
+    },
+    {
+      "value": "23",
+      "enabled": true
+    },
+    {
+      "value": "37",
+      "enabled": true
+    }
+  ],
+  "pointerResults": [
+    {
+      "viewport": 1280,
+      "label": "Add carbon left",
+      "location": "center",
+      "before": 2,
+      "after": 3
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon right",
+      "location": "center",
+      "before": 3,
+      "after": 3
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon down",
+      "location": "center",
+      "before": 3,
+      "after": 4
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon up",
+      "location": "inside edge 1px",
+      "before": 4,
+      "after": 5
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon left",
+      "location": "inside edge 1px",
+      "before": 5,
+      "after": 6
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon right",
+      "location": "inside edge 1px",
+      "before": 6,
+      "after": 6
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon down",
+      "location": "inside edge 1px",
+      "before": 6,
+      "after": 7
+    },
+    {
+      "viewport": 1280,
+      "location": "gap between arrows",
+      "before": 7,
+      "after": 7
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon up",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon up",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon left",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon left",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon right",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon right",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon down",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 1280,
+      "label": "Add carbon down",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon up",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon up",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon left",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon left",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon right",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon right",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon down",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "label": "Add carbon down",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 390,
+      "location": "gap between arrows",
+      "before": 2,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon up",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon up",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon left",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon left",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon right",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon right",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon down",
+      "location": "center",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "label": "Add carbon down",
+      "location": "inside edge 1px",
+      "freshDraft": true,
+      "before": 1,
+      "after": 2
+    },
+    {
+      "viewport": 320,
+      "location": "gap between arrows",
+      "before": 2,
+      "after": 2
+    }
+  ],
+  "branchResults": [
+    {
+      "direction": "up",
+      "before": 2,
+      "after": 3
+    },
+    {
+      "direction": "left",
+      "before": 3,
+      "after": 4
+    },
+    {
+      "direction": "right",
+      "before": 4,
+      "after": 5
+    }
+  ],
+  "undoRedo": {
+    "before": 5,
+    "undo": 4,
+    "redo": 5
+  },
+  "labArrows": [
+    {
+      "height": 28,
+      "label": "Add carbon up",
+      "padding": "0px",
+      "width": 26
+    },
+    {
+      "height": 28,
+      "label": "Add carbon left",
+      "padding": "0px",
+      "width": 26
+    },
+    {
+      "height": 28,
+      "label": "Add carbon right",
+      "padding": "0px",
+      "width": 26
+    },
+    {
+      "height": 28,
+      "label": "Add carbon down",
+      "padding": "0px",
+      "width": 26
+    }
+  ],
+  "localeGeometryEqual": true,
+  "lightHighlightMetrics": {
+    "color": "rgb(180, 83, 9)",
+    "halos": 1,
+    "markedStrokeWidths": [
+      "2.8px",
+      "2.8px"
+    ],
+    "rings": 2,
+    "theme": "light"
+  },
+  "darkHighlightMetrics": {
+    "color": "rgb(255, 209, 102)",
+    "halos": 1,
+    "markedAtomStyle": [
+      "rgb(255, 209, 102)"
+    ],
+    "rings": 2,
+    "theme": "dark"
+  },
+  "stepChanges": {
+    "parentHighlightCount": 11,
+    "substituentHighlightCount": 3
+  },
+  "restoredTheme": "Auto · dark",
+  "desktopArrowRectangles": [
+    {
+      "height": 44,
+      "label": "Add carbon up",
+      "width": 44,
+      "x": 1003.5,
+      "y": 300
+    },
+    {
+      "height": 44,
+      "label": "Add carbon left",
+      "width": 44,
+      "x": 1055.5,
+      "y": 300
+    },
+    {
+      "height": 44,
+      "label": "Add carbon right",
+      "width": 44,
+      "x": 1003.5,
+      "y": 352
+    },
+    {
+      "height": 44,
+      "label": "Add carbon down",
+      "width": 44,
+      "x": 1055.5,
+      "y": 352
+    }
+  ],
+  "mobile320Geometry": {
+    "arrows": [
+      {
+        "height": 44,
+        "label": "Añadir carbono hacia arriba",
+        "width": 44,
+        "x": 156.5,
+        "y": 1172.375
+      },
+      {
+        "height": 44,
+        "label": "Añadir carbono hacia izquierda",
+        "width": 44,
+        "x": 208.5,
+        "y": 1172.375
+      },
+      {
+        "height": 44,
+        "label": "Añadir carbono hacia derecha",
+        "width": 44,
+        "x": 156.5,
+        "y": 1224.375
+      },
+      {
+        "height": 44,
+        "label": "Añadir carbono hacia abajo",
+        "width": 44,
+        "x": 208.5,
+        "y": 1224.375
+      }
+    ],
+    "atoms": 5,
+    "viewBox": "-165 -130 720 390",
+    "viewport": 320
+  }
+}
