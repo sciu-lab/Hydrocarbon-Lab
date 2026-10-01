@@ -186,11 +186,13 @@ export function submitExam(state: ExamState, locale: AppLanguage, submitted: Pra
       const draft = drafts[index];
       const timing = state.timings[index];
       if (!timing.firstPresented) throw new Error("Unavailable visit timing.");
-      const graded = evaluateSessionAnswer(slot.question, draft.type === "naming" ? draft.rawText
+      const question = { ...slot.question,
+        reference: { ...slot.question.reference, name: slot.question.reference.names[locale] } };
+      const graded = evaluateSessionAnswer(question, draft.type === "naming" ? draft.rawText
         : draft.type === "multiple-choice" ? draft.selectedOptionId ?? "" : "", locale,
         draft.type === "build" ? draft.studentMolecule : undefined, evaluateStructure);
       if (!graded.ok) throw new Error("Grade unavailable.");
-      return createInitialAttempt({ question: slot.question, displayOrdinal: slot.displayOrdinal,
+      return createInitialAttempt({ question, displayOrdinal: slot.displayOrdinal,
         generationIndex: slot.generationIndex, ...graded, started: timing.firstPresented,
         submitted, locale, responseTimeMs: timing.activeMs });
     });

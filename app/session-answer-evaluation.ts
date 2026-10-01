@@ -9,7 +9,10 @@ export type SessionAnswerEvaluation =
   | { ok: false; reason: "INCOMPLETE" | "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" }
   | { ok: true; answer: string; correct: boolean; selectedOptionId?: string; structuralAnswer?: StructuralEvaluation };
 
-/** One grading boundary. Policies decide when it may be invoked. */
+/** One grading boundary. Naming questions must be localized before evaluation;
+ * reference.name is the exact answer projection shown to the student.
+ * Policies decide when this boundary may be invoked.
+ */
 export function evaluateSessionAnswer(question: PracticeQuestion, answer: string, locale: AppLanguage,
   studentMolecule?: GeneratedMolecule, evaluateStructure?: StructuralAnswerEvaluator): SessionAnswerEvaluation {
   if (isBuildQuestion(question)) {
@@ -28,6 +31,6 @@ export function evaluateSessionAnswer(question: PracticeQuestion, answer: string
     return selected ? { ok: true, answer: selected.name[locale], correct: selected.correct, selectedOptionId: selected.id }
       : { ok: false, reason: "INCOMPLETE" };
   }
-  return answer.trim() ? { ok: true, answer, correct: matchesHydrocarbonReferenceName(answer, question.reference.names[locale], locale) }
+  return answer.trim() ? { ok: true, answer, correct: matchesHydrocarbonReferenceName(answer, question.reference.name, locale) }
     : { ok: false, reason: "INCOMPLETE" };
 }
