@@ -265,10 +265,11 @@ for (const language of ["es", "en"]) test(`configuration ${language}: topics, de
   assert.ok(html.includes(uiText(language, "Práctica / Examen")));
   assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>/);
   assert.match(html, new RegExp(`<button[^>]*aria-pressed="false"[^>]*>${uiText(language, "Examen")}</button>`));
-  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 20);
+  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 21);
   assert.equal((html.match(/checked=""/g) ?? []).length, 2);
-  assert.match(html, /<option value="10" selected="">10<\/option>/);
-  assert.match(html, /<option value="endless">/);
+  assert.match(html, /type="number" min="1" step="1" aria-invalid="false" value="10"/);
+  assert.ok(html.includes(uiText(language, "Sin límite")));
+  assert.doesNotMatch(html, /\bmax="|<option/);
   assert.ok(html.includes(uiText(language, "Semilla (opcional)")));
   assert.ok(html.includes(uiText(language, "Iniciar práctica")));
   assert.ok(html.includes(uiText(language, "Opción múltiple")));

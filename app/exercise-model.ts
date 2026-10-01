@@ -71,6 +71,15 @@ function selection<T extends string>(value: unknown, allowed: readonly T[], fiel
 }
 
 /** Validates configuration IDs and scalars only; it does not validate chemistry. */
+export function isFiniteQuestionCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+export function parseFiniteQuestionCount(text: string): number | null {
+  const value = text.trim() === "" ? NaN : Number(text);
+  return isFiniteQuestionCount(value) ? value : null;
+}
+
 export function normalizeSessionConfig(value: unknown): SessionConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("A session configuration must be an object.");
@@ -81,8 +90,7 @@ export function normalizeSessionConfig(value: unknown): SessionConfig {
   const config = value as Record<string, unknown>;
   const mode = choice(config.mode, ["practice", "exam"], "mode");
   const questionCount = config.questionCount;
-  if (questionCount !== "endless" && (typeof questionCount !== "number"
-    || !Number.isSafeInteger(questionCount) || questionCount < 1)) {
+  if (questionCount !== "endless" && !isFiniteQuestionCount(questionCount)) {
     throw new RangeError("questionCount must be a positive safe integer or endless for practice.");
   }
   if (typeof config.seed !== "string" || config.seed.length === 0) {

@@ -5,10 +5,11 @@ import type { ReactNode, RefObject } from "react";
 import type { AppLanguage } from "./i18n.ts";
 import { uiText } from "./i18n.ts";
 import type { ExerciseCategory } from "./exercise-model.ts";
+import { parseFiniteQuestionCount } from "./exercise-model.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import {
   createPracticeConfig, endPractice, localizePracticeState, markPracticeQuestionAvailable, nextPracticeQuestion,
-  PRACTICE_LENGTHS, resolvePracticeSeed, retryPracticeGeneration, startPractice,
+  resolvePracticeSeed, retryPracticeGeneration, startPractice,
   submitPracticeAnswer, updatePracticeAnswer,
   hasPracticeQuestion, isPracticeAnswerState, startPracticeCorrections,
   updatePracticeStructure, submitPracticeStructure,
@@ -23,7 +24,7 @@ import { PracticeReviewPanel } from "./practice-review-panel.tsx";
 import { isBuildQuestion, isMultipleChoiceQuestion } from "./practice-question.ts";
 import type { BuildSubmissionValidator, StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
 import { ExamPanel } from "./exam-panel.tsx";
-import { createExamConfig, EXAM_LENGTHS, startExam } from "./exam-session.ts";
+import { createExamConfig, startExam } from "./exam-session.ts";
 import type { ExamState } from "./exam-session.ts";
 import { PracticeBuildEditor } from "./practice-build-editor.tsx";
 import type { BuildEditorRenderer } from "./practice-build-editor.tsx";
@@ -118,6 +119,7 @@ export function PracticeSessionView({ state, language, renderStructure, renderBu
   </div>;
   if (state.phase === "ERROR") return <div className="practice-error" role="alert">
     {state.reason === "insufficient-safe-distractors" && <p>{t("No se encontraron suficientes opciones seguras para estos temas. Prueba otra semilla o Nomenclatura.")}</p>}
+    {state.reason === "insufficient-unique-questions" && <p>{t("Hydrocarbon-Lab no pudo generar suficientes preguntas únicas para esta configuración. Prueba con menos preguntas o selecciona más categorías.")}</p>}
     <p>{t("No se pudo generar esta pregunta. Puedes reintentar o volver a la configuración.")}</p>
     <div className="practice-actions">
       <button type="button" onClick={actions.retry}>{t("Reintentar")}</button>
@@ -242,7 +244,10 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
   const [exam, setExam] = useState<ExamState | null>(null);
   const [categories, setCategories] = useState<ExerciseCategory[]>(["alkane"]);
   const [questionTypes, setQuestionTypes] = useState<PracticeQuestionType[]>(["naming"]);
-  const [count, setCount] = useState<number | "endless">(10);
+  const [countText, setCountText] = useState("10");
+  const [endless, setEndless] = useState(false);
+  const finiteCount = parseFiniteQuestionCount(countText);
+  const count = mode === "practice" && endless ? "endless" : finiteCount;
   const [seed, setSeed] = useState("");
   const [configError, setConfigError] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -296,11 +301,12 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
     </header>
     <div className="practice-mode" role="group" aria-label={t("Modo de práctica")}>
       <button type="button" aria-pressed={mode === "practice"} disabled={session.phase !== "CONFIG"} onClick={() => setMode("practice")}>{t("Práctica")}</button>
-      <button type="button" aria-pressed={mode === "exam"} disabled={session.phase !== "CONFIG"} onClick={() => { setMode("exam"); if (count === "endless") setCount(10); }}>{t("Examen")}</button>
+      <button type="button" aria-pressed={mode === "exam"} disabled={session.phase !== "CONFIG"} onClick={() => { setMode("exam"); setEndless(false); }}>{t("Examen")}</button>
     </div>
     {localized.phase === "CONFIG" ? <form className="practice-config" onSubmit={(event) => {
       event.preventDefault();
       setConfigError(false);
+      if (count === null) return;
       try {
         const resolved = resolvePracticeSeed(seed, () => `practice-${crypto.randomUUID()}`);
         if (mode === "exam") setExam(startExam(createExamConfig(categories, Number(count), language, resolved, questionTypes), generate));
@@ -328,13 +334,16 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       </fieldset>
       {!questionTypes.length && <p role="status">{t("Selecciona al menos un tipo de pregunta.")}</p>}
       <div className="practice-config-fields">
-        <label>{t("Preguntas")}<select value={count} onChange={(event) => setCount(event.target.value === "endless" ? "endless" : Number(event.target.value))}>
-          {(mode === "exam" ? EXAM_LENGTHS : PRACTICE_LENGTHS).map((length) => <option key={length} value={length}>{length === "endless" ? t("Sin límite") : length}</option>)}
-        </select></label>
+        <label>{t("Preguntas")}<input type="number" min="1" step="1" value={countText}
+          disabled={mode === "practice" && endless} aria-invalid={count === null}
+          onChange={(event) => setCountText(event.target.value)} /></label>
+        {mode === "practice" && <label className="practice-endless"><input type="checkbox" checked={endless}
+          onChange={(event) => setEndless(event.target.checked)} />{t("Sin límite")}</label>}
         <label>{t("Semilla (opcional)")}<input value={seed} onChange={(event) => setSeed(event.target.value)} autoComplete="off" spellCheck={false} /></label>
       </div>
+      {count === null && <p role="status">{t("Introduce un número entero positivo de preguntas.")}</p>}
       {configError && <p role="alert">{t(mode === "exam" ? "No se pudo iniciar el examen. Revisa los temas y vuelve a intentarlo." : "No se pudo iniciar la práctica. Revisa los temas y vuelve a intentarlo.")}</p>}
-      <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length}>{t(mode === "exam" ? "Iniciar examen" : "Iniciar práctica")}</button>
+      <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length || count === null}>{t(mode === "exam" ? "Iniciar examen" : "Iniciar práctica")}</button>
     </form> : <>
       <p className="practice-seed">{t("Semilla")}: <code>{localized.config.seed}</code></p>
       <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} renderBuilder={renderBuilder} review={review} actions={actions}

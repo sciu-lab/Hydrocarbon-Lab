@@ -3,6 +3,8 @@ export type AppLanguage = "es" | "en";
 export const LANGUAGE_STORAGE_KEY = "hydrocarbon-lab-language";
 
 const ENGLISH_UI: Record<string, string> = {
+  "Introduce un número entero positivo de preguntas.": "Enter a positive whole number of questions.",
+  "Hydrocarbon-Lab no pudo generar suficientes preguntas únicas para esta configuración. Prueba con menos preguntas o selecciona más categorías.": "Hydrocarbon-Lab couldn't generate enough unique questions for this configuration. Try fewer questions or select more categories.",
   "Puntuación": "Score",
   "Examen completado": "Exam completed",
   "Resultados del examen": "Exam results",

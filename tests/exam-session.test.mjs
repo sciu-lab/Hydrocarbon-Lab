@@ -50,9 +50,9 @@ function fill(s, isCorrect = () => true) {
   return s;
 }
 
-test("Exam configuration offers only finite 5/10/20/30 and keeps the public seed exact", () => {
-  for (const count of [5, 10, 20, 30]) assert.equal(createExamConfig(["alkane"], count, "es", " exact ").questionCount, count);
-  for (const count of ["endless", 1, 6, 0]) assert.throws(() => createExamConfig(["alkane"], count, "es", "seed"));
+test("Exam configuration accepts arbitrary positive safe finite counts and keeps the public seed exact", () => {
+  for (const count of [1, 5, 7, 15, 23, 30, 37]) assert.equal(createExamConfig(["alkane"], count, "es", " exact ").questionCount, count);
+  for (const count of ["endless", 0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => createExamConfig(["alkane"], count, "es", "seed"));
   assert.throws(() => normalizeSessionConfig({ ...config(), questionCount: "endless" }));
   assert.equal(createExamConfig(["alkane"], 5, "es", " exact ").seed, " exact ");
 });

@@ -5970,6 +5970,13 @@ export function MoleculeHistoryPreview({
       aria-label={ariaLabel}
       aria-hidden={ariaLabel ? undefined : true}
     >
+      {practiceView && reviewHighlights && <g aria-hidden="true" pointerEvents="none">
+        {molecule.bonds.filter(([a, b]) => reviewHighlights.highlightBondIds.includes(reviewBondId(a, b))).map(([a, b]) => {
+          const start = positions.get(a), end = positions.get(b);
+          return start && end ? <line key={`halo-${a}-${b}`} className="practice-review-bond-halo"
+            x1={start.x} y1={start.y} x2={end.x} y2={end.y} /> : null;
+        })}
+      </g>}
       {molecule.bonds.flatMap((bond) => {
         const start = positions.get(bond[0]);
         const end = positions.get(bond[1]);
@@ -6006,6 +6013,9 @@ export function MoleculeHistoryPreview({
           <g key={atom.id} data-atom-id={practiceView ? atom.id : undefined}
             data-review-highlight={practiceView && reviewHighlights?.highlightAtomIds.includes(atom.id) ? "true" : undefined}
             transform={`translate(${position.x} ${position.y})`}>
+            {practiceView && reviewHighlights?.highlightAtomIds.includes(atom.id) &&
+              <circle className="practice-review-atom-ring" r={labeled ? isolatedCarbon ? 28 : 20 : 10}
+                aria-hidden="true" pointerEvents="none" />}
             <circle className={labeled ? "history-hetero" : "history-carbon"}
               r={practiceView && labeled ? isolatedCarbon ? 24 : 16 : element === "C" ? 3.5 : 7} />
             {labeled && (
@@ -11404,13 +11414,13 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               </g>
             </svg>
 
-            <div className={`structure-family-badge family-${analysis.family} ${analysis.functionalGroups.length ? "has-functional-group" : ""}`}>
+            {!buildEditor?.hideCategory && <div className={`structure-family-badge family-${analysis.family} ${analysis.functionalGroups.length ? "has-functional-group" : ""}`}>
               {analysis.functionalGroups.length > 0 && <span aria-hidden="true">⚗</span>}
               {analysis.family === "aromatic" && <span aria-hidden="true">⌬</span>}
               {analysis.family === "cycloalkane" && <span aria-hidden="true">⬡</span>}
               {analysis.family === "polycyclic" && <span aria-hidden="true">⬡–⬡</span>}
               {structureFamilyLabel}
-            </div>
+            </div>}
 
             {visibleBondInteractionHintActions.length > 0 && showBondInteractionHint && (
               <div className="bond-touch-hint">

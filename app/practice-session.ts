@@ -5,7 +5,8 @@ import { isBuildQuestion } from "./practice-question.ts";
 import type { StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import type { PracticeQuestion, PracticeQuestionGenerator, PracticeQuestionType } from "./practice-question.ts";
-import { selectSessionQuestion } from "./session-question-selection.ts";
+import { getExerciseUniquenessKey, PRACTICE_RECENT_LIMIT, selectSessionQuestion } from "./session-question-selection.ts";
+import type { SessionSelectionFailure } from "./session-question-selection.ts";
 import { evaluateSessionAnswer } from "./session-answer-evaluation.ts";
 import { appendPracticeAttempt, createInitialAttempt } from "./practice-attempt.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
@@ -23,6 +24,7 @@ type Context = {
   index: number;
   generationIndex: number;
   recentIdentities: readonly string[];
+  usedExerciseKeys?: readonly string[];
   attempts: readonly AttemptRecord[];
 };
 type BuildWorkingState = { studentMolecule?: GeneratedMolecule; buildError?: "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" };
@@ -39,7 +41,7 @@ export type PracticeState =
   | { phase: "CONFIG" }
   | (CurrentQuestion & { phase: "QUESTION" })
   | (CurrentQuestion & { phase: "FEEDBACK"; correct: boolean; submittedLocale: AppLanguage })
-  | (Context & { phase: "ERROR"; reason?: "insufficient-safe-distractors" })
+  | (Context & { phase: "ERROR"; reason?: SessionSelectionFailure })
   | { phase: "COMPLETE"; config: SessionConfig; attempts: readonly AttemptRecord[] }
   | { phase: "CORRECTION_SUMMARY"; config: SessionConfig; attempts: readonly AttemptRecord[] }
   | (CorrectionQuestion & { phase: "CORRECTION_QUESTION" })
@@ -67,9 +69,6 @@ export function createPracticeConfig(
   categories: readonly ExerciseCategory[], questionCount: number | "endless", locale: AppLanguage, seed: string,
   questionTypes: readonly PracticeQuestionType[] = ["naming"],
 ): SessionConfig {
-  if (!(PRACTICE_LENGTHS as readonly (number | string)[]).includes(questionCount)) {
-    throw new RangeError("Unsupported Practice length.");
-  }
   return normalizeSessionConfig({
     mode: "practice", questionTypes, categories, difficulty: "basic",
     locale, seed, generatorVersion: GENERATOR_VERSION, questionCount,
@@ -77,11 +76,20 @@ export function createPracticeConfig(
 }
 
 function loadQuestion(context: Context, generate: PracticeGenerator): PracticeState {
-  const selection = selectSessionQuestion(context, generate);
+  // Older in-memory callers can reconstruct history from initial attempts.
+  let usedExerciseKeys = context.usedExerciseKeys;
+  if (!usedExerciseKeys) {
+    const keys = context.attempts.filter((attempt) => attempt.attemptNumber === 1)
+      .map((attempt) => getExerciseUniquenessKey({ type: attempt.questionType,
+        reference: { structuralIdentity: attempt.structuralIdentity } }));
+    usedExerciseKeys = context.config.questionCount === "endless" ? keys.slice(-PRACTICE_RECENT_LIMIT) : keys;
+  }
+  const selection = selectSessionQuestion({ ...context, usedExerciseKeys }, generate);
   if (!selection.ok) return { ...context, phase: "ERROR", generationIndex: selection.generationIndex,
     ...(selection.reason ? { reason: selection.reason } : {}) };
   return { ...context, phase: "QUESTION", generationIndex: selection.generationIndex,
-    recentIdentities: selection.recentIdentities, question: selection.question, answer: "", timing: null };
+    recentIdentities: selection.recentIdentities, usedExerciseKeys: selection.usedExerciseKeys,
+    question: selection.question, answer: "", timing: null };
 }
 
 export function startPractice(config: SessionConfig, generate: PracticeGenerator): PracticeState {
@@ -175,7 +183,7 @@ export function nextPracticeQuestion(state: PracticeState, generate: PracticeGen
     return { phase: "COMPLETE", config: state.config, attempts: state.attempts };
   }
   return loadQuestion({ config: state.config, index, generationIndex: state.generationIndex + 1,
-    recentIdentities: state.recentIdentities, attempts: state.attempts }, generate);
+    recentIdentities: state.recentIdentities, usedExerciseKeys: state.usedExerciseKeys, attempts: state.attempts }, generate);
 }
 
 export function retryPracticeGeneration(state: PracticeState, generate: PracticeGenerator): PracticeState {

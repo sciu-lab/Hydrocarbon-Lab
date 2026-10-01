@@ -1,5 +1,9 @@
 # Phase 9 — Exam Mode
 
+This records the Phase 9 baseline. [Phase 9.1 hardening](session-hardening.md)
+supersedes its recent-window duplicate policy, category presentation, fixed
+question counts and 30-question cap.
+
 ## A. Baseline
 
 - Repository: `C:\Users\Amy\Documents\GitHub\Hydrocarbon-Lab`, working directly on `main`.

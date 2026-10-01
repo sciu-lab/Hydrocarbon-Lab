@@ -11,6 +11,7 @@ import { createDeterministicDistractorEngine } from "../app/practice-distractor-
 import { createBuildSubmissionValidator, createStructuralAnswerEvaluator } from "../app/practice-structural-answer.ts";
 import { createPracticeReviewer } from "../app/practice-review.ts";
 import { uiText } from "../app/i18n.ts";
+import { createPracticeConfig, startPractice } from "../app/practice-session.ts";
 import { createExamConfig, startExam, markExamQuestionAvailable, updateExamAnswer, updateExamStructure,
   navigateExam, submitExam, localizeExamState, openExamPostReview } from "../app/exam-session.ts";
 
@@ -33,6 +34,35 @@ const renderStructure = (molecule, label, width, height) => React.createElement(
 const render = (state, language = "es", props = {}) => renderToStaticMarkup(React.createElement(ui.ExamSessionView,
   { state: localizeExamState(state, language), language, actions, renderStructure, review: reviewer, ...props }));
 const ready = (s, i) => markExamQuestionAvailable(s, time(i * 1000), { index: s.index, questionId: s.plan.slots[s.index].questionIdentity });
+
+for (const category of ["alcohol", "ketone", "carboxylic-acid", "ester", "nitrile", "ez"]) {
+  test(`category privacy ${category}: Practice scaffolding, Exam question/review omission, post-submit disclosure`, () => {
+    for (const language of ["es", "en"]) for (const type of ["naming", "multiple-choice", "build"]) {
+      const config = createExamConfig([category], 1, language, "PRIVACY-9.1", [type]);
+      let exam = startExam(config, generate); assert.equal(exam.phase, "EXAM_QUESTION");
+      const label = uiText(language, practiceUI.PRACTICE_TOPIC_GROUPS.flatMap((g) => g.topics).find(([id]) => id === category)[1]);
+      let bridge;
+      const html = render(exam, language, { renderBuilder: (props) => { bridge = props; return React.createElement(chemistry.engine.default, { buildEditor: props }); } });
+      assert.ok(!html.includes(label), `${category}/${type}: category absent in text and attributes`);
+      assert.doesNotMatch(html, /scope-pill|structure-family-badge|data-category/);
+      if (type === "build") assert.equal(bridge.hideCategory, true);
+      const question = exam.plan.slots[0].question;
+      exam = ready(exam, 0);
+      exam = type === "build" ? updateExamStructure(exam, question.molecule, validate)
+        : updateExamAnswer(exam, type === "multiple-choice" ? question.correctOptionId : question.reference.names[language]);
+      exam = navigateExam(exam, 1, time(100));
+      assert.ok(!render(exam, language).includes(label));
+      const results = submitExam(exam, language, time(200), evaluate);
+      assert.equal(results.phase, "EXAM_RESULTS"); assert.ok(render(results, language).includes(label));
+      assert.ok(render(openExamPostReview(results), language).includes(label));
+      const practice = startPractice(createPracticeConfig([category], 1, language, "PRIVACY-9.1", [type]), generate);
+      const practiceHTML = renderToStaticMarkup(React.createElement(practiceUI.PracticeSessionView,
+        { state: practice, language, renderStructure, actions: { answer: noop, check: noop, next: noop, end: noop,
+          retry: noop, configure: noop, back: noop, correctMistakes: noop } }));
+      assert.ok(practiceHTML.includes(label));
+    }
+  });
+}
 function answered(types, wrong = false) {
   let s = start(types);
   for (let i = 0; i < 5; i++) {
@@ -51,7 +81,8 @@ for (const language of ["es", "en"]) {
     }));
     assert.match(html, new RegExp(`<button[^>]*aria-pressed="true"[^>]*>${uiText(language, "Examen")}</button>`));
     assert.equal((html.match(/type="checkbox"/g) ?? []).length, 20);
-    assert.deepEqual([...html.matchAll(/<option value="(\d+)"/g)].map((m) => +m[1]), [5, 10, 20, 30]);
+    assert.match(html, /type="number" min="1" step="1"/);
+    assert.doesNotMatch(html, /\bmax="|<option/);
     assert.ok(html.includes(uiText(language, "Iniciar examen"))); assert.doesNotMatch(html, /endless|Próximamente|Coming soon/);
   });
   test(`Naming pre-submit ${language} has exact student text, no reference/feedback/reviewer/answer data`, () => {

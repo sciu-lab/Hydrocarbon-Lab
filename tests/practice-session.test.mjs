@@ -23,10 +23,10 @@ test("Practice constructs the existing SessionConfig with Naming/basic and canon
     mode: "practice", questionCount: 10, questionTypes: ["naming"], categories: ["alkane", "alcohol"],
     difficulty: "basic", locale: "en", seed: " exact seed ", generatorVersion: 1,
   });
-  for (const count of [5, 10, 20, 30, "endless"]) assert.equal(configFor(count).questionCount, count);
+  for (const count of [1, 5, 7, 15, 23, 30, 37, "endless"]) assert.equal(configFor(count).questionCount, count);
   assert.throws(() => createPracticeConfig([], 5, "es", "seed"));
   assert.throws(() => createPracticeConfig(["sulfur"], 5, "es", "seed"));
-  for (const count of [0, 1, 6, 12, "5"]) assert.throws(() => configFor(count));
+  for (const count of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, "5"]) assert.throws(() => configFor(count));
 });
 
 test("the seed factory runs once at start for empty input and never modifies supplied seeds", () => {
@@ -142,7 +142,7 @@ test("ES/EN session sequences preserve chemistry and deduplication for all categ
   assert.equal(en.phase, "COMPLETE");
 });
 
-test("duplicate search is deterministic, bounded and falls back when the domain repeats", () => {
+test("duplicate search is deterministic, bounded and safely stops when the recent domain repeats", () => {
   const config = configFor("endless");
   const repeated = generate(config, 0);
   const indices = [];
@@ -150,9 +150,11 @@ test("duplicate search is deterministic, bounded and falls back when the domain 
   const first = startPractice(config, repeatingGenerator);
   const next = nextPracticeQuestion(answerCorrectly(first), repeatingGenerator);
   assert.deepEqual(indices, [0, 1, 2, 3, 4]);
-  assert.equal(next.generationIndex, PRACTICE_DUPLICATE_LIMIT);
+  assert.equal(next.generationIndex, PRACTICE_DUPLICATE_LIMIT + 1);
   assert.equal(next.index, 1);
-  assert.equal(next.phase, "QUESTION");
+  assert.equal(next.phase, "ERROR");
+  assert.equal(next.reason, "insufficient-unique-questions");
+  assert.equal(next.attempts.length, 1);
   assert.deepEqual(next.recentIdentities, [repeated.reference.structuralIdentity]);
 });
 

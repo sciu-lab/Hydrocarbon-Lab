@@ -9694,9 +9694,15 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .practice-review-steps button { width: 100%; text-align: left; white-space: normal; }
 .practice-review-steps button[aria-pressed="true"] { border-color: var(--blue); background: var(--paper); box-shadow: inset 4px 0 var(--blue); }
 .practice-review-steps p { margin: 8px 0; line-height: 1.6; }
-.practice-molecule-preview line[data-review-highlight="true"] { stroke: var(--blue); stroke-width: 4; }
-.practice-molecule-preview g[data-review-highlight="true"] circle { stroke: var(--blue); stroke-width: 3; }
-.practice-molecule-preview .practice-review-locant { fill: var(--blue); font-size: 12px; font-weight: 800; }
+:root { --review-highlight: #b45309; }
+html[data-theme="dark"] { --review-highlight: #ffd166; }
+/* Match the dark history-preview selector's specificity as well as its scope. */
+html .practice-molecule-preview line[data-review-highlight="true"] { stroke: var(--review-highlight); stroke-width: 2.8; }
+html .practice-molecule-preview line.practice-review-bond-halo { stroke: var(--review-highlight); stroke-width: 10; stroke-linecap: round; opacity: .28; }
+html .practice-molecule-preview g[data-review-highlight="true"] .history-carbon { fill: var(--review-highlight); }
+html .practice-molecule-preview g[data-review-highlight="true"] .history-hetero { stroke: var(--review-highlight); stroke-width: 3; }
+html .practice-molecule-preview circle.practice-review-atom-ring { fill: none; stroke: var(--review-highlight); stroke-width: 3; }
+.practice-molecule-preview .practice-review-locant { fill: var(--review-highlight); font-size: 12px; font-weight: 800; paint-order: stroke; stroke: var(--paper); stroke-width: 3; }
 .practice-end { margin-top: 24px; }
 .practice-question-types { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
 .practice-question-types label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
@@ -9725,3 +9731,24 @@ html[data-theme="dark"] .practice-mode button[aria-pressed="true"] { background:
 .exam-review-list li > span:first-child { flex: 1 1 12rem; }
 .exam-confirmation { padding: 1rem; border: 1px solid var(--border); border-radius: .75rem; margin-block: 1rem; }
 .exam-navigation { margin-top: 1rem; }
+
+/* Isolated Build lives inside Practice's 44px button rule. Give tracks and
+   buttons the same touch target instead of overflowing Lab's compact tracks. */
+.practice-build-editor .builder-card .direction-pad {
+  --build-arrow-target: 44px;
+  grid-template: repeat(2, var(--build-arrow-target)) / repeat(2, var(--build-arrow-target));
+  gap: 8px;
+  width: 96px;
+}
+.practice-build-editor .builder-card .direction-pad button {
+  box-sizing: border-box;
+  width: var(--build-arrow-target);
+  height: var(--build-arrow-target);
+  min-width: var(--build-arrow-target);
+  min-height: var(--build-arrow-target);
+  padding: 0;
+  font-size: 18px;
+}
+.practice-build-editor .builder-card .direction-pad button:hover { transform: none; }
+.practice-config-fields label.practice-endless { display: flex; align-items: center; gap: 8px; }
+.practice-config-fields .practice-endless input { width: 18px; min-height: 18px; }

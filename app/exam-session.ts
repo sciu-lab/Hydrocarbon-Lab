@@ -4,6 +4,7 @@ import type { AppLanguage } from "./i18n.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import { PRACTICE_LENGTHS } from "./practice-session.ts";
 import { selectSessionQuestion } from "./session-question-selection.ts";
+import type { SessionSelectionFailure } from "./session-question-selection.ts";
 import { evaluateSessionAnswer } from "./session-answer-evaluation.ts";
 import { isMultipleChoiceQuestion, schedulePracticeQuestionType } from "./practice-question.ts";
 import type { PracticeQuestion, PracticeQuestionGenerator, PracticeQuestionType } from "./practice-question.ts";
@@ -40,7 +41,7 @@ type ExamContext = {
 type EditableExam = ExamContext & { index: number; activeVisit: { index: number; start: PracticeTime } | null };
 export type ExamState =
   | { phase: "CONFIG" }
-  | { phase: "EXAM_ERROR"; config: ExamConfig; attempts: readonly AttemptRecord[] }
+  | { phase: "EXAM_ERROR"; config: ExamConfig; attempts: readonly AttemptRecord[]; reason?: SessionSelectionFailure }
   | (EditableExam & { phase: "EXAM_QUESTION" })
   | (EditableExam & { phase: "EXAM_REVIEW"; locked?: boolean; gradingError?: boolean })
   | (ExamContext & { phase: "EXAM_RESULTS" })
@@ -48,7 +49,6 @@ export type ExamState =
 
 export function createExamConfig(categories: readonly ExerciseCategory[], questionCount: number,
   locale: AppLanguage, seed: string, questionTypes: readonly PracticeQuestionType[] = ["naming"]): ExamConfig {
-  if (!(EXAM_LENGTHS as readonly number[]).includes(questionCount)) throw new RangeError("Unsupported Exam length.");
   return normalizeSessionConfig({ mode: "exam", categories, questionCount, questionTypes,
     difficulty: "basic", locale, seed, generatorVersion: GENERATOR_VERSION }) as ExamConfig;
 }
@@ -56,24 +56,30 @@ export function createExamConfig(categories: readonly ExerciseCategory[], questi
 /** Full plan uses the SAME generator/search/scheduler. No student evaluator runs. */
 export function createExamQuestionPlan(config: ExamConfig, generate: PracticeQuestionGenerator): ExamQuestionPlan {
   const canonical = normalizeSessionConfig(config);
-  // UI lengths are 5/10/20/30; smaller finite plans also support core tests.
-  if (canonical.mode !== "exam" || canonical.difficulty !== "basic" || canonical.questionCount > 30) {
+  if (canonical.mode !== "exam" || canonical.difficulty !== "basic") {
     throw new TypeError("Unsupported Exam configuration.");
   }
   const slots: ExamSlot[] = [];
   let generationIndex = 0;
   let recentIdentities: readonly string[] = [];
+  let usedExerciseKeys: readonly string[] = [];
   for (let index = 0; index < canonical.questionCount; index++) {
-    const selected = selectSessionQuestion({ config: canonical, index, generationIndex, recentIdentities }, generate);
-    if (!selected.ok) throw new Error("Exam plan unavailable.");
+    const selected = selectSessionQuestion({ config: canonical, index, generationIndex, recentIdentities, usedExerciseKeys }, generate);
+    if (!selected.ok) throw new ExamPlanUnavailable(selected.reason);
     slots.push(Object.freeze({ displayOrdinal: index + 1, generationIndex: selected.generationIndex,
       questionType: schedulePracticeQuestionType(canonical, index), questionIdentity: selected.question.question.id,
       question: freezeSnapshot({ ...selected.question,
         reference: { ...selected.question.reference, name: selected.question.reference.names.es } }) }));
     generationIndex = selected.generationIndex + 1;
     recentIdentities = selected.recentIdentities;
+    usedExerciseKeys = selected.usedExerciseKeys;
   }
   return Object.freeze({ slots: Object.freeze(slots) });
+}
+
+class ExamPlanUnavailable extends Error {
+  readonly reason?: SessionSelectionFailure;
+  constructor(reason?: SessionSelectionFailure) { super("Exam plan unavailable."); this.reason = reason; }
 }
 
 export function startExam(config: ExamConfig, generate: PracticeQuestionGenerator): ExamState {
@@ -86,7 +92,8 @@ export function startExam(config: ExamConfig, generate: PracticeQuestionGenerato
         ? { type: "multiple-choice", selectedOptionId: null } : { type: "naming", rawText: "" });
     return { phase: "EXAM_QUESTION", config: canonical, plan, drafts,
       timings: drafts.map(() => ({ activeMs: 0, firstPresented: null })), attempts: [], index: 0, activeVisit: null };
-  } catch { return { phase: "EXAM_ERROR", config: canonical, attempts: [] }; }
+  } catch (error) { return { phase: "EXAM_ERROR", config: canonical, attempts: [],
+    ...(error instanceof ExamPlanUnavailable && error.reason ? { reason: error.reason } : {}) }; }
 }
 
 /** Locale is presentation only. Plan, drafts, visits and submitted outcomes stay shared. */

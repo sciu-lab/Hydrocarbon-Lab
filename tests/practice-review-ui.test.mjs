@@ -87,7 +87,7 @@ test("step, Close and Next buttons invoke their respective callbacks without sub
 });
 
 test("SVG highlights and numbering use semantic IDs for every review step without changing graph or stroke endpoints", () => {
-  for (const category of ["alkane", "alcohol", "ester", "ether", "aromatic", "ez"]) {
+  for (const category of ["alkane", "alcohol", "ketone", "ester", "ether", "aromatic", "alkene", "ez"]) {
     const state = startPractice(createPracticeConfig([category], 5, "en", "REVIEW-2"), generate);
     const feedback = submit(state, state.question.reference.names.en);
     const snapshot = structuredClone(feedback.question);
@@ -102,6 +102,10 @@ test("SVG highlights and numbering use semantic IDs for every review step withou
       const bondIds = [...new Set([...html.matchAll(/<line[^>]*data-bond-start="(\d+)"[^>]*data-bond-end="(\d+)"[^>]*data-bond-order="\d+"[^>]*data-review-highlight="true"/g)].map((m) => reviewBondId(+m[1], +m[2])))].sort();
       assert.deepEqual(atomIds, step.highlightAtomIds);
       assert.deepEqual(bondIds, step.highlightBondIds);
+      assert.equal((html.match(/class="practice-review-atom-ring"/g) ?? []).length, step.highlightAtomIds.length);
+      assert.equal((html.match(/class="practice-review-bond-halo"/g) ?? []).length, step.highlightBondIds.length);
+      assert.equal(html, renderToStaticMarkup(renderStructure(localizePracticeState(feedback, "es").question.molecule,
+        "Review structure", 320, 300, step)), "locale preserves highlighted geometry and atom labels");
       if (step.kind === "numbering") assert.equal([...html.matchAll(/class="practice-review-locant"/g)].length, step.numbering.length);
     }
     assert.deepEqual(feedback.question, snapshot);
