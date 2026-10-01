@@ -1,5 +1,6 @@
 import {
   buildOpenChainSkeletalPositions,
+  buildOpenChainSemiDevelopedPositions,
   type SkeletalPoint,
 } from "./skeletal-layout.ts";
 import { findOrderedSimpleMonocycle } from "./simple-cycle.ts";
@@ -383,9 +384,9 @@ function buildRingAwarePositions(
 }
 
 /**
- * The one display-coordinate source for every molecular representation.
+ * Derives display coordinates from the same molecular graph for each view.
  *
- * Open molecules deliberately reuse the established skeletal layout. Ring
+ * Open molecules use line-angle or text-first geometry by view. Ring
  * vertices retain their editor/imported polygons while attached acyclic
  * components are laid out radially and then zigzag. This is display-only: no
  * chemical or editor coordinates are mutated here.
@@ -393,6 +394,7 @@ function buildRingAwarePositions(
 export function calculateMolecule2DLayout(
   molecule: LayoutMolecule,
   mainChain: readonly number[],
+  viewMode: "skeletal" | "condensed" = "skeletal",
 ): Map<number, SkeletalPoint> {
   const explicitRings = molecule.rings ?? [];
   const inferredCycle = explicitRings.length ? null : findOrderedSimpleMonocycle(molecule);
@@ -401,7 +403,9 @@ export function calculateMolecule2DLayout(
     : inferredCycle ? [{ atomIds: inferredCycle, inferred: true }]
       : [];
   if (!rings.length) {
-    return buildOpenChainSkeletalPositions(molecule, mainChain);
+    return viewMode === "condensed"
+      ? buildOpenChainSemiDevelopedPositions(molecule, mainChain)
+      : buildOpenChainSkeletalPositions(molecule, mainChain);
   }
 
   return buildRingAwarePositions(molecule, rings);

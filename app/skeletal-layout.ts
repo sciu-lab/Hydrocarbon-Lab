@@ -24,6 +24,8 @@ const SKELETAL_BOND_LENGTH = 130;
 const DEG = Math.PI / 180;
 const MAIN_CHAIN_ANGLE = 30 * DEG;
 const CANDIDATE_ANGLES = [30, 90, 150, 210, 270, 330].map((value) => value * DEG);
+const CONDENSED_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315].map((value) => value * DEG);
+type OpenChainView = "skeletal" | "condensed";
 
 function normalizeAngle(angle: number) {
   const tau = Math.PI * 2;
@@ -94,6 +96,7 @@ function chooseBranchAngle(
   molecule: LayoutMolecule,
   positions: ReadonlyMap<number, SkeletalPoint>,
   adjacency: ReadonlyMap<number, readonly number[]>,
+  view: OpenChainView,
 ) {
   const origin = positions.get(parentId)!;
   const positionedNeighborAngles = (adjacency.get(parentId) ?? [])
@@ -103,13 +106,14 @@ function chooseBranchAngle(
 
   const atomsById = new Map(molecule.atoms.map((atom) => [atom.id, atom]));
   const preferred = rawDirection(atomsById.get(parentId), atomsById.get(childId), 0);
+  if (!positionedNeighborAngles.length) return view === "condensed" ? 0 : MAIN_CHAIN_ANGLE;
 
-  // For a branch growing away from a single already positioned bond, prefer
-  // +/-120 degrees. This gives the conventional trigonal zig-zag geometry
-  // instead of continuing as a 180-degree straight line.
+  // A skeletal continuation uses +/-120 degrees from the backward bond.
+  // A textual continuation may also continue straight when space permits.
   if (positionedNeighborAngles.length === 1) {
     const incoming = positionedNeighborAngles[0];
     const candidates = [incoming + (120 * DEG), incoming - (120 * DEG)];
+    if (view === "condensed") candidates.unshift(incoming + Math.PI);
     return candidates.sort(
       (left, right) => {
         const leftClearance = branchPointClearance(
@@ -118,7 +122,19 @@ function chooseBranchAngle(
         const rightClearance = branchPointClearance(
           origin, pointFromAngle(origin, right), positions, adjacency,
         );
-        return rightClearance - leftClearance
+        const leftSafe = leftClearance >= SKELETAL_BOND_LENGTH * 0.55;
+        const rightSafe = rightClearance >= SKELETAL_BOND_LENGTH * 0.55;
+        if (leftSafe !== rightSafe) return leftSafe ? -1 : 1;
+        // Clearance/raw direction alone can select +30,+90,+30,+90: turns
+        // alternate but both steps increase Y. Prefer horizontal expansion
+        // among safe continuations, so a trigonal chain settles into +/-30.
+        // Substituent attachments still use the free sector below.
+        if (leftSafe) {
+          const expansion = Math.abs(Math.cos(right)) - Math.abs(Math.cos(left));
+          if (Math.abs(expansion) > 1e-8) return expansion;
+        }
+        const clearanceDifference = rightClearance - leftClearance;
+        return (Math.abs(clearanceDifference) > 1e-8 ? clearanceDifference : 0)
           || angularDistance(left, preferred) - angularDistance(right, preferred)
           || left - right;
       },
@@ -128,7 +144,7 @@ function chooseBranchAngle(
   // At an internal backbone carbon, choose the free direction that maximizes
   // its angular separation from the bonds already present. On the 30/90/...°
   // lattice this naturally yields 120° around a classic skeletal vertex.
-  return [...CANDIDATE_ANGLES].sort((left, right) => {
+  return [...(view === "condensed" ? CONDENSED_ANGLES : CANDIDATE_ANGLES)].sort((left, right) => {
     const leftSpace = branchPointClearance(
       origin, pointFromAngle(origin, left), positions, adjacency,
     );
@@ -148,23 +164,20 @@ function chooseBranchAngle(
 }
 
 /**
- * Generates display-only coordinates for an open skeletal structure.
+ * Assembles display-only coordinates for an open structure.
  *
  * The chemical/editing coordinates are never mutated. The chosen parent chain
- * is laid out with alternating +30°/-30° bond directions, which gives a 120°
- * C-C-C internal angle. Remaining branches are then added recursively on the
- * same trigonal lattice.
+ * uses alternating +30°/-30° directions for skeletal, or a horizontal baseline
+ * for semideveloped. Branches use the appropriate free directions for the view.
  */
-export function buildOpenChainSkeletalPositions(
+function buildOpenChainPositions(
   molecule: LayoutMolecule,
   mainChain: readonly number[],
+  view: OpenChainView,
 ): Map<number, SkeletalPoint> {
   const positions = new Map<number, SkeletalPoint>();
   const atomIds = new Set(molecule.atoms.map((atom) => atom.id));
   const backbone = mainChain.filter((atomId) => atomIds.has(atomId));
-  if (!backbone.length && molecule.atoms.length) backbone.push(molecule.atoms[0].id);
-  if (!backbone.length) return positions;
-
   const adjacency = new Map<number, number[]>(molecule.atoms.map((atom) => [atom.id, []]));
   molecule.bonds.forEach(([left, right]) => {
     adjacency.get(left)?.push(right);
@@ -172,10 +185,21 @@ export function buildOpenChainSkeletalPositions(
   });
   adjacency.forEach((neighbors) => neighbors.sort((left, right) => left - right));
 
+  if (!backbone.length && molecule.atoms.length) {
+    // A display fallback must start at an endpoint, independent of atom array
+    // order. This does not alter the analysis/nomenclature parent chain.
+    const endpoints = molecule.atoms.filter((atom) => (adjacency.get(atom.id)?.length ?? 0) <= 1);
+    const start = [...(endpoints.length ? endpoints : molecule.atoms)]
+      .sort((left, right) => left.x - right.x || left.y - right.y || left.id - right.id)[0];
+    backbone.push(start.id);
+  }
+  if (!backbone.length) return positions;
+
   positions.set(backbone[0], { x: 0, y: 0 });
   for (let index = 1; index < backbone.length; index += 1) {
     const previous = positions.get(backbone[index - 1])!;
-    const angle = (index - 1) % 2 === 0 ? MAIN_CHAIN_ANGLE : -MAIN_CHAIN_ANGLE;
+    const angle = view === "condensed" ? 0
+      : (index - 1) % 2 === 0 ? MAIN_CHAIN_ANGLE : -MAIN_CHAIN_ANGLE;
     positions.set(backbone[index], pointFromAngle(previous, angle));
   }
 
@@ -186,7 +210,7 @@ export function buildOpenChainSkeletalPositions(
     for (const childId of adjacency.get(parentId) ?? []) {
       if (visited.has(childId)) continue;
       const parentPoint = positions.get(parentId)!;
-      const angle = chooseBranchAngle(parentId, childId, molecule, positions, adjacency);
+      const angle = chooseBranchAngle(parentId, childId, molecule, positions, adjacency, view);
       positions.set(childId, pointFromAngle(parentPoint, angle));
       visited.add(childId);
       queue.push(childId);
@@ -204,7 +228,7 @@ export function buildOpenChainSkeletalPositions(
     }
   });
 
-  // Open-chain skeletal geometry is generated from connectivity so it remains
+  // Open-chain display geometry is generated from connectivity so it remains
   // tidy. Reflect that generated geometry only at the display layer when the
   // user has requested a redraw.
   if (molecule.isMirrored && positions.size) {
@@ -217,7 +241,7 @@ export function buildOpenChainSkeletalPositions(
 
   // The tidy open-chain layout is connectivity-driven, but E/Z is encoded in
   // the editable coordinates. Restore every defined alkene configuration on
-  // the generated coordinates so E and Z never collapse to the same zigzag.
+  // the generated coordinates so E and Z never collapse to the same drawing.
   const stereoTargets = molecule.bonds.flatMap(([left, right, order = 1]) => {
     if (order !== 2) return [];
     const inspection = inspectDoubleBondStereochemistry(molecule, left, right);
@@ -249,6 +273,26 @@ export function buildOpenChainSkeletalPositions(
   }
 
   return positions;
+}
+
+export function buildOpenChainSkeletalPositions(
+  molecule: LayoutMolecule,
+  mainChain: readonly number[],
+): Map<number, SkeletalPoint> {
+  return buildOpenChainPositions(molecule, mainChain, "skeletal");
+}
+
+/** Text-first display geometry; defined alkene stereo takes precedence. */
+export function buildOpenChainSemiDevelopedPositions(
+  molecule: LayoutMolecule,
+  mainChain: readonly number[],
+): Map<number, SkeletalPoint> {
+  const hasDefinedEZ = molecule.bonds.some(([left, right, order = 1]) => {
+    if (order !== 2) return false;
+    const inspection = inspectDoubleBondStereochemistry(molecule, left, right);
+    return inspection.stereogenic && inspection.configuration !== null;
+  });
+  return buildOpenChainPositions(molecule, mainChain, hasDefinedEZ ? "skeletal" : "condensed");
 }
 
 export function skeletalInternalAngle(

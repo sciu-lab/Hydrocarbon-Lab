@@ -9557,9 +9557,9 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   ]);
 
   const carbonCount = molecule.atoms.filter(isCarbonAtom).length;
-  // Both visual representations consume this exact same molecular layout.
-  // Switching views changes only the drawing treatment, never atom geometry.
-  const rawDisplayPositions = calculateMolecule2DLayout(molecule, analysis.mainChain);
+  // Derive geometry per representation without changing editor coordinates or
+  // the molecular graph. Switching back restores the same skeletal projection.
+  const rawDisplayPositions = calculateMolecule2DLayout(molecule, analysis.mainChain, viewMode);
   const coordinateScale = canvasCoordinateScaleForCarbonCount(carbonCount);
   const displayPositions = new Map(
     [...rawDisplayPositions].map(([atomId, point]) => [atomId, {
