@@ -1776,11 +1776,11 @@ function collectSubtree(root: number, blocked: Set<number>, adjacency: Map<numbe
 
 function nameSubstituent(
   root: number,
-  parent: number,
+  parent: number | null,
   adjacency: Map<number, number[]>,
   bondOrders?: ReadonlyMap<string, BondOrder>,
 ): Omit<NamedSubstituent, "locant"> {
-  const component = collectSubtree(root, new Set([parent]), adjacency);
+  const component = collectSubtree(root, new Set(parent === null ? [] : [parent]), adjacency);
   const componentSet = new Set(component);
   const rootPaths: number[][] = [];
 
@@ -2712,6 +2712,16 @@ function etherAlkoxySubstituent(startId: number, oxygenId: number, skeleton: Mol
 
 function esterAlkylName(startId: number | undefined, skeleton: Molecule) {
   if (!startId) return "alquilo";
+  const component = new Set(carbonComponent(startId, skeleton));
+  const bonds = skeleton.bonds.filter(([a, b]) => component.has(a) && component.has(b));
+  if (bonds.length === component.size - 1 && bonds.every((bond) => getBondOrder(bond) === 1)) {
+    // The O-linked carbon is the organyl root, even when it is an internal
+    // carbon of an otherwise linear component. The carbon-only skeleton has
+    // already separated it from the acid component, so no carbon parent is
+    // blocked. Reuse rooted chain/branch naming, not a carbon-count lookup.
+    return `${nameSubstituent(startId, null, buildAdjacency(skeleton)).name}o`;
+  }
+  // Preserve the existing fallback outside saturated acyclic organyl fragments.
   const length = simpleAlkylLength(startId, skeleton);
   const name = alkylNames[length];
   return name ? `${name}o` : "alquilo";
@@ -3005,9 +3015,7 @@ export function buildLegacyEnglishNameModel(
         ?? 1,
       carbonIncludedInParent: analysis.mainChain.includes(group.carbonId),
       attachedAlkylName: group.kind === "ester"
-        ? group.alkylCarbonId
-          ? alkylNames[simpleAlkylLength(group.alkylCarbonId, skeleton)] ?? "alquil"
-          : "alquil"
+        ? esterAlkylName(group.alkylCarbonId, skeleton).replace(/o$/, "")
         : undefined,
     })),
     substituents: (unsupportedHeterocycleLocalName ? [] : analysis.substituents).map((substituent) => ({
