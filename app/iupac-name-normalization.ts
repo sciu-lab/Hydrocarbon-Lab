@@ -1,5 +1,6 @@
 import { translateSubstituentAliasesForOpsin } from "./substituent-aliases.ts";
 import { englishIupacRoot, IUPAC_ROOTS } from "./iupac-prefixes.ts";
+import { canonicalizeEnglishAcyclicPrefixes } from "./english-acyclic-prefixes.ts";
 
 const alkylRootPattern = IUPAC_ROOTS
   .filter(Boolean)
@@ -7,6 +8,8 @@ const alkylRootPattern = IUPAC_ROOTS
   .join("|");
 const spanishAlkylNoun = new RegExp(`(${alkylRootPattern})ilo(?=$|[\\s,.)-])`, "g");
 const spanishAlkylSubstituent = new RegExp(`(${alkylRootPattern})il(?=[a-z]|$|[\\s,.)-])`, "g");
+const spanishParentRoot = new RegExp(`(${IUPAC_ROOTS.filter((root) =>
+  englishIupacRoot(root) !== root).join("|")})(?=(?:an|en|in)(?:[oa]|$|[-\\d]))`, "g");
 
 function translateSpanishAlkylMorphemes(value: string) {
   const translate = (_match: string, root: string) => `${englishIupacRoot(root)}yl`;
@@ -286,10 +289,6 @@ function translateCore(value: string) {
     .replace(/fenol/g, "phenol")
     .replace(/fenoxi/g, "phenoxy")
     .replace(/fenil/g, "phenyl")
-    // Phenyl can be glued directly to its functional-chain parent. Preserve
-    // the English meth/eth roots even without a word or hyphen boundary.
-    .replace(/phenylmet(?=an|en|in)/g, "phenylmeth")
-    .replace(/phenylet(?=an|en|in)/g, "phenyleth")
     .replace(/cloro/g, "chloro")
     .replace(/yodo/g, "iodo")
     .replace(
@@ -304,12 +303,11 @@ function translateCore(value: string) {
     .replace(/ciclo/g, "cyclo")
     .replace(/tetrahidro/g, "tetrahydro")
     .replace(/pirano/g, "pyran")
-    .replace(/oxyet(?=an|en|in)/g, "oxyeth")
-    // When a Spanish halo-methane is written as one word, there is no word
-    // boundary before metano for the generic met -> meth bridge below.
-    .replace(/(fluoro|chloro|bromo|iodo)metano$/g, "$1methane")
-    .replace(/\bmet(?=an|en|in)/g, "meth")
-    .replace(/\bet(?=an|en|in)/g, "eth");
+    // A chemical parent root can follow a glued substituent, without a word
+    // boundary. Translate the root itself, independently of prefix identity,
+    // at a Spanish suffix boundary; English lexical units (e.g. oxetane)
+    // already translated above must not be interpreted as Spanish roots.
+    .replace(spanishParentRoot, (_match, root: string) => englishIupacRoot(root));
 
   translated = translated
     // Parent-chain amines need the English alkane root even when an N-alkyl
@@ -445,7 +443,9 @@ function alphabetizeEnglishHalogenPrefixes(value: string) {
 
 /** English display localization; OPSIN candidates keep their parser punctuation and source order. */
 export function translateSpanishIupacForDisplay(value: string) {
-  return alphabetizeEnglishHalogenPrefixes(compactHalogenatedName(translateSpanishIupacToOpsin(value)));
+  return canonicalizeEnglishAcyclicPrefixes(
+    alphabetizeEnglishHalogenPrefixes(compactHalogenatedName(translateSpanishIupacToOpsin(value))),
+  );
 }
 
 /**

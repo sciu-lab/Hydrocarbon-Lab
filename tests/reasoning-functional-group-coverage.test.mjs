@@ -23,6 +23,9 @@ before(async () => {
 after(async () => { await server?.close(); });
 
 // Full names recorded from clean main fc1df64, before modifying the reasoning layer.
+// Exception: nitroethane corrects the historical glued-root typo "nitroetane".
+// Independently verified: Blue Book P-74.2.2.1.10 (explicit structure/PIN example).
+// https://iupac.qmul.ac.uk/BlueBook/P7.html
 const fixtures = [
   ["alcohol", "CCC(O)C", "butan-2-ol", "butan-2-ol", [["alcohol", "2-ol", "2-ol", "function", "–OH"]]],
   ["ether", "CCOCC", "etoxietano", "ethoxyethane", [["ether", "etoxi", "ethoxy", "substituent", "–O–R"]]],
@@ -33,7 +36,7 @@ const fixtures = [
   ["amine", "CCN", "etanamina", "ethanamine", [["amine", "amina", "amine", "function", "amino"]]],
   ["amide", "CCC(=O)N", "propanamida", "propanamide", [["amide", "amida", "amide", "function", "–C(=O)N"]]],
   ["nitrile", "CCC#N", "propanonitrilo", "propanenitrile", [["nitrile", "nitrilo", "nitrile", "function", "–C≡N"]]],
-  ["nitro", "CC[N+](=O)[O-]", "nitroetano", "nitroetane", [["nitro", "nitro", "nitro", "substituent", "–NO₂"]]],
+  ["nitro", "CC[N+](=O)[O-]", "nitroetano", "nitroethane", [["nitro", "nitro", "nitro", "substituent", "–NO₂"]]],
   ["fluoro", "CCF", "fluoroetano", "fluoroethane", [["halogen", "fluoro", "fluoro", "substituent", "hal"]]],
   ["chloro", "CCCl", "cloroetano", "chloroethane", [["halogen", "cloro", "chloro", "substituent", "hal"]]],
   ["bromo", "CCBr", "bromoetano", "bromoethane", [["halogen", "bromo", "bromo", "substituent", "hal"]]],
