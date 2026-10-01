@@ -9719,3 +9719,9 @@ html[data-theme="dark"] .practice-mode button[aria-pressed="true"] { background:
   .practice-card button { max-width: 100%; }
   .practice-metrics-table th, .practice-metrics-table td { font-size: 14px; }
 }
+
+.exam-review-list { list-style: none; padding: 0; display: grid; gap: .6rem; }
+.exam-review-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .75rem; border: 1px solid var(--border); border-radius: .6rem; }
+.exam-review-list li > span:first-child { flex: 1 1 12rem; }
+.exam-confirmation { padding: 1rem; border: 1px solid var(--border); border-radius: .75rem; margin-block: 1rem; }
+.exam-navigation { margin-top: 1rem; }
