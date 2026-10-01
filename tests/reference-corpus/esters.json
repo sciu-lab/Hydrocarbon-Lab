@@ -315,5 +315,494 @@
       "derivation": "propan-2-yl alcohol component, two-carbon acid component"
     },
     "notes": "Silver: structure/name correspondence is testable, but the profile's branched organyl spelling is not sufficiently specified for an exact oracle."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0008",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CCCOC(=O)C",
+    "expected": {
+      "en": "propyl ethanoate"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "primary-attachment"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Organyl is a terminally O-bound linear C3 fragment, propyl; two-carbon acid gives ethanoate."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Organyl is a terminally O-bound linear C3 fragment, propyl; two-carbon acid gives ethanoate."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0009",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CCCCOC(=O)C",
+    "expected": {
+      "en": "butyl ethanoate"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "primary-attachment"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Terminally O-bound linear C4 is butyl; acid carbon count is two, ethanoate."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Terminally O-bound linear C4 is butyl; acid carbon count is two, ethanoate."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0010",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "COC(=O)C(C)(C)C",
+    "expected": {
+      "en": "methyl 2,2-dimethylpropanoate"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "branching",
+      "multiple-substituents",
+      "repeated-substituents",
+      "attachment-sensitive"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Methyl organyl; acid parent contains carbonyl C1 and has three carbons, methyl 2,2; use systematic acid anion."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Methyl organyl; acid parent contains carbonyl C1 and has three carbons, methyl 2,2; use systematic acid anion."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0011",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CCOC(=O)CC(C)C",
+    "expected": {
+      "en": "ethyl 3-methylbutanoate"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "branching",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Ethyl organyl; acid has four-carbon parent containing carbonyl C1, methyl at 3."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Ethyl organyl; acid has four-carbon parent containing carbonyl C1, methyl at 3."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0012",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CCC(OC(=O)C)C",
+    "expected": {
+      "en": "butan-2-yl ethanoate"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "1-methylpropyl ethanoate"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "secondary-attachment"
+    ],
+    "authority": "silver",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. O is attached at C2 of a four-carbon path; butan-2-yl candidate versus rooted 1-methylpropyl spelling is not adjudicated for exact profile."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "structural-only",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "O is attached at C2 of a four-carbon path; butan-2-yl candidate versus rooted 1-methylpropyl spelling is not adjudicated for exact profile."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Exact spelling is not a requirement; structural attachment only."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0013",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CC(C)COC(=O)C",
+    "expected": {
+      "en": "2-methylpropyl ethanoate"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "branching",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "primary-attachment"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. O-bound carbon is terminal on longest three-carbon rooted chain with methyl 2; organyl 2-methylpropyl, acid ethanoate."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "O-bound carbon is terminal on longest three-carbon rooted chain with methyl 2; organyl 2-methylpropyl, acid ethanoate."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0014",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CC(C)(C)OC(=O)C",
+    "expected": {
+      "en": "2-methylpropan-2-yl ethanoate"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "1,1-dimethylethyl ethanoate"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "branching",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "tertiary-attachment"
+    ],
+    "authority": "silver",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. O-bound C has three carbon neighbors; candidate 2-methylpropan-2-yl and rooted 1,1-dimethylethyl both preserve graph; exact preference remains unadjudicated."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "structural-only",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "O-bound C has three carbon neighbors; candidate 2-methylpropan-2-yl and rooted 1,1-dimethylethyl both preserve graph; exact preference remains unadjudicated."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Exact spelling is not a requirement; structural attachment only."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0015",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CCC(=O)OC(C)C",
+    "expected": {
+      "en": "propan-2-yl propanoate"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "1-methylethyl propanoate"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "secondary-attachment"
+    ],
+    "authority": "silver",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. O-bound carbon is central in C3 path, acid has three carbons; candidate versus 1-methylethyl exact profile is not adjudicated."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "structural-only",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "O-bound carbon is central in C3 path, acid has three carbons; candidate versus 1-methylethyl exact profile is not adjudicated."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Exact spelling is not a requirement; structural attachment only."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ESTER-0016",
+    "category": "esters",
+    "domainCategory": "ester",
+    "smiles": "CC(C)C(=O)OC(C)C",
+    "expected": {
+      "en": "propan-2-yl 2-methylpropanoate"
+    },
+    "acceptedAlternatives": {
+      "en": [
+        "1-methylethyl 2-methylpropanoate"
+      ]
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ester",
+      "branching",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "secondary-attachment"
+    ],
+    "authority": "silver",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.6.3.3.1 (monoesters, organyl plus acid anion)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Central C3 attachment plus acid carbonyl C1 in three-carbon parent with methyl 2; exact organyl spelling remains unadjudicated."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-29.3.2 / P-29.4.1 (acyclic and compound substituent groups)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Terminal alkyl attachment uses rooted locant 1; internal/tertiary candidates and alternatives are structural evidence only when classified silver."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "structural-only",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Central C3 attachment plus acid carbonyl C1 in three-carbon parent with methyl 2; exact organyl spelling remains unadjudicated."
+    },
+    "notes": "Phase 2. Capability: ESTER. Existing implementation: app/page.tsx:detectFunctionalGroups/esterAlkylName/nameSubstituent. Existing tests/corpus: tests/ester-organyl-connectivity.test.mjs (ten graphs, C3/C4 attachment); ESTER-0001–0007. Expected assigned from source/graph review before any new-case namer audit. Exact spelling is not a requirement; structural attachment only."
   }
 ]

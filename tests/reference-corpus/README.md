@@ -1,4 +1,4 @@
-# Reference Name Corpus — Phase 1
+# Reference Name Corpus v1
 
 Small, independently reviewed structure → name oracle for Hydrocarbon Lab. This
 corpus is an audit: failing naming tests are findings to investigate, not a reason
@@ -140,7 +140,8 @@ configured R/S, functionalized rings, polyenes and function/unsaturation or
 function/halogen combinations are excluded by this current envelope. Their
 presence elsewhere in Lab tests does not justify admitting them here.
 
-There are 102 individually selected cases: 101 gold, 1 silver. Distribution:
+The protected Phase-1 baseline contains 102 individually selected cases:
+101 gold, 1 silver. Its original distribution (not the current total) is:
 
 | Family | Entries |
 | --- | ---: |
@@ -215,3 +216,57 @@ real naming finding even when all reference interpretations succeeded. Do not
 require a live audit for normal CI. `--capture` retains existing responses and
 does not silently refresh frozen evidence; a refresh requires an explicit,
 reviewed evidence-file change.
+
+## Phase 2: hardening the existing envelope
+
+Phase 2 adds 82 individually reviewed cases to the same 13 files and same EN
+profile: 184 entries, 179 gold, 5 silver, 0 generated. No ES names are populated.
+The [hardening report](../../reports/reference-corpus/phase-2-hardening.md) records
+the supported naming matrix, per-family additions, every rejected candidate,
+coverage and full validation. Each new record's notes identify a matrix
+capability and existing implementation/test evidence. Domain acceptance alone
+does not establish a supported naming rule: all four admission checks are
+required (domain, naming capability, repository evidence, independent expected).
+
+The original 102 records are immutable during this phase. The content hashes in
+`tests/fixtures/reference-corpus-v1-manifest.json` protect all their fields and
+the 118 original raw OPSIN receipts. New receipts are appended by name without
+refreshing original evidence. ESTER-0007 remains silver. Four new secondary or
+tertiary organyl candidates remain silver too; their exact spelling is not a
+new requirement. Primary terminal 2-methylpropyl naming is independently derived
+using the existing rooted-chain grammar.
+
+Coverage is computed from `features` using the documented aliases in
+`tests/helpers/reference-coverage.mjs`. Counts overlap. They measure recorded
+annotations, not inferred exhaustive graph coverage: older entries retain their
+original tags, so before/after counts are annotation counts, not a claim that
+all untagged old branches or substitutions have been classified. “Multiple
+bonds” here means C=C/C≡C hydrocarbons, not functional C=O; “rings” includes
+benzene. Symmetry/alphabetical-tie tags count as numbering ties, and the report
+includes the IDs behind every count. No manual molecule list drives coverage.
+
+```sh
+npm run test:reference-corpus              # schema/domain, exact, graphs, protection, coverage
+npm run report:reference-corpus            # offline; all cases, coverage and finding IDs
+npm run audit:reference-corpus -- --capture --report=phase-2-audit.json
+```
+
+The optional `--report=filename.json` keeps historical audit reports intact.
+`report:reference-corpus` writes `reports/reference-corpus/phase-2-results.json`
+using frozen evidence and makes zero network requests. It reports non-gold
+exact checks as SKIP and continues through naming exceptions. The optional
+network audit's `goldExact` counts only gold records; non-gold skips are shown
+in the offline report and test runner. All failures receive deterministic
+`REFERENCE2-xxx` IDs in the report; cluster them by shared cause during review,
+without changing the implementation or expected text.
+For non-gold records the offline report preserves `candidateExact` as an
+informational comparison; exact is SKIP and a matching graph is classified
+`NON_GOLD_STRUCTURE_MATCH`, not an adjudicated canonical-name finding.
+
+Rejected proposals use OUT_OF_DOMAIN, UNSUPPORTED_NAMING_RULE,
+INSUFFICIENT_SOURCE_CONFIDENCE, DUPLICATE_COVERAGE or REQUIRES_NEW_FEATURE.
+Keep proposals outside scope out of failing naming tests. A capability present
+elsewhere in the Lab (e.g. E/Z or nitriles) does not require extending this
+phase's existing file/profile contract. Before accepting a later batch, answer:
+“Did it require nomenclature not already claimed for this supported envelope?”
+If YES, exclude those proposals and log them; do not expand production code.

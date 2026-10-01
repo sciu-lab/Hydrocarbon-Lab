@@ -450,5 +450,301 @@
       "derivation": "three-carbon parent, hydroxy 1, methyls 2,2"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALCOHOL-0011",
+    "category": "alcohols",
+    "domainCategory": "alcohol",
+    "smiles": "CC(O)CC(C)C",
+    "expected": {
+      "en": "4-methylpentan-2-ol"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alcohol",
+      "branching",
+      "suffix-priority",
+      "attachment-sensitive"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.1.2 (systematic alcohols; lowest ol locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon OH parent; OH 2 precedes methyl 2 in the opposite orientation; methyl remains at 4."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon OH parent; OH 2 precedes methyl 2 in the opposite orientation; methyl remains at 4."
+    },
+    "notes": "Phase 2. Capability: OH. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/parentCriteria/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ALCOHOL-0007–0010; tests/exercise-domain.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALCOHOL-0012",
+    "category": "alcohols",
+    "domainCategory": "alcohol",
+    "smiles": "CC(C)CC(O)CC",
+    "expected": {
+      "en": "5-methylhexan-3-ol"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alcohol",
+      "branching",
+      "suffix-priority",
+      "attachment-sensitive"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.1.2 (systematic alcohols; lowest ol locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Six-carbon OH parent; OH 3 beats 4, leaving methyl 5."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Six-carbon OH parent; OH 3 beats 4, leaving methyl 5."
+    },
+    "notes": "Phase 2. Capability: OH. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/parentCriteria/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ALCOHOL-0007–0010; tests/exercise-domain.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALCOHOL-0013",
+    "category": "alcohols",
+    "domainCategory": "alcohol",
+    "smiles": "CCC(O)(C)CC",
+    "expected": {
+      "en": "3-methylpentan-3-ol"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alcohol",
+      "branching",
+      "numbering-tie",
+      "attachment-sensitive"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.1.2 (systematic alcohols; lowest ol locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon parent; central OH and methyl both at 3; suffix locant is explicit."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon parent; central OH and methyl both at 3; suffix locant is explicit."
+    },
+    "notes": "Phase 2. Capability: OH. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/parentCriteria/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ALCOHOL-0007–0010; tests/exercise-domain.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALCOHOL-0014",
+    "category": "alcohols",
+    "domainCategory": "alcohol",
+    "smiles": "OCC(CC)CC",
+    "expected": {
+      "en": "2-ethylbutan-1-ol"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alcohol",
+      "branching",
+      "parent-choice",
+      "attachment-sensitive"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.1.2 (systematic alcohols; lowest ol locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. The five-carbon hydrocarbon path excludes OH and is ineligible; longest OH-containing path has four carbons; ethyl 2, OH 1."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "The five-carbon hydrocarbon path excludes OH and is ineligible; longest OH-containing path has four carbons; ethyl 2, OH 1."
+    },
+    "notes": "Phase 2. Capability: OH. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/parentCriteria/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ALCOHOL-0007–0010; tests/exercise-domain.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALCOHOL-0015",
+    "category": "alcohols",
+    "domainCategory": "alcohol",
+    "smiles": "OCC(CC)C(C)C",
+    "expected": {
+      "en": "2-ethyl-3-methylbutan-1-ol"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alcohol",
+      "branching",
+      "multiple-substituents",
+      "parent-choice",
+      "attachment-sensitive"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.1.2 (systematic alcohols; lowest ol locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Equal four-carbon OH paths: prefer two cited branches over one complex branch; OH 1, ethyl 2, methyl 3."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Equal four-carbon OH paths: prefer two cited branches over one complex branch; OH 1, ethyl 2, methyl 3."
+    },
+    "notes": "Phase 2. Capability: OH. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/parentCriteria/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ALCOHOL-0007–0010; tests/exercise-domain.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALCOHOL-0016",
+    "category": "alcohols",
+    "domainCategory": "alcohol",
+    "smiles": "CC(C)(C)CCO",
+    "expected": {
+      "en": "3,3-dimethylbutan-1-ol"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alcohol",
+      "branching",
+      "multiple-substituents",
+      "repeated-substituents",
+      "suffix-priority"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.1.2 (systematic alcohols; lowest ol locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Four-carbon OH parent, OH 1 forces methyl 3,3."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Four-carbon OH parent, OH 1 forces methyl 3,3."
+    },
+    "notes": "Phase 2. Capability: OH. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/parentCriteria/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ALCOHOL-0007–0010; tests/exercise-domain.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
   }
 ]

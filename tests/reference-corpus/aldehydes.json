@@ -313,5 +313,298 @@
       "derivation": "four-carbon parent from aldehyde carbon 1, methyls 2,2"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALDEHYDE-0008",
+    "category": "aldehydes",
+    "domainCategory": "aldehyde",
+    "smiles": "CCC=O",
+    "expected": {
+      "en": "propanal"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aldehyde",
+      "omitted-locant",
+      "regression-neighbor",
+      "smaller-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.6.1.1.1 (acyclic aldehydes, al suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Three-carbon chain includes aldehyde carbon at 1; terminal al locant is omitted."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Three-carbon chain includes aldehyde carbon at 1; terminal al locant is omitted."
+    },
+    "notes": "Phase 2. Capability: CHO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic; app/nomenclature-conventions.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/functional-nomenclature.test.mjs (omit only principal acyclic -al locant); tests/capability-audit.test.mjs (branched aldehydes); ALDEHYDE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALDEHYDE-0009",
+    "category": "aldehydes",
+    "domainCategory": "aldehyde",
+    "smiles": "CCCCC=O",
+    "expected": {
+      "en": "pentanal"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aldehyde",
+      "omitted-locant",
+      "regression-neighbor",
+      "larger-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.6.1.1.1 (acyclic aldehydes, al suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon chain including CHO; omit terminal al locant (P-66.6.1.1.1 prints pentanal)."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon chain including CHO; omit terminal al locant (P-66.6.1.1.1 prints pentanal)."
+    },
+    "notes": "Phase 2. Capability: CHO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic; app/nomenclature-conventions.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/functional-nomenclature.test.mjs (omit only principal acyclic -al locant); tests/capability-audit.test.mjs (branched aldehydes); ALDEHYDE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALDEHYDE-0010",
+    "category": "aldehydes",
+    "domainCategory": "aldehyde",
+    "smiles": "CCC(C)C=O",
+    "expected": {
+      "en": "2-methylbutanal"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aldehyde",
+      "branching",
+      "omitted-locant",
+      "regression-neighbor",
+      "suffix-priority"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.6.1.1.1 (acyclic aldehydes, al suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Four-carbon aldehyde parent, CHO 1, methyl 2; no -1-al."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Four-carbon aldehyde parent, CHO 1, methyl 2; no -1-al."
+    },
+    "notes": "Phase 2. Capability: CHO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic; app/nomenclature-conventions.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/functional-nomenclature.test.mjs (omit only principal acyclic -al locant); tests/capability-audit.test.mjs (branched aldehydes); ALDEHYDE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALDEHYDE-0011",
+    "category": "aldehydes",
+    "domainCategory": "aldehyde",
+    "smiles": "CCCC(C)C=O",
+    "expected": {
+      "en": "2-methylpentanal"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aldehyde",
+      "branching",
+      "omitted-locant",
+      "regression-neighbor",
+      "larger-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.6.1.1.1 (acyclic aldehydes, al suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon CHO parent, methyl 2; omit terminal suffix locant."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon CHO parent, methyl 2; omit terminal suffix locant."
+    },
+    "notes": "Phase 2. Capability: CHO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic; app/nomenclature-conventions.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/functional-nomenclature.test.mjs (omit only principal acyclic -al locant); tests/capability-audit.test.mjs (branched aldehydes); ALDEHYDE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALDEHYDE-0012",
+    "category": "aldehydes",
+    "domainCategory": "aldehyde",
+    "smiles": "CCC(C)CC=O",
+    "expected": {
+      "en": "3-methylpentanal"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aldehyde",
+      "branching",
+      "omitted-locant",
+      "regression-neighbor",
+      "positional-isomer"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.6.1.1.1 (acyclic aldehydes, al suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon CHO parent, methyl 3; terminal suffix locant omitted."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon CHO parent, methyl 3; terminal suffix locant omitted."
+    },
+    "notes": "Phase 2. Capability: CHO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic; app/nomenclature-conventions.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/functional-nomenclature.test.mjs (omit only principal acyclic -al locant); tests/capability-audit.test.mjs (branched aldehydes); ALDEHYDE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALDEHYDE-0013",
+    "category": "aldehydes",
+    "domainCategory": "aldehyde",
+    "smiles": "O=CC(CC)CC(C)C",
+    "expected": {
+      "en": "2-ethyl-4-methylpentanal"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "aldehyde",
+      "branching",
+      "multiple-substituents",
+      "parent-choice",
+      "omitted-locant",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.6.1.1.1 (acyclic aldehydes, al suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Longest chain containing CHO is five carbons; CHO 1, ethyl 2, methyl 4; cite ethyl first."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Longest chain containing CHO is five carbons; CHO 1, ethyl 2, methyl 4; cite ethyl first."
+    },
+    "notes": "Phase 2. Capability: CHO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic; app/nomenclature-conventions.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/functional-nomenclature.test.mjs (omit only principal acyclic -al locant); tests/capability-audit.test.mjs (branched aldehydes); ALDEHYDE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
   }
 ]

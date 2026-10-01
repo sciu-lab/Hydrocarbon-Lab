@@ -318,5 +318,248 @@
       "derivation": "six-carbon parent, carbonyl 3 before methyl 4"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "KETONE-0008",
+    "category": "ketones",
+    "domainCategory": "ketone",
+    "smiles": "CC(=O)C(C)(C)C",
+    "expected": {
+      "en": "3,3-dimethylbutan-2-one"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ketone",
+      "branching",
+      "multiple-substituents",
+      "repeated-substituents",
+      "suffix-priority"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-64.2.2.1 (acyclic ketones, one suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Four-carbon C=O parent; ketone 2 dominates branch locants, leaving methyl 3,3."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Four-carbon C=O parent; ketone 2 dominates branch locants, leaving methyl 3,3."
+    },
+    "notes": "Phase 2. Capability: CO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/numberingCriteria. Existing tests/corpus: tests/functional-nomenclature.test.mjs; KETONE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "KETONE-0009",
+    "category": "ketones",
+    "domainCategory": "ketone",
+    "smiles": "CC(C)CC(=O)CC",
+    "expected": {
+      "en": "5-methylhexan-3-one"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ketone",
+      "branching",
+      "suffix-priority"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-64.2.2.1 (acyclic ketones, one suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Six-carbon ketone parent; carbonyl 3 beats 4, leaving methyl 5."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Six-carbon ketone parent; carbonyl 3 beats 4, leaving methyl 5."
+    },
+    "notes": "Phase 2. Capability: CO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/numberingCriteria. Existing tests/corpus: tests/functional-nomenclature.test.mjs; KETONE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "KETONE-0010",
+    "category": "ketones",
+    "domainCategory": "ketone",
+    "smiles": "CC(C)C(=O)CC(C)C",
+    "expected": {
+      "en": "2,5-dimethylhexan-3-one"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ketone",
+      "branching",
+      "multiple-substituents",
+      "suffix-priority",
+      "repeated-substituents"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-64.2.2.1 (acyclic ketones, one suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Six-carbon ketone parent; carbonyl 3 beats 4; methyl 2,5."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Six-carbon ketone parent; carbonyl 3 beats 4; methyl 2,5."
+    },
+    "notes": "Phase 2. Capability: CO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/numberingCriteria. Existing tests/corpus: tests/functional-nomenclature.test.mjs; KETONE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "KETONE-0011",
+    "category": "ketones",
+    "domainCategory": "ketone",
+    "smiles": "CCC(=O)C(CC)CCC",
+    "expected": {
+      "en": "4-ethylheptan-3-one"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ketone",
+      "branching",
+      "parent-choice",
+      "suffix-priority"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-64.2.2.1 (acyclic ketones, one suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Seven-carbon ketone parent beats shorter alternatives; carbonyl 3, ethyl 4."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Seven-carbon ketone parent beats shorter alternatives; carbonyl 3, ethyl 4."
+    },
+    "notes": "Phase 2. Capability: CO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/numberingCriteria. Existing tests/corpus: tests/functional-nomenclature.test.mjs; KETONE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "KETONE-0012",
+    "category": "ketones",
+    "domainCategory": "ketone",
+    "smiles": "CC(C)C(=O)C(C)C",
+    "expected": {
+      "en": "2,4-dimethylpentan-3-one"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ketone",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "repeated-substituents"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-64.2.2.1 (acyclic ketones, one suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon carbonyl parent; central ketone 3, methyl at 2,4 in either orientation."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon carbonyl parent; central ketone 3, methyl at 2,4 in either orientation."
+    },
+    "notes": "Phase 2. Capability: CO. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/numberingCriteria. Existing tests/corpus: tests/functional-nomenclature.test.mjs; KETONE-0005–0007. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
   }
 ]

@@ -273,5 +273,196 @@
       "derivation": "cyclohexane parent, tied 1,2 set"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0007",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CC1CCC(C)CC1",
+    "expected": {
+      "en": "1,4-dimethylcyclohexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "multiple-substituents",
+      "repeated-substituents",
+      "numbering-tie",
+      "unspecified-stereo"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. One saturated six-carbon ring; methyls opposite, lowest locants 1,4; no stereochemistry specified."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "One saturated six-carbon ring; methyls opposite, lowest locants 1,4; no stereochemistry specified."
+    },
+    "notes": "Phase 2. Capability: MONOCYCLE. Existing implementation: app/page.tsx:ringCandidates/buildRingAnalysis; app/exercise-chemical-candidate.ts:simple-carbocycle. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (ethyl/methyl ring); RING-0004–0006; tests/exercise-chemical-generator.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0008",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CCC1CCCC(C)C1",
+    "expected": {
+      "en": "1-ethyl-3-methylcyclohexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "multiple-substituents",
+      "numbering-tie",
+      "alphabetical-order",
+      "unspecified-stereo"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. One saturated six-carbon ring; minimum [1,3], ethyl receives 1 on citation tie; unspecified stereo preserved."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "One saturated six-carbon ring; minimum [1,3], ethyl receives 1 on citation tie; unspecified stereo preserved."
+    },
+    "notes": "Phase 2. Capability: MONOCYCLE. Existing implementation: app/page.tsx:ringCandidates/buildRingAnalysis; app/exercise-chemical-candidate.ts:simple-carbocycle. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (ethyl/methyl ring); RING-0004–0006; tests/exercise-chemical-generator.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0009",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CCC1(C)CCCCC1",
+    "expected": {
+      "en": "1-ethyl-1-methylcyclohexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "multiple-substituents",
+      "alphabetical-order",
+      "attachment-sensitive"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. One saturated six-carbon ring; ethyl and methyl both on C1; cite ethyl first."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "One saturated six-carbon ring; ethyl and methyl both on C1; cite ethyl first."
+    },
+    "notes": "Phase 2. Capability: MONOCYCLE. Existing implementation: app/page.tsx:ringCandidates/buildRingAnalysis; app/exercise-chemical-candidate.ts:simple-carbocycle. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (ethyl/methyl ring); RING-0004–0006; tests/exercise-chemical-generator.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "RING-0010",
+    "category": "rings",
+    "domainCategory": "simple-carbocycle",
+    "smiles": "CC1C(C)CC(C)CC1",
+    "expected": {
+      "en": "1,2,4-trimethylcyclohexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "simple-carbocycle",
+      "multiple-substituents",
+      "repeated-substituents",
+      "numeric-first",
+      "unspecified-stereo"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-22.1.1 (saturated carbomonocycles)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. One saturated six-carbon ring; enumerate starts and both directions, minimum sorted set [1,2,4]; stereo unspecified."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "One saturated six-carbon ring; enumerate starts and both directions, minimum sorted set [1,2,4]; stereo unspecified."
+    },
+    "notes": "Phase 2. Capability: MONOCYCLE. Existing implementation: app/page.tsx:ringCandidates/buildRingAnalysis; app/exercise-chemical-candidate.ts:simple-carbocycle. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (ethyl/methyl ring); RING-0004–0006; tests/exercise-chemical-generator.test.mjs. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
   }
 ]

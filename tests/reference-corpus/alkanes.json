@@ -453,5 +453,652 @@
       "derivation": "three-carbon parent, iodo 1 before methyl 2"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0011",
+    "category": "alkanes",
+    "domainCategory": "alkane",
+    "smiles": "CC(C)CC(C)(C)C",
+    "expected": {
+      "en": "2,2,4-trimethylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numeric-first",
+      "repeated-substituents",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane is longest; methyl positions [2,2,4] beat [2,4,4] at the second difference."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane is longest; methyl positions [2,2,4] beat [2,4,4] at the second difference."
+    },
+    "notes": "Phase 2. Capability: ACYCLIC. Existing implementation: app/page.tsx:analyzeHydrocarbonMolecule/selectLegacyParentCandidate/nameSubstituent; app/legacy-english-nomenclature.ts:selectParent. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (branched alkanes); tests/nomenclature-order.test.mjs; ALKANE-0003–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0012",
+    "category": "alkanes",
+    "domainCategory": "alkane",
+    "smiles": "CCC(CC)CC(C)CC",
+    "expected": {
+      "en": "3-ethyl-5-methylheptane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "alphabetical-order",
+      "parent-choice"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Heptane is longest; [3,5] ties on reversal, so ethyl receives 3 before methyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Heptane is longest; [3,5] ties on reversal, so ethyl receives 3 before methyl."
+    },
+    "notes": "Phase 2. Capability: ACYCLIC. Existing implementation: app/page.tsx:analyzeHydrocarbonMolecule/selectLegacyParentCandidate/nameSubstituent; app/legacy-english-nomenclature.ts:selectParent. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (branched alkanes); tests/nomenclature-order.test.mjs; ALKANE-0003–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0013",
+    "category": "alkanes",
+    "domainCategory": "alkane",
+    "smiles": "CC(C)C(CC)C(C)CC",
+    "expected": {
+      "en": "3-ethyl-2,4-dimethylhexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "parent-choice",
+      "alphabetical-order"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Equal six-carbon candidates: select the parent with three detachable branches, ethyl 3 and methyl 2,4; cite ethyl first."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Equal six-carbon candidates: select the parent with three detachable branches, ethyl 3 and methyl 2,4; cite ethyl first."
+    },
+    "notes": "Phase 2. Capability: ACYCLIC. Existing implementation: app/page.tsx:analyzeHydrocarbonMolecule/selectLegacyParentCandidate/nameSubstituent; app/legacy-english-nomenclature.ts:selectParent. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (branched alkanes); tests/nomenclature-order.test.mjs; ALKANE-0003–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0014",
+    "category": "alkanes",
+    "domainCategory": "alkane",
+    "smiles": "CC(C)(C)CCC(C)C",
+    "expected": {
+      "en": "2,2,5-trimethylhexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numeric-first",
+      "repeated-substituents"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Hexane parent; [2,2,5] beats [2,5,5] at the second position."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Hexane parent; [2,2,5] beats [2,5,5] at the second position."
+    },
+    "notes": "Phase 2. Capability: ACYCLIC. Existing implementation: app/page.tsx:analyzeHydrocarbonMolecule/selectLegacyParentCandidate/nameSubstituent; app/legacy-english-nomenclature.ts:selectParent. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (branched alkanes); tests/nomenclature-order.test.mjs; ALKANE-0003–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0015",
+    "category": "alkanes",
+    "domainCategory": "alkane",
+    "smiles": "CCC(CC)CCCCCCC(C)CC",
+    "expected": {
+      "en": "3-ethyl-10-methyldodecane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "multidigit-locants",
+      "parent-choice"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Longest chain has twelve carbons; [3,10] ties, so ethyl receives 3 (numeric locants, then citation order)."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Longest chain has twelve carbons; [3,10] ties, so ethyl receives 3 (numeric locants, then citation order)."
+    },
+    "notes": "Phase 2. Capability: ACYCLIC. Existing implementation: app/page.tsx:analyzeHydrocarbonMolecule/selectLegacyParentCandidate/nameSubstituent; app/legacy-english-nomenclature.ts:selectParent. Existing tests/corpus: tests/legacy-english-nomenclature.test.mjs (branched alkanes); tests/nomenclature-order.test.mjs; ALKANE-0003–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion. Multidigit support: tests/capability-audit.test.mjs dodecane; tests/ether-current-profile-regressions.test.mjs 3/10 dodecane formatter."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0016",
+    "category": "alkanes",
+    "domainCategory": "halogenated",
+    "smiles": "CC(I)CC(C)C",
+    "expected": {
+      "en": "2-iodo-4-methylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "halogen-I",
+      "regression-neighbor",
+      "en-es-boundary"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane [2,4] ties; English iodo precedes methyl, independently of Spanish yodo."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-61.3.1 (substitutive halogen prefixes)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Use bromo/chloro/fluoro/iodo; halo interactions only on saturated acyclic hydrocarbons."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane [2,4] ties; English iodo precedes methyl, independently of Spanish yodo."
+    },
+    "notes": "Phase 2. Capability: HALO. Existing implementation: app/exercise-domain.ts:expectedGroup/carbonMultiple; app/english-acyclic-prefixes.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/halogen-nomenclature.test.mjs; tests/ether-current-profile-regressions.test.mjs; tests/exercise-chemical-generator.test.mjs (mixed halos). Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0017",
+    "category": "alkanes",
+    "domainCategory": "halogenated",
+    "smiles": "CC(F)CC(C)C",
+    "expected": {
+      "en": "2-fluoro-4-methylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "halogen-F"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane [2,4] ties; fluoro receives 2 because it precedes methyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-61.3.1 (substitutive halogen prefixes)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Use bromo/chloro/fluoro/iodo; halo interactions only on saturated acyclic hydrocarbons."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane [2,4] ties; fluoro receives 2 because it precedes methyl."
+    },
+    "notes": "Phase 2. Capability: HALO. Existing implementation: app/exercise-domain.ts:expectedGroup/carbonMultiple; app/english-acyclic-prefixes.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/halogen-nomenclature.test.mjs; tests/ether-current-profile-regressions.test.mjs; tests/exercise-chemical-generator.test.mjs (mixed halos). Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0018",
+    "category": "alkanes",
+    "domainCategory": "halogenated",
+    "smiles": "CC(Cl)C(Br)CC",
+    "expected": {
+      "en": "3-bromo-2-chloropentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "multiple-substituents",
+      "numeric-first",
+      "halogen-Br",
+      "halogen-Cl",
+      "alphabetical-order"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane [2,3] beats [3,4]; bromo is cited before chloro despite its higher locant."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-61.3.1 (substitutive halogen prefixes)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Use bromo/chloro/fluoro/iodo; halo interactions only on saturated acyclic hydrocarbons."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane [2,3] beats [3,4]; bromo is cited before chloro despite its higher locant."
+    },
+    "notes": "Phase 2. Capability: HALO. Existing implementation: app/exercise-domain.ts:expectedGroup/carbonMultiple; app/english-acyclic-prefixes.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/halogen-nomenclature.test.mjs; tests/ether-current-profile-regressions.test.mjs; tests/exercise-chemical-generator.test.mjs (mixed halos). Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0019",
+    "category": "alkanes",
+    "domainCategory": "halogenated",
+    "smiles": "CC(Cl)CCC(Br)C",
+    "expected": {
+      "en": "2-bromo-5-chlorohexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "multiple-substituents",
+      "numbering-tie",
+      "halogen-Br",
+      "halogen-Cl"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Hexane [2,5] ties; bromo is first cited and receives 2."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-61.3.1 (substitutive halogen prefixes)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Use bromo/chloro/fluoro/iodo; halo interactions only on saturated acyclic hydrocarbons."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Hexane [2,5] ties; bromo is first cited and receives 2."
+    },
+    "notes": "Phase 2. Capability: HALO. Existing implementation: app/exercise-domain.ts:expectedGroup/carbonMultiple; app/english-acyclic-prefixes.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/halogen-nomenclature.test.mjs; tests/ether-current-profile-regressions.test.mjs; tests/exercise-chemical-generator.test.mjs (mixed halos). Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0020",
+    "category": "alkanes",
+    "domainCategory": "halogenated",
+    "smiles": "CC(Br)C(C)C(F)C",
+    "expected": {
+      "en": "2-bromo-4-fluoro-3-methylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "halogen-Br",
+      "halogen-F",
+      "alphabetical-order"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane [2,3,4] ties; bromo receives 2; cite bromo, fluoro, methyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-61.3.1 (substitutive halogen prefixes)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Use bromo/chloro/fluoro/iodo; halo interactions only on saturated acyclic hydrocarbons."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane [2,3,4] ties; bromo receives 2; cite bromo, fluoro, methyl."
+    },
+    "notes": "Phase 2. Capability: HALO. Existing implementation: app/exercise-domain.ts:expectedGroup/carbonMultiple; app/english-acyclic-prefixes.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/halogen-nomenclature.test.mjs; tests/ether-current-profile-regressions.test.mjs; tests/exercise-chemical-generator.test.mjs (mixed halos). Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0021",
+    "category": "alkanes",
+    "domainCategory": "halogenated",
+    "smiles": "CC(I)C(C)C(Cl)C",
+    "expected": {
+      "en": "2-chloro-4-iodo-3-methylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "halogen-Cl",
+      "halogen-I",
+      "en-es-boundary"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane [2,3,4] ties; chloro receives 2; cite English chloro, iodo, methyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-61.3.1 (substitutive halogen prefixes)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Use bromo/chloro/fluoro/iodo; halo interactions only on saturated acyclic hydrocarbons."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane [2,3,4] ties; chloro receives 2; cite English chloro, iodo, methyl."
+    },
+    "notes": "Phase 2. Capability: HALO. Existing implementation: app/exercise-domain.ts:expectedGroup/carbonMultiple; app/english-acyclic-prefixes.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/halogen-nomenclature.test.mjs; tests/ether-current-profile-regressions.test.mjs; tests/exercise-chemical-generator.test.mjs (mixed halos). Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ALKANE-0022",
+    "category": "alkanes",
+    "domainCategory": "halogenated",
+    "smiles": "CC(F)(F)CC(C)C",
+    "expected": {
+      "en": "2,2-difluoro-4-methylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "alkane",
+      "branching",
+      "multiple-substituents",
+      "numeric-first",
+      "repeated-substituents",
+      "halogen-F"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-21.2.1 (acyclic hydrocarbon parents)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P2.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane [2,2,4] beats [2,4,4]; di- does not alter fluoro citation order."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-61.3.1 (substitutive halogen prefixes)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Use bromo/chloro/fluoro/iodo; halo interactions only on saturated acyclic hydrocarbons."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane [2,2,4] beats [2,4,4]; di- does not alter fluoro citation order."
+    },
+    "notes": "Phase 2. Capability: HALO. Existing implementation: app/exercise-domain.ts:expectedGroup/carbonMultiple; app/english-acyclic-prefixes.ts; app/iupac-name-normalization.ts. Existing tests/corpus: tests/halogen-nomenclature.test.mjs; tests/ether-current-profile-regressions.test.mjs; tests/exercise-chemical-generator.test.mjs (mixed halos). Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
   }
 ]

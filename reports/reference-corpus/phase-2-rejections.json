@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "admissionPolicy": "All four: production domain, existing naming capability, repository evidence, independent expected.",
+  "candidates": [
+    {
+      "id": "R2C-001",
+      "smiles": "COC(C)CC(C)C",
+      "domainCategory": "ether",
+      "reason": "DUPLICATE_COVERAGE",
+      "note": "Same graph as protected ETHER-0007; reversing SMILES is not a new corpus structure."
+    },
+    {
+      "id": "R2C-002",
+      "smiles": "COC(C)C",
+      "domainCategory": "ether",
+      "reason": "DUPLICATE_COVERAGE",
+      "note": "Protected ETHER-0005 already supplies this secondary C3 methoxy attachment."
+    },
+    {
+      "id": "R2C-003",
+      "smiles": "C=CC=C",
+      "domainCategory": "alkene",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Two C=C bonds; the hydrocarbon category permits exactly one."
+    },
+    {
+      "id": "R2C-004",
+      "smiles": "C#CC#C",
+      "domainCategory": "alkyne",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Two C#C bonds; exactly one required."
+    },
+    {
+      "id": "R2C-005",
+      "smiles": "C=CCO",
+      "domainCategory": "alcohol",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Alcohol plus C=C excluded from saturated functional envelope."
+    },
+    {
+      "id": "R2C-006",
+      "smiles": "CC(O)CCl",
+      "domainCategory": "alcohol",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Competing alcohol/halogen groups."
+    },
+    {
+      "id": "R2C-007",
+      "smiles": "COCCCl",
+      "domainCategory": "ether",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Ether/halogen interaction excluded here despite separate halogen support."
+    },
+    {
+      "id": "R2C-008",
+      "smiles": "Clc1ccccc1",
+      "domainCategory": "aromatic",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Aromatic category currently admits hydrocarbon substituents only."
+    },
+    {
+      "id": "R2C-009",
+      "smiles": "ClC1CCCCC1",
+      "domainCategory": "simple-carbocycle",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Functional/halo ring substitutions excluded."
+    },
+    {
+      "id": "R2C-010",
+      "smiles": "OC1CCCCC1",
+      "domainCategory": "alcohol",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Cyclic alcohol outside acyclic functional category."
+    },
+    {
+      "id": "R2C-011",
+      "smiles": "c1ccncc1",
+      "domainCategory": "aromatic",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Heteroaromatic ring excluded."
+    },
+    {
+      "id": "R2C-012",
+      "smiles": "c1ccc2ccccc2c1",
+      "domainCategory": "aromatic",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Fused polycycle."
+    },
+    {
+      "id": "R2C-013",
+      "smiles": "C1CCC2(CC1)CCCC2",
+      "domainCategory": "simple-carbocycle",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Spiro polycycle."
+    },
+    {
+      "id": "R2C-014",
+      "smiles": "C1CC2CCC1C2",
+      "domainCategory": "simple-carbocycle",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Bridged polycycle."
+    },
+    {
+      "id": "R2C-015",
+      "smiles": "C1CC1C2CC2",
+      "domainCategory": "simple-carbocycle",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Multiple connected rings."
+    },
+    {
+      "id": "R2C-016",
+      "smiles": "CC.CC",
+      "domainCategory": "alkane",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Disconnected graph."
+    },
+    {
+      "id": "R2C-017",
+      "smiles": "CSC",
+      "domainCategory": "ether",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Sulfur excluded."
+    },
+    {
+      "id": "R2C-018",
+      "smiles": "CN(C)C",
+      "domainCategory": "amine",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Tertiary N substitution excluded."
+    },
+    {
+      "id": "R2C-019",
+      "smiles": "CC(=O)NC",
+      "domainCategory": "amide",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "N-substituted amide excluded."
+    },
+    {
+      "id": "R2C-020",
+      "smiles": "OCCO",
+      "domainCategory": "alcohol",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Two alcohol groups excluded."
+    },
+    {
+      "id": "R2C-021",
+      "smiles": "COC(C)CC(C)OC",
+      "domainCategory": "ether",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Two ether groups excluded."
+    },
+    {
+      "id": "R2C-022",
+      "smiles": "CC(C)OC(C)CC(C)C",
+      "domainCategory": "ether",
+      "reason": "UNSUPPORTED_NAMING_RULE",
+      "note": "Do not require new canonical EN tie handling for complex 1-methylethoxy prefixes; existing formatter guard explicitly declines that grammar."
+    },
+    {
+      "id": "R2C-023",
+      "smiles": "CC(OC(=O)C)C",
+      "domainCategory": "ester",
+      "reason": "INSUFFICIENT_SOURCE_CONFIDENCE",
+      "note": "Proposal to make a branched organyl spelling gold is not independently adjudicated for this profile; protected ESTER-0007 stays silver."
+    },
+    {
+      "id": "R2C-024",
+      "smiles": "C/C=C/C",
+      "domainCategory": "ez",
+      "reason": "REQUIRES_NEW_FEATURE",
+      "note": "Configured E/Z exists in DomainProfile but would require extending the existing corpus's domain-category/profile contract; excluded from Phase 2."
+    },
+    {
+      "id": "R2C-025",
+      "smiles": "CC#N",
+      "domainCategory": "nitrile",
+      "reason": "REQUIRES_NEW_FEATURE",
+      "note": "Adding a new family file/registry would expand Phase-2 corpus scope; existing 13 categories retained."
+    },
+    {
+      "id": "R2C-026",
+      "smiles": "O=CCC(C)=O",
+      "domainCategory": "aldehyde",
+      "reason": "OUT_OF_DOMAIN",
+      "note": "Historical 3-oxobutanal regression mixes aldehyde and ketone; production domain rejects category-group-mismatch. Harden single-CHO neighbors only."
+    }
+  ]
+}

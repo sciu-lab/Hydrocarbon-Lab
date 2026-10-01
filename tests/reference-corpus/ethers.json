@@ -414,5 +414,688 @@
       "derivation": "hexane parent, tied 2,5 set"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0010",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCOCCC",
+    "expected": {
+      "en": "1-ethoxypropane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "en-es-boundary"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Propane component is senior to ethane; ethoxy attached at 1, locant required for propane."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Propane component is senior to ethane; ethoxy attached at 1, locant required for propane."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0011",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCCOCCC",
+    "expected": {
+      "en": "1-propoxypropane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "attachment-sensitive",
+      "numbering-tie",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Equal linear C3 components; select a propane parent with terminal propoxy at 1."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Equal linear C3 components; select a propane parent with terminal propoxy at 1."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0012",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COCCCC",
+    "expected": {
+      "en": "1-methoxybutane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "en-es-boundary"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Butane parent, methoxy at 1; terminal and secondary attachment are distinct."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Butane parent, methoxy at 1; terminal and secondary attachment are distinct."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0013",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)CC",
+    "expected": {
+      "en": "2-methoxybutane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "positional-isomer"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Four-carbon parent; oxygen attached at 2, not at an endpoint."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Four-carbon parent; oxygen attached at 2, not at an endpoint."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0014",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COCCC(C)C",
+    "expected": {
+      "en": "1-methoxy-3-methylbutane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numeric-first",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Longest carbon component is butane; [1,3] beats [2,4]; cite methoxy before methyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Longest carbon component is butane; [1,3] beats [2,4]; cite methoxy before methyl."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0015",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)CCCC(C)C",
+    "expected": {
+      "en": "2-methoxy-6-methylheptane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "attachment-sensitive",
+      "regression-neighbor",
+      "larger-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Heptane [2,6] ties; methoxy is first in English and receives 2."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Heptane [2,6] ties; methoxy is first in English and receives 2."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0016",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCOC(C)C(C)C",
+    "expected": {
+      "en": "2-ethoxy-3-methylbutane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Butane [2,3] ties; ethoxy precedes methyl and receives 2."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Butane [2,3] ties; ethoxy precedes methyl and receives 2."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0017",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCOC(C)CC(C)C",
+    "expected": {
+      "en": "2-ethoxy-4-methylpentane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Pentane [2,4] ties; ethoxy receives 2 before methyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Pentane [2,4] ties; ethoxy receives 2 before methyl."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0018",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCOC(C)CCC(C)C",
+    "expected": {
+      "en": "2-ethoxy-5-methylhexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Hexane [2,5] ties; ethoxy receives 2 before methyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Hexane [2,5] ties; ethoxy receives 2 before methyl."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0019",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CC(C)CC(OC)CC",
+    "expected": {
+      "en": "4-methoxy-2-methylhexane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numeric-first",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Hexane [2,4] beats [3,5] numerically even though methoxy would get 3 after reversal; cite methoxy first."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Hexane [2,4] beats [3,5] numerically even though methoxy would get 3 after reversal; cite methoxy first."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0020",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)CCCC(C)(C)C",
+    "expected": {
+      "en": "6-methoxy-2,2-dimethylheptane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numeric-first",
+      "repeated-substituents",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Heptane [2,2,6] beats [2,6,6] at the second point; methoxy remains at 6."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Heptane [2,2,6] beats [2,6,6] at the second point; methoxy remains at 6."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0021",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "COC(C)(C)CCCC(C)(C)C",
+    "expected": {
+      "en": "2-methoxy-2,6,6-trimethylheptane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "repeated-substituents",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Heptane prefix sets [2,2,6,6] tie; methoxy gets 2; tri- does not change methyl ordering."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Heptane prefix sets [2,2,6,6] tie; methoxy gets 2; tri- does not change methyl ordering."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0022",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCOC(C)(C)CCCC(C)(C)C",
+    "expected": {
+      "en": "2-ethoxy-2,6,6-trimethylheptane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "repeated-substituents",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Heptane prefix sets [2,2,6,6] tie; ethoxy gets 2; cite ethoxy before trimethyl."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Heptane prefix sets [2,2,6,6] tie; ethoxy gets 2; cite ethoxy before trimethyl."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ETHER-0023",
+    "category": "ethers",
+    "domainCategory": "ether",
+    "smiles": "CCC(OC)CCCCCCC(C)CC",
+    "expected": {
+      "en": "3-methoxy-10-methyldodecane"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "ether",
+      "branching",
+      "multiple-substituents",
+      "numbering-tie",
+      "multidigit-locants",
+      "attachment-sensitive",
+      "regression-neighbor"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-63.2.4.1 (substitutive ether naming)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Dodecane [3,10] ties; methoxy gets numeric locant 3, methyl 10, matching English citation order."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Dodecane [3,10] ties; methoxy gets numeric locant 3, methyl 10, matching English citation order."
+    },
+    "notes": "Phase 2. Capability: ETHER. Existing implementation: app/page.tsx:etherAlkoxySubstituent/analyzeFunctionalAcyclic; app/english-acyclic-prefixes.ts. Existing tests/corpus: tests/ether-current-profile-regressions.test.mjs; tests/ether-nomenclature.test.mjs; ETHER-0004–0009. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion. Multidigit support: tests/capability-audit.test.mjs dodecane; tests/ether-current-profile-regressions.test.mjs 3/10 dodecane formatter."
   }
 ]

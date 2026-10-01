@@ -272,5 +272,155 @@
       "derivation": "three-carbon amide parent, methyls 2,2"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0007",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "NC(=O)C(CC)CC",
+    "expected": {
+      "en": "2-ethylbutanamide"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "branching",
+      "parent-choice",
+      "primary-nitrogen",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (chain amides, amide suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Longest acid-derived chain including amide carbonyl is four, carbonyl C1; ethyl 2; NH2 unsubstituted."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Longest acid-derived chain including amide carbonyl is four, carbonyl C1; ethyl 2; NH2 unsubstituted."
+    },
+    "notes": "Phase 2. Capability: PRIMARY_N. Existing implementation: app/exercise-domain.ts:unsupported-n-substitution; app/page.tsx:analyzeFunctionalAcyclic. Existing tests/corpus: tests/nitrogen-functional-groups.test.mjs; tests/exercise-domain.test.mjs; AMINE-0005–0007/AMIDE-0005–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0008",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "NC(=O)CC(C)CC",
+    "expected": {
+      "en": "3-methylpentanamide"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "branching",
+      "primary-nitrogen",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (chain amides, amide suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon amide parent, carbonyl C1; methyl 3; primary amide, terminal suffix locant omitted."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon amide parent, carbonyl C1; methyl 3; primary amide, terminal suffix locant omitted."
+    },
+    "notes": "Phase 2. Capability: PRIMARY_N. Existing implementation: app/exercise-domain.ts:unsupported-n-substitution; app/page.tsx:analyzeFunctionalAcyclic. Existing tests/corpus: tests/nitrogen-functional-groups.test.mjs; tests/exercise-domain.test.mjs; AMINE-0005–0007/AMIDE-0005–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "AMIDE-0009",
+    "category": "amides",
+    "domainCategory": "amide",
+    "smiles": "NC(=O)C(C)C(C)C",
+    "expected": {
+      "en": "2,3-dimethylbutanamide"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "amide",
+      "branching",
+      "multiple-substituents",
+      "repeated-substituents",
+      "primary-nitrogen",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-66.1.1.1.1.1 (chain amides, amide suffix)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6a.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Four-carbon amide parent, carbonyl C1; methyl 2,3; NH2 unsubstituted."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Four-carbon amide parent, carbonyl C1; methyl 2,3; NH2 unsubstituted."
+    },
+    "notes": "Phase 2. Capability: PRIMARY_N. Existing implementation: app/exercise-domain.ts:unsupported-n-substitution; app/page.tsx:analyzeFunctionalAcyclic. Existing tests/corpus: tests/nitrogen-functional-groups.test.mjs; tests/exercise-domain.test.mjs; AMINE-0005–0007/AMIDE-0005–0006. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
   }
 ]

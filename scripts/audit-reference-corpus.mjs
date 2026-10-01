@@ -6,8 +6,12 @@ import { corpusDirectory, loadCorpus, loadSnapshots, currentEnglishName, digest,
 
 const capture = process.argv.includes("--capture");
 const offline = process.argv.includes("--offline");
-if (process.argv.slice(2).some((arg) => !["--capture", "--offline"].includes(arg)) || (capture && offline)) {
-  throw new Error("Usage: npm run audit:reference-corpus -- [--capture | --offline]");
+const reportArguments = process.argv.slice(2).filter((arg) => arg.startsWith("--report="));
+const reportName = reportArguments[0]?.slice("--report=".length);
+if (process.argv.slice(2).some((arg) => !["--capture", "--offline"].includes(arg) && !arg.startsWith("--report="))
+  || (capture && offline) || reportArguments.length > 1
+  || (reportName !== undefined && !/^[a-z0-9-]+\.json$/.test(reportName))) {
+  throw new Error("Usage: npm run audit:reference-corpus -- [--capture | --offline] [--report=filename.json]");
 }
 const records = loadCorpus();
 const chemistry = await loadExerciseChemistry();
@@ -53,7 +57,7 @@ try {
     actualStructure: count("structure"), results };
   const reportDirectory = new URL("../reports/reference-corpus/", import.meta.url);
   mkdirSync(reportDirectory, { recursive: true });
-  writeFileSync(new URL(offline ? "offline-results.json" : "live-results.json", reportDirectory), `${JSON.stringify(report, null, 2)}\n`);
+  writeFileSync(new URL(reportName ?? (offline ? "offline-results.json" : "live-results.json"), reportDirectory), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify({ entries: report.entries, goldExact: report.goldExact,
     expectedStructure: report.expectedStructure, actualStructure: report.actualStructure }, null, 2));
   for (const result of results.filter((item) => (item.authority === "gold" && item.exact === "FAIL")

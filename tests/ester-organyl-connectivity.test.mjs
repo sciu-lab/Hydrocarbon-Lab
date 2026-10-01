@@ -23,8 +23,13 @@ before(async () => {
     assert.equal(item.httpStatus, 200);
     assert.ok(Number.isFinite(Date.parse(item.retrievedAt)));
     assert.equal(JSON.parse(item.body).status, "SUCCESS");
-    assert.equal(interpretations.has(item.name), false, "do not overwrite original corpus evidence");
-    interpretations.set(item.name, item);
+    if (interpretations.has(item.name)) {
+      // A later corpus phase may admit one of these structural fixtures. Both
+      // independent receipts must still describe the same graph; keep the
+      // corpus receipt intact rather than replacing it with this fixture.
+      assert.equal(interpretedStructure(item.name, interpretations).identity,
+        structuralIdentity(JSON.parse(item.body).smiles), `${item.name}: corpus/fixture graph disagreement`);
+    } else interpretations.set(item.name, item);
   }
 });
 after(async () => { try { await chemistry?.close(); } finally { globalThis.fetch = originalFetch; } });

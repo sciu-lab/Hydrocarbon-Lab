@@ -362,5 +362,201 @@
       "derivation": "three-carbon acid parent, methyls 2,2"
     },
     "notes": "Expected chosen from structural rule review before running the implementation; systematic profile, not a universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ACID-0009",
+    "category": "carboxylic-acids",
+    "domainCategory": "carboxylic-acid",
+    "smiles": "O=C(O)C(CC)CC",
+    "expected": {
+      "en": "2-ethylbutanoic acid"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "carboxylic-acid",
+      "branching",
+      "parent-choice",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.1.2.1 (systematic chain carboxylic acids)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Longest chain including acid carbon is four carbons, not five-carbon path excluding it; acid C1, ethyl 2."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-44 (parent selection) / P-45.2.1–3 (prefix count and locants)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P4.html",
+        "note": "Compare eligible group/bond-containing parents, chain length and applicable substituent-count/locant criteria; derivation identifies competing paths."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Longest chain including acid carbon is four carbons, not five-carbon path excluding it; acid C1, ethyl 2."
+    },
+    "notes": "Phase 2. Capability: ACID. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ACID-0005–0008. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ACID-0010",
+    "category": "carboxylic-acids",
+    "domainCategory": "carboxylic-acid",
+    "smiles": "O=C(O)CC(C)CC",
+    "expected": {
+      "en": "3-methylpentanoic acid"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "carboxylic-acid",
+      "branching",
+      "omitted-locant",
+      "positional-isomer"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.1.2.1 (systematic chain carboxylic acids)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Five-carbon acid parent containing carbonyl C1; methyl 3; terminal suffix locant omitted."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Five-carbon acid parent containing carbonyl C1; methyl 3; terminal suffix locant omitted."
+    },
+    "notes": "Phase 2. Capability: ACID. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ACID-0005–0008. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ACID-0011",
+    "category": "carboxylic-acids",
+    "domainCategory": "carboxylic-acid",
+    "smiles": "O=C(O)C(C)C(C)C",
+    "expected": {
+      "en": "2,3-dimethylbutanoic acid"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "carboxylic-acid",
+      "branching",
+      "multiple-substituents",
+      "repeated-substituents",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.1.2.1 (systematic chain carboxylic acids)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Four-carbon acid parent, carbonyl C1; methyl 2,3."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Four-carbon acid parent, carbonyl C1; methyl 2,3."
+    },
+    "notes": "Phase 2. Capability: ACID. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ACID-0005–0008. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ACID-0012",
+    "category": "carboxylic-acids",
+    "domainCategory": "carboxylic-acid",
+    "smiles": "O=C(O)C(C)(C)CC",
+    "expected": {
+      "en": "2,2-dimethylbutanoic acid"
+    },
+    "acceptedAlternatives": {
+      "en": []
+    },
+    "profile": "hydrocarbon-lab-current-systematic-en-v1",
+    "features": [
+      "carboxylic-acid",
+      "branching",
+      "multiple-substituents",
+      "repeated-substituents",
+      "omitted-locant"
+    ],
+    "authority": "gold",
+    "source": [
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-65.1.2.1 (systematic chain carboxylic acids)",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P6.html",
+        "note": "Individual rule application, not a claim that this compound is a printed example. Four-carbon acid parent, carbonyl C1; two methyl groups at 2."
+      },
+      {
+        "type": "iupac-rule",
+        "reference": "Blue Book 2013, P-14.3.4.1 / P-14.3.5 / P-14.4(c,e,f,g) / P-14.5.1",
+        "url": "https://iupac.qmul.ac.uk/BlueBook/P1.html",
+        "note": "Apply only relevant terminal omissions, suffix/bond priority, complete numeric prefix set, then citation tie-break; multiplicative prefixes do not reorder simple prefixes."
+      }
+    ],
+    "verification": {
+      "manual": true,
+      "opsinRoundTrip": true,
+      "pubchemCrossCheck": false
+    },
+    "review": {
+      "date": "2026-09-30",
+      "method": "independent-rule-derivation",
+      "reviewer": "Codex; individual graph/rule review, not human sign-off",
+      "derivation": "Four-carbon acid parent, carbonyl C1; two methyl groups at 2."
+    },
+    "notes": "Phase 2. Capability: ACID. Existing implementation: app/page.tsx:analyzeFunctionalAcyclic/makeFunctionalParentName. Existing tests/corpus: tests/functional-nomenclature.test.mjs; ACID-0005–0008. Expected assigned from source/graph review before any new-case namer audit. Systematic profile policy; no universal PIN assertion."
   }
 ]
