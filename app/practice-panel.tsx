@@ -30,6 +30,7 @@ import { PracticeBuildEditor } from "./practice-build-editor.tsx";
 import type { BuildEditorRenderer } from "./practice-build-editor.tsx";
 import { moleculeFromSmiles } from "./openchemlib-adapter.ts";
 import type { PracticeQuestionType } from "./practice-question.ts";
+import { ClassVariantsPanel } from "./class-variants-panel.tsx";
 
 export const PRACTICE_TOPIC_GROUPS = [
   { label: "Hidrocarburos", topics: [["alkane", "Alcanos"], ["alkene", "Alquenos"], ["alkyne", "Alquinos"]] },
@@ -342,6 +343,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
         <label>{t("Semilla (opcional)")}<input value={seed} onChange={(event) => setSeed(event.target.value)} autoComplete="off" spellCheck={false} /></label>
       </div>
       {count === null && <p role="status">{t("Introduce un número entero positivo de preguntas.")}</p>}
+      <ClassVariantsPanel selection={{ mode, questionCount: count, categories, questionTypes }} language={language} onUseSeed={setSeed} />
       {configError && <p role="alert">{t(mode === "exam" ? "No se pudo iniciar el examen. Revisa los temas y vuelve a intentarlo." : "No se pudo iniciar la práctica. Revisa los temas y vuelve a intentarlo.")}</p>}
       <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length || count === null}>{t(mode === "exam" ? "Iniciar examen" : "Iniciar práctica")}</button>
     </form> : <>

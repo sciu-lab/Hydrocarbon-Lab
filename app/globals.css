@@ -9652,6 +9652,23 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .practice-config-fields label, .practice-answer label { display: grid; gap: 8px; font-weight: 700; }
 .practice-config-fields input, .practice-config-fields select, .practice-answer input { width: 100%; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); color: var(--ink); font: inherit; }
 .practice-config-fields input[readonly] { color: var(--muted); }
+.class-variants { min-width: 0; margin: 24px 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; }
+.class-variants h3 { margin-bottom: 12px; }
+.class-variants label { display: grid; gap: 8px; min-width: 0; margin: 10px 0; font-weight: 700; }
+.class-variants label.class-variants-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.class-variants input:not([type="checkbox"]):not([type="radio"]), .class-variants textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); color: var(--ink); font: inherit; }
+.class-variants input[type="checkbox"], .class-variants input[type="radio"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--mint-strong); }
+.class-variants textarea { resize: vertical; }
+.class-variants fieldset { min-width: 0; margin: 14px 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.class-variants-seed { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.class-variants-seed label { flex: 1 1 180px; margin: 0; }
+.class-variants-table { max-height: 420px; overflow: auto; margin: 12px 0; }
+.class-variants table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.class-variants caption { text-align: left; font-weight: 700; padding: 8px 0; }
+.class-variants th, .class-variants td { padding: 8px 4px; vertical-align: top; text-align: left; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); }
+.class-variants th:first-child { width: 28%; }
+.class-variants td button { width: 100%; margin-top: 8px; overflow-wrap: anywhere; }
+.class-variants textarea:focus-visible { outline: 3px solid var(--mint-strong); outline-offset: 3px; }
 .practice-seed code { overflow-wrap: anywhere; white-space: pre-wrap; }
 .practice-question-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 24px 0 16px; }
 .practice-question-heading .scope-pill { display: inline-flex; }

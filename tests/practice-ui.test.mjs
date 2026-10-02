@@ -8,7 +8,7 @@ import react from "@vitejs/plugin-react";
 import { createServer } from "vite";
 import ts from "typescript";
 import { uiText } from "../app/i18n.ts";
-import { EXERCISE_CATEGORIES } from "../app/exercise-model.ts";
+import { EXERCISE_CATEGORIES, QUESTION_TYPES } from "../app/exercise-model.ts";
 import { createExerciseChemistryOracles } from "../app/exercise-chemistry-oracles.ts";
 import { createRestrictedChemicalGenerator, exerciseStructuralIdentity } from "../app/exercise-chemical-generator.ts";
 import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemistry.ts";
@@ -258,14 +258,21 @@ test("Practice entry is adjacent to How to use, controls its view, and preserves
   assert.match(css, /\.practice-question-heading \.scope-pill\s*\{\s*display: inline-flex;/);
 });
 
-for (const language of ["es", "en"]) test(`configuration ${language}: topics, defaults, enabled Exam and no future controls`, () => {
+for (const language of ["es", "en"]) test(`configuration ${language}: topics, defaults, enabled Exam, class opt-in and no future controls`, () => {
   const html = renderToStaticMarkup(React.createElement(ui.PracticePanel, {
     language, onLanguageChange: noop, onBackToLab: noop, generate, renderStructure,
   }));
   assert.ok(html.includes(uiText(language, "Práctica / Examen")));
   assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>/);
   assert.match(html, new RegExp(`<button[^>]*aria-pressed="false"[^>]*>${uiText(language, "Examen")}</button>`));
-  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 21);
+  const topics = html.slice(html.indexOf('<div class="practice-topics">'), html.indexOf('<fieldset class="practice-question-types">'));
+  const types = html.match(/<fieldset class="practice-question-types">[\s\S]*?<\/fieldset>/)[0];
+  const classOptIn = html.match(/<section class="class-variants"[\s\S]*?<\/section>/)[0];
+  assert.equal((topics.match(/type="checkbox"/g) ?? []).length, EXERCISE_CATEGORIES.length);
+  assert.equal((types.match(/type="checkbox"/g) ?? []).length, QUESTION_TYPES.length);
+  assert.equal((classOptIn.match(/type="checkbox"/g) ?? []).length, 1);
+  assert.doesNotMatch(classOptIn, /checked=""/);
+  assert.ok(classOptIn.includes(uiText(language, "Generar variantes para una clase")));
   assert.equal((html.match(/checked=""/g) ?? []).length, 2);
   assert.match(html, /type="number" min="1" step="1" aria-invalid="false" value="10"/);
   assert.ok(html.includes(uiText(language, "Sin límite")));

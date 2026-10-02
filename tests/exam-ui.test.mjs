@@ -11,6 +11,7 @@ import { createDeterministicDistractorEngine } from "../app/practice-distractor-
 import { createBuildSubmissionValidator, createStructuralAnswerEvaluator } from "../app/practice-structural-answer.ts";
 import { createPracticeReviewer } from "../app/practice-review.ts";
 import { uiText } from "../app/i18n.ts";
+import { EXERCISE_CATEGORIES, QUESTION_TYPES } from "../app/exercise-model.ts";
 import { createPracticeConfig, startPractice } from "../app/practice-session.ts";
 import { createExamConfig, startExam, markExamQuestionAvailable, updateExamAnswer, updateExamStructure,
   navigateExam, submitExam, localizeExamState, openExamPostReview } from "../app/exam-session.ts";
@@ -80,7 +81,14 @@ for (const language of ["es", "en"]) {
       initialMode: "exam", language, onLanguageChange: noop, onBackToLab: noop, generate, renderStructure, review: reviewer,
     }));
     assert.match(html, new RegExp(`<button[^>]*aria-pressed="true"[^>]*>${uiText(language, "Examen")}</button>`));
-    assert.equal((html.match(/type="checkbox"/g) ?? []).length, 20);
+    const topics = html.slice(html.indexOf('<div class="practice-topics">'), html.indexOf('<fieldset class="practice-question-types">'));
+    const types = html.match(/<fieldset class="practice-question-types">[\s\S]*?<\/fieldset>/)[0];
+    const classOptIn = html.match(/<section class="class-variants"[\s\S]*?<\/section>/)[0];
+    assert.equal((topics.match(/type="checkbox"/g) ?? []).length, EXERCISE_CATEGORIES.length);
+    assert.equal((types.match(/type="checkbox"/g) ?? []).length, QUESTION_TYPES.length);
+    assert.equal((classOptIn.match(/type="checkbox"/g) ?? []).length, 1);
+    assert.doesNotMatch(classOptIn, /checked=""/);
+    assert.ok(classOptIn.includes(uiText(language, "Generar variantes para una clase")));
     assert.match(html, /type="number" min="1" step="1"/);
     assert.doesNotMatch(html, /\bmax="|<option/);
     assert.ok(html.includes(uiText(language, "Iniciar examen"))); assert.doesNotMatch(html, /endless|Próximamente|Coming soon/);
