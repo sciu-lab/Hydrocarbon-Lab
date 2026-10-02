@@ -260,7 +260,8 @@ test("an E alkene adds multiple-bond and CIP stereochemistry steps", () => {
   const molecule = makeHex3EneE();
   const analysis = analyzeMolecule(molecule);
   const steps = buildIupacReasoningSteps(molecule, analysis);
-  assert.deepEqual(steps.map((step) => step.number), ["02", "03", "06"]);
+  assert.deepEqual(steps.map((step) => step.number), ["02", "03", "06", "07"]);
+  assert.match(steps.find((step) => step.number === "07").explanation, /C3=C4/);
   assert.match(steps.find((step) => step.number === "03").explanation, /C=C en C3/i);
   assert.match(steps.find((step) => step.number === "06").explanation, /3E.*lados opuestos/i);
 });

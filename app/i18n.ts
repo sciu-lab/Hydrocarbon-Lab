@@ -937,6 +937,7 @@ export function englishReasoningTitle(title: string) {
     "Anillo principal": "Parent ring",
     "Cadena principal o anillo": "Parent chain or ring",
     "Numeración razonada": "Numbering",
+    "Insaturaciones del nombre": "Name unsaturations",
     "Sustituyentes": "Substituents",
     "Sustituyentes y localizadores": "Substituents and locants",
     "Orden alfabético": "Alphabetical order",

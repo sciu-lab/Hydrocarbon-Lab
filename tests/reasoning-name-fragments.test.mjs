@@ -158,7 +158,14 @@ test("all supported multiple-unsaturation parents expose every typed locant inte
       const linked = buildReasoningNameLinkParts(displayedName, fragments, steps);
       assert.equal(linked.map((part) => part.text).join(""), displayedName, "links preserve the displayed name exactly");
       assert.ok(linked.some((part) => part.stepNumber === "02"), `${fixture.label} exposes the parent explanation`);
-      assert.ok(linked.some((part) => part.stepNumber === "03"), `${fixture.label} exposes the numbering/unsaturation explanation`);
+      assert.ok(linked.some((part) => part.stepNumber === "07"), `${fixture.label} exposes the dedicated name-unsaturation explanation`);
+      const semanticItems = [fragments["07"], ...(fragments["07"]?.additionalFragments ?? [])];
+      assert.equal(semanticItems.length, total, `${fixture.label} has one semantic item for every parent multiple bond`);
+      assert.deepEqual(semanticItems.map(({ bondType, locant }) => [bondType, locant]), [
+        ...analysis.doubleBondLocants.map((locant) => ["double", locant]),
+        ...analysis.tripleBondLocants.map((locant) => ["triple", locant]),
+      ].sort((left, right) => left[1] - right[1]));
+      assert.equal(linked.filter((part) => part.semanticId).length, total, `${fixture.label} maps each semantic item to the displayed name`);
 
       const explanation = steps.find((step) => step.number === "03")?.explanation ?? "";
       for (const locant of [...analysis.doubleBondLocants, ...analysis.tripleBondLocants]) {
@@ -195,6 +202,63 @@ test("a single-unsaturation name retains its existing parent and locant links", 
     const links = buildReasoningNameLinkParts(name, fragments, steps);
     assert.deepEqual([fragments["02"]?.text, fragments["03"]?.text], ["pent", language === "en" ? "2-ene" : "2-eno"]);
     assert.equal(links.map((part) => part.text).join(""), name);
+  }
+});
+
+test("each analyzed parent-chain multiple bond has a distinct bilingual name contribution and exact bond target", () => {
+  const fixtures = [
+    { name: "pent-2-eno", smiles: "CC=CCC", types: ["double"], locants: [2] },
+    { name: "3-metilhept-3-en-2,6-diona", smiles: "CC(=O)C(C)=CCC(=O)C", types: ["double"], locants: [3] },
+    { name: "5-metilhex-3-en-2-ol", smiles: "CC(O)C=CC(C)C", types: ["double"], locants: [3] },
+    { name: "5-metilhept-3-in-2,6-diol", smiles: "CC(O)C#CC(C)C(O)C", types: ["triple"], locants: [3] },
+    { name: "5-metiloct-3-en-6-in-2-ol", smiles: "CC(O)C=CC(C)C#CC", types: ["double", "triple"], locants: [3, 6] },
+    { name: "ácido 4-metilhept-2-en-5-inoico", smiles: "O=C(O)C=CC(C)C#CC", types: ["double", "triple"], locants: [2, 5] },
+    { name: "4-amino-5-bromo-3-metilhept-2-en-6-in-1-ol", smiles: "OCC=C(C)C(N)C(Br)C#C", types: ["double", "triple"], locants: [2, 6] },
+    { smiles: "CCC=CC=O", types: ["double"], locants: [2] },
+    { smiles: "CC=CC[N+](=O)[O-]", types: ["double"], locants: [2] },
+    { smiles: "CC=CCN", types: ["double"], locants: [2] },
+  ];
+
+  for (const fixture of fixtures) {
+    const compound = analyzed(fixture.smiles);
+    if (fixture.name) assert.equal(compound.analysis.name, fixture.name, "the audited name is preserved");
+    const spanishName = compound.analysis.name;
+    for (const language of ["es", "en"]) {
+      const displayedName = language === "en" ? translateSpanishIupacToOpsin(spanishName) : spanishName;
+      const { steps, fragments } = derive(compound, displayedName, language);
+      const contributionStep = steps.find((step) => step.nameRole === "unsaturation");
+      assert.ok(contributionStep, `${fixture.name} has a dedicated unsaturation explanation`);
+      const items = [fragments[contributionStep.number], ...(fragments[contributionStep.number]?.additionalFragments ?? [])];
+      assert.equal(items.length, fixture.locants.length, `${fixture.name} has one semantic item per parent multiple bond`);
+      assert.deepEqual(items.map((item) => [item.bondType, item.locant]), fixture.locants.map((locant, index) => [fixture.types[index], locant]));
+      for (const item of items) {
+        assert.deepEqual(item.atomIds, [compound.analysis.mainChain[item.locant - 1], compound.analysis.mainChain[item.locant]]);
+        assert.deepEqual(item.bondIds, [[...item.atomIds].sort((left, right) => left - right)]);
+        assert.ok(item.explanation.includes(item.bondType === "double" ? `C${item.locant}=C${item.locant + 1}` : `C${item.locant}≡C${item.locant + 1}`));
+        assert.equal(displayedName.slice(item.start, item.start + item.text.length), item.text);
+      }
+      const linked = buildReasoningNameLinkParts(displayedName, fragments, steps);
+      const semanticLinks = linked.filter((part) => part.semanticId);
+      assert.deepEqual(semanticLinks.map(({ semanticId, bondType, locant }) => [semanticId, bondType, locant]),
+        fixture.locants.map((locant, index) => [`unsaturation:${fixture.types[index]}:${locant}`, fixture.types[index], locant]));
+      assert.equal(linked.map((part) => part.text).join(""), displayedName);
+      assert.equal(contributionStep.unsaturationContributions.length, fixture.locants.length);
+      if (fixture.name === "3-metilhept-3-en-2,6-diona") {
+        assert.equal(fragments["02"]?.text, "hept");
+        assert.equal(fragments["04"]?.text, language === "en" ? "3-methyl" : "3-metil");
+        assert.equal(fragments["01"]?.text, language === "en" ? "2,6-dione" : "2,6-diona");
+        assert.ok(linked.some((part) => part.stepNumber === "01"), "the ketone suffix remains linked");
+        assert.ok(linked.some((part) => part.stepNumber === "04"), "the methyl substituent remains linked");
+        assert.ok(linked.some((part) => part.semanticId === "unsaturation:double:3"), "the 3-en contribution remains a separate link");
+        if (language === "es") {
+          const numbering = steps.find((step) => step.number === "03")?.explanation ?? "";
+          assert.match(numbering, /empata desde ambos extremos en C2, C6/);
+          assert.match(numbering, /C=C en C3, frente a C=C en C4/);
+        }
+      }
+      if (language === "en") assert.match(contributionStep.title, /Name unsaturations/);
+      else assert.match(contributionStep.title, /Insaturaciones del nombre/);
+    }
   }
 });
 
@@ -352,6 +416,39 @@ test("fragments are static text rather than interactive controls", () => {
   assert.match(html, /reasoning-name-fragment-text">2-ona<\/span>/);
   assert.match(html, /Posición y sufijo de la cetona/);
   assert.doesNotMatch(html, /<(?:button|input|a)\b|tabindex=|role=/i);
+});
+
+test("semantic unsaturation explanations expose keyboard-accessible reverse navigation", () => {
+  const selected = [];
+  const html = renderToStaticMarkup(React.createElement(ReasoningNameFragmentView, {
+    fragment: {
+      text: "3-en",
+      label: "Enlace doble en la posición 3",
+      kind: "unsaturation",
+      semanticId: "unsaturation:double:3",
+      bondType: "double",
+      locant: 3,
+      atomIds: [12, 13],
+      bondIds: [[12, 13]],
+      explanation: "Enlace doble C3=C4 tiene el localizador 3.",
+      additionalFragments: [{
+        text: "6-in",
+        label: "Enlace triple en la posición 6",
+        kind: "unsaturation",
+        semanticId: "unsaturation:triple:6",
+        bondType: "triple",
+        locant: 6,
+        atomIds: [15, 16],
+        bondIds: [[15, 16]],
+        explanation: "Enlace triple C6≡C7 tiene el localizador 6.",
+      }],
+    },
+    onSelectContribution: (contribution) => selected.push(contribution.semanticId),
+  }));
+  assert.equal((html.match(/<button/g) ?? []).length, 2);
+  assert.match(html, /aria-label="Enlace doble en la posición 3"/);
+  assert.match(html, /C3=C4/);
+  assert.match(html, /C6≡C7/);
 });
 
 function assertLinkedEvidence(name, steps, fragments) {

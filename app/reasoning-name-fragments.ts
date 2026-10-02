@@ -9,8 +9,16 @@ export type ReasoningNameEvidence = {
   kind: "function" | "parent" | "numbering" | "substituent" | "unsaturation";
   start?: number;
   atomIds?: readonly number[];
+  semanticId?: string;
+  bondType?: "double" | "triple";
+  locant?: number;
+  bondIds?: readonly (readonly [number, number])[];
+  explanation?: string;
   contributions?: FunctionalContribution[];
 };
+
+export type UnsaturationNameContribution = Required<Pick<ReasoningNameEvidence,
+  "semanticId" | "bondType" | "locant" | "atomIds" | "bondIds" | "text" | "start" | "label" | "kind" | "explanation">>;
 
 export type ReasoningNameFragment = ReasoningNameEvidence & {
   additionalFragments?: ReasoningNameEvidence[];
@@ -32,6 +40,78 @@ type FragmentInput = {
   steps: readonly { number: string; nameRole?: ReasoningNameFragment["kind"] }[];
   canHighlight: boolean;
 };
+
+function unsaturationMorpheme(token: string, bondType: "double" | "triple") {
+  const normalized = token.toLocaleLowerCase("en");
+  const marker = bondType === "double" ? /^(?:di|tri|tetra|penta|hexa|hepta|octa)?en(?:o|e)?/ : /^(?:di|tri|tetra|penta|hexa|hepta|octa)?(?:in|yn)(?:o|e)?/;
+  return marker.exec(normalized)?.[0] ?? "";
+}
+
+/** Map analyzed parent-chain bonds onto the exact visible unsaturation morpheme. */
+export function deriveUnsaturationNameContributions(
+  analysis: FragmentAnalysis,
+  displayedName: string,
+  language: AppLanguage,
+): UnsaturationNameContribution[] {
+  const name = displayedName.trim();
+  const parent = localizedName(analysis.chainName, language).replace(/^(?:ácido|acid) /, "");
+  const root = /^[a-záéíóúüñ]+/i.exec(parent)?.[0] ?? "";
+  if (!root || !name.endsWith(parent)) return [];
+  const parentStart = name.length - parent.length;
+  const parentTail = parent.slice(root.length);
+  const tokens: { value: string; start: number; end: number }[] = [];
+  let cursor = 0;
+  for (const part of parentTail.split("-")) {
+    tokens.push({ value: part, start: parentStart + root.length + cursor, end: parentStart + root.length + cursor + part.length });
+    cursor += part.length + 1;
+  }
+
+  const output: UnsaturationNameContribution[] = [];
+  const groups: { bondType: "double" | "triple"; locant: number }[] = [
+    ...analysis.doubleBondLocants.map((locant) => ({ bondType: "double" as const, locant })),
+    ...analysis.tripleBondLocants.map((locant) => ({ bondType: "triple" as const, locant })),
+  ].sort((left, right) => left.locant - right.locant || left.bondType.localeCompare(right.bondType));
+
+  for (const item of groups) {
+    const firstAtom = analysis.mainChain[item.locant - 1];
+    const secondAtom = analysis.mainChain[item.locant];
+    if (firstAtom === undefined || secondAtom === undefined) continue;
+    const tokenIndex = tokens.findIndex(({ value }) => /^\d+(?:,\d+)*$/.test(value) && value.split(",").includes(String(item.locant)));
+    if (tokenIndex < 0 || tokenIndex + 1 >= tokens.length) continue;
+    const locantToken = tokens[tokenIndex];
+    const markerToken = tokens[tokenIndex + 1];
+    const morpheme = unsaturationMorpheme(markerToken.value, item.bondType);
+    if (!morpheme) continue;
+    const locantsInToken = locantToken.value.split(",");
+    const isGrouped = locantsInToken.length > 1;
+    const itemOffset = locantsInToken.slice(0, locantsInToken.indexOf(String(item.locant))).reduce((sum, value) => sum + value.length + 1, 0);
+    const start = isGrouped ? locantToken.start + itemOffset : locantToken.start;
+    const end = isGrouped ? start + String(item.locant).length : markerToken.start + morpheme.length;
+    const text = name.slice(start, end);
+    const bondLabel = language === "en" ? item.bondType === "double" ? "Double bond" : "Triple bond"
+      : item.bondType === "double" ? "Enlace doble" : "Enlace triple";
+    const suffixText = isGrouped ? markerToken.value.slice(0, morpheme.length) : text.slice(String(item.locant).length + 1);
+    const bondDescription = item.bondType === "double"
+      ? `C${item.locant}=C${item.locant + 1}`
+      : `C${item.locant}≡C${item.locant + 1}`;
+    const explanation = language === "en"
+      ? `${bondLabel} ${bondDescription} has locant ${item.locant} and contributes locant ${item.locant} to the parent unsaturation form “${suffixText}”.`
+      : `${bondLabel} ${bondDescription} tiene el localizador ${item.locant} y aporta el localizador ${item.locant} a la forma de insaturación del padre «${suffixText}».`;
+    output.push({
+      semanticId: `unsaturation:${item.bondType}:${item.locant}`,
+      bondType: item.bondType,
+      locant: item.locant,
+      atomIds: [firstAtom, secondAtom],
+      bondIds: [[Math.min(firstAtom, secondAtom), Math.max(firstAtom, secondAtom)]],
+      text,
+      start,
+      label: language === "en" ? `${bondLabel} at position ${item.locant}` : `${bondLabel} en la posición ${item.locant}`,
+      kind: "unsaturation",
+      explanation,
+    });
+  }
+  return output;
+}
 
 function localizedName(name: string, language: AppLanguage) {
   return language === "en" ? translateSpanishIupacForDisplay(name) : name;
@@ -375,6 +455,12 @@ export function deriveReasoningNameFragments(input: FragmentInput): Record<strin
     && !input.generatedNames?.includes(name)
     && !Object.keys(fragments).length) return fragments;
   const evidence = functionalNameEvidence(analysis, name, language);
+  const unsaturationStep = steps.find((step) => step.nameRole === "unsaturation");
+  if (unsaturationStep) {
+    const contributions = deriveUnsaturationNameContributions(analysis, name, language);
+    const [first, ...rest] = contributions;
+    if (first) fragments[unsaturationStep.number] = { ...first, additionalFragments: rest };
+  }
   const parent = parentNameEvidence(analysis, name, language, evidence);
   const parentStep = steps.find((step) => step.nameRole === "parent");
   if (parent && parentStep) {

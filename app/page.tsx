@@ -148,7 +148,7 @@ import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
 import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifiedPubChemSystematicDisplayName } from "./verified-common-name-equivalences";
 import { curatedCommonNameForSmiles } from "./curated-common-name-display";
 import { legacyProfileDisplayName } from "./legacy-profile-display";
-import { deriveReasoningNameFragments, type ReasoningNameFragment } from "./reasoning-name-fragments";
+import { deriveReasoningNameFragments, deriveUnsaturationNameContributions, type ReasoningNameFragment, type UnsaturationNameContribution } from "./reasoning-name-fragments";
 import { functionalContributionReasoning, retainedFunctionalParentReasoning } from "./reasoning-functional-groups";
 import { aromaticFunctionalChainReasoning } from "./reasoning-aromatic-substituents";
 import { buildReasoningNameLinkParts } from "./reasoning-name-links";
@@ -543,7 +543,7 @@ type Analysis = {
 };
 
 export type IupacReasoningStep = {
-  number: "01" | "02" | "03" | "04" | "05" | "06";
+  number: "01" | "02" | "03" | "04" | "05" | "06" | "07";
   title: string;
   explanation: string;
   nameRole?: ReasoningNameFragment["kind"];
@@ -553,6 +553,7 @@ export type IupacReasoningStep = {
     reverseLocants: number[];
     comparison: -1 | 0 | 1;
   };
+  unsaturationContributions?: UnsaturationNameContribution[];
 };
 
 export function splitChemicalNameForWrapping(value: string) {
@@ -638,15 +639,33 @@ export function ChemicalNameText({ name = "" }: { name?: string }) {
   );
 }
 
-export function ReasoningNameFragmentView({ fragment }: { fragment: ReasoningNameFragment }) {
+export function ReasoningNameFragmentView({
+  fragment,
+  onSelectContribution,
+  selectedSemanticId,
+}: {
+  fragment: ReasoningNameFragment;
+  onSelectContribution?: (contribution: ReasoningNameFragment) => void;
+  selectedSemanticId?: string | null;
+}) {
   return (
     <>
-      {[fragment, ...(fragment.additionalFragments ?? [])].map((part, index) => (
-        <div key={index} className={`reasoning-name-fragment reasoning-name-fragment--${part.kind}`}>
-          <span className="reasoning-name-fragment-text">{part.text}</span>
-          <small className="reasoning-name-fragment-label">{part.label}</small>
-        </div>
-      ))}
+      {[fragment, ...(fragment.additionalFragments ?? [])].map((part, index) => {
+        const selectable = part.semanticId && onSelectContribution;
+        return (
+          <div key={part.semanticId ?? index} className={`reasoning-name-fragment reasoning-name-fragment--${part.kind}`}>
+            {selectable
+              ? <button type="button" className={`reasoning-name-fragment-control ${part.semanticId === selectedSemanticId ? "is-selected" : ""}`}
+                  aria-label={part.label} aria-pressed={part.semanticId === selectedSemanticId}
+                  onClick={() => onSelectContribution(part)}>
+                  <span className="reasoning-name-fragment-text">{part.text}</span>
+                </button>
+              : <span className="reasoning-name-fragment-text">{part.text}</span>}
+            <small className="reasoning-name-fragment-label">{part.label}</small>
+            {part.explanation && <p className="reasoning-name-fragment-explanation"><ChemicalNotationText value={part.explanation} /></p>}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -4643,6 +4662,21 @@ export function buildIupacReasoningSteps(
     });
   }
 
+  const hasPrimaryChainUnsaturation = analysis.family === "acyclic"
+    && analysis.doubleBondLocants.length + analysis.tripleBondLocants.length > 0;
+  if (hasPrimaryChainUnsaturation) {
+    const unsaturationContributions = deriveUnsaturationNameContributions(analysis, analysis.name, "es");
+    steps.push({
+      number: "07",
+      title: "Insaturaciones del nombre",
+      explanation: unsaturationContributions.length
+        ? unsaturationContributions.map((item) => item.explanation).join(" ")
+        : "Cada enlace múltiple de la cadena principal se representa con su localizador y su tipo de enlace en el nombre.",
+      nameRole: "unsaturation",
+      unsaturationContributions,
+    });
+  }
+
   return steps;
 }
 
@@ -4879,7 +4913,13 @@ export function buildEnglishReasoningSteps(
 
   return steps.map((step) => {
     let explanation: string;
-    if (step.number === "01") {
+    let unsaturationContributions = step.unsaturationContributions;
+    if (step.nameRole === "unsaturation") {
+      unsaturationContributions = deriveUnsaturationNameContributions(analysis, englishName, "en");
+      explanation = unsaturationContributions.length
+        ? unsaturationContributions.map((item) => item.explanation).join(" ")
+        : "Each multiple bond in the parent chain is represented in the name by its locant and bond type.";
+    } else if (step.number === "01") {
       explanation = retainedReasoning?.function ?? (primaryLabel
         ? exocyclicRingFunction
           ? primaryLabel + " has the highest naming priority and determines the suffix. Its functional carbon is outside the ring and is attached at C"
@@ -4968,6 +5008,7 @@ export function buildEnglishReasoningSteps(
       ...step,
       title: englishReasoningTitle(step.title),
       explanation,
+      ...(unsaturationContributions ? { unsaturationContributions } : {}),
     };
   });
 }
@@ -6383,6 +6424,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   const [showReasoningHelp, setShowReasoningHelp] = useState(true);
   const [reasoningPeekContext, setReasoningPeekContext] = useState<{ key: string; molecule: typeof molecule } | null>(null);
   const [activeReasoningReference, setActiveReasoningReference] = useState<{ key: string; molecule: typeof molecule; step: string } | null>(null);
+  const [selectedUnsaturationReference, setSelectedUnsaturationReference] = useState<{ semanticId: string; smiles: string } | null>(null);
   const reasoningHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reasoningPointerNavigated = useRef(false);
   const reasoningScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -7084,6 +7126,11 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       && (!isPristineInitialMolecule || showPristineMethaneName),
   });
   const reasoningNameLinkParts = buildReasoningNameLinkParts(displayedIupacName, reasoningNameFragments, localizedReasoningSteps);
+  const selectedUnsaturationSemanticId = selectedUnsaturationReference?.smiles === (currentMoleculeSmiles.ok ? currentMoleculeSmiles.smiles : "")
+    ? selectedUnsaturationReference.semanticId
+    : null;
+  const activeReasoningBondIds = reasoningNameLinkParts
+    .find((part) => part.semanticId === selectedUnsaturationSemanticId)?.bondIds ?? [];
   const reasoningReferenceKey = `${language}|${activeNomenclatureConvention}|${displayedIupacName}|${currentMoleculeSmiles.ok ? currentMoleculeSmiles.smiles : ""}`;
   const reasoningPeekOpen = reasoningPeekContext?.key === reasoningReferenceKey && reasoningPeekContext.molecule === molecule;
   const activeReasoningStep = activeReasoningReference?.key === reasoningReferenceKey && activeReasoningReference.molecule === molecule ? activeReasoningReference.step : null;
@@ -7122,6 +7169,13 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     if (fromHover && !showReasoningHelp) {
       reasoningPeekTimer.current = setTimeout(() => setReasoningPeekOpen(false), 3600);
     }
+  };
+  const selectUnsaturationContribution = (contribution: Pick<UnsaturationNameContribution, "semanticId">, stepNumber = "07") => {
+    setSelectedUnsaturationReference({
+      semanticId: contribution.semanticId,
+      smiles: currentMoleculeSmiles.ok ? currentMoleculeSmiles.smiles : "",
+    });
+    navigateToReasoningStep(stepNumber, false);
   };
   useEffect(() => {
     return () => {
@@ -10931,6 +10985,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                   : clipCondensedBondSegments(rawBondSegments, positionA, positionB);
                 const lockedBond = isFunctionalBond
                   || Boolean(molecule.rings?.length && !containingRing);
+                const reasoningHighlighted = activeReasoningBondIds.some(([left, right]) =>
+                  left === Math.min(a, b) && right === Math.max(a, b));
                 const stereoInspection = order === 2 && !lockedBond && !containingRing
                   ? inspectDoubleBondStereochemistry(molecule, a, b)
                   : null;
@@ -11028,6 +11084,10 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                       <line data-editor-only="true" x1={positionA.x} y1={positionA.y} x2={positionB.x} y2={positionB.y}
                         stroke="var(--accent, #d5a254)" strokeWidth={14} opacity={0.3} pointerEvents="none" />
                     )}
+                    {reasoningHighlighted && (
+                      <line className="reasoning-bond-halo" x1={positionA.x} y1={positionA.y}
+                        x2={positionB.x} y2={positionB.y} aria-hidden="true" pointerEvents="none" />
+                    )}
                     <line
                       className="bond-hit-target"
                       x1={positionA.x}
@@ -11038,7 +11098,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                     {!tetrahedralStereoBond && visibleBondSegments.map((segment, index) => (
                       <line
                         key={index}
-                        className={`${isMainBond ? "bond main-bond" : "bond branch-bond"} ${isFunctionalBond ? "functional-bond" : ""} ${viewMode === "skeletal" ? "skeletal-bond" : ""} ${segment.role ? `skeletal-ring-double-bond ring-double-bond-${segment.role}` : ""} ${doubleBondPatternEnabled && order === 2 ? `double-bond-pattern-line double-bond-pattern-${index}` : ""}`}
+                        className={`${isMainBond ? "bond main-bond" : "bond branch-bond"} ${isFunctionalBond ? "functional-bond" : ""} ${viewMode === "skeletal" ? "skeletal-bond" : ""} ${reasoningHighlighted ? "reasoning-bond-highlight" : ""} ${segment.role ? `skeletal-ring-double-bond ring-double-bond-${segment.role}` : ""} ${doubleBondPatternEnabled && order === 2 ? `double-bond-pattern-line double-bond-pattern-${index}` : ""}`}
+                        data-reasoning-highlight={reasoningHighlighted ? "true" : undefined}
                         x1={segment.x}
                         y1={segment.y}
                         x2={segment.x2}
@@ -13305,7 +13366,9 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                         <strong>{step.title}</strong>
                         <p><ChemicalNotationText value={step.explanation} /></p>
                         {reasoningNameFragments[step.number] && (
-                          <ReasoningNameFragmentView fragment={reasoningNameFragments[step.number]} />
+                        <ReasoningNameFragmentView fragment={reasoningNameFragments[step.number]}
+                          selectedSemanticId={selectedUnsaturationSemanticId}
+                          onSelectContribution={(contribution) => selectUnsaturationContribution(contribution, step.number)} />
                         )}
                       </div>
                     </li>
@@ -13438,9 +13501,11 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                 ? <span className="chemical-name-text">{reasoningNameLinkParts.map((part, index) => part.stepNumber
                   ? <a
                       key={`${index}-${part.text}`}
-                      className={`iupac-name-reference ${activeReasoningStep === part.stepNumber ? "is-active" : ""}`}
+                      className={`iupac-name-reference ${(part.semanticId ? part.semanticId === selectedUnsaturationSemanticId : activeReasoningStep === part.stepNumber) ? "is-active" : ""}`}
                       href={`#iupac-reasoning-step-${part.stepNumber}`}
-                      aria-label={`${part.text}: ${language === "en" ? "explain in step" : "explicar en el paso"} ${part.stepNumber}, ${localizedReasoningSteps.find((step) => step.number === part.stepNumber)?.title ?? ""}${part.relatedStepNumbers?.length ? `; ${language === "en" ? "also related to step" : "también relacionado con el paso"} ${part.relatedStepNumbers.join(", ")}` : ""}`}
+                      aria-label={part.semanticId
+                        ? `${language === "en" ? "Explain" : "Explicar"} ${part.bondType === "double" ? language === "en" ? "double bond" : "enlace doble" : language === "en" ? "triple bond" : "enlace triple"} ${part.locant}, ${part.text}: ${part.explanation ?? ""}`
+                        : `${part.text}: ${language === "en" ? "explain in step" : "explicar en el paso"} ${part.stepNumber}, ${localizedReasoningSteps.find((step) => step.number === part.stepNumber)?.title ?? ""}${part.relatedStepNumbers?.length ? `; ${language === "en" ? "also related to step" : "también relacionado con el paso"} ${part.relatedStepNumbers.join(", ")}` : ""}`}
                       title={`${language === "en" ? "Explain" : "Explicar"} ${part.text} · ${language === "en" ? "step" : "paso"} ${part.stepNumber}`}
                       onPointerEnter={(event) => {
                         if (event.pointerType !== "mouse") return;
@@ -13455,13 +13520,15 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                       onClick={(event) => {
                         event.preventDefault();
                         if (window.getSelection()?.toString()) return;
-                        activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
+                        if (part.semanticId) selectUnsaturationContribution(part, part.stepNumber!);
+                        else activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
                         dispatchGuidedTour({ type: "reasoning-fragment-activated" });
                       }}
                       onKeyDown={(event) => {
                         if (event.key === " ") {
                           event.preventDefault();
-                          activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
+                          if (part.semanticId) selectUnsaturationContribution(part, part.stepNumber!);
+                          else activateReasoningReference(reasoningHoverTimer, part.stepNumber!, (stepNumber) => navigateToReasoningStep(stepNumber, false));
                           dispatchGuidedTour({ type: "reasoning-fragment-activated" });
                         }
                       }}

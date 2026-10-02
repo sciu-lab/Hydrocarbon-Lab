@@ -9209,6 +9209,17 @@ html[data-theme="dark"] .canvas-hint-dismiss:focus-visible { background: #243d35
 .iupac-name-reference { color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: #87d8be; text-decoration-style: dotted; text-decoration-thickness: 2px; text-underline-offset: 3px; user-select: text; }
 .iupac-name-reference:hover, .iupac-name-reference.is-active { color: #b9ffdf; text-decoration-style: solid; }
 .iupac-name-reference:focus-visible { outline: 2px solid #b9ffdf; outline-offset: 3px; border-radius: 2px; }
+.reasoning-bond-halo { stroke: #d96500; stroke-width: 15; stroke-linecap: round; opacity: .3; }
+.bond.reasoning-bond-highlight { stroke: #a64200; stroke-width: 5.5; }
+html[data-theme="dark"] .reasoning-bond-halo { stroke: #ffd166; opacity: .38; }
+html[data-theme="dark"] .bond.reasoning-bond-highlight { stroke: #ffd166; }
+.reasoning-name-fragment-control { min-height: 32px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: inherit; font: inherit; font-weight: 800; cursor: pointer; }
+.reasoning-name-fragment-control:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.reasoning-name-fragment-control.is-selected,
+.reasoning-name-fragment-control[aria-pressed="true"] { border-color: #a64200; box-shadow: inset 3px 0 #a64200; }
+html[data-theme="dark"] .reasoning-name-fragment-control.is-selected,
+html[data-theme="dark"] .reasoning-name-fragment-control[aria-pressed="true"] { border-color: #ffd166; box-shadow: inset 3px 0 #ffd166; }
+.reasoning-name-fragment-explanation { margin: 5px 0 0; font-size: 12px; line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) {
   .reasoning-section li { transition: none; }
 }

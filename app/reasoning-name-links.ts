@@ -5,6 +5,11 @@ export type ReasoningNameLinkPart = {
   text: string;
   stepNumber?: string;
   relatedStepNumbers?: string[];
+  semanticId?: string;
+  bondType?: "double" | "triple";
+  locant?: number;
+  bondIds?: readonly (readonly [number, number])[];
+  explanation?: string;
   contributions?: FunctionalContribution[];
   atomIds?: readonly number[];
 };
@@ -22,7 +27,9 @@ export function buildReasoningNameLinkParts(
       const matchesAtStart = start >= 0 && name.slice(start, start + fragment.text.length) === fragment.text;
       return available.has(stepNumber) && fragment.text && matchesAtStart
         && (fragment.start !== undefined || name.lastIndexOf(fragment.text) === start)
-        ? [{ stepNumber, start, end: start + fragment.text.length, text: fragment.text, contributions: fragment.contributions, atomIds: fragment.atomIds }]
+        ? [{ stepNumber, start, end: start + fragment.text.length, text: fragment.text,
+          contributions: fragment.contributions, atomIds: fragment.atomIds, semanticId: fragment.semanticId,
+          bondType: fragment.bondType, locant: fragment.locant, bondIds: fragment.bondIds, explanation: fragment.explanation }]
         : [];
     }));
   // Specific chemical evidence takes precedence over a broad prefix/unsaturation
@@ -53,7 +60,12 @@ export function buildReasoningNameLinkParts(
       .map((candidate) => candidate.stepNumber))];
     parts.push({ text: item.text, stepNumber: item.stepNumber, relatedStepNumbers,
       ...(item.atomIds ? { atomIds: item.atomIds } : {}),
-      ...(item.contributions?.length ? { contributions: item.contributions } : {}) });
+      ...(item.contributions?.length ? { contributions: item.contributions } : {}),
+      ...(item.semanticId ? { semanticId: item.semanticId } : {}),
+      ...(item.bondType ? { bondType: item.bondType } : {}),
+      ...(item.locant !== undefined ? { locant: item.locant } : {}),
+      ...(item.bondIds ? { bondIds: item.bondIds } : {}),
+      ...(item.explanation ? { explanation: item.explanation } : {}) });
     cursor = item.end;
   }
   if (cursor < name.length) parts.push({ text: name.slice(cursor) });
