@@ -49,6 +49,8 @@ export default defineConfig(async ({ command }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // Pages and test servers must not overwrite Vinext's optimized browser deps.
+    cacheDir: "node_modules/.vite-sites",
     server: {
       host: "0.0.0.0",
       allowedHosts: ["terminal.local"],

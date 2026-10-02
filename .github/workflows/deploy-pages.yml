@@ -36,6 +36,9 @@ jobs:
       - name: Construir la versión estática
         run: npm run build:pages
 
+      - name: Validar rutas y recursos del artefacto
+        run: npm run validate:pages
+
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
 

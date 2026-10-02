@@ -5106,7 +5106,8 @@ type LocalLibraryWritePayload = {
 
 const localLibraryStorageKey = "organic-lab-history-v1";
 function usesLocalLibrary() {
-  return window.location.hostname.endsWith(".github.io")
+  return document.documentElement.dataset.labDeployment === "static"
+    || window.location.hostname.endsWith(".github.io")
     || window.location.protocol === "file:";
 }
 

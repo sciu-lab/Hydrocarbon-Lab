@@ -7,9 +7,12 @@
   },
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
+    "dev": "vite",
+    "dev:pages": "vite --config vite.pages.config.ts",
+    "preview:pages": "vite preview --config vite.pages.config.ts",
     "build": "bash scripts/build-verified.sh",
     "build:pages": "vite build --config vite.pages.config.ts",
+    "validate:pages": "node scripts/validate-pages.mjs",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test --test-concurrency=1 tests/*.test.mjs",
     "test:reference-corpus": "node --test --test-concurrency=1 tests/reference-corpus-schema.test.mjs tests/reference-name-corpus.test.mjs tests/reference-roundtrip.test.mjs tests/reference-corpus-coverage.test.mjs",
