@@ -18,7 +18,7 @@ import type { PracticeGenerator, PracticeState } from "./practice-session.ts";
 import { browserPracticeClock } from "./practice-timing.ts";
 import type { PracticeClock } from "./practice-timing.ts";
 import { formatPracticeResponseTime } from "./practice-metrics.ts";
-import { PracticeSummary } from "./practice-summary.tsx";
+import { CompletedSessionReview } from "./session-review-dashboard.tsx";
 import type { PracticeReviewer, ReviewHighlights, ReviewModel } from "./practice-review.ts";
 import { PracticeReviewPanel } from "./practice-review-panel.tsx";
 import { isBuildQuestion, isMultipleChoiceQuestion } from "./practice-question.ts";
@@ -75,12 +75,13 @@ export function PracticeStructure({ molecule, language, renderStructure, highlig
 }
 
 /** Session data stays read-only; review selection is local presentation state. */
-export function PracticeSessionView({ state, language, renderStructure, renderBuilder, review, actions, answerRef, feedbackRef, onQuestionAvailable, endLabel, showBuildReference = false }: {
+export function PracticeSessionView({ state, language, renderStructure, renderBuilder, review, generate, actions, answerRef, feedbackRef, onQuestionAvailable, endLabel, showBuildReference = false }: {
   state: Exclude<PracticeState, { phase: "CONFIG" }>;
   language: AppLanguage;
   renderStructure: StructureRenderer;
   renderBuilder?: BuildEditorRenderer;
   review: PracticeReviewer;
+  generate?: PracticeGenerator;
   actions: ViewActions;
   answerRef?: RefObject<HTMLInputElement | null>;
   feedbackRef?: RefObject<HTMLDivElement | null>;
@@ -106,9 +107,9 @@ export function PracticeSessionView({ state, language, renderStructure, renderBu
   const t = (text: string) => uiText(language, text);
   const categoryLabelFor = (category: ExerciseCategory) => t(PRACTICE_TOPIC_GROUPS.flatMap((group) => [...group.topics])
     .find(([id]) => id === category)![1]);
-  if (state.phase === "COMPLETE" || state.phase === "CORRECTION_SUMMARY") return <PracticeSummary attempts={state.attempts} language={language}
-    endless={state.config.questionCount === "endless"} categoryLabel={categoryLabelFor}
-    review={state.phase === "CORRECTION_SUMMARY"} onCorrectMistakes={actions.correctMistakes}
+  if (state.phase === "COMPLETE" || state.phase === "CORRECTION_SUMMARY") return <CompletedSessionReview state={state} language={language}
+    categoryLabel={categoryLabelFor} renderStructure={renderStructure} review={review} generate={generate}
+    onCorrectMistakes={actions.correctMistakes}
     onConfigure={actions.configure} onBackToLab={actions.back} />;
   if (state.phase === "CORRECTION_ERROR") return <div className="practice-error" role="alert">
     <h3>{t("Corregir errores")}</h3>
@@ -348,7 +349,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length || count === null}>{t(mode === "exam" ? "Iniciar examen" : "Iniciar práctica")}</button>
     </form> : <>
       <p className="practice-seed">{t("Semilla")}: <code>{localized.config.seed}</code></p>
-      <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} renderBuilder={renderBuilder} review={review} actions={actions}
+      <PracticeSessionView state={localized} language={language} renderStructure={renderStructure} renderBuilder={renderBuilder} review={review} generate={generate} actions={actions}
         answerRef={answerRef} feedbackRef={feedbackRef} onQuestionAvailable={onQuestionAvailable} />
     </>}
   </section>;

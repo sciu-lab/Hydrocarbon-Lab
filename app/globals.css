@@ -9670,6 +9670,24 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 .class-variants td button { width: 100%; margin-top: 8px; overflow-wrap: anywhere; }
 .class-variants textarea:focus-visible { outline: 3px solid var(--mint-strong); outline-offset: 3px; }
 .practice-seed code { overflow-wrap: anywhere; white-space: pre-wrap; }
+.session-dashboard { min-width: 0; margin: 24px 0; }
+.session-dashboard h3, .session-dashboard h4, .session-dashboard h5 { margin: 16px 0 10px; }
+.session-review-table { max-width: 100%; overflow-x: auto; margin: 16px 0; }
+.session-review-table .practice-metrics-table { min-width: 640px; table-layout: auto; }
+.session-review-table .practice-metrics-table th { width: auto; }
+.session-review-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; margin: 20px 0; }
+.session-review-filters label { display: grid; gap: 8px; min-width: 0; font-weight: 700; }
+.session-review-filters select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); color: var(--ink); font: inherit; }
+.session-review-questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; list-style: none; padding: 0; }
+.session-review-questions > li { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; overflow-wrap: anywhere; }
+.session-dashboard pre, .session-dashboard code { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.session-dashboard dd { min-width: 0; overflow-wrap: anywhere; }
+.session-attempt-history { padding-left: 24px; }
+.session-attempt-history button { text-align: left; overflow-wrap: anywhere; }
+.session-review-metadata { margin-top: 20px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.session-review-metadata summary { cursor: pointer; font-weight: 700; }
+.session-dashboard .practice-structure { min-width: 0; }
+.session-dashboard select:focus-visible, .session-review-metadata summary:focus-visible { outline: 3px solid var(--mint-strong); outline-offset: 3px; }
 .practice-question-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 24px 0 16px; }
 .practice-question-heading .scope-pill { display: inline-flex; }
 .practice-structure { width: 100%; min-width: 0; }

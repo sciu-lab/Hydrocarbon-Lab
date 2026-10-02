@@ -8,7 +8,7 @@ import { PracticeSessionView, PracticeStructure, PRACTICE_TOPIC_GROUPS } from ".
 import type { StructureRenderer } from "./practice-panel.tsx";
 import { PracticeBuildEditor } from "./practice-build-editor.tsx";
 import type { BuildEditorRenderer } from "./practice-build-editor.tsx";
-import { PracticeSummary } from "./practice-summary.tsx";
+import { CompletedSessionReview } from "./session-review-dashboard.tsx";
 import type { PracticeReviewer } from "./practice-review.ts";
 import type { PracticeClock } from "./practice-timing.ts";
 import type { BuildSubmissionValidator, StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
@@ -55,8 +55,8 @@ export function ExamSessionView({ state, language, renderStructure, renderBuilde
     {state.reason === "insufficient-unique-questions" && <p>{t("Hydrocarbon-Lab no pudo generar suficientes preguntas únicas para esta configuración. Prueba con menos preguntas o selecciona más categorías.")}</p>}
     <button type="button" onClick={actions.configure}>{t("Volver a la configuración")}</button>
   </div>;
-  if (state.phase === "EXAM_RESULTS") return <PracticeSummary attempts={state.attempts} language={language}
-    mode="exam" endless={false} categoryLabel={categoryLabel} review={false} onCorrectMistakes={() => {}}
+  if (state.phase === "EXAM_RESULTS") return <CompletedSessionReview state={state} language={language}
+    renderStructure={renderStructure} review={review} categoryLabel={categoryLabel} onCorrectMistakes={() => {}}
     onConfigure={actions.configure} onBackToLab={actions.back} onReviewAnswers={actions.review} />;
   if (state.phase === "EXAM_POST_REVIEW") {
     const attempt = state.attempts[state.index];

@@ -4,21 +4,24 @@ import type { ExerciseCategory, QuestionType } from "./exercise-model.ts";
 import type { AttemptRecord } from "./practice-attempt.ts";
 import { calculatePracticeMetrics, formatPracticePercentage, formatPracticeResponseTime } from "./practice-metrics.ts";
 import { calculatePracticeMastery } from "./practice-corrections.ts";
+import type { ReactNode } from "react";
+import type { SessionReviewModel } from "./session-review.ts";
 
 const typeLabels: Record<QuestionType, string> = {
   naming: "Nomenclatura", "multiple-choice": "Opción múltiple", build: "Construir la molécula",
 };
 
-export function PracticeSummary({ attempts, language, endless, categoryLabel, onConfigure, onBackToLab, review, onCorrectMistakes, mode = "practice", onReviewAnswers }: {
+export function PracticeSummary({ attempts, language, endless, categoryLabel, onConfigure, onBackToLab, review, onCorrectMistakes, mode = "practice", onReviewAnswers, sessionReview, dashboard }: {
   attempts: readonly AttemptRecord[]; language: AppLanguage; endless: boolean;
   categoryLabel(category: ExerciseCategory): string;
   onConfigure(): void; onBackToLab(): void;
   review: boolean; onCorrectMistakes(): void;
   mode?: "practice" | "exam"; onReviewAnswers?(): void;
+  sessionReview?: SessionReviewModel; dashboard?: ReactNode;
 }) {
   const t = (text: string) => uiText(language, text);
-  const metrics = calculatePracticeMetrics(attempts);
-  const mastery = mode === "practice" ? calculatePracticeMastery(attempts) : null;
+  const metrics = sessionReview?.initialResults ?? calculatePracticeMetrics(attempts);
+  const mastery = mode === "practice" ? sessionReview?.mode === "practice" ? sessionReview.masteryResults : calculatePracticeMastery(attempts) : null;
   const number = (value: number) => new Intl.NumberFormat(language).format(value);
   const percentage = (value: number) => formatPracticePercentage(value, language);
   const duration = (value: number) => metrics.answeredQuestions ? formatPracticeResponseTime(value, language) : "—";
@@ -40,7 +43,7 @@ export function PracticeSummary({ attempts, language, endless, categoryLabel, on
       {cards.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
     </dl>
     <p className="practice-timing-note">{t(mode === "exam" ? "El tiempo acumula las visitas a cada pregunta; la revisión previa no cuenta." : "El tiempo mide el intervalo entre mostrar la pregunta y enviar la respuesta.")}</p>
-    {metrics.answeredQuestions > 0 && <>
+    {!dashboard && metrics.answeredQuestions > 0 && <>
       <table className="practice-metrics-table">
         <caption>{t("Acierto por categoría")}</caption>
         <thead><tr><th scope="col">{t("Categoría")}</th><th scope="col">{t("Correctas / Respondidas")}</th><th scope="col">{t("Acierto")}</th></tr></thead>
@@ -64,6 +67,7 @@ export function PracticeSummary({ attempts, language, endless, categoryLabel, on
       </dl>
       {!mastery.remainingMistakes && <p>{t("Todos los errores corregidos")}</p>}
     </section>}
+    {dashboard}
     <div className="practice-actions">
       {mastery && mastery.remainingMistakes > 0 && <button type="button" className="practice-primary" onClick={onCorrectMistakes}>
         {review ? t("Reintentar los errores pendientes") : t("Corregir errores")}

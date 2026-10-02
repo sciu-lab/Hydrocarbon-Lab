@@ -6,9 +6,10 @@ import type { ReviewModel } from "./practice-review.ts";
 import { formatPracticeReviewMessage } from "./practice-review-i18n.ts";
 
 /** Read-only presentation; all lifecycle actions remain owned by Practice. */
-export function PracticeReviewPanel({ model, language, activeStep, onSelectStep, onClose, onNext }: {
+export function PracticeReviewPanel({ model, language, activeStep, onSelectStep, onClose, onNext, closeLabel = "Volver al feedback", nextLabel = "Siguiente" }: {
   model: ReviewModel; language: AppLanguage; activeStep: string;
   onSelectStep(id: string): void; onClose(): void; onNext(): void;
+  closeLabel?: string; nextLabel?: string;
 }) {
   const t = (key: string) => uiText(language, key);
   return <section className="practice-review" aria-labelledby="practice-review-title" data-review-status={model.status}>
@@ -32,8 +33,8 @@ export function PracticeReviewPanel({ model, language, activeStep, onSelectStep,
       </li>)}
     </ol>
     <div className="practice-actions">
-      <button type="button" onClick={onClose}>{t("Volver al feedback")}</button>
-      <button type="button" className="practice-primary" onClick={onNext}>{t("Siguiente")}</button>
+      <button type="button" onClick={onClose}>{t(closeLabel)}</button>
+      <button type="button" className="practice-primary" onClick={onNext}>{t(nextLabel)}</button>
     </div>
   </section>;
 }
