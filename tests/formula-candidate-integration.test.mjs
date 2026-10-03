@@ -13,7 +13,7 @@ test("PubChem search is offered only for a valid formula with no local candidate
 });
 
 test("typing and submitting only run the local catalog; PubChem is called from its explicit action", () => {
-  const localSubmit = page.match(/const generateIsomersFromFormula = \(event: FormEvent<HTMLFormElement>\) => \{([\s\S]*?)\n  \};\n\n  const searchPubChemFormulaCandidates/);
+  const localSubmit = page.match(/const generateIsomersFromFormula = \(event: FormEvent<HTMLFormElement>\) => \{([\s\S]*?)\r?\n  \};\r?\n\r?\n  const searchPubChemFormulaCandidates/);
   assert.ok(localSubmit);
   assert.match(localSubmit[1], /generateFormulaIsomers\(formulaInput\)/);
   assert.doesNotMatch(localSubmit[1], /searchPubChemFormulaCandidates|formulaCandidateResolverRef.*\.search/);
