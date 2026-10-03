@@ -6,11 +6,12 @@ import { getExerciseUniquenessKey } from "../../app/session-question-selection.t
 import { createStructuralAnswerEvaluator } from "../../app/practice-structural-answer.ts";
 
 export const HARDENING_TYPES = [["naming"], ["multiple-choice"], ["build"], ["naming", "multiple-choice", "build"]];
+// Preserve the historical all-17-category v1 hardening/Class Seed corpus.
 export function runFiniteSession(mode, count, types, seed, generate, oracles, categories = EXERCISE_CATEGORIES) {
   let calls = 0;
   const counted = (...args) => { calls++; return generate(...args); };
-  const config = mode === "exam" ? createExamConfig(categories, count, "en", seed, types)
-    : createPracticeConfig(categories, count, "en", seed, types);
+  const config = mode === "exam" ? createExamConfig(categories, count, "en", seed, types, "basic", 1)
+    : createPracticeConfig(categories, count, "en", seed, types, "basic", 1);
   const accepted = [];
   let state = mode === "exam" ? startExam(config, counted) : startPractice(config, counted);
   const evaluate = createStructuralAnswerEvaluator(oracles);

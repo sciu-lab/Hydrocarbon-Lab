@@ -8,7 +8,7 @@ import { serializeClassAssignmentCsv } from "../app/class-assignment-csv.ts";
 
 const selection = { mode: "exam", questionCount: 15, categories: ["alcohol", "alkane"],
   questionTypes: ["build", "naming", "multiple-choice"] };
-const config = () => createClassAssignmentConfig(selection, "CHEM-4B-2026");
+const config = () => createClassAssignmentConfig(selection, "CHEM-4B-2026", 1);
 const mapping = (manifest) => Object.fromEntries(manifest.participants.map((row) => [row.participantId, row.sessionSeed]));
 const code = (expected) => (error) => error.code === expected;
 
@@ -104,7 +104,7 @@ test("positive safe counts, finite class sessions, explicit versions and materia
   assert.throws(() => automaticParticipantIds(MAX_CLASS_PARTICIPANTS + 1), code("RESOURCE_LIMIT"));
   assert.throws(() => generateClassAssignments({ ...config(), classSeed: "X".repeat(100_000) }, automaticParticipantIds(36)), code("RESOURCE_LIMIT"));
   assert.throws(() => normalizeClassAssignmentConfig({ ...config(), derivationVersion: 2 }), code("UNSUPPORTED_VERSION"));
-  const future = normalizeClassAssignmentConfig({ ...config(), generatorVersion: 2 });
+  const future = normalizeClassAssignmentConfig({ ...config(), generatorVersion: 3 });
   const manifest = generateClassAssignments(future, ["001"]);
   assert.throws(() => participantSessionConfig(future, manifest.participants[0], "es"), /Unsupported generatorVersion/);
 });

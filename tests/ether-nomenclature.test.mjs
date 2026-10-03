@@ -177,7 +177,7 @@ test("128 real Practice ether seeds preserve terminal references, identities and
     { es: "1-propoxibutano", en: "1-propoxybutane" },
   ];
   for (let i = 0; i < 128; i++) {
-    const config = createPracticeConfig(["ether"], 5, "es", `NOM-ETHER-001-${i}`);
+    const config = createPracticeConfig(["ether"], 5, "es", `NOM-ETHER-001-${i}`, ["naming"], "basic", 1);
     const g = chemical(config, 0), snapshot = structuredClone(g);
     const a = chemistry.engine.analyzeMolecule(g.molecule), { prefix } = attachment(g.molecule, a);
     distribution[prefix.locant === 1 ? "one" : prefix.locant === 2 ? "two" : "threePlus"]++;
@@ -195,7 +195,7 @@ test("128 real Practice ether seeds preserve terminal references, identities and
 });
 
 test("real ether MCQ preserves four options, one correct, seeds, Reviewer and exact correction reconstruction", () => {
-  const config = createPracticeConfig(["ether"], 5, "es", "NOM-ETHER-MCQ", ["multiple-choice"]);
+  const config = createPracticeConfig(["ether"], 5, "es", "NOM-ETHER-MCQ", ["multiple-choice"], "basic", 1);
   const q = generate(config, 3), snapshot = structuredClone(q);
   assert.equal(validateMultipleChoiceQuestion(q), true);
   assert.equal(q.options.length, 4);

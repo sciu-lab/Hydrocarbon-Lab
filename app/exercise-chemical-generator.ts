@@ -1,5 +1,5 @@
 import { Molecule as OCLMolecule, SmilesParser } from "openchemlib";
-import { EXERCISE_CATEGORIES, GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
+import { EXERCISE_CATEGORIES, normalizeSessionConfig } from "./exercise-model.ts";
 import type { ExerciseCategory, QuestionIdentity, SessionConfig } from "./exercise-model.ts";
 import { deriveGenerationIdentity } from "./exercise-seed.ts";
 import { createSeededRng, deriveSeed } from "./seeded-rng.ts";
@@ -10,9 +10,10 @@ import { buildExerciseChemicalCandidate } from "./exercise-chemical-candidate.ts
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter.ts";
 import { parseMolecularFormula } from "./formula-isomers.ts";
 import type { ExerciseTopology } from "./exercise-domain.ts";
+import { validateEasyExercise, validateEasyParent } from "./exercise-easy-profile.ts";
 
 export const MAX_CHEMICAL_GENERATION_ATTEMPTS = 16;
-export type CandidateRejection = { attempt: number; stage: "construction" | "chemical" | "domain" | "oracle"; reason: string };
+export type CandidateRejection = { attempt: number; stage: "construction" | "chemical" | "domain" | "easy" | "oracle"; reason: string };
 
 export class ChemicalGenerationError extends Error {
   readonly code: "unsupported-request" | "attempts-exhausted";
@@ -88,9 +89,9 @@ function usableName(name: string) {
 }
 
 /** Stateless synchronous core. Callers bind the existing engine via the oracle
- * adapter; this module imports no React or page.tsx. Difficulty has no recipe
- * thresholds. Generation seeds retain v1 difficulty semantics and exclude the
- * requested presentation locale.
+ * adapter; this module imports no React or page.tsx. V1 retains its recipes and
+ * acceptance exactly. V2 basic uses the Easy subset; other v2 levels retain
+ * legacy recipes pending certification. All versions exclude presentation locale.
  */
 export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOracles) {
   return function generate(
@@ -99,9 +100,14 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
     options: { category?: ExerciseCategory; maxAttempts?: number } = {},
   ): GeneratedExerciseMolecule {
     const canonical = normalizeSessionConfig(config);
-    if (canonical.generatorVersion !== GENERATOR_VERSION
-      || !canonical.questionTypes.some((type) => type === "naming" || type === "multiple-choice" || type === "build")) {
+    if (!canonical.questionTypes.some((type) => type === "naming" || type === "multiple-choice" || type === "build")) {
       throw new ChemicalGenerationError("unsupported-request", "Chemical generation requires a supported question type.");
+    }
+    const easy = canonical.generatorVersion === 2 && canonical.difficulty === "basic";
+    // Fail the whole unsupported selection before drawing a category. Never
+    // silently replace E/Z with an unspecified alkene or a different topic.
+    if (easy && canonical.categories.includes("ez")) {
+      throw new ChemicalGenerationError("unsupported-request", "E/Z is incompatible with Easy.");
     }
     const question = deriveGenerationIdentity(canonical, questionIndex);
     const category = createSeededRng(deriveSeed(question.seed, "chemical-category")).pick(canonical.categories);
@@ -119,17 +125,21 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
       const candidateSeed = deriveChemicalCandidateSeed(question.seed, category, attempt);
       let stage: CandidateRejection["stage"] = "construction";
       try {
-        const molecule = buildExerciseChemicalCandidate(category, candidateSeed);
+        const molecule = buildExerciseChemicalCandidate(category, candidateSeed, easy ? "easy" : "legacy");
         stage = "chemical";
         const chemical = validateExerciseChemistry(molecule, oracles);
         if (!chemical.valid) { rejections.push({ attempt, stage, reason: chemical.reason }); continue; }
-        stage = "domain";
-        const domain = validateExerciseDomain(molecule, category, oracles);
+        stage = easy ? "easy" : "domain";
+        const domain = easy ? validateEasyExercise(molecule, category, oracles) : validateExerciseDomain(molecule, category, oracles);
         if (!domain.valid) { rejections.push({ attempt, stage, reason: domain.reason }); continue; }
         stage = "oracle";
         const reference = oracles.reference(molecule);
         if (!reference.namingSupported || !usableName(reference.names.es) || !usableName(reference.names.en)) {
           rejections.push({ attempt, stage, reason: "naming-unavailable" }); continue;
+        }
+        if (easy) {
+          const parent = validateEasyParent(molecule, category, reference);
+          if (!parent.valid) { rejections.push({ attempt, stage, reason: parent.reason }); continue; }
         }
         const expectedFamily = domain.topology === "acyclic" ? "acyclic"
           : domain.topology === "simple-carbocycle" ? "cycloalkane" : "aromatic";
@@ -146,11 +156,15 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
           rejections.push({ attempt, stage, reason: "formula-or-stereo-mismatch" }); continue;
         }
         const restored = moleculeFromSmiles(exported.smiles);
-        if (!restored.ok || !validateExerciseDomain(restored.molecule, category, oracles).valid) {
+        if (!restored.ok || !(easy ? validateEasyExercise(restored.molecule, category, oracles)
+          : validateExerciseDomain(restored.molecule, category, oracles)).valid) {
           rejections.push({ attempt, stage, reason: "round-trip-domain-loss" }); continue;
         }
         const identity = exerciseStructuralIdentity(molecule);
         const restoredReference = oracles.reference(restored.molecule);
+        if (easy && !validateEasyParent(restored.molecule, category, restoredReference).valid) {
+          rejections.push({ attempt, stage, reason: "easy-round-trip-parent-loss" }); continue;
+        }
         if (identity !== exerciseStructuralIdentity(restored.molecule)
           || !sameFormula(reference.formula, restoredReference.formula)
           || !restoredReference.namingSupported

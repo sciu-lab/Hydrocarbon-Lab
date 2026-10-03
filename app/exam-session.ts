@@ -1,5 +1,5 @@
 import { GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
-import type { ExerciseCategory, ExerciseDifficulty, SessionConfig } from "./exercise-model.ts";
+import type { ExerciseCategory, ExerciseDifficulty, GeneratorVersion, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import { PRACTICE_LENGTHS } from "./practice-session.ts";
@@ -49,9 +49,9 @@ export type ExamState =
 
 export function createExamConfig(categories: readonly ExerciseCategory[], questionCount: number,
   locale: AppLanguage, seed: string, questionTypes: readonly PracticeQuestionType[] = ["naming"],
-  difficulty: ExerciseDifficulty = "basic"): ExamConfig {
+  difficulty: ExerciseDifficulty = "basic", generatorVersion: GeneratorVersion = GENERATOR_VERSION): ExamConfig {
   return normalizeSessionConfig({ mode: "exam", categories, questionCount, questionTypes,
-    difficulty, locale, seed, generatorVersion: GENERATOR_VERSION }) as ExamConfig;
+    difficulty, locale, seed, generatorVersion }) as ExamConfig;
 }
 
 /** Full plan uses the SAME generator/search/scheduler. No student evaluator runs. */

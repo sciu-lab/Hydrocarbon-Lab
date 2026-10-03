@@ -1,8 +1,9 @@
 import type { AppLanguage } from "./i18n";
 
 /** Changes to RNG, seed framing, canonicalization or generation require a new version. */
-export const GENERATOR_VERSION = 1;
-export type GeneratorVersion = typeof GENERATOR_VERSION;
+export const GENERATOR_VERSION = 2;
+export const SUPPORTED_GENERATOR_VERSIONS = Object.freeze([1, 2] as const);
+export type GeneratorVersion = typeof SUPPORTED_GENERATOR_VERSIONS[number];
 
 export type ExerciseMode = "practice" | "exam";
 
@@ -100,7 +101,7 @@ export function normalizeSessionConfig(value: unknown): SessionConfig {
   if (typeof config.seed !== "string" || config.seed.length === 0) {
     throw new TypeError("A seed must be a nonempty string.");
   }
-  if (config.generatorVersion !== GENERATOR_VERSION) {
+  if (!SUPPORTED_GENERATOR_VERSIONS.includes(config.generatorVersion as GeneratorVersion)) {
     throw new RangeError("Unsupported generatorVersion.");
   }
 
@@ -111,7 +112,7 @@ export function normalizeSessionConfig(value: unknown): SessionConfig {
     difficulty: normalizeExerciseDifficulty(Object.prototype.hasOwnProperty.call(config, "difficulty") ? config.difficulty : "basic"),
     locale: choice(config.locale, ["en", "es"], "locale"),
     seed: config.seed,
-    generatorVersion: GENERATOR_VERSION,
+    generatorVersion: config.generatorVersion as GeneratorVersion,
   };
 
   if (mode === "exam") {

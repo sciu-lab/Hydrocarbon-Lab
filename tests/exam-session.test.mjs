@@ -24,7 +24,7 @@ before(async () => {
 });
 after(async () => chemistry?.close());
 const config = (types = ["naming"], count = 5, seed = "EXAM-TEST") => ({
-  ...createExamConfig(["alkane", "alcohol", "ether"], 5, "es", seed, types), questionCount: count,
+  ...createExamConfig(["alkane", "alcohol", "ether"], 5, "es", seed, types, "basic", 1), questionCount: count,
 });
 const time = (monotonicMs) => ({ monotonicMs, wallTimeMs: 1700000000000 + monotonicMs });
 const ready = (s, ms = 0) => markExamQuestionAvailable(s, time(ms), {

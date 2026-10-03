@@ -1,5 +1,5 @@
 import { GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
-import type { ExerciseCategory, ExerciseDifficulty, SessionConfig } from "./exercise-model.ts";
+import type { ExerciseCategory, ExerciseDifficulty, GeneratorVersion, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
 import { isBuildQuestion } from "./practice-question.ts";
 import type { StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
@@ -69,10 +69,11 @@ export function createPracticeConfig(
   categories: readonly ExerciseCategory[], questionCount: number | "endless", locale: AppLanguage, seed: string,
   questionTypes: readonly PracticeQuestionType[] = ["naming"],
   difficulty: ExerciseDifficulty = "basic",
+  generatorVersion: GeneratorVersion = GENERATOR_VERSION,
 ): SessionConfig {
   return normalizeSessionConfig({
     mode: "practice", questionTypes, categories, difficulty,
-    locale, seed, generatorVersion: GENERATOR_VERSION, questionCount,
+    locale, seed, generatorVersion, questionCount,
   });
 }
 

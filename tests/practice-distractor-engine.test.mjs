@@ -21,7 +21,7 @@ before(async () => {
 after(async () => chemistry?.close());
 
 function generated(category, seed, locale = "es", index = 0) {
-  const config = createPracticeConfig([category], 5, locale, seed);
+  const config = createPracticeConfig([category], 5, locale, seed, ["naming"], "basic", 1);
   return generate(config, index);
 }
 

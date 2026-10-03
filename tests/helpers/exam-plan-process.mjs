@@ -9,7 +9,8 @@ try {
   const generate = createPracticeQuestionGenerator(createRestrictedChemicalGenerator(chemistry.oracles),
     createDeterministicDistractorEngine(chemistry.engine, chemistry.oracles));
   const hardening = process.argv[3] === "hardening";
+  // Fresh-process comparison of the historical v1 Exam fixtures.
   const plan = createExamQuestionPlan(createExamConfig(hardening ? EXERCISE_CATEGORIES : ["alkane", "alcohol", "ether"], hardening ? 15 : 10,
-    process.argv[2] ?? "es", hardening ? "HARDENING-PROCESS" : "EXAM-PROCESS", ["naming", "multiple-choice", "build"]), generate);
+    process.argv[2] ?? "es", hardening ? "HARDENING-PROCESS" : "EXAM-PROCESS", ["naming", "multiple-choice", "build"], "basic", 1), generate);
   console.log("EXAM_PLAN=" + JSON.stringify(plan));
 } finally { await chemistry.close(); }

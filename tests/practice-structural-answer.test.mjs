@@ -82,7 +82,7 @@ test("technical validation failure is unsupported comparison, not a wrong chemic
 test("17 categories x 8 seeds: deep-clone/remapped equality and controlled disconnected mutation", () => {
   const times = []; let mutations = 0;
   for (const category of EXERCISE_CATEGORIES) for (let seed = 0; seed < 8; seed++) {
-    const q = generate(createPracticeConfig([category], 5, "es", `BUILD-SWEEP:${category}:${seed}`), 0);
+    const q = generate(createPracticeConfig([category], 5, "es", `BUILD-SWEEP:${category}:${seed}`, ["naming"], "basic", 1), 0);
     const snapshot = structuredClone(q.molecule), started = performance.now();
     assert.equal(compare(q.molecule, structuredClone(q.molecule), category).correct, true);
     assert.equal(compare(q.molecule, remap(q.molecule), category).correct, true);

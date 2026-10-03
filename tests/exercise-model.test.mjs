@@ -21,7 +21,7 @@ const config = {
 const serialized = '{"mode":"practice","questionCount":12,"questionTypes":["naming"],"categories":["alkane","alcohol"],"difficulty":"basic","locale":"es","seed":"CHEM-A7F3","generatorVersion":1}';
 
 test("v1 freezes canonical keys, set order and the generator version", () => {
-  assert.equal(GENERATOR_VERSION, 1);
+  assert.equal(GENERATOR_VERSION, 2); // New sessions; the frozen config below remains v1.
   assert.equal(serializeSessionConfig(config), serialized);
   assert.deepEqual(normalizeSessionConfig(config), JSON.parse(serialized));
 });
@@ -121,7 +121,7 @@ test("malformed counts, IDs, selections and versions are rejected rather than co
     { categories: ["sulfur"] }, { categories: "alkane" }, { categories: ["alkane", null] },
     { questionTypes: [] }, { questionTypes: ["unknown"] }, { questionTypes: "naming" },
     { mode: "unknown" }, { locale: "fr" }, { difficulty: "easy" },
-    { seed: "" }, { seed: 12345 }, { generatorVersion: "1" }, { generatorVersion: 0 }, { generatorVersion: 2 },
+    { seed: "" }, { seed: 12345 }, { generatorVersion: "1" }, { generatorVersion: 0 }, { generatorVersion: 3 },
   ]) {
     assert.throws(() => normalizeSessionConfig({ ...config, ...change }), { name: /TypeError|RangeError/ });
   }
@@ -144,8 +144,9 @@ test("TypeScript enforces shared configuration and discriminated question metada
     const exam: SessionConfig = { ...practice, mode: "exam", questionCount: 12 };
     // @ts-expect-error Endless is a Practice configuration.
     const endlessExam: SessionConfig = { ...practice, mode: "exam", questionCount: "endless" };
-    // @ts-expect-error Unknown versions cannot silently enter v1.
-    const unsupportedVersion: SessionConfig = { ...exam, generatorVersion: 2 };
+    const currentVersion: SessionConfig = { ...exam, generatorVersion: 2 };
+    // @ts-expect-error Unknown versions cannot silently enter the supported dispatcher.
+    const unsupportedVersion: SessionConfig = { ...exam, generatorVersion: 3 };
     // @ts-expect-error Categories are internal IDs.
     const labelCategory: SessionConfig = { ...practice, categories: ["Alkanes"] };
     // @ts-expect-error Selection arrays are readonly.

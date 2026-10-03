@@ -19,8 +19,8 @@ const questionSnapshot = (question, generationIndex) => ({
   ...(question.type === "multiple-choice" ? { optionIdsSha256: digest(question.options.map((option) => option.id)) } : {}),
 });
 
-/** Capture existing canonical basic sessions before D1, and repeat in fresh processes. */
-export async function captureDifficultySessions(difficulty = "basic", locale = "es") {
+/** Historical captures default explicitly to v1; v2 has its own new fixture. */
+export async function captureDifficultySessions(difficulty = "basic", locale = "es", generatorVersion = 1) {
   const chemistry = await loadExerciseChemistry();
   const random = Math.random, now = Date.now;
   try {
@@ -31,7 +31,7 @@ export async function captureDifficultySessions(difficulty = "basic", locale = "
     const practiceRuns = [];
     for (const types of [["naming"], ["naming", "multiple-choice", "build"]]) {
       const config = { ...createPracticeConfig(["alkane", "alcohol", "ester"], types.length === 1 ? 10 : 6,
-        locale, "PRACTICE-PHASE3", types), difficulty };
+        locale, "PRACTICE-PHASE3", types, difficulty, generatorVersion), difficulty };
       let state = startPractice(config, generate);
       const questions = [];
       while (state.phase === "QUESTION") {
@@ -49,7 +49,7 @@ export async function captureDifficultySessions(difficulty = "basic", locale = "
       practiceRuns.push(questions);
     }
     const examConfig = { ...createExamConfig(["alkane", "alcohol", "ether"], 10, locale, "EXAM-PROCESS",
-      ["naming", "multiple-choice", "build"]), difficulty };
+      ["naming", "multiple-choice", "build"], difficulty, generatorVersion), difficulty };
     const exam = createExamQuestionPlan(examConfig, generate).slots.map((slot) =>
       questionSnapshot(slot.question, slot.generationIndex));
     return { practiceNaming: practiceRuns[0], practiceMixed: practiceRuns[1], examMixed: exam };

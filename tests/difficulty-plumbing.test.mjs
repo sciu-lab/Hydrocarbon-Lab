@@ -87,7 +87,7 @@ test("canonical difficulty validation defaults only absent legacy fields and pre
   }
   assert.equal(createPracticeConfig(categories, 3, "es", "D1", types, undefined).difficulty, "basic");
   assert.equal(createExamConfig(categories, 3, "es", "D1", types, undefined).difficulty, "basic");
-  assert.equal(GENERATOR_VERSION, 1);
+  assert.equal(GENERATOR_VERSION, 2);
 });
 
 test("historical basic targets, indices, MCQ IDs/order/provenance and Build payloads remain exact", async () => {
@@ -215,10 +215,10 @@ for (const difficulty of ["intermediate", "advanced"]) {
 }
 
 test("Class basic/omitted fingerprint, participant seeds and full CSV bytes preserve CHEM-4B-2026", () => {
-  const basic = createClassAssignmentConfig(classSelection, "CHEM-4B-2026");
+  const basic = createClassAssignmentConfig(classSelection, "CHEM-4B-2026", 1);
   const legacy = { ...basic }; delete legacy.difficulty;
   assert.deepEqual(normalizeClassAssignmentConfig(legacy), basic);
-  const explicit = createClassAssignmentConfig({ ...classSelection, difficulty: "basic" }, "CHEM-4B-2026");
+  const explicit = createClassAssignmentConfig({ ...classSelection, difficulty: "basic" }, "CHEM-4B-2026", 1);
   const manifest = generateClassAssignments(legacy, ["001", "002"]);
   assert.deepEqual(manifest.participants[0], baseline.classAssignment);
   assert.deepEqual(generateClassAssignments(explicit, ["001", "002"]), manifest);
@@ -234,7 +234,7 @@ test("Class non-basic config/seed/preview identity is distinct; unchanged CSV sc
   const seeds = new Set(), fingerprints = new Set(), signatures = new Set();
   for (const difficulty of EXERCISE_DIFFICULTIES) {
     const selection = { ...classSelection, difficulty };
-    const config = createClassAssignmentConfig(selection, "CHEM-4B-2026");
+    const config = createClassAssignmentConfig(selection, "CHEM-4B-2026", 1);
     const manifest = generateClassAssignments(JSON.parse(JSON.stringify(config)), ["001", "002"]);
     assert.equal(manifest.config.difficulty, difficulty);
     assert.deepEqual(manifest, generateClassAssignments(config, ["001", "002"]));

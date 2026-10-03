@@ -1,7 +1,7 @@
 import { createPracticeConfig } from "../../app/practice-session.ts";
 import { createExamConfig } from "../../app/exam-session.ts";
 export const reviewConfig = (mode = "practice", count = 6) => (mode === "exam" ? createExamConfig : createPracticeConfig)(
-  ["alkane", "alcohol"], count, "es", "SESSION-REVIEW-FIXTURE", ["naming", "multiple-choice", "build"]);
+  ["alkane", "alcohol"], count, "es", "SESSION-REVIEW-FIXTURE", ["naming", "multiple-choice", "build"], "basic", 1);
 export function reviewAttempt(ordinal, correct, number = 1, duration = ordinal * 1000) {
   const type = ["naming", "multiple-choice", "build"][(ordinal - 1) % 3];
   return { questionId: `question-${ordinal}`, displayOrdinal: ordinal, generationIndex: ordinal + 2,

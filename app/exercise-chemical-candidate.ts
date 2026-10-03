@@ -4,7 +4,10 @@ import { createSeededRng } from "./seeded-rng.ts";
 import { setDoubleBondGeometry } from "./double-bond-stereochemistry.ts";
 
 /** Constructive recipes, never random names or a catalog of SMILES. */
-export function buildExerciseChemicalCandidate(category: ExerciseCategory, seed: string): GeneratedMolecule {
+export function buildExerciseChemicalCandidate(category: ExerciseCategory, seed: string,
+  profile: "legacy" | "easy" = "legacy"): GeneratedMolecule {
+  const easy = profile === "easy";
+  if (easy && category === "ez") throw new RangeError("E/Z is outside Easy.");
   const rng = createSeededRng(seed);
   let molecule: GeneratedMolecule = { atoms: [], bonds: [], rings: [] };
   function atom(x: number, y: number, element: GeneratedAtom["element"] = "C", charge?: number) {
@@ -37,8 +40,8 @@ export function buildExerciseChemicalCandidate(category: ExerciseCategory, seed:
   }
   function branches(parent: number[], forbidden: number[] = []) {
     const sites = rng.shuffle(parent.slice(1, -1).filter((id) => !forbidden.includes(id)));
-    const count = rng.int(0, Math.min(3, sites.length));
-    for (const id of sites.slice(0, count)) alkyl(id, rng.int(1, 2));
+    const count = rng.int(0, Math.min(easy ? 1 : 3, sites.length));
+    for (const id of sites.slice(0, count)) alkyl(id, easy ? 1 : rng.int(1, 2));
   }
 
   if (category === "aromatic" || category === "simple-carbocycle") {
@@ -50,7 +53,7 @@ export function buildExerciseChemicalCandidate(category: ExerciseCategory, seed:
       bond(ids[index], ids[(index + 1) % size], category === "aromatic" && index % 2 === 0 ? 2 : 1);
     }
     molecule.rings!.push({ id: 1, kind: category === "aromatic" ? "aromatic" : "cycloalkane", atomIds: ids });
-    for (const id of rng.shuffle(ids).slice(0, rng.int(0, 3))) alkyl(id, rng.int(1, 2));
+    for (const id of rng.shuffle(ids).slice(0, rng.int(0, easy ? 1 : 3))) alkyl(id, easy ? 1 : rng.int(1, 2));
     return molecule;
   }
 
@@ -79,13 +82,13 @@ export function buildExerciseChemicalCandidate(category: ExerciseCategory, seed:
       molecule = configured.molecule;
     }
   } else if (category === "halogenated") {
-    branches(parent);
+    if (!easy) branches(parent);
     // Every chosen carbon retains one free valence; the production oracle checks
     // the finished molecule. This is a construction rule, not a valence table.
     const available = () => parent.filter((id) => molecule.bonds.reduce(
       (sum, [left, right, order = 1]) => sum + (left === id || right === id ? order : 0), 0,
     ) < 4);
-    for (let index = 0, count = rng.int(1, 3); index < count; index += 1) {
+    for (let index = 0, count = easy ? 1 : rng.int(1, 3); index < count; index += 1) {
       attach(rng.pick(available()), rng.pick(["F", "Cl", "Br", "I"]));
     }
   } else if (category === "alcohol" || category === "amine") {
