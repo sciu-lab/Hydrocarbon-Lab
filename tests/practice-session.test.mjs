@@ -176,8 +176,8 @@ test("generator failure hides exception data, retries the same context and permi
   assert.equal(nextPracticeQuestion(failure, generate), failure);
 });
 
-test("Practice does not activate Exam or misleading difficulty", () => {
-  for (const change of [{ mode: "exam" }, { difficulty: "advanced" }]) {
+test("Practice does not activate Exam or unknown difficulty IDs", () => {
+  for (const change of [{ mode: "exam" }, { difficulty: "hard" }]) {
     assert.throws(() => startPractice({ ...configFor(), ...change }, generate));
   }
 });

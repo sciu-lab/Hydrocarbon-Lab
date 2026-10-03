@@ -1,5 +1,5 @@
 import { GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
-import type { ExerciseCategory, SessionConfig } from "./exercise-model.ts";
+import type { ExerciseCategory, ExerciseDifficulty, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
 import { isBuildQuestion } from "./practice-question.ts";
 import type { StructuralAnswerEvaluator } from "./practice-structural-answer.ts";
@@ -68,9 +68,10 @@ export function resolvePracticeSeed(seed: string, createPublicSeed: () => string
 export function createPracticeConfig(
   categories: readonly ExerciseCategory[], questionCount: number | "endless", locale: AppLanguage, seed: string,
   questionTypes: readonly PracticeQuestionType[] = ["naming"],
+  difficulty: ExerciseDifficulty = "basic",
 ): SessionConfig {
   return normalizeSessionConfig({
-    mode: "practice", questionTypes, categories, difficulty: "basic",
+    mode: "practice", questionTypes, categories, difficulty,
     locale, seed, generatorVersion: GENERATOR_VERSION, questionCount,
   });
 }
@@ -94,7 +95,7 @@ function loadQuestion(context: Context, generate: PracticeGenerator): PracticeSt
 
 export function startPractice(config: SessionConfig, generate: PracticeGenerator): PracticeState {
   const canonical = normalizeSessionConfig(config);
-  if (canonical.mode !== "practice" || canonical.difficulty !== "basic") {
+  if (canonical.mode !== "practice") {
     throw new TypeError("Unsupported Practice configuration.");
   }
   return loadQuestion({ config: canonical, index: 0, generationIndex: 0, recentIdentities: [], attempts: [] }, generate);

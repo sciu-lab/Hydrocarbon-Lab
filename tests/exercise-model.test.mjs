@@ -129,6 +129,7 @@ test("malformed counts, IDs, selections and versions are rejected rather than co
     assert.throws(() => normalizeSessionConfig(input), { name: /TypeError|RangeError/ });
   }
   for (const field of Object.keys(config)) {
+    if (field === "difficulty") continue; // Legacy configs default this field to basic.
     const input = { ...config };
     delete input[field];
     assert.throws(() => normalizeSessionConfig(input), { name: /TypeError|RangeError/ });

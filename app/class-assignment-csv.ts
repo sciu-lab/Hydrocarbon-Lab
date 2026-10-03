@@ -1,7 +1,8 @@
 import type { AppLanguage } from "./i18n.ts";
 import { generateClassAssignments, normalizeClassAssignmentConfig, participantSessionConfig } from "./class-assignment.ts";
 import type { ClassAssignmentManifest } from "./class-assignment.ts";
-import type { SessionConfig } from "./exercise-model.ts";
+import { normalizeExerciseDifficulty } from "./exercise-model.ts";
+import type { ExerciseDifficulty, SessionConfig } from "./exercise-model.ts";
 
 export const CLASS_ASSIGNMENT_CSV_FILENAME = "hydrocarbon-lab-class-assignments.csv";
 export const CLASS_ASSIGNMENT_CSV_COLUMNS = Object.freeze([
@@ -18,6 +19,23 @@ function decodeText(value: string): string {
   return value.slice(5);
 }
 const quote = (value: string) => `"${value.replace(/"/gu, '""')}"`;
+
+/** The existing fingerprint column carries the optional non-basic namespace.
+ * Keep the v1 header/basic bytes unchanged; the reconstructed config and seed
+ * are still verified by participantSessionConfig, never trusted from this parse.
+ */
+function fingerprintDifficulty(value: string): ExerciseDifficulty {
+  const tuple: unknown = JSON.parse(value);
+  if (!Array.isArray(tuple) || tuple[0] !== "class-config-v1" || (tuple.length !== 6 && tuple.length !== 7)) {
+    throw new TypeError("Invalid class configuration fingerprint.");
+  }
+  if (tuple.length === 6) return "basic";
+  const extension: unknown = tuple[6];
+  if (!Array.isArray(extension) || extension.length !== 2 || extension[0] !== "difficulty") {
+    throw new TypeError("Invalid class difficulty fingerprint.");
+  }
+  return normalizeExerciseDifficulty(extension[1]);
+}
 
 export function classAssignmentCsvRows(manifest: ClassAssignmentManifest, locale: AppLanguage): ClassAssignmentCsvRow[] {
   if (locale !== "es" && locale !== "en") throw new TypeError("Invalid delivery locale.");
@@ -49,7 +67,8 @@ export function reconstructClassSessionFromCsvRow(row: ClassAssignmentCsvRow): S
   const config = normalizeClassAssignmentConfig({ schemaVersion: integer(row.schema_version),
     derivationVersion: integer(row.derivation_version), classSeed: decodeText(row.class_seed), mode: row.mode,
     generatorVersion: integer(row.generator_version), questionCount: integer(row.question_count),
-    categories: JSON.parse(row.categories), questionTypes: JSON.parse(row.question_types) });
+    categories: JSON.parse(row.categories), questionTypes: JSON.parse(row.question_types),
+    difficulty: fingerprintDifficulty(row.config_fingerprint) });
   const participantId = decodeText(row.participant_id);
   return participantSessionConfig(config, { participantId, sessionSeed: row.session_seed,
     configFingerprint: row.config_fingerprint }, row.locale as AppLanguage);

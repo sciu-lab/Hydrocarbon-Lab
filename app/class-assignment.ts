@@ -1,6 +1,6 @@
 import { EXERCISE_CATEGORIES, GENERATOR_VERSION, QUESTION_TYPES, isFiniteQuestionCount,
-  normalizeSessionConfig } from "./exercise-model.ts";
-import type { ExerciseCategory, ExerciseMode, QuestionType, SessionConfig } from "./exercise-model.ts";
+  normalizeExerciseDifficulty, normalizeSessionConfig } from "./exercise-model.ts";
+import type { ExerciseCategory, ExerciseDifficulty, ExerciseMode, QuestionType, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
 import { deriveSeed } from "./seeded-rng.ts";
 
@@ -18,6 +18,7 @@ export type ClassAssignmentConfig = Readonly<{
   questionCount: number;
   categories: readonly ExerciseCategory[];
   questionTypes: readonly QuestionType[];
+  difficulty: ExerciseDifficulty;
   generatorVersion: number;
 }>;
 export type ParticipantAssignment = Readonly<{
@@ -34,6 +35,8 @@ export type ClassSessionSelection = Readonly<{
   questionCount: number | "endless" | null;
   categories: readonly ExerciseCategory[];
   questionTypes: readonly QuestionType[];
+  /** Legacy callers and the current public UI omit this, meaning basic. */
+  difficulty?: ExerciseDifficulty;
 }>;
 export type ClassAssignmentErrorCode = "EMPTY_CLASS_SEED" | "INVALID_CONFIGURATION" | "UNSUPPORTED_VERSION"
   | "INVALID_PARTICIPANT_COUNT" | "EMPTY_ROSTER" | "DUPLICATE_PARTICIPANT_ID" | "RESOURCE_LIMIT" | "INVALID_TEXT";
@@ -61,7 +64,7 @@ export function normalizeClassSeed(value: unknown): string {
 export function normalizeClassAssignmentConfig(value: unknown): ClassAssignmentConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ClassAssignmentError("INVALID_CONFIGURATION");
   const input = value as Record<string, unknown>;
-  const keys = ["schemaVersion", "derivationVersion", "classSeed", "mode", "questionCount", "categories", "questionTypes", "generatorVersion"];
+  const keys = ["schemaVersion", "derivationVersion", "classSeed", "mode", "questionCount", "categories", "questionTypes", "difficulty", "generatorVersion"];
   if (Object.keys(input).some((key) => !keys.includes(key))) throw new ClassAssignmentError("INVALID_CONFIGURATION");
   if (input.schemaVersion !== CLASS_SCHEMA_VERSION || input.derivationVersion !== CLASS_DERIVATION_VERSION) {
     throw new ClassAssignmentError("UNSUPPORTED_VERSION");
@@ -73,13 +76,14 @@ export function normalizeClassAssignmentConfig(value: unknown): ClassAssignmentC
   let canonical: SessionConfig;
   try {
     canonical = normalizeSessionConfig({ mode: input.mode, questionCount: input.questionCount,
-      categories: input.categories, questionTypes: input.questionTypes, difficulty: "basic", locale: "es",
+      categories: input.categories, questionTypes: input.questionTypes, locale: "es",
+      ...(Object.prototype.hasOwnProperty.call(input, "difficulty") ? { difficulty: input.difficulty } : {}),
       seed: classSeed, generatorVersion: GENERATOR_VERSION });
   } catch { throw new ClassAssignmentError("INVALID_CONFIGURATION"); }
   return Object.freeze({ schemaVersion: CLASS_SCHEMA_VERSION, derivationVersion: CLASS_DERIVATION_VERSION,
     classSeed, mode: canonical.mode, questionCount: input.questionCount,
     categories: Object.freeze([...canonical.categories]), questionTypes: Object.freeze([...canonical.questionTypes]),
-    generatorVersion: input.generatorVersion });
+    difficulty: canonical.difficulty, generatorVersion: input.generatorVersion });
 }
 
 export function createClassAssignmentConfig(selection: ClassSessionSelection, classSeed: string,
@@ -89,8 +93,11 @@ export function createClassAssignmentConfig(selection: ClassSessionSelection, cl
 }
 
 function fingerprint(config: ClassAssignmentConfig): string {
+  // Preserve historical basic fingerprints byte for byte. Non-basic extends
+  // the configuration namespace, without changing participant derivation v1.
   return JSON.stringify(["class-config-v1", config.mode, config.questionCount,
-    config.categories, config.questionTypes, config.generatorVersion]);
+    config.categories, config.questionTypes, config.generatorVersion,
+    ...(config.difficulty === "basic" ? [] : [["difficulty", config.difficulty]])]);
 }
 export function classConfigFingerprint(config: ClassAssignmentConfig): string {
   return fingerprint(normalizeClassAssignmentConfig(config));
@@ -147,15 +154,17 @@ export function participantSessionConfig(config: ClassAssignmentConfig, assignme
     throw new TypeError("Class assignment does not match its configuration.");
   }
   return normalizeSessionConfig({ mode: canonical.mode, questionCount: canonical.questionCount,
-    categories: canonical.categories, questionTypes: canonical.questionTypes, difficulty: "basic", locale,
+    categories: canonical.categories, questionTypes: canonical.questionTypes, difficulty: canonical.difficulty, locale,
     seed: assignment.sessionSeed, generatorVersion: canonical.generatorVersion });
 }
 
 /** Input signature for stale-preview detection. Locale and individual seed are presentation-only. */
 export function classVariantInputSignature(selection: ClassSessionSelection, classSeed: string,
   rosterMode: "automatic" | "custom", countText: string, customText: string): string {
+  const difficulty = normalizeExerciseDifficulty(Object.prototype.hasOwnProperty.call(selection, "difficulty") ? selection.difficulty : "basic");
   return JSON.stringify([selection.mode, selection.questionCount,
     EXERCISE_CATEGORIES.filter((id) => selection.categories.includes(id)),
     QUESTION_TYPES.filter((id) => selection.questionTypes.includes(id)), classSeed.trim().normalize("NFC"),
-    rosterMode, rosterMode === "automatic" ? countText : customText]);
+    rosterMode, rosterMode === "automatic" ? countText : customText,
+    ...(difficulty === "basic" ? [] : [["difficulty", difficulty]])]);
 }

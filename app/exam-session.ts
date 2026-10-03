@@ -1,5 +1,5 @@
 import { GENERATOR_VERSION, normalizeSessionConfig } from "./exercise-model.ts";
-import type { ExerciseCategory, SessionConfig } from "./exercise-model.ts";
+import type { ExerciseCategory, ExerciseDifficulty, SessionConfig } from "./exercise-model.ts";
 import type { AppLanguage } from "./i18n.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import { PRACTICE_LENGTHS } from "./practice-session.ts";
@@ -48,15 +48,16 @@ export type ExamState =
   | (ExamContext & { phase: "EXAM_POST_REVIEW"; index: number });
 
 export function createExamConfig(categories: readonly ExerciseCategory[], questionCount: number,
-  locale: AppLanguage, seed: string, questionTypes: readonly PracticeQuestionType[] = ["naming"]): ExamConfig {
+  locale: AppLanguage, seed: string, questionTypes: readonly PracticeQuestionType[] = ["naming"],
+  difficulty: ExerciseDifficulty = "basic"): ExamConfig {
   return normalizeSessionConfig({ mode: "exam", categories, questionCount, questionTypes,
-    difficulty: "basic", locale, seed, generatorVersion: GENERATOR_VERSION }) as ExamConfig;
+    difficulty, locale, seed, generatorVersion: GENERATOR_VERSION }) as ExamConfig;
 }
 
 /** Full plan uses the SAME generator/search/scheduler. No student evaluator runs. */
 export function createExamQuestionPlan(config: ExamConfig, generate: PracticeQuestionGenerator): ExamQuestionPlan {
   const canonical = normalizeSessionConfig(config);
-  if (canonical.mode !== "exam" || canonical.difficulty !== "basic") {
+  if (canonical.mode !== "exam") {
     throw new TypeError("Unsupported Exam configuration.");
   }
   const slots: ExamSlot[] = [];

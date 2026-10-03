@@ -61,6 +61,10 @@ function choice<T extends string>(value: unknown, allowed: readonly T[], field: 
   return value as T;
 }
 
+export function normalizeExerciseDifficulty(value: unknown): ExerciseDifficulty {
+  return choice(value, EXERCISE_DIFFICULTIES, "difficulty");
+}
+
 function selection<T extends string>(value: unknown, allowed: readonly T[], field: string): T[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new TypeError(`${field} must be a nonempty array.`);
@@ -103,7 +107,8 @@ export function normalizeSessionConfig(value: unknown): SessionConfig {
   const common: SessionSelection = {
     questionTypes: selection(config.questionTypes, QUESTION_TYPES, "questionTypes"),
     categories: selection(config.categories, EXERCISE_CATEGORIES, "categories"),
-    difficulty: choice(config.difficulty, EXERCISE_DIFFICULTIES, "difficulty"),
+    // Only an absent legacy field defaults; explicit unknown IDs still fail.
+    difficulty: normalizeExerciseDifficulty(Object.prototype.hasOwnProperty.call(config, "difficulty") ? config.difficulty : "basic"),
     locale: choice(config.locale, ["en", "es"], "locale"),
     seed: config.seed,
     generatorVersion: GENERATOR_VERSION,
