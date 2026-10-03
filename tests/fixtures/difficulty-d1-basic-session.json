@@ -1,0 +1,178 @@
+{
+  "capturedBeforeD1": "36fa14b",
+  "sessions": {
+    "practiceNaming": [
+      {
+        "type": "naming",
+        "generationIndex": 0,
+        "structuralIdentity": "gJP@DjZh@",
+        "payloadSha256": "32721d5a075b536ede7e6a816aac07a9390fa5d1c01207e876f9286ee5abaa8f"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 1,
+        "structuralIdentity": "gGQ@@dsuT@@",
+        "payloadSha256": "abe91cfa76921e1f545d9444282021cc29a9930fb49616dad511a03a49530fa3"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 2,
+        "structuralIdentity": "daxH@@RYWjj`@",
+        "payloadSha256": "7f38c65f43eff046fb53ffa895de7d450ef88ff94a5765c98bb2ebb9b030ba31"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 3,
+        "structuralIdentity": "daxD@@QIeUjj@@",
+        "payloadSha256": "bf8b348973ac0353db8c9327882edee9bdc81af27b0e3a8ed7f7a7d2b70c5dd5"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 4,
+        "structuralIdentity": "dedH@@RYuVjjh@@",
+        "payloadSha256": "1b272a516e1241ee02d8d60d6b00eab26cc8b1494314c54b73aac5ac4d4ca8a3"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 5,
+        "structuralIdentity": "daxH@@RYujj`@",
+        "payloadSha256": "2aa359758188db6b90383b74248f7e6c8f35d7c3bbc37e02e06e7a4d470b8ba0"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 6,
+        "structuralIdentity": "diD@@Ldbbljjh@@",
+        "payloadSha256": "4a95b2cf4cac7068865a65c1cc2e2914672851a3bfe67c5ab4db5b1856653067"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 7,
+        "structuralIdentity": "dax@@DjYZjh@@",
+        "payloadSha256": "4830e8d1a1866935cee1365170e99a4f91f621a83c030f2709216f6a5bf5ac94"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 8,
+        "structuralIdentity": "dmTH@@RYWUjjj`@",
+        "payloadSha256": "de459e75a06bdb33b263928173d40684b0bf654277a4de7e0d4a1dd18186acc7"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 9,
+        "structuralIdentity": "eM@Hz@",
+        "payloadSha256": "3f9a15fe4129a785388ae5e6a3a9deea21a0e4d193d1cca2184f2320a2595957"
+      }
+    ],
+    "practiceMixed": [
+      {
+        "type": "naming",
+        "generationIndex": 0,
+        "structuralIdentity": "diDD@@QIeuZjh@@",
+        "payloadSha256": "20c802956931882056903b18ef56af8a10b3b762dc81074180aeebdb53d438d4"
+      },
+      {
+        "type": "build",
+        "generationIndex": 1,
+        "structuralIdentity": "diDH@@RYUZjj@@",
+        "payloadSha256": "b03691a547896420e422b8725fd69ef6360a507b60bcbd76962265e2db15f352"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 2,
+        "structuralIdentity": "dedH@@RYU^jjh@@",
+        "payloadSha256": "fff05787cc94be241414379e35566af23650ebe23b3751c94716545ada6a7c14",
+        "optionIdsSha256": "2f48a6e35b9a3f89c84b4dfc30b00d2463d6aa8ac83a7f4f339f52ce3d920cc5"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 3,
+        "structuralIdentity": "dedD@@QIeUvjj`@",
+        "payloadSha256": "4326fc6e075c7ad3b4528f424100351a9b856228b9aad2f566f48a152f7a80fa"
+      },
+      {
+        "type": "build",
+        "generationIndex": 4,
+        "structuralIdentity": "daxD@@QIeUjj@@",
+        "payloadSha256": "72828341347d6f74fe0aaffbd1a695a61196a09a157126d0a9b6cb1bfc9b7286"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 5,
+        "structuralIdentity": "gGQ@@druT@@",
+        "payloadSha256": "4a8dea83a072e9f52aaca665e9abc476a750906bc6d1640206836431051554a8",
+        "optionIdsSha256": "184296358cc47ea93ff19e8e36c15e4243205bfbb7f2736940e23d66fd964c38"
+      }
+    ],
+    "examMixed": [
+      {
+        "type": "naming",
+        "generationIndex": 0,
+        "structuralIdentity": "daxH@@RgUjj`@",
+        "payloadSha256": "614388322c9e9aae0c5c4003a3298ddb3bf0d39926e205236f71c71bd9e5edcc"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 1,
+        "structuralIdentity": "gJQ@@eKU@@",
+        "payloadSha256": "b1f6d446554993e52e1194171139510c12bdd50134ef0294e84588a670338ea3",
+        "optionIdsSha256": "7cfc4dad531ff858a7eba85063e481f1d7606c3f6f225db0183595f3b3e76f30"
+      },
+      {
+        "type": "build",
+        "generationIndex": 2,
+        "structuralIdentity": "gGP@DiVj`@",
+        "payloadSha256": "9d520014ff0b46b3b29a4566b293f2aeab0f70d3aa4e41e4463d716e62d5980c"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 3,
+        "structuralIdentity": "gGP@DjVj`@",
+        "payloadSha256": "936ef6a3570ec94a2909801269ad74df5c8ce6366e7a6a64bf5fbcde570543e1"
+      },
+      {
+        "type": "build",
+        "generationIndex": 4,
+        "structuralIdentity": "gCa@@duP@",
+        "payloadSha256": "5fb386d6383364865cae78c6fd5548749e6fb1ba521b1cf254b807223e6c2c05"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 5,
+        "structuralIdentity": "gGQ@@eJuT@@",
+        "payloadSha256": "31bbc0ed2d92389fa007b13bbea028ff066ad0dabb09f6d7effcf788dbc29716",
+        "optionIdsSha256": "60f93f15e50d29bb50a61e6ffd8a6ff68de40029bd4320b0e7005cab53cdf17a"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 6,
+        "structuralIdentity": "gGQ@@dsuT@@",
+        "payloadSha256": "575d2930bd5e900d715a6dae52e9f8e2f2d60c56c16c2e93b945077b72914b19"
+      },
+      {
+        "type": "build",
+        "generationIndex": 8,
+        "structuralIdentity": "dgl@@DjYU_Zjjjh@@",
+        "payloadSha256": "fa297f7fa6d0a6c51a989b6183ea4e27953f072fdbf3cbad637991515ea2a019"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 9,
+        "structuralIdentity": "dct@@LdbbjTUUUU@@",
+        "payloadSha256": "40d232ae6882239110b6cd491916e17cd6804bc476060bd8c2f09aafe45e733f",
+        "optionIdsSha256": "b428dc74b9bed3baf790b222d8836c2d66405f304cbac64a9a70b37087e196ea"
+      },
+      {
+        "type": "build",
+        "generationIndex": 10,
+        "structuralIdentity": "eF@Hp@",
+        "payloadSha256": "5ce1d5c746f498ce934bc6fe6f169ddd2533b302caceea215b2f16239d8c5591"
+      }
+    ]
+  },
+  "classAssignment": {
+    "participantId": "001",
+    "configFingerprint": "[\"class-config-v1\",\"exam\",15,[\"alkane\",\"alcohol\"],[\"naming\",\"multiple-choice\",\"build\"],1]",
+    "sessionSeed": "[\"hydrocarbon-lab-seed\",\"CHEM-4B-2026\",\"[\\\"class-participant\\\",1,\\\"[\\\\\\\"class-config-v1\\\\\\\",\\\\\\\"exam\\\\\\\",15,[\\\\\\\"alkane\\\\\\\",\\\\\\\"alcohol\\\\\\\"],[\\\\\\\"naming\\\\\\\",\\\\\\\"multiple-choice\\\\\\\",\\\\\\\"build\\\\\\\"],1]\\\",\\\"001\\\"]\"]"
+  },
+  "classCsvSha256": "08fbce3413b9930618ec00a9f3b7fd93bee54f3a8e884c662ad501164e3c4e85"
+}

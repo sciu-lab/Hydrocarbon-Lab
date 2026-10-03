@@ -1,0 +1,343 @@
+{
+  "generatorVersion": 1,
+  "sessions": {
+    "intermediate": {
+      "practiceNaming": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "gNq@@djmUP@",
+          "payloadSha256": "b1ba66dc39cb61ec240ea9fe6ea0e3fe4472a81b5f2364881cf4c03800abc1a2"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "eMHAIh@",
+          "payloadSha256": "2ebc18beea2af1f080b273bbd0f3787e7dd1ced6a3784954046e73b9e78c427a"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 2,
+          "structuralIdentity": "gCa@@duP@",
+          "payloadSha256": "35d96ebbc300dac2bf6fb3c8fe407f818982534738339729a50fba4ea0e84fa6"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "daxD@@QIe]jj@@",
+          "payloadSha256": "59749fa5c6017c865cf2666e8c344a0695d5a682abb91a9fb28745b16688af9f"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 4,
+          "structuralIdentity": "gNp`@df]Zj@@",
+          "payloadSha256": "b3a42ca932274b17ce12ca9d227e1248844529de531bf8ac2527d999b83961b4"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "gNp@LdbJjj@@",
+          "payloadSha256": "d1f9f85a60f06f4aaf4a19ef7314cf9a1b86bb05450a36484732388fb6bdf4fe"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 6,
+          "structuralIdentity": "fH@@",
+          "payloadSha256": "78cf46d7d812a69ad51a3c5e8b9a689a8bf01ac1cb3e1e907fddddbca97ebe1a"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 7,
+          "structuralIdentity": "gJP`@dfVh@",
+          "payloadSha256": "9fce8c663e496c2729c4cd39bd88d51378f50f7a87718413a961006e88f3bc40"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 8,
+          "structuralIdentity": "dmT@@DjYezjjh@@",
+          "payloadSha256": "e2fd2a08f150eb5bcf3bb55e43d60f95f43df3bf7e2f77b9b3be21428b6b1651"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 9,
+          "structuralIdentity": "diD@@LdbbQjjh@@",
+          "payloadSha256": "3ee262a2ecacae302e18ff75567d419f69d33263c81727183e42a1a3e1547c7b"
+        }
+      ],
+      "practiceMixed": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "gGP`@dfUj`@",
+          "payloadSha256": "8bfb4635c1cb35dd0a9046f7510e1b907f5ee88ba5e5a11949c9817adc33f31b"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 1,
+          "structuralIdentity": "daxD@@QIeUjj@@",
+          "payloadSha256": "865243b26de575b105e050335012cd690755f98ebed4dc8f9fedade35dee7bdc",
+          "optionIdsSha256": "04364888fc938d42eecbf329ea3324199fa1e4afd1db272bab33de2d87c2df7b"
+        },
+        {
+          "type": "build",
+          "generationIndex": 2,
+          "structuralIdentity": "ded@@DjWujjj@@",
+          "payloadSha256": "f74dd1958b19a289f0abad27a3dc6a2f72125b01db3287870e2b52d13c9773c8"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 3,
+          "structuralIdentity": "eF@Hp@",
+          "payloadSha256": "f193ab2177228edff50ab78a9711c32d7198db2eba2bf8538a84ef13afe16136",
+          "optionIdsSha256": "dc70b167c213bd682ed8c3000bfddc91fcc4799b06eb8b571393181327650be7"
+        },
+        {
+          "type": "build",
+          "generationIndex": 4,
+          "structuralIdentity": "fH@@",
+          "payloadSha256": "f38b650704e937ccc8fbebf6a30c227d8e9d43ca2da42ff04059abb23487834e"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "gCa@@dmP@",
+          "payloadSha256": "67ddedee3f89e7813f328272747eb92859d9b562b37bb3af1cf8c31db23b7d25"
+        }
+      ],
+      "examMixed": [
+        {
+          "type": "multiple-choice",
+          "generationIndex": 0,
+          "structuralIdentity": "gJQ@@dsU@@",
+          "payloadSha256": "e79259d0b6e806ed3207c66dca536655a4c1ef884b837304dbfd4a8a39e083b8",
+          "optionIdsSha256": "5798b891f6b1edc953ac798ac10383ca4c1eea10cb052892f5c36180c3e6e5c5"
+        },
+        {
+          "type": "build",
+          "generationIndex": 1,
+          "structuralIdentity": "dedH@@ReUvjjh@@",
+          "payloadSha256": "465387f6178d752659d4b8cd369cb8eba64e1daef9c8ae965c62808f1192b932"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 2,
+          "structuralIdentity": "fH@@",
+          "payloadSha256": "fd4a676403c048e62234d96bd4e65e2b40d3989523c207db902277217b53f6da"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "eMHAIh@",
+          "payloadSha256": "99cbe63e75d980131f33e715f021a31b4b10f31927fecf929faa8e3d02575c02"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 4,
+          "structuralIdentity": "dmTH@@RYWUjjj`@",
+          "payloadSha256": "803cbb01a8bcf33d0cd82fa60ae4eba7c47d8798ba7c0e7cd3299a46f34028f0",
+          "optionIdsSha256": "745fc2af5009e337d475c47d4902773ca3d46439769fe3290782908069295243"
+        },
+        {
+          "type": "build",
+          "generationIndex": 5,
+          "structuralIdentity": "gNp@DiUjj@@",
+          "payloadSha256": "f1a3c4bc817d1573b6d1f8a525bd70c6611ed501038efedd36070b3b2de61b5f"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 6,
+          "structuralIdentity": "eM@Hz@",
+          "payloadSha256": "fd4811c3260df367cfce0d11c1867651626435de310cb39e47b466a334f180cd",
+          "optionIdsSha256": "016f0a1d6bbe0bb7fc95fb771804d4382d0a259d4c926612321d6df2da1684df"
+        },
+        {
+          "type": "build",
+          "generationIndex": 7,
+          "structuralIdentity": "gC`@Dij@@",
+          "payloadSha256": "a6a3e59fe022822707fc5bd7bc0ab2023f537aa18e9ef862c73af31eeee2ecb2"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 8,
+          "structuralIdentity": "gNq@@dsmUP@",
+          "payloadSha256": "fc421c1282ac6f3fa21a28b3174a1189eeba7621e0c4ec7122e7812e6867933c"
+        },
+        {
+          "type": "build",
+          "generationIndex": 9,
+          "structuralIdentity": "diDH@@RYuZjj@@",
+          "payloadSha256": "99aca9d1e1933fbff6c72f1b08b5dddf125b21353f4507447bbfc9b4bca14206"
+        }
+      ]
+    },
+    "advanced": {
+      "practiceNaming": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "diDH@@RUUZjj@@",
+          "payloadSha256": "b50caa1e25cd36acfaf58bdb20f39e6fec2a378f7ed3a5de2302f4f54690a785"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "dax@@DjWjjh@@",
+          "payloadSha256": "6bf3cb12062910a6b803b3f4987fcebfe4adc59dc6cc51e73ae4f0be464ee06e"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 2,
+          "structuralIdentity": "gGP`@df]j`@",
+          "payloadSha256": "59a63404fc9ad07f7a89e3840207a409e3dcd31fdf7992593b0291d290338184"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "dmT@@DjWezjjh@@",
+          "payloadSha256": "fc0625db1eec813fe85eb3ef622cf1d8d8f8467f916719351e3215d664a3da65"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 4,
+          "structuralIdentity": "gJP`@dfVh@",
+          "payloadSha256": "f3f73686a7b229bd3dd38641136b5d1da07de3b7f05dcfc2be8ac4fc3793b6d3"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "dedD@@QIeUVjj`@",
+          "payloadSha256": "bbdf4282620e6ce9cafdc1f9f5cd56ffb42d2c308dc5a6605a0a422e51586c70"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 6,
+          "structuralIdentity": "daxD@@QIe]jj@@",
+          "payloadSha256": "bb3929f4530b50ebcbbd73c891357541bb1b4a50483806c0e72477c5b760ef02"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 7,
+          "structuralIdentity": "dmT@@DjUWzjjh@@",
+          "payloadSha256": "ebb2c76a02b870ff41f5d107fe80f263178d826133650bddcfb65ef969afb9f4"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 8,
+          "structuralIdentity": "dax@@DiUZjh@@",
+          "payloadSha256": "a2736a1c44e2942387d65d9c3fbf200297d14e127f3be4fb31e85517e8d3dfa4"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 9,
+          "structuralIdentity": "dmT@@DjYWjjjh@@",
+          "payloadSha256": "434f7e286986b7cc9742a5fd09e8e34033ab0aa274fe208eeade4c6ad8396193"
+        }
+      ],
+      "practiceMixed": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "eMHAIh@",
+          "payloadSha256": "240874171bbe59db98fddfffb4f728f91b62b590021ebb2db8e65b45db1ce7a7"
+        },
+        {
+          "type": "build",
+          "generationIndex": 1,
+          "structuralIdentity": "gCa@@dmP@",
+          "payloadSha256": "d6247a54db500315878a9968de61d46ba9b197909ccb2ae4d36ce2feef71e799"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 2,
+          "structuralIdentity": "eMHAIh@",
+          "payloadSha256": "a867d2bc4882a6aede347bd25f79dbd21a4eccd9bcdf08ccdb341ebcd6e35737",
+          "optionIdsSha256": "b7c76a8cc917cfcb019b06eac5bd344837e8927af1c5a93951b0a8e0a668791d"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "dedD@@QIeWVjj`@",
+          "payloadSha256": "ff3c239c31a71f68630bf03806e22594558c89c5d345aa7b1676876a96b108be"
+        },
+        {
+          "type": "build",
+          "generationIndex": 4,
+          "structuralIdentity": "gNp@DiUjj@@",
+          "payloadSha256": "8f03ed9eb73c623e11689b397dc2c6d455cde857f9d7f08fc7f2667727498ce9"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 5,
+          "structuralIdentity": "diDD@@QIeuZjh@@",
+          "payloadSha256": "1967dd5aa5eb6d7ac86fc178a8ba756f5dbee83096ece65ecb5402c70d2d6419",
+          "optionIdsSha256": "35641f3f599b1c5ec3b89d87fda90ff06eaa483ab64fada83330fba9d3253913"
+        }
+      ],
+      "examMixed": [
+        {
+          "type": "multiple-choice",
+          "generationIndex": 0,
+          "structuralIdentity": "eF@Hp@",
+          "payloadSha256": "919b4406f3e7aa15fe0f68b8a8cc9c5e4eb764b95f2a475fbb8508e454455081",
+          "optionIdsSha256": "5e5026a8387f5a6fafd1f331914a6263cc77714e9c1c34338711845ca09287d3"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "daxH@@RYUjj`@",
+          "payloadSha256": "117a43aaf222157fe48c11009f3e6328c121628bd921576458d374a5992bd53e"
+        },
+        {
+          "type": "build",
+          "generationIndex": 2,
+          "structuralIdentity": "gCa@@duP@",
+          "payloadSha256": "768c8354aacc65ca133d651453f473d790986db22bdb04c9ac3f069e70768a0a"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 3,
+          "structuralIdentity": "gNq@@eJmUP@",
+          "payloadSha256": "30ae7c308ab1b24f7f45a09319df11d596a064216979c99c52485bf111039ceb",
+          "optionIdsSha256": "fc8562a41df7593c14d02f5819098a53061ea8b1efcb411bf283fbfeba9ac51d"
+        },
+        {
+          "type": "build",
+          "generationIndex": 4,
+          "structuralIdentity": "diDH@@RUUZjj@@",
+          "payloadSha256": "62317df4b45ecc036afc033ef873b80cf4bf80652569ea48e54bd202af4009db"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "diDH@@ReUzjj@@",
+          "payloadSha256": "064bd6576f0fb1e2e5d541ef07cb7e54c23d9d931e4accd0143045a5fd58472c"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 6,
+          "structuralIdentity": "eMHAIh@",
+          "payloadSha256": "61c66ce3c66030a7f6bcb6691aa8954e379fd110006b9c5ddbf31fbb6be51898"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 7,
+          "structuralIdentity": "gNp@DjWjj@@",
+          "payloadSha256": "b0fc754a1f3c85cd58a042358dba6d51a1bba6357a7664a265e4849fcf8c6e12",
+          "optionIdsSha256": "6c19fe9d2f1a278507cc02f3e5d106ebabb743e7d5d3526ac4ea76d0e77bf266"
+        },
+        {
+          "type": "build",
+          "generationIndex": 8,
+          "structuralIdentity": "gNq@@eJ}UP@",
+          "payloadSha256": "6024149b17be0ee62f44684a195ec4a6e88f13f145a0551350652b605f4eccd1"
+        },
+        {
+          "type": "build",
+          "generationIndex": 9,
+          "structuralIdentity": "fH@@",
+          "payloadSha256": "b3b39b6562a27e7e1c095950e29038c893aaf106d54297280cd30bde5f135f68"
+        }
+      ]
+    }
+  }
+}
