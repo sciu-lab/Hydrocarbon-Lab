@@ -1,4 +1,5 @@
 import type { SessionConfig } from "./exercise-model.ts";
+import { exerciseStructuralIdentity } from "./exercise-chemical-generator.ts";
 import { isBuildQuestion, isMultipleChoiceQuestion, schedulePracticeQuestionType,
   InsufficientSafeDistractorsError, validateMultipleChoiceQuestion } from "./practice-question.ts";
 import type { PracticeQuestion, PracticeQuestionGenerator } from "./practice-question.ts";
@@ -11,9 +12,18 @@ type SelectionContext = {
   usedExerciseKeys?: readonly string[];
 };
 export type SessionSelectionFailure = "insufficient-unique-questions" | "insufficient-safe-distractors";
+type ExerciseIdentitySource = { type?: PracticeQuestion["type"]; reference: { structuralIdentity: string };
+  molecule?: PracticeQuestion["molecule"] };
+
+/** Prefer identity from the final target graph; reference metadata is a cached
+ * value and can drift from the molecule a question ultimately presents. */
+export function getExerciseTargetIdentity(question: ExerciseIdentitySource): string {
+  return question.molecule ? exerciseStructuralIdentity(question.molecule) : question.reference.structuralIdentity;
+}
+
 /** Literal exercise identity excludes seeds, ordinals, locale and MCQ options. */
-export function getExerciseUniquenessKey(question: { type?: PracticeQuestion["type"]; reference: { structuralIdentity: string } }): string {
-  return JSON.stringify([question.type ?? "naming", question.reference.structuralIdentity]);
+export function getExerciseUniquenessKey(question: ExerciseIdentitySource): string {
+  return JSON.stringify([question.type ?? "naming", getExerciseTargetIdentity(question)]);
 }
 export type SessionQuestionSelection =
   | { ok: true; generationIndex: number; recentIdentities: readonly string[]; usedExerciseKeys: readonly string[]; question: PracticeQuestion }
@@ -26,6 +36,7 @@ export function selectSessionQuestion(context: SelectionContext, generate: Pract
   const keys = context.usedExerciseKeys ?? [];
   const used = new Set(keys);
   let duplicate = false;
+  let invalidTargetIdentity = false;
   for (let offset = 0; offset < limit; offset += 1) {
     const generationIndex = context.generationIndex + offset;
     try {
@@ -33,9 +44,12 @@ export function selectSessionQuestion(context: SelectionContext, generate: Pract
       if (isMultipleChoiceQuestion(question) !== (questionType === "multiple-choice")) throw new Error("Question type mismatch.");
       if (isBuildQuestion(question) !== (questionType === "build")) throw new Error("Question type mismatch.");
       if (isMultipleChoiceQuestion(question) && !validateMultipleChoiceQuestion(question)) throw new Error("Invalid option payload.");
-      const identity = question.reference.structuralIdentity;
-      const key = getExerciseUniquenessKey(question);
+      const identity = getExerciseTargetIdentity(question);
+      const key = JSON.stringify([questionType, identity]);
       if (used.has(key)) { duplicate = true; continue; }
+      // The accepted/reconstructed target must agree with the cached identity
+      // used by attempts and review. Reject a stale candidate safely.
+      if (identity !== question.reference.structuralIdentity) { invalidTargetIdentity = true; continue; }
       const recentIdentities = [...context.recentIdentities.filter((item) => item !== identity), identity]
         .slice(-PRACTICE_RECENT_LIMIT);
       const allKeys = [...keys, key];
@@ -47,5 +61,6 @@ export function selectSessionQuestion(context: SelectionContext, generate: Pract
     }
   }
   return { ok: false, generationIndex: duplicate ? context.generationIndex + limit : context.generationIndex,
-    reason: duplicate ? "insufficient-unique-questions" : "insufficient-safe-distractors" };
+    ...(duplicate ? { reason: "insufficient-unique-questions" as const }
+      : invalidTargetIdentity ? {} : { reason: "insufficient-safe-distractors" as const }) };
 }

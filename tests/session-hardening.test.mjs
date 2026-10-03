@@ -37,7 +37,8 @@ test("literal identity depends only on type and target identity, never MCQ optio
 test("whole-session history rejects a literal repeat after more than eight questions; no last-candidate fallback", () => {
   const config = createPracticeConfig(["alkane"], 15, "en", "FROZEN-REPEAT");
   const q = generate(config, 0), calls = [];
-  const usedExerciseKeys = Array.from({ length: 10 }, (_, i) => JSON.stringify(["naming", `identity-${i}`]));
+  const duplicateKey = getExerciseUniquenessKey(q);
+  const usedExerciseKeys = [duplicateKey, ...Array.from({ length: 9 }, (_, i) => JSON.stringify(["naming", `identity-${i}`]))];
   const selected = selectSessionQuestion({ config, index: 10, generationIndex: 10, recentIdentities: [], usedExerciseKeys },
     (_config, index) => { calls.push(index); return { ...q, reference: { ...q.reference, structuralIdentity: "identity-0" } }; });
   assert.deepEqual(calls, [10, 11, 12, 13]); assert.equal(selected.ok, false);
@@ -72,9 +73,14 @@ test("same molecule is allowed across Naming and Build; finite exhaustion never 
 
 test("Endless excludes the previous eight literal exercises with bounded memory, allowing later reuse", () => {
   const config = createPracticeConfig(["alkane"], "endless", "en", "ENDLESS-WINDOW");
-  const q = generate(config, 0);
-  const fixture = (_c, i) => ({ ...q, question: { ...q.question, id: `endless-${i}` },
-    reference: { ...q.reference, structuralIdentity: `identity-${i % 9}` } });
+  const cycle = [], identities = new Set();
+  for (let i = 0; i < 32 && cycle.length < PRACTICE_RECENT_LIMIT + 1; i += 1) {
+    const question = generate(config, i);
+    const identity = getExerciseUniquenessKey(question);
+    if (!identities.has(identity)) { identities.add(identity); cycle.push(question); }
+  }
+  assert.equal(cycle.length, PRACTICE_RECENT_LIMIT + 1);
+  const fixture = (_c, i) => ({ ...cycle[i % cycle.length], question: { ...cycle[i % cycle.length].question, id: `endless-${i}` } });
   let state = startPractice(config, fixture); const keys = [];
   for (let i = 0; i < 30; i++) {
     assert.equal(state.phase, "QUESTION"); const key = getExerciseUniquenessKey(state.question);
