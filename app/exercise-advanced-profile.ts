@@ -4,11 +4,15 @@ import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import type { ExerciseChemistryOracles, ExerciseFunctionalGroup, ExerciseReference } from "./exercise-chemistry-oracles.ts";
 import { EXERCISE_ALLOWED_ELEMENTS, expectedExerciseGroup, validateExerciseChemistry } from "./exercise-domain.ts";
 import { resolveFunctionalHierarchy } from "./legacy-english-nomenclature.ts";
+import { validateExerciseDomain } from "./exercise-domain.ts";
+import type { ExerciseTopology } from "./exercise-domain.ts";
+import { inspectDoubleBondStereochemistry } from "./double-bond-stereochemistry.ts";
 
 type Family = Readonly<{
   id: string; functions: readonly string[]; doubles: readonly number[]; triples: readonly number[];
   halo?: "optional-bromo" | "required-bromo"; alkoxy?: boolean;
   esterAlkyl?: boolean; nitro?: boolean;
+  structuralCategory?: ExerciseCategory;
 }>;
 
 /** Admission families, not production recipes or permission to compose their
@@ -32,6 +36,10 @@ export const HARD_FOUNDATION_FAMILIES: readonly Family[] = Object.freeze([
   { id: "enyne-amide", functions: ["amide"], doubles: [1], triples: [1] },
   { id: "enyne-nitrile", functions: ["nitrile"], doubles: [1], triples: [1] },
   { id: "enyne-nitro", functions: [], doubles: [1], triples: [1], nitro: true },
+  { id: "mixed-trialkyl-alkane", functions: [], doubles: [0], triples: [0], structuralCategory: "alkane" },
+  { id: "mixed-trialkyl-carbocycle", functions: [], doubles: [0], triples: [0], structuralCategory: "simple-carbocycle" },
+  { id: "mixed-trialkyl-benzene", functions: [], doubles: [3], triples: [0], structuralCategory: "aromatic" },
+  { id: "mixed-trialkyl-ez", functions: [], doubles: [1], triples: [0], structuralCategory: "ez" },
 ]);
 
 export type HardFoundationEvidence = Readonly<{
@@ -41,12 +49,81 @@ export type HardFoundationEvidence = Readonly<{
   repeatedFunctions: readonly { kind: string; count: number }[];
   carbonDoubleBondCount: number; carbonTripleBondCount: number;
   explicitEZ: boolean; branchCount: number; parent: readonly number[];
+  structuralComplexity?: Readonly<{
+    substituents: readonly { locant: number; carbonCount: number }[];
+    distinctCarbonSubstituentCount: number;
+    oppositeDirectionLocants: readonly number[];
+    ezConfiguration?: "E" | "Z";
+  }>;
 }>;
 export type HardFoundationValidation =
-  | { valid: true; topology: "acyclic"; evidence: HardFoundationEvidence }
+  | { valid: true; topology: ExerciseTopology; evidence: HardFoundationEvidence }
   | { valid: false; reason: string };
 const reject = (reason: string): { valid: false; reason: string } => ({ valid: false, reason });
 const kindKey = (groups: readonly { kind: string }[]) => groups.map((g) => g.kind).sort().join("|");
+
+/** Three separate methyl/ethyl substitutions, with both identities and a real
+ * direction-dependent locant set. The parent is selected by the existing namer;
+ * this predicate neither chooses a parent nor duplicates its numbering rules.
+ * The published domain supplies the unchanged topology and genuine E/Z guards. */
+function validateStructuralFamily(molecule: GeneratedMolecule, category: ExerciseCategory,
+  oracles: ExerciseChemistryOracles, reference?: ExerciseReference): HardFoundationValidation {
+  const family = HARD_FOUNDATION_FAMILIES.find((f) => f.structuralCategory === category)!;
+  const domain = validateExerciseDomain(molecule, category, oracles, "intermediate");
+  if (!domain.valid) return domain;
+  const r = reference ?? oracles.reference(molecule);
+  const cyclic = category === "aromatic" || category === "simple-carbocycle";
+  if (!r.namingSupported || !r.names.es.trim() || !r.names.en.trim()
+    || r.family !== (category === "aromatic" ? "aromatic" : cyclic ? "cycloalkane" : "acyclic")) return reject("hard-naming-unavailable");
+  if (!r.parent || !r.functionalGroups || r.functionalGroups.length || r.principalFunctionalGroup !== undefined
+    || oracles.detectFunctionalGroups(molecule).length || molecule.atoms.some((a) => (a.element ?? "C") !== "C" || (a.charge ?? 0) !== 0)) return reject("hard-structural-hydrocarbon-required");
+  const parent = r.parent.atomIds, inside = new Set(parent);
+  const carbons = new Set(molecule.atoms.map((a) => a.id));
+  if (inside.size !== r.parent.carbonCount || parent.some((id) => !carbons.has(id))
+    || (cyclic ? ![5, 6].includes(parent.length) : parent.length < 6 || parent.length > 9)) return reject("hard-parent-not-certified");
+  const neighbors = (id: number) => molecule.bonds.flatMap(([a, b]) => a === id ? [b] : b === id ? [a] : []);
+  if (parent.slice(1).some((id, i) => !neighbors(id).includes(parent[i]))
+    || cyclic && (!neighbors(parent[0]).includes(parent.at(-1)!)
+      || molecule.rings![0].atomIds.some((id) => !inside.has(id)))) return reject("hard-parent-path-mismatch");
+  if (molecule.atoms.some((a) => neighbors(a.id).length > 3)) return reject("hard-complex-branch");
+  const multiples = molecule.bonds.filter((b) => (b[2] ?? 1) > 1);
+  if (multiples.some(([a, b]) => !inside.has(a) || !inside.has(b))) return reject("hard-unsaturation-outside-parent");
+  const outside = new Set([...carbons].filter((id) => !inside.has(id)));
+  const substituents: { locant: number; carbonCount: number }[] = [];
+  while (outside.size) {
+    const component = new Set<number>(), pending = [outside.values().next().value!];
+    while (pending.length) {
+      const id = pending.pop()!;
+      if (!outside.delete(id)) continue;
+      component.add(id); pending.push(...neighbors(id).filter((other) => outside.has(other)));
+    }
+    const edges = molecule.bonds.filter(([a, b]) => component.has(a) || component.has(b));
+    const boundary = edges.filter(([a, b]) => component.has(a) !== component.has(b));
+    if (component.size > 2 || boundary.length !== 1 || edges.some((b) => (b[2] ?? 1) !== 1)) return reject("hard-complex-branch");
+    const [a, b] = boundary[0], anchor = component.has(a) ? b : a;
+    const locant = parent.indexOf(anchor) + 1;
+    if (!locant || !cyclic && (locant === 1 || locant === parent.length
+      || multiples.some(([left, right]) => left === anchor || right === anchor))) return reject("hard-branch-site-not-certified");
+    substituents.push({ locant, carbonCount: component.size });
+  }
+  substituents.sort((a, b) => a.locant - b.locant);
+  const distinct = new Set(substituents.map((s) => s.carbonCount)).size;
+  if (substituents.length !== 3 || distinct !== 2 || new Set(substituents.map((s) => s.locant)).size !== 3) return reject("hard-mixed-trialkyl-required");
+  const opposite = substituents.map((s) => cyclic ? (s.locant === 1 ? 1 : parent.length + 2 - s.locant)
+    : parent.length + 1 - s.locant).sort((a, b) => a - b);
+  if (opposite.every((locant, i) => locant === substituents[i].locant)) return reject("hard-locant-competition-required");
+  const configured = molecule.bonds.find((b) => b[3]);
+  const stereo = configured ? inspectDoubleBondStereochemistry(molecule, configured[0], configured[1]) : undefined;
+  // Domain already requires exactly one marked, genuinely stereogenic center.
+  if (category === "ez" && (!stereo?.stereogenic || !stereo.configuration)) return reject("invalid-ez-configuration");
+  return { valid: true, topology: domain.topology, evidence: {
+    family: family.id, principalGroup: undefined, principalInstances: [], secondaryGroups: [], repeatedFunctions: [],
+    carbonDoubleBondCount: multiples.filter((b) => b[2] === 2).length,
+    carbonTripleBondCount: 0, explicitEZ: category === "ez", branchCount: substituents.length, parent: [...parent],
+    structuralComplexity: { substituents, distinctCarbonSubstituentCount: distinct, oppositeDirectionLocants: opposite,
+      ...(stereo?.configuration ? { ezConfiguration: stereo.configuration } : {}) },
+  } };
+}
 
 /** Explicit opt-in capability. Published generation/domain policies never call
  * this function. Principal selection comes from the namer's shared hierarchy. */
@@ -57,6 +134,10 @@ export function validateHardFoundationExercise(molecule: GeneratedMolecule, cate
   if (!chemical.valid) return chemical;
   if (molecule.atoms.some((a) => !EXERCISE_ALLOWED_ELEMENTS.includes((a.element ?? "C") as typeof EXERCISE_ALLOWED_ELEMENTS[number]))) return reject("excluded-element");
   if (molecule.atoms.some((a) => a.tetrahedralParity !== undefined || a.tetrahedralBondTo !== undefined)) return reject("rs-outside-domain");
+  if (HARD_FOUNDATION_FAMILIES.some((f) => f.structuralCategory === category)) {
+    try { return validateStructuralFamily(molecule, category, oracles, reference); }
+    catch { return reject("hard-analysis-oracle-failed"); }
+  }
   if (molecule.bonds.length - molecule.atoms.length + 1 !== 0) return reject("hard-cycles-not-certified");
   if (molecule.rings !== undefined && (!Array.isArray(molecule.rings) || molecule.rings.length)) return reject("invalid-ring-metadata");
   if (molecule.bonds.some((b) => b[3])) return reject("hard-explicit-ez-not-certified");
@@ -78,7 +159,7 @@ export function validateHardFoundationExercise(molecule: GeneratedMolecule, cate
     const functions = groups.filter((g) => !["halogen", "nitro"].includes(g.kind));
     const halos = groups.filter((g) => g.kind === "halogen");
     const nitros = groups.filter((g) => g.kind === "nitro");
-    const family = HARD_FOUNDATION_FAMILIES.find((f) => kindKey(functions) === f.functions.slice().sort().join("|")
+    const family = HARD_FOUNDATION_FAMILIES.find((f) => !f.structuralCategory && kindKey(functions) === f.functions.slice().sort().join("|")
       && f.doubles.includes(doubles) && f.triples.includes(triples)
       && (f.id === "diol" ? multiples.length <= 1 : true)
       && nitros.length === (f.nitro ? 1 : 0)

@@ -18,6 +18,7 @@ import { buildReasoningNameLinkParts } from "../app/reasoning-name-links.ts";
 
 const fixture=JSON.parse(readFileSync(new URL("./fixtures/difficulty-d4-hard-foundation.json",import.meta.url)));
 const functionalFixture=JSON.parse(readFileSync(new URL("./fixtures/difficulty-d4-2a-hard-functional.json",import.meta.url)));
+const structuralFixture=JSON.parse(readFileSync(new URL("./fixtures/difficulty-d4-2b-hard-structural.json",import.meta.url)));
 let chemistry, validate, evaluate, currentValidate, currentEvaluate, review;
 before(async()=>{
   chemistry=await loadExerciseChemistry();
@@ -33,7 +34,8 @@ const hard=(m,category)=>validateHardFoundationExercise(m,category,chemistry.ora
 function redraw(m) {
   const ids=new Map(m.atoms.map((a,i)=>[a.id,1000+i*17]));
   return {atoms:m.atoms.map(a=>({...a,id:ids.get(a.id),x:-a.y*3+7,y:a.x*3+21})).reverse(),
-    bonds:m.bonds.map(([a,b,...rest])=>[ids.get(b),ids.get(a),...rest]).reverse(),rings:[]};
+    bonds:m.bonds.map(([a,b,...rest])=>[ids.get(b),ids.get(a),...rest]).reverse(),
+    rings:(m.rings??[]).map(r=>({...r,atomIds:r.atomIds.map(id=>ids.get(id)).reverse()}))};
 }
 for(const f of fixture.fixtures) test(`D4 graph anchor #${f.id}: ${f.names.es}`,()=>{
   const m=graph(f.smiles),original=structuredClone(m),r=chemistry.oracles.reference(m),analysis=chemistry.engine.analyzeMolecule(m);
@@ -103,7 +105,7 @@ test("principal/prefix roles, repeated functions, and feature categories use the
   assert.equal(hard(halo,"alcohol").valid,false);
 });
 
-test("all admission families have independently analyzed positive evidence, including D4.2A",()=>{
+test("all admission families have independently analyzed positive evidence, including D4.2A/B",()=>{
   const seen=new Set(fixture.fixtures.filter(f=>f.minimumDifficulty==="advanced").map(f=>hard(graph(f.smiles),f.category).evidence.family));
   for(const {smiles,category,family:id,names,structuralIdentity} of fixture.additionalFixtures) {
     const m=graph(smiles),r=hard(m,category);assert.ok(r.valid,JSON.stringify(r));assert.equal(r.evidence.family,id);
@@ -115,6 +117,15 @@ test("all admission families have independently analyzed positive evidence, incl
   }
   // One smoke assertion per new family keeps the existing critical gate small.
   for(const f of functionalFixture.fixtures.filter(f=>f.id.endsWith("-branched"))) {
+    const m=graph(f.smiles),r=hard(m,f.category);assert.ok(r.valid,JSON.stringify(r));
+    assert.equal(r.evidence.family,f.family);assert.equal(classifyMinimumExerciseDifficulty(m,f.category,chemistry.oracles),"advanced");
+    assert.equal(validateEasyExercise(m,f.category,chemistry.oracles).valid,false);
+    assert.equal(validateIntermediateExercise(m,f.category,chemistry.oracles).valid,false);
+    assert.deepEqual(chemistry.oracles.reference(m).names,f.names);
+    assert.equal(exerciseStructuralIdentity(m),f.structuralIdentity);
+    assert.equal(evaluate({referenceMolecule:m,submittedMolecule:redraw(m),category:f.category}).correct,true);seen.add(f.family);
+  }
+  for(const f of structuralFixture.fixtures.filter(f=>f.id.endsWith("-primary"))) {
     const m=graph(f.smiles),r=hard(m,f.category);assert.ok(r.valid,JSON.stringify(r));
     assert.equal(r.evidence.family,f.family);assert.equal(classifyMinimumExerciseDifficulty(m,f.category,chemistry.oracles),"advanced");
     assert.equal(validateEasyExercise(m,f.category,chemistry.oracles).valid,false);

@@ -1,0 +1,338 @@
+{
+  "fixtures": [
+    {
+      "id": "alkane-primary",
+      "category": "alkane",
+      "smiles": "CC(C)C(CC)CC(C)CCC",
+      "family": "mixed-trialkyl-alkane",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants",
+      "names": {
+        "es": "3-etil-2,5-dimetiloctano",
+        "en": "3-ethyl-2,5-dimethyloctane"
+      },
+      "formula": "C₁₂H₂₆",
+      "structuralIdentity": "dct@@LdbbQfuUUU@@",
+      "constitutionalIdentity": "dct@@LdbbQfuUUU@@",
+      "parentCarbonCount": 8,
+      "doubleLocants": [],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 2,
+            "carbonCount": 1
+          },
+          {
+            "locant": 3,
+            "carbonCount": 2
+          },
+          {
+            "locant": 5,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          4,
+          6,
+          7
+        ]
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "alkane-locant-variant",
+      "category": "alkane",
+      "smiles": "CCC(C)C(CC)CC(C)CC",
+      "family": "mixed-trialkyl-alkane",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants",
+      "names": {
+        "es": "4-etil-3,6-dimetiloctano",
+        "en": "4-ethyl-3,6-dimethyloctane"
+      },
+      "formula": "C₁₂H₂₆",
+      "structuralIdentity": "dct@@LdbbRtMUUU@@",
+      "constitutionalIdentity": "dct@@LdbbRtMUUU@@",
+      "parentCarbonCount": 8,
+      "doubleLocants": [],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 3,
+            "carbonCount": 1
+          },
+          {
+            "locant": 4,
+            "carbonCount": 2
+          },
+          {
+            "locant": 6,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          3,
+          5,
+          6
+        ]
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "simple-carbocycle-primary",
+      "category": "simple-carbocycle",
+      "smiles": "CCC1C(C)CC(C)CC1",
+      "family": "mixed-trialkyl-carbocycle",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants",
+      "names": {
+        "es": "1-etil-2,4-dimetilciclohexano",
+        "en": "1-ethyl-2,4-dimethylcyclohexane"
+      },
+      "formula": "C₁₀H₂₀",
+      "structuralIdentity": "deT@@LdbbRkCUUU@@",
+      "constitutionalIdentity": "deT@@LdbbRkCUUU@@",
+      "parentCarbonCount": 6,
+      "doubleLocants": [],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 1,
+            "carbonCount": 2
+          },
+          {
+            "locant": 2,
+            "carbonCount": 1
+          },
+          {
+            "locant": 4,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          1,
+          4,
+          6
+        ]
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "simple-carbocycle-locant-variant",
+      "category": "simple-carbocycle",
+      "smiles": "CCC1C(C)C(C)CC1",
+      "family": "mixed-trialkyl-carbocycle",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants",
+      "names": {
+        "es": "1-etil-2,3-dimetilciclopentano",
+        "en": "1-ethyl-2,3-dimethylcyclopentane"
+      },
+      "formula": "C₉H₁₈",
+      "structuralIdentity": "did@@DjYTfjjj@@",
+      "constitutionalIdentity": "did@@DjYTfjjj@@",
+      "parentCarbonCount": 5,
+      "doubleLocants": [],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 1,
+            "carbonCount": 2
+          },
+          {
+            "locant": 2,
+            "carbonCount": 1
+          },
+          {
+            "locant": 3,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          1,
+          4,
+          5
+        ]
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "aromatic-primary",
+      "category": "aromatic",
+      "smiles": "CCc1c(C)cc(C)cc1",
+      "family": "mixed-trialkyl-benzene",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants",
+      "names": {
+        "es": "1-etil-2,4-dimetilbenceno",
+        "en": "1-ethyl-2,4-dimethylbenzene"
+      },
+      "formula": "C₁₀H₁₄",
+      "structuralIdentity": "deT@@LdbbRkBDQD@@",
+      "constitutionalIdentity": "deT@@LdbbRkBDQD@@",
+      "parentCarbonCount": 6,
+      "doubleLocants": [],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 1,
+            "carbonCount": 2
+          },
+          {
+            "locant": 2,
+            "carbonCount": 1
+          },
+          {
+            "locant": 4,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          1,
+          4,
+          6
+        ]
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "aromatic-locant-variant",
+      "category": "aromatic",
+      "smiles": "CCc1c(C)c(C)ccc1",
+      "family": "mixed-trialkyl-benzene",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants",
+      "names": {
+        "es": "1-etil-2,3-dimetilbenceno",
+        "en": "1-ethyl-2,3-dimethylbenzene"
+      },
+      "formula": "C₁₀H₁₄",
+      "structuralIdentity": "deT@@DjYVXPbH`@@",
+      "constitutionalIdentity": "deT@@DjYVXPbH`@@",
+      "parentCarbonCount": 6,
+      "doubleLocants": [],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 1,
+            "carbonCount": 2
+          },
+          {
+            "locant": 2,
+            "carbonCount": 1
+          },
+          {
+            "locant": 3,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          1,
+          5,
+          6
+        ]
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "ez-primary",
+      "category": "ez",
+      "smiles": "CC(C)C(CC)/C=C/C(C)CCC",
+      "family": "mixed-trialkyl-ez",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants; one genuine explicit E/Z center",
+      "names": {
+        "es": "(4E)-3-etil-2,6-dimetilnon-4-eno",
+        "en": "(4E)-3-ethyl-2,6-dimethyl-4-nonene"
+      },
+      "formula": "C₁₃H₂₆",
+      "structuralIdentity": "dkL@@LdRbbbSZjjjB@`",
+      "constitutionalIdentity": "dkL@@LdRbbbSZjjj@@",
+      "parentCarbonCount": 9,
+      "doubleLocants": [
+        4
+      ],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 2,
+            "carbonCount": 1
+          },
+          {
+            "locant": 3,
+            "carbonCount": 2
+          },
+          {
+            "locant": 6,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          4,
+          7,
+          8
+        ],
+        "ezConfiguration": "E"
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "ez-z-variant",
+      "category": "ez",
+      "smiles": "CC(C)C(CC)/C=C\\C(C)CCC",
+      "family": "mixed-trialkyl-ez",
+      "mechanism": "Three separate methyl/ethyl branches; two substituent identities; competing direction locants; one genuine explicit E/Z center",
+      "names": {
+        "es": "(4Z)-3-etil-2,6-dimetilnon-4-eno",
+        "en": "(4Z)-3-ethyl-2,6-dimethyl-4-nonene"
+      },
+      "formula": "C₁₃H₂₆",
+      "structuralIdentity": "dkL@@LdRbbbSZjjjB@P",
+      "constitutionalIdentity": "dkL@@LdRbbbSZjjj@@",
+      "parentCarbonCount": 9,
+      "doubleLocants": [
+        4
+      ],
+      "tripleLocants": [],
+      "structuralComplexity": {
+        "substituents": [
+          {
+            "locant": 2,
+            "carbonCount": 1
+          },
+          {
+            "locant": 3,
+            "carbonCount": 2
+          },
+          {
+            "locant": 6,
+            "carbonCount": 1
+          }
+        ],
+        "distinctCarbonSubstituentCount": 2,
+        "oppositeDirectionLocants": [
+          4,
+          7,
+          8
+        ],
+        "ezConfiguration": "Z"
+      },
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    }
+  ]
+}
