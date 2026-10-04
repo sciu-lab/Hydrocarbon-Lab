@@ -29,7 +29,7 @@ after(async () => chemistry?.close());
 const noop = () => {};
 const actions = { answer: noop, structure: noop, available: noop, go: noop, submit: noop, configure: noop, back: noop, review: noop, results: noop };
 const time = (ms) => ({ monotonicMs: ms, wallTimeMs: 1700000000000 + ms });
-const start = (types = ["naming"]) => startExam(createExamConfig(["alcohol"], 5, "es", "EXAM-UI", types), generate);
+const start = (types = ["naming"]) => startExam(createExamConfig(["alcohol"], 5, "es", "EXAM-UI", types, "basic", 1), generate);
 const renderStructure = (molecule, label, width, height) => React.createElement(chemistry.engine.MoleculeHistoryPreview,
   { molecule, ariaLabel: label, width, height, practiceView: true });
 const render = (state, language = "es", props = {}) => renderToStaticMarkup(React.createElement(ui.ExamSessionView,
@@ -39,7 +39,7 @@ const ready = (s, i) => markExamQuestionAvailable(s, time(i * 1000), { index: s.
 for (const category of ["alcohol", "ketone", "carboxylic-acid", "ester", "nitrile", "ez"]) {
   test(`category privacy ${category}: Practice scaffolding, Exam question/review omission, post-submit disclosure`, () => {
     for (const language of ["es", "en"]) for (const type of ["naming", "multiple-choice", "build"]) {
-      const config = createExamConfig([category], 1, language, "PRIVACY-9.1", [type]);
+      const config = createExamConfig([category], 1, language, "PRIVACY-9.1", [type], "basic", 1);
       let exam = startExam(config, generate); assert.equal(exam.phase, "EXAM_QUESTION");
       const label = uiText(language, practiceUI.PRACTICE_TOPIC_GROUPS.flatMap((g) => g.topics).find(([id]) => id === category)[1]);
       let bridge;
@@ -56,7 +56,7 @@ for (const category of ["alcohol", "ketone", "carboxylic-acid", "ester", "nitril
       const results = submitExam(exam, language, time(200), evaluate);
       assert.equal(results.phase, "EXAM_RESULTS"); assert.ok(render(results, language).includes(label));
       assert.ok(render(openExamPostReview(results), language).includes(label));
-      const practice = startPractice(createPracticeConfig([category], 1, language, "PRIVACY-9.1", [type]), generate);
+      const practice = startPractice(createPracticeConfig([category], 1, language, "PRIVACY-9.1", [type], "basic", 1), generate);
       const practiceHTML = renderToStaticMarkup(React.createElement(practiceUI.PracticeSessionView,
         { state: practice, language, renderStructure, actions: { answer: noop, check: noop, next: noop, end: noop,
           retry: noop, configure: noop, back: noop, correctMistakes: noop } }));

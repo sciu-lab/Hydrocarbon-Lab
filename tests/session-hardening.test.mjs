@@ -25,7 +25,7 @@ function answer(state, text = state.question.reference.names.en) {
 }
 
 test("literal identity depends only on type and target identity, never MCQ options, IDs, locale or ordering", () => {
-  const q = generate(createPracticeConfig(["alkane"], 5, "en", "KEY"), 0);
+  const q = generate(createPracticeConfig(["alkane"], 5, "en", "KEY", ["naming"], "basic", 1), 0);
   const changed = { ...q, question: { ...q.question, id: "other", seed: "other" },
     molecule: { ...q.molecule, atoms: [...q.molecule.atoms].reverse() }, reference: { ...q.reference, name: "localized" } };
   assert.equal(getExerciseUniquenessKey(q), getExerciseUniquenessKey(changed));
@@ -35,7 +35,7 @@ test("literal identity depends only on type and target identity, never MCQ optio
 });
 
 test("whole-session history rejects a literal repeat after more than eight questions; no last-candidate fallback", () => {
-  const config = createPracticeConfig(["alkane"], 15, "en", "FROZEN-REPEAT");
+  const config = createPracticeConfig(["alkane"], 15, "en", "FROZEN-REPEAT", ["naming"], "basic", 1);
   const q = generate(config, 0), calls = [];
   const duplicateKey = getExerciseUniquenessKey(q);
   const usedExerciseKeys = [duplicateKey, ...Array.from({ length: 9 }, (_, i) => JSON.stringify(["naming", `identity-${i}`]))];
@@ -46,7 +46,7 @@ test("whole-session history rejects a literal repeat after more than eight quest
 });
 
 test("frozen duplicate fixture accepts real index 4, reconstructs it exactly, and corrections are exempt", () => {
-  const config = createPracticeConfig(["alkane", "alcohol", "ester"], 5, "en", "PRACTICE-PHASE3");
+  const config = createPracticeConfig(["alkane", "alcohol", "ester"], 5, "en", "PRACTICE-PHASE3", ["naming"], "basic", 1);
   const q0 = generate(config, 0), q4 = generate(config, 4);
   assert.notEqual(q0.reference.structuralIdentity, q4.reference.structuralIdentity);
   const calls = [];
@@ -62,7 +62,7 @@ test("frozen duplicate fixture accepts real index 4, reconstructs it exactly, an
 });
 
 test("same molecule is allowed across Naming and Build; finite exhaustion never begins a partial Exam", () => {
-  const config = createExamConfig(["alkane"], 3, "en", "TYPES", ["naming", "build"]);
+  const config = createExamConfig(["alkane"], 3, "en", "TYPES", ["naming", "build"], "basic", 1);
   const base = generate(config, 0, { questionType: "naming", displayIndex: 0 });
   const fixture = (_c, _i, context) => ({ ...base, type: context.questionType });
   const two = createExamQuestionPlan({ ...config, questionCount: 2 }, fixture);
@@ -72,7 +72,7 @@ test("same molecule is allowed across Naming and Build; finite exhaustion never 
 });
 
 test("Endless excludes the previous eight literal exercises with bounded memory, allowing later reuse", () => {
-  const config = createPracticeConfig(["alkane"], "endless", "en", "ENDLESS-WINDOW");
+  const config = createPracticeConfig(["alkane"], "endless", "en", "ENDLESS-WINDOW", ["naming"], "basic", 1);
   const cycle = [], identities = new Set();
   for (let i = 0; i < 32 && cycle.length < PRACTICE_RECENT_LIMIT + 1; i += 1) {
     const question = generate(config, i);
@@ -93,8 +93,8 @@ test("Endless excludes the previous eight literal exercises with bounded memory,
 test("numeric input and both session boundaries share the positive safe integer contract", () => {
   for (const n of [1, 5, 7, 15, 23, 30, 37, Number.MAX_SAFE_INTEGER]) {
     assert.equal(parseFiniteQuestionCount(String(n)), n);
-    assert.equal(createPracticeConfig(["alkane"], n, "en", "COUNT").questionCount, n);
-    assert.equal(createExamConfig(["alkane"], n, "en", "COUNT").questionCount, n);
+    assert.equal(createPracticeConfig(["alkane"], n, "en", "COUNT", ["naming"], "basic", 1).questionCount, n);
+    assert.equal(createExamConfig(["alkane"], n, "en", "COUNT", ["naming"], "basic", 1).questionCount, n);
   }
   for (const text of ["", " ", "0", "-1", "1.5", "NaN", "Infinity", "invalid", "9007199254740992"]) assert.equal(parseFiniteQuestionCount(text), null);
 });
@@ -125,7 +125,7 @@ test("37-question plans are accepted beyond the old cap when unique candidates a
 });
 
 test("15-question frozen plan is deterministic in a fresh Node process and across locales", () => {
-  const config = createExamConfig(EXERCISE_CATEGORIES, 15, "es", "HARDENING-PROCESS", ["naming", "multiple-choice", "build"]);
+  const config = createExamConfig(EXERCISE_CATEGORIES, 15, "es", "HARDENING-PROCESS", ["naming", "multiple-choice", "build"], "basic", 1);
   const plan = createExamQuestionPlan(config, generate);
   assert.deepEqual(plan, createExamQuestionPlan({ ...config, locale: "en" }, generate));
   const child = spawnSync(process.execPath, ["tests/helpers/exam-plan-process.mjs", "en", "hardening"], { encoding: "utf8", timeout: 60000 });

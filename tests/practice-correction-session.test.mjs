@@ -13,7 +13,7 @@ let chemistry, generate;
 before(async () => { chemistry = await loadExerciseChemistry(); generate = createRestrictedChemicalGenerator(chemistry.oracles); });
 after(async () => { await chemistry?.close(); });
 const time = (now) => ({ monotonicMs: now, wallTimeMs: 1700000000000 + now });
-const config = (count = 5, categories = ["alkane", "alcohol"]) => createPracticeConfig(categories, count, "es", "PHASE5-CORRECTIONS");
+const config = (count = 5, categories = ["alkane", "alcohol"]) => createPracticeConfig(categories, count, "es", "PHASE5-CORRECTIONS", ["naming"], "basic", 1);
 const submit = (state, correct, locale = "es", start = 1000, end = 5500) => submitPracticeAnswer(
   updatePracticeAnswer(markPracticeQuestionAvailable(state, time(start)), correct ? state.question.reference.names[locale] : "wrong"), locale, time(end));
 function complete(cfg = config(), wrong = [1, 3]) {
@@ -72,7 +72,7 @@ test("explicit retry contains only remaining questions and appends attempt 3 aft
 });
 
 test("frozen real duplicate avoidance: display ordinal 6 reconstructs generationIndex 6, never index 5", () => {
-  const cfg = createPracticeConfig(["alkane"], 10, "es", "PHASE5-DUPLICATE");
+  const cfg = createPracticeConfig(["alkane"], 10, "es", "PHASE5-DUPLICATE", ["naming"], "basic", 1);
   const { state: summary, originals } = complete(cfg, [5]);
   const original = summary.attempts[5];
   assert.equal(original.displayOrdinal, 6);
@@ -206,7 +206,7 @@ test("all admitted categories reconstruct ES/EN chemistry, full graphs and their
 });
 
 test("Correction Loop uses the shared Naming evaluator for an unaccented answer to a real Spanish reference", () => {
-  const cfg = createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference");
+  const cfg = createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference", ["naming"], "basic", 1);
   const question = startPractice(cfg, generate);
   assert.equal(question.question.reference.names.es, "ácido octanoico");
   const first = submitPracticeAnswer(updatePracticeAnswer(markPracticeQuestionAvailable(question, time(1000)), "respuesta errónea"), "es", time(2000));

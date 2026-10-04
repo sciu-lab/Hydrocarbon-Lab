@@ -35,7 +35,7 @@ test("PRACTICE-008: exact 3,7-dietilnonano reference shown is accepted by the sh
 });
 
 test("reference used to submit an actual Practice question is the same localized value presented in feedback", () => {
-  const config = createPracticeConfig(["alkane"], 5, "es", "PRACTICE-008-FLOW");
+  const config = createPracticeConfig(["alkane"], 5, "es", "PRACTICE-008-FLOW", ["naming"], "basic", 1);
   const question = startPractice(config, generate);
   const displayedReference = question.question.reference.name;
   const state = markPracticeQuestionAvailable(question, { monotonicMs: 100, wallTimeMs: 1700000000100 });
@@ -53,7 +53,7 @@ test("reference used to submit an actual Practice question is the same localized
 
 test("PRACTICE-008 exact-name answer records a correct first Practice attempt and initial metrics", () => {
   const referenceName = "3,7-dietilnonano";
-  const template = generate(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-EXACT"), 0);
+  const template = generate(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-EXACT", ["naming"], "basic", 1), 0);
   const parsed = moleculeFromSmiles("CCC(CC)CCCC(CC)CC");
   assert.ok(parsed.ok);
   const oracle = chemistry.oracles.reference(parsed.molecule);
@@ -63,7 +63,7 @@ test("PRACTICE-008 exact-name answer records a correct first Practice attempt an
   const question = { ...template, molecule: parsed.molecule, reference: { ...template.reference,
     name: referenceName, names: oracle.names, formula: oracle.formula, smiles: smiles.smiles,
     structuralIdentity: exerciseStructuralIdentity(parsed.molecule) } };
-  const state = startPractice(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-EXACT"), () => question);
+  const state = startPractice(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-EXACT", ["naming"], "basic", 1), () => question);
   const ready = markPracticeQuestionAvailable(state, { monotonicMs: 100, wallTimeMs: 1700000000100 });
   const feedback = submitPracticeAnswer(updatePracticeAnswer(ready, referenceName), "es",
     { monotonicMs: 8300, wallTimeMs: 1700000008300 });
@@ -85,7 +85,7 @@ test("PRACTICE-008 exact-name answer records a correct first Practice attempt an
 
 test("PRACTICE-008 invisible zero-width input formatting cannot make a visually exact Practice answer wrong", () => {
   const referenceName = "3,7-dietilnonano";
-  const template = generate(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-ZWSP"), 0);
+  const template = generate(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-ZWSP", ["naming"], "basic", 1), 0);
   const parsed = moleculeFromSmiles("CCC(CC)CCCC(CC)CC");
   assert.ok(parsed.ok);
   const oracle = chemistry.oracles.reference(parsed.molecule);
@@ -94,7 +94,7 @@ test("PRACTICE-008 invisible zero-width input formatting cannot make a visually 
   const question = { ...template, molecule: parsed.molecule, reference: { ...template.reference,
     name: referenceName, names: oracle.names, formula: oracle.formula, smiles: smiles.smiles,
     structuralIdentity: exerciseStructuralIdentity(parsed.molecule) } };
-  const state = startPractice(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-ZWSP"), () => question);
+  const state = startPractice(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-ZWSP", ["naming"], "basic", 1), () => question);
   const ready = markPracticeQuestionAvailable(state, { monotonicMs: 100, wallTimeMs: 1700000000100 });
   const visuallyExactInput = "3,7-\u200bdietilnonano";
   const feedback = submitPracticeAnswer(updatePracticeAnswer(ready, visuallyExactInput), "es",
@@ -107,7 +107,7 @@ test("PRACTICE-008 invisible zero-width input formatting cannot make a visually 
 
 test("PRACTICE-008 exact reference during Correction is attempt 2 and is counted as mastered", () => {
   const referenceName = "3,7-dietilnonano";
-  const template = generate(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-CORRECTION"), 0);
+  const template = generate(createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-CORRECTION", ["naming"], "basic", 1), 0);
   const parsed = moleculeFromSmiles("CCC(CC)CCCC(CC)CC");
   assert.ok(parsed.ok);
   const oracle = chemistry.oracles.reference(parsed.molecule);
@@ -116,7 +116,7 @@ test("PRACTICE-008 exact reference during Correction is attempt 2 and is counted
   const question = { ...template, molecule: parsed.molecule, reference: { ...template.reference,
     name: referenceName, names: oracle.names, formula: oracle.formula, smiles: smiles.smiles,
     structuralIdentity: exerciseStructuralIdentity(parsed.molecule) } };
-  const config = createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-CORRECTION");
+  const config = createPracticeConfig(["alkane"], 1, "es", "PRACTICE-008-CORRECTION", ["naming"], "basic", 1);
   const first = startPractice(config, () => question);
   let state = markPracticeQuestionAvailable(first, { monotonicMs: 100, wallTimeMs: 1700000000100 });
   state = submitPracticeAnswer(updatePracticeAnswer(state, "respuesta incorrecta"), "es",
@@ -146,7 +146,7 @@ test("PRACTICE-008 exact reference during Correction is attempt 2 and is counted
 });
 
 test("PRACTICE-008 Exam grades the current localized reference only at atomic Submit", () => {
-  const template = generate(createExamConfig(["alkane"], 1, "en", "PRACTICE-008-EXAM"), 0);
+  const template = generate(createExamConfig(["alkane"], 1, "en", "PRACTICE-008-EXAM", ["naming"], "basic", 1), 0);
   const parsed = moleculeFromSmiles("CCC(CC)CCCC(CC)CC");
   assert.ok(parsed.ok);
   const oracle = chemistry.oracles.reference(parsed.molecule);
@@ -155,7 +155,7 @@ test("PRACTICE-008 Exam grades the current localized reference only at atomic Su
   const question = { ...template, molecule: parsed.molecule, reference: { ...template.reference,
     name: oracle.names.en, names: oracle.names, formula: oracle.formula, smiles: smiles.smiles,
     structuralIdentity: exerciseStructuralIdentity(parsed.molecule) } };
-  let state = startExam(createExamConfig(["alkane"], 1, "en", "PRACTICE-008-EXAM"), () => question);
+  let state = startExam(createExamConfig(["alkane"], 1, "en", "PRACTICE-008-EXAM", ["naming"], "basic", 1), () => question);
   assert.deepEqual(state.attempts, []);
   state = markExamQuestionAvailable(state, { monotonicMs: 100, wallTimeMs: 1700000000100 }, {
     index: 0, questionId: state.plan.slots[0].questionIdentity,
@@ -176,7 +176,7 @@ test("generated Naming references are self-accepted for every supported category
   let questionsChecked = 0;
   const failures = [];
   for (const category of EXERCISE_CATEGORIES) for (const locale of ["es", "en"]) for (const seed of seeds) {
-    const config = createPracticeConfig([category], 5, locale, seed);
+    const config = createPracticeConfig([category], 5, locale, seed, ["naming"], "basic", 1);
     for (const generationIndex of [0, 2]) {
       const question = generate(config, generationIndex);
       const reference = question.reference.name;

@@ -37,7 +37,7 @@ function reviewHTML(model, language, activeStep = model.steps[0].id) {
 }
 
 test("both feedback modes offer optional Review answer for correct/incorrect submissions and hide walkthroughs before opening", () => {
-  const question = startPractice(createPracticeConfig(["alcohol"], 5, "en", "REVIEW-UI"), generate);
+  const question = startPractice(createPracticeConfig(["alcohol"], 5, "en", "REVIEW-UI", ["naming"], "basic", 1), generate);
   assert.doesNotMatch(htmlFor(question), /Review answer|Detailed review/);
   for (const answer of ["wrong", question.question.reference.names.en]) {
     const feedback = submit(question, answer);
@@ -50,7 +50,7 @@ test("both feedback modes offer optional Review answer for correct/incorrect sub
 });
 
 test("localized panel exposes the same steps/diagnosis, frozen submission and active step in ES/EN", () => {
-  const question = startPractice(createPracticeConfig(["ez"], 5, "en", "REVIEW-UI"), generate);
+  const question = startPractice(createPracticeConfig(["ez"], 5, "en", "REVIEW-UI", ["naming"], "basic", 1), generate);
   const opposite = question.question.reference.names.en.replace(/(\d+)([EZ])/, (_, n, d) => n + (d === "E" ? "Z" : "E"));
   const feedback = submit(question, opposite), snapshot = structuredClone(feedback);
   const model = review(feedback.question, feedback.attempts.at(-1));
@@ -65,7 +65,7 @@ test("localized panel exposes the same steps/diagnosis, frozen submission and ac
 });
 
 test("step, Close and Next buttons invoke their respective callbacks without submitting attempts", () => {
-  const question = startPractice(createPracticeConfig(["alcohol"], 5, "en", "REVIEW-UI"), generate);
+  const question = startPractice(createPracticeConfig(["alcohol"], 5, "en", "REVIEW-UI", ["naming"], "basic", 1), generate);
   const feedback = submit(question, question.question.reference.names.en);
   const model = review(feedback.question, feedback.attempts.at(-1));
   let selected, closed = 0, advanced = 0;
@@ -88,7 +88,7 @@ test("step, Close and Next buttons invoke their respective callbacks without sub
 
 test("SVG highlights and numbering use semantic IDs for every review step without changing graph or stroke endpoints", () => {
   for (const category of ["alkane", "alcohol", "ketone", "ester", "ether", "aromatic", "alkene", "ez"]) {
-    const state = startPractice(createPracticeConfig([category], 5, "en", "REVIEW-2"), generate);
+    const state = startPractice(createPracticeConfig([category], 5, "en", "REVIEW-2", ["naming"], "basic", 1), generate);
     const feedback = submit(state, state.question.reference.names.en);
     const snapshot = structuredClone(feedback.question);
     const model = review(feedback.question, feedback.attempts.at(-1));
@@ -113,7 +113,7 @@ test("SVG highlights and numbering use semantic IDs for every review step withou
 });
 
 test("PRACTICE-005 accepted spelling renders CORRECT without an issue or accent warning", () => {
-  const question = startPractice(createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference"), generate);
+  const question = startPractice(createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference", ["naming"], "basic", 1), generate);
   const feedback = submit(question, question.question.reference.names.es.replace("ácido", "acido"), "es");
   const model = review(feedback.question, feedback.attempts.at(-1)), html = reviewHTML(model, "es");
   assert.match(html, /data-review-status="CORRECT"/); assert.match(html, /✓ Correcto/);
@@ -121,7 +121,7 @@ test("PRACTICE-005 accepted spelling renders CORRECT without an issue or accent 
 });
 
 test("attempts 1/2/3 reuse the same reviewer and opening/selecting/localizing/closing does not alter initial metrics, timer or mastery", () => {
-  const question = startPractice(createPracticeConfig(["alcohol"], 5, "en", "REVIEW-UI"), generate);
+  const question = startPractice(createPracticeConfig(["alcohol"], 5, "en", "REVIEW-UI", ["naming"], "basic", 1), generate);
   let feedback = submit(question, "wrong");
   const initialMetrics = calculatePracticeMetrics(feedback.attempts);
   for (let number = 1; number <= 3; number++) {

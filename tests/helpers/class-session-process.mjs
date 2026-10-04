@@ -11,7 +11,7 @@ try {
   const generator = createPracticeQuestionGenerator(createRestrictedChemicalGenerator(chemistry.oracles),
     createDeterministicDistractorEngine(chemistry.engine, chemistry.oracles));
   const manifest = generateClassAssignments(createClassAssignmentConfig({ mode: "exam", questionCount: 15,
-    categories: EXERCISE_CATEGORIES, questionTypes: ["naming", "multiple-choice", "build"] }, "CHEM-4B-2026"), ["001"]);
+    categories: EXERCISE_CATEGORIES, questionTypes: ["naming", "multiple-choice", "build"] }, "CHEM-4B-2026", 1), ["001"]);
   const config = participantSessionConfig(manifest.config, manifest.participants[0], process.argv[2] ?? "es");
   const plan = createExamQuestionPlan(config, generator);
   console.log("CLASS_PLAN=" + JSON.stringify({ assignment: manifest.participants[0], plan }));

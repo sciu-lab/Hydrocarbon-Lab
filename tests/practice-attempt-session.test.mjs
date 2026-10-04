@@ -11,7 +11,7 @@ import { loadExerciseChemistry } from "./helpers/exercise-chemistry.mjs";
 let chemistry, generate;
 before(async () => { chemistry = await loadExerciseChemistry(); generate = createRestrictedChemicalGenerator(chemistry.oracles); });
 after(async () => { await chemistry?.close(); });
-const config = (count = 5) => createPracticeConfig(["alkane", "alcohol", "ez"], count, "es", "PHASE4-ATTEMPTS");
+const config = (count = 5) => createPracticeConfig(["alkane", "alcohol", "ez"], count, "es", "PHASE4-ATTEMPTS", ["naming"], "basic", 1);
 const time = (monotonicMs, wallTimeMs = 1700000000000 + monotonicMs) => ({ monotonicMs, wallTimeMs });
 const ready = (state, at = 1000) => markPracticeQuestionAvailable(state, time(at));
 const answer = (state, correct = true, at = 5500, locale = "es") => submitPracticeAnswer(
@@ -53,7 +53,7 @@ test("unavailable, blank, abandoned questions and generation errors never create
 });
 
 test("normal Practice accepts an unaccented Spanish answer for a real acid reference while EN stays exact", () => {
-  const acidConfig = createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference");
+  const acidConfig = createPracticeConfig(["carboxylic-acid"], 5, "es", "PRACTICE-005-accent-reference", ["naming"], "basic", 1);
   const question = startPractice(acidConfig, generate);
   assert.equal(question.question.reference.names.es, "ácido octanoico");
   const spanish = submitPracticeAnswer(updatePracticeAnswer(ready(question), "acido octanoico"), "es", time(5500));

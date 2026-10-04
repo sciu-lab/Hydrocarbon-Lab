@@ -27,7 +27,7 @@ before(async () => {
 });
 after(async () => chemistry?.close());
 const clock = (ms) => ({monotonicMs:ms,wallTimeMs:100000+ms});
-const config = (category="alkane", count=5, seed="BUILD-SESSION", types=["build"]) => createPracticeConfig([category],count,"es",seed,types);
+const config = (category="alkane", count=5, seed="BUILD-SESSION", types=["build"]) => createPracticeConfig([category],count,"es",seed,types, "basic", 1);
 function submit(s, molecule=s.question.molecule, ms=2000) {
   return submitPracticeStructure(updatePracticeStructure(markPracticeQuestionAvailable(s,clock(1000)),molecule),"es",clock(ms),evaluate);
 }

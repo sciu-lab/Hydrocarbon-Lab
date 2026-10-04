@@ -12,7 +12,7 @@ import { loadExerciseChemistry } from "./helpers/exercise-chemistry.mjs";
 let chemistry, generate;
 before(async () => { chemistry = await loadExerciseChemistry(); generate = createRestrictedChemicalGenerator(chemistry.oracles); });
 after(async () => { await chemistry?.close(); });
-const configFor = (count = 5, categories = ["alkane"], locale = "es") => createPracticeConfig(categories, count, locale, "PRACTICE-PHASE3");
+const configFor = (count = 5, categories = ["alkane"], locale = "es") => createPracticeConfig(categories, count, locale, "PRACTICE-PHASE3", ["naming"], "basic", 1);
 const submit = (state, locale = "es") => submitPracticeAnswer(
   markPracticeQuestionAvailable(state, { monotonicMs: 1000, wallTimeMs: 1700000000000 }), locale,
   { monotonicMs: 5500, wallTimeMs: 1700000004500 });
@@ -21,11 +21,11 @@ const answerCorrectly = (state, locale = "es") => submit(updatePracticeAnswer(st
 test("Practice constructs the existing SessionConfig with Naming/basic and canonical category IDs", () => {
   assert.deepEqual(createPracticeConfig(["alcohol", "alkane", "alcohol"], 10, "en", " exact seed "), {
     mode: "practice", questionCount: 10, questionTypes: ["naming"], categories: ["alkane", "alcohol"],
-    difficulty: "basic", locale: "en", seed: " exact seed ", generatorVersion: 1,
+    difficulty: "basic", locale: "en", seed: " exact seed ", generatorVersion: 2,
   });
   for (const count of [1, 5, 7, 15, 23, 30, 37, "endless"]) assert.equal(configFor(count).questionCount, count);
-  assert.throws(() => createPracticeConfig([], 5, "es", "seed"));
-  assert.throws(() => createPracticeConfig(["sulfur"], 5, "es", "seed"));
+  assert.throws(() => createPracticeConfig([], 5, "es", "seed", ["naming"], "basic", 1));
+  assert.throws(() => createPracticeConfig(["sulfur"], 5, "es", "seed", ["naming"], "basic", 1));
   for (const count of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, "5"]) assert.throws(() => configFor(count));
 });
 

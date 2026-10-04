@@ -22,7 +22,7 @@ before(async () => {
   generate = createPracticeQuestionGenerator(chemical, distractors); review = createPracticeReviewer(chemistry.engine);
 });
 after(async () => chemistry?.close());
-const config = (category = "alkane", seed = "MCQ-V1", types = ["multiple-choice"], count = 5, locale = "es") => createPracticeConfig([category], count, locale, seed, types);
+const config = (category = "alkane", seed = "MCQ-V1", types = ["multiple-choice"], count = 5, locale = "es") => createPracticeConfig([category], count, locale, seed, types, "basic", 1);
 const submit = (state, answer, elapsed = 7000) => submitPracticeAnswer(updatePracticeAnswer(markPracticeQuestionAvailable(state,
   { monotonicMs: 1000, wallTimeMs: 100000 }), answer), state.config.locale, { monotonicMs: 1000 + elapsed, wallTimeMs: 100000 + elapsed });
 

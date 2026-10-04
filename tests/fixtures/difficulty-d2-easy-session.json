@@ -1,0 +1,173 @@
+{
+  "generatorVersion": 2,
+  "difficulty": "basic",
+  "sessions": {
+    "practiceNaming": [
+      {
+        "type": "naming",
+        "generationIndex": 0,
+        "structuralIdentity": "gNp`@df]Zj@@",
+        "payloadSha256": "a826e1a901360c3d4c30c2a82570be99d2c45d8684b7dd662c380d24b364d5f9"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 1,
+        "structuralIdentity": "ded@@DjWujjj@@",
+        "payloadSha256": "f8be5b4d7f50e6c428badc827f943defddc3a87b2db3e1bb4afe32c9353bb5e5"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 2,
+        "structuralIdentity": "gNp@LdbJjj@@",
+        "payloadSha256": "2b3c4f79681e1a8b2db09df452c9dcb2f528f3a17b3d0911f7da306162beb216"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 3,
+        "structuralIdentity": "daxH@@RYUjj`@",
+        "payloadSha256": "c07deb5f98eb4fda3c84c97d9b7582d44b51d4da20245bcf98e3b8b758b4d015"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 4,
+        "structuralIdentity": "gJP@DiZh@",
+        "payloadSha256": "eb3dd9b26e2cd48fa99c85fff1a77ef42229e3db9eda6dda0bcff6bbf542e6c0"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 5,
+        "structuralIdentity": "gNp`@dfUZj@@",
+        "payloadSha256": "27e8d3906b2d6255e9785b2a0a1ce11687d4a806aefc917e5c669cb84cf556c8"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 6,
+        "structuralIdentity": "gCa@@dmP@",
+        "payloadSha256": "eb99b0330970262ede5328232d4c16bc32bcaf62d2f6ccbc477da4f515a6f05f"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 7,
+        "structuralIdentity": "gNp@DiUjj@@",
+        "payloadSha256": "81b93abc26ebb4cdc0954f12649eaaf87517392efc8e1dd45ed6c48d88d51dbb"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 8,
+        "structuralIdentity": "dedH@@RUUVjjh@@",
+        "payloadSha256": "ba98f0b1509fb39db8f6bfd4ae5679f6fa3494ba8076e745958a383b9afbcb91"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 9,
+        "structuralIdentity": "dax@@DiUZjh@@",
+        "payloadSha256": "5550cc866bedd1101e33e201d87532ff7ee76b7d21e46a92bd6235ede7240318"
+      }
+    ],
+    "practiceMixed": [
+      {
+        "type": "multiple-choice",
+        "generationIndex": 0,
+        "structuralIdentity": "diDD@@QIe]Zjh@@",
+        "payloadSha256": "cb578c1d567fcaecdb337f8e28b3d6750d910d516f6a820824080250902cdac3",
+        "optionIdsSha256": "821624b894ecd95b6d246deba30776e3afdf033df873f4773a776190e3fce468"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 1,
+        "structuralIdentity": "gNp@DjWjj@@",
+        "payloadSha256": "86b3bc8ab36207fb770b15ed781a7d2fe685d679ff80cfc2571b1a3ec1f1a41b"
+      },
+      {
+        "type": "build",
+        "generationIndex": 2,
+        "structuralIdentity": "gGP@DjVj`@",
+        "payloadSha256": "5bc7a691fbdd2851116bc92c28b36c311f8fa9bad6ba04e4c2ed20a69736710b"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 3,
+        "structuralIdentity": "gNp`@df]Zj@@",
+        "payloadSha256": "0f47c7783dcde19fca77153c2ef3413a8eb3b478b4aa4aa1b52dbfb0c5cd209c",
+        "optionIdsSha256": "a12b404b3c19a17ebaca782e42b02655b89c6cbd2c423edd28a4ee8763a847e0"
+      },
+      {
+        "type": "build",
+        "generationIndex": 4,
+        "structuralIdentity": "gJP@DjZh@",
+        "payloadSha256": "0a8d416a05faba25f8866bcfc4a959a5e8dac2295df25732fd93b5e6eebefa51"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 5,
+        "structuralIdentity": "dedD@@QIeUVjj`@",
+        "payloadSha256": "f1b057ff16f7342353107f198c2ae1cb5633385d1c97fbdd85c48f656dce8524"
+      }
+    ],
+    "examMixed": [
+      {
+        "type": "multiple-choice",
+        "generationIndex": 0,
+        "structuralIdentity": "fH@@",
+        "payloadSha256": "addfb5eab54a66586376815c09d167cce0b7697ccaf8f81c44b1f5c4139282ca",
+        "optionIdsSha256": "7ec3fe11d3bdda2354193df55c717c550ac0ef5f3982ea77bfbf7f26a2f97d8b"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 1,
+        "structuralIdentity": "gGQ@@dsuT@@",
+        "payloadSha256": "ccb20a832fa20b4d3e44851615012bd83e57277ba57bd032405b8ef6142e7277"
+      },
+      {
+        "type": "build",
+        "generationIndex": 2,
+        "structuralIdentity": "ded@@DjWWjjj@@",
+        "payloadSha256": "ce502494fb5af021b05120d93bb83cf81381c0bea58b36aca57832ba53adf209"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 3,
+        "structuralIdentity": "eF@Hp@",
+        "payloadSha256": "e145756831b85927db3b91e65d4194b8265c4c0ec570fcd6ebe739133160517d",
+        "optionIdsSha256": "c9cb0146f7682d1d51ddaeee3bd069644b8d511beae72e81b8c7592e5940ea08"
+      },
+      {
+        "type": "build",
+        "generationIndex": 4,
+        "structuralIdentity": "gGP@DiVj`@",
+        "payloadSha256": "33aeace8e4a0e23ffc2d91adec1fa363c5957e4951929401c32ae699673f75d4"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 5,
+        "structuralIdentity": "gCa@@eMP@",
+        "payloadSha256": "0ce4d0b50a07ae4c92f2808786db35120cbf06562df1e7b4b85d023696e1d7c6"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 6,
+        "structuralIdentity": "dedH@@RYWVjjh@@",
+        "payloadSha256": "be285d333107a072fa9fad9fc236c2564f06939e8fab456f8154d78bd3e01edc",
+        "optionIdsSha256": "1a9cbb63811521d86e5380711e7e902071f876bae82d7ef74e9be4d97721a49e"
+      },
+      {
+        "type": "build",
+        "generationIndex": 7,
+        "structuralIdentity": "dedH@@RYUVjjh@@",
+        "payloadSha256": "77c5b2d14f2527ed7ffa75a5475aa8329519a08abfbeb68999de17ebcb73677e"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 8,
+        "structuralIdentity": "gNq@@eNmUP@",
+        "payloadSha256": "9924db6f4ed05916027760f7646856e4ef4559cb02e9fd837f8643c0d3762df2"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 9,
+        "structuralIdentity": "gNp@DiUjj@@",
+        "payloadSha256": "37145feeb6784c584d4af6491ef3de40c95f87f42b7f3f7cb6d859dcb160b20e"
+      }
+    ]
+  }
+}

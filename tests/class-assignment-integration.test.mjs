@@ -25,7 +25,7 @@ after(async () => chemistry?.close());
 const selection = { mode: "exam", questionCount: 15, categories: EXERCISE_CATEGORIES,
   questionTypes: ["naming", "multiple-choice", "build"] };
 const manifest = (classSeed = "CHEM-4B-2026", ids = ["001", "002", "003"], change = {}) =>
-  generateClassAssignments(createClassAssignmentConfig({ ...selection, ...change }, classSeed), ids);
+  generateClassAssignments(createClassAssignmentConfig({ ...selection, ...change }, classSeed, 1), ids);
 const snapshot = (question) => ({ questionId: question.question.id, questionSeed: question.question.seed,
   type: question.type ?? "naming", structuralIdentity: question.reference.structuralIdentity,
   formula: question.reference.formula, smiles: question.reference.smiles, molecule: question.molecule,

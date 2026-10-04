@@ -36,14 +36,14 @@ const submit = (state, locale = "es") => submitPracticeAnswer(
 const renderStructure = (molecule, label, width, height) => React.createElement(engine.MoleculeHistoryPreview, {
   molecule, ariaLabel: label, width, height, practiceView: true,
 });
-const config = () => createPracticeConfig(["ester"], 5, "es", "PRACTICE-UI");
+const config = () => createPracticeConfig(["ester"], 5, "es", "PRACTICE-UI", ["naming"], "basic", 1);
 const htmlFor = (state, language = "es") => renderToStaticMarkup(React.createElement(ui.PracticeSessionView, {
   state: localizePracticeState(state, language), language, actions, renderStructure,
 }));
 
 for (const language of ["es", "en"]) test(`MCQ ${language}: four accessible options, selection, feedback and exact correction presentation`, () => {
   const wrapper = createPracticeQuestionGenerator(generate, createDeterministicDistractorEngine(engine, createExerciseChemistryOracles(engine)));
-  const c = createPracticeConfig(["alcohol"], "endless", language, "MCQ-UI", ["multiple-choice"]);
+  const c = createPracticeConfig(["alcohol"], "endless", language, "MCQ-UI", ["multiple-choice"], "basic", 1);
   let state = markPracticeQuestionAvailable(startPractice(c, wrapper), { monotonicMs: 1, wallTimeMs: 1 });
   const render = (s) => renderToStaticMarkup(React.createElement(ui.PracticeSessionView, {
     state: s, language, actions, renderStructure, review: createPracticeReviewer(engine),
@@ -138,7 +138,7 @@ function assertPracticeGraphProjection(state, width = 600) {
 }
 
 test("PRACTICE-003: generated ethyl/methyl cyclopentane reaches the renderer with visible branches", () => {
-  const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59");
+  const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59", ["naming"], "basic", 1);
   const state = startPractice(config, generate);
   const { molecule, reference } = state.question;
   assert.equal(state.generationIndex, 0);
@@ -174,7 +174,7 @@ test("PRACTICE-003: generated ethyl/methyl cyclopentane reaches the renderer wit
 
 for (const category of ["simple-carbocycle", "aromatic", "alkane", "halogenated"]) {
   test(`Practice ${category}: complete graph, visible branches and unclipped SVG at desktop/mobile widths`, () => {
-    const config = createPracticeConfig([category], 5, "es", "PRACTICE-003:coverage");
+    const config = createPracticeConfig([category], 5, "es", "PRACTICE-003:coverage", ["naming"], "basic", 1);
     let foundBranch = false;
     for (let index = 0; index < 16; index += 1) {
       const question = generate(config, index);
@@ -203,7 +203,7 @@ for (const category of ["simple-carbocycle", "aromatic", "alkane", "halogenated"
 
 test("all Practice families project every atom/bond/ring from the same localized reference graph", () => {
   for (const category of EXERCISE_CATEGORIES) {
-    const config = createPracticeConfig([category], 5, "es", "PRACTICE-003:all");
+    const config = createPracticeConfig([category], 5, "es", "PRACTICE-003:all", ["naming"], "basic", 1);
     const state = startPractice(config, generate);
     assertPracticeGraphProjection(state, 319);
     assertPracticeGraphProjection(localizePracticeState(state, "en"), 900);
@@ -211,7 +211,7 @@ test("all Practice families project every atom/bond/ring from the same localized
 });
 
 test("duplicate skips, feedback and generation retry keep render/reference bundles synchronized", () => {
-  const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59");
+  const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59", ["naming"], "basic", 1);
   const first = startPractice(config, generate);
   assertPracticeGraphProjection(first);
   const feedback = submit(updatePracticeAnswer(first, first.question.reference.name), "es");
@@ -231,7 +231,7 @@ test("duplicate skips, feedback and generation retry keep render/reference bundl
 });
 
 test("Practice ring projection is invariant to coordinate units without changing the source graph", () => {
-  const state = startPractice(createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59"), generate);
+  const state = startPractice(createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59", ["naming"], "basic", 1), generate);
   const molecule = state.question.molecule;
   const snapshot = structuredClone(molecule);
   const parent = engine.analyzeMolecule(molecule).mainChain;
@@ -359,7 +359,7 @@ for (const language of ["es", "en"]) test(`initial summary ${language}: submitte
 });
 
 test("Endless and empty summaries have defined results and omit unanswered category/type rows", () => {
-  const summary = { phase: "COMPLETE", config: createPracticeConfig(["alkane"], "endless", "en", "summary"), attempts: [] };
+  const summary = { phase: "COMPLETE", config: createPracticeConfig(["alkane"], "endless", "en", "summary", ["naming"], "basic", 1), attempts: [] };
   const html = htmlFor(summary, "en");
   assert.match(html, /Practice summary/);
   assert.match(html, /No answers were submitted/);
@@ -381,14 +381,14 @@ test("summary relocalization preserves log identity, immutable initial metrics a
 
 test("Practice renderer uses real hydrogen/charge labels and preserves both E/Z geometries", () => {
   for (const category of ["alkane", "alcohol", "amine", "nitro"]) {
-    const result = generate(createPracticeConfig([category], 5, "es", "preview"), 0);
+    const result = generate(createPracticeConfig([category], 5, "es", "preview", ["naming"], "basic", 1), 0);
     const html = renderToStaticMarkup(renderStructure(result.molecule, "structure", 600, 300));
     assert.match(html, /practice-molecule-preview/);
     if (category === "nitro") { assert.match(html, /baseline-shift="super"/); assert.ok(html.includes("−")); }
   }
   const configurations = new Set();
   for (let index = 0; index < 12; index += 1) {
-    const result = generate(createPracticeConfig(["ez"], 5, "es", "preview"), index);
+    const result = generate(createPracticeConfig(["ez"], 5, "es", "preview", ["naming"], "basic", 1), index);
     const html = renderToStaticMarkup(renderStructure(result.molecule, "structure", 600, 300));
     const positions = [...html.matchAll(/<g[^>]*transform="translate\(([-\d.]+) ([-\d.]+)\)"/g)];
     assert.equal(positions.length, result.molecule.atoms.length);
@@ -445,7 +445,7 @@ test("summary offers Correct mistakes only for initial mistakes; empty/perfect s
 });
 
 for (const language of ["es", "en"]) test(`correction view ${language} preserves full SVG graph, empty input and existing feedback controls`, () => {
-  const initial = startPractice(createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59"), generate);
+  const initial = startPractice(createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59", ["naming"], "basic", 1), generate);
   const summary = endPractice(submit(updatePracticeAnswer(initial, "wrong")));
   const correction = localizePracticeState(startPracticeCorrections(summary, generate), language);
   assertPracticeGraphProjection(correction, 319);

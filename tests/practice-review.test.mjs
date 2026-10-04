@@ -64,7 +64,7 @@ function validate(model, question) {
 
 for (const category of EXERCISE_CATEGORIES) test(`review walkthrough ${category}: real engine, three seeds/two indices, valid provenance and bilingual messages`, () => {
   for (const seed of ["REVIEW-1", "REVIEW-2", "REVIEW-3"]) for (const index of [0, 1]) {
-    const question = generate(createPracticeConfig([category], 5, "es", seed), index);
+    const question = generate(createPracticeConfig([category], 5, "es", seed, ["naming"], "basic", 1), index);
     const before = structuredClone(question);
     const record = { ...attempt(question, question.reference.names.es, "es"), generationIndex: index };
     const model = review(question, record);
@@ -106,7 +106,7 @@ for (const [input, student, expected, locale, smiles] of [
 });
 
 test("wrong E/Z is descriptor-only; extra differences and missing stereo use the unknown fallback", () => {
-  const question = generate(createPracticeConfig(["ez"], 5, "en", "REVIEW-EZ"), 0);
+  const question = generate(createPracticeConfig(["ez"], 5, "en", "REVIEW-EZ", ["naming"], "basic", 1), 0);
   const opposite = question.reference.names.en.replace(/(\d+)([EZ])/, (_, n, d) => n + (d === "E" ? "Z" : "E"));
   assert.equal(review(question, attempt(question, opposite)).issues[0].code, "WRONG_EZ_DESCRIPTOR");
   assert.equal(review(question, attempt(question, opposite + "x")).issues[0].code, "UNKNOWN_MISMATCH");
@@ -147,7 +147,7 @@ test("review rejects mismatched attempts/graphs/reference analysis and exposes e
 });
 
 test("review is deterministic after engine initialization with time and entropy APIs forbidden", () => {
-  const question = generate(createPracticeConfig(["ez"], 5, "en", "REVIEW-DETERMINISM"), 0);
+  const question = generate(createPracticeConfig(["ez"], 5, "en", "REVIEW-DETERMINISM", ["naming"], "basic", 1), 0);
   const record = attempt(question, "unknown");
   const expected = review(question, record);
   const random = Math.random, now = Date.now;

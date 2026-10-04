@@ -34,7 +34,7 @@ export function submitPractice(state, correct = true, tick = 1000) {
     ? q.options.find((o) => o.correct === correct).id : correct ? q.reference.names.en : " wrong raw answer "), "en", time(tick + 100));
 }
 function complete(mode, count, types, seed, configOverride) {
-  const config = configOverride ?? (mode === "exam" ? createExamConfig : createPracticeConfig)(EXERCISE_CATEGORIES, count, "en", seed, types);
+  const config = configOverride ?? (mode === "exam" ? createExamConfig : createPracticeConfig)(EXERCISE_CATEGORIES, count, "en", seed, types, "basic", 1);
   let state = mode === "exam" ? startExam(config, generate) : startPractice(config, generate);
   assert.equal(state.phase, mode === "exam" ? "EXAM_QUESTION" : "QUESTION");
   for (let i = 0; i < count; i++) {
@@ -93,7 +93,7 @@ test("Exam review uses its frozen MCQ order/IDs/provenance without generating fr
   assert.equal(reconstructSessionReviewQuestion(state.config, entry, undefined, damaged).ok, false);
 });
 test("frozen skipped-index fixture: ordinal 2 reconstructs generationIndex 4, never index 1", () => {
-  const config = createPracticeConfig(["alkane", "alcohol", "ester"], 5, "en", "PRACTICE-PHASE3");
+  const config = createPracticeConfig(["alkane", "alcohol", "ester"], 5, "en", "PRACTICE-PHASE3", ["naming"], "basic", 1);
   const q0 = generate(config, 0), calls = [];
   const fixture = (c, i, context) => { calls.push(i); return i > 0 && i < 4 ? q0 : generate(c, i, context); };
   const first = startPractice(config, fixture);
@@ -125,7 +125,7 @@ test("Practice corrections update mastery/status/history while initial accuracy 
   assert.deepEqual(final.initialResults, initial.initialResults);
 });
 test("recorded accumulated Exam visit time survives review; wall-clock and review time are excluded", () => {
-  let s = startExam(createExamConfig(["alkane"], 1, "en", "REVIEW-VISITS"), generate);
+  let s = startExam(createExamConfig(["alkane"], 1, "en", "REVIEW-VISITS", ["naming"], "basic", 1), generate);
   const q = s.plan.slots[0].question, expected = { index: 0, questionId: q.question.id };
   s = markExamQuestionAvailable(s, time(0), expected); s = updateExamAnswer(s, q.reference.names.en);
   s = navigateExam(s, 1, time(20)); s = navigateExam(s, 0, time(100));
@@ -134,7 +134,7 @@ test("recorded accumulated Exam visit time survives review; wall-clock and revie
   detail(s, m.questions[0]); assert.equal(reviewModel(s).timing.initial.totalMs, 50);
 });
 test("atomic Exam grading failure yields no dashboard, partial model or history", () => {
-  let s = startExam(createExamConfig(["alkane"], 2, "en", "REVIEW-ATOMIC", ["build"]), generate);
+  let s = startExam(createExamConfig(["alkane"], 2, "en", "REVIEW-ATOMIC", ["build"], "basic", 1), generate);
   for (let i = 0; i < 2; i++) {
     s = markExamQuestionAvailable(s, time(i * 1000), { index: i, questionId: s.plan.slots[i].questionIdentity });
     s = updateExamStructure(s, s.plan.slots[i].question.molecule, validate); s = navigateExam(s, i + 1, time(i * 1000 + 100));
@@ -145,7 +145,7 @@ test("atomic Exam grading failure yields no dashboard, partial model or history"
 });
 test("Class Seed participant launches an ordinary 15-question Exam and shared dashboard", () => {
   const manifest = generateClassAssignments(createClassAssignmentConfig({ mode: "exam", questionCount: 15,
-    categories: EXERCISE_CATEGORIES, questionTypes: ["naming", "multiple-choice", "build"] }, "CHEM-4B-2026"), ["001"]);
+    categories: EXERCISE_CATEGORIES, questionTypes: ["naming", "multiple-choice", "build"] }, "CHEM-4B-2026", 1), ["001"]);
   const config = participantSessionConfig(manifest.config, manifest.participants[0], "en");
   const state = complete("exam", 15, config.questionTypes, config.seed, config), m = reviewModel(state);
   assert.equal(m.questionCount, 15); assert.equal(m.seed, config.seed); assert.ok(!("participantId" in m));
