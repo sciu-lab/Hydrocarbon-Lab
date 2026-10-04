@@ -64,6 +64,27 @@ function derive({ molecule, analysis }, displayedName, language = "es", canHighl
   return { steps, fragments };
 }
 
+test("DIFFICULTY-D3-REASON-002: verified legacy EN functional unsaturation links both disjoint written spans", () => {
+  for (const [smiles, marker, bondType] of [["CC(O)C=CC(C)C", "en", "double"], ["CC(O)C#CC(C)C", "yn", "triple"]]) {
+    const { molecule, analysis } = analyzed(smiles);
+    const displayedName = generateLegacyEnglishName(buildLegacyEnglishNameModel(molecule, analysis)).name;
+    const steps = buildEnglishReasoningSteps(buildIupacReasoningSteps(molecule, analysis), molecule, analysis);
+    const input = { analysis, displayedName, language: "en", steps, canHighlight: true, generatedNames: [displayedName] };
+    const fragments = deriveReasoningNameFragments(input);
+    const parts = buildReasoningNameLinkParts(displayedName, fragments, steps);
+    assert.equal(parts.map((part) => part.text).join(""), displayedName);
+    const links = parts.filter((part) => part.semanticId === `unsaturation:${bondType}:3`);
+    assert.deepEqual(links.map((part) => part.text), ["3", marker]);
+    for (const part of links) {
+      assert.deepEqual(part.atomIds, analysis.mainChain.slice(2, 4));
+      assert.equal(part.locant, 3);
+    }
+    for (const number of ["01", "03", "04"]) assert.ok(parts.some((part) => part.stepNumber === number || part.relatedStepNumbers?.includes(number)));
+    const unverified = deriveReasoningNameFragments({ ...input, generatedNames: [] });
+    assert.ok(!Object.values(unverified).some((fragment) => fragment.semanticId?.startsWith("unsaturation:")));
+  }
+});
+
 test("acetone fragments follow the actual Suggested and Legacy names in both languages", () => {
   const acetone = analyzed("CC(=O)C");
   assert.equal(acetone.analysis.name, "propan-2-ona");

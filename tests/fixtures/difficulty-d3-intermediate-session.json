@@ -1,0 +1,173 @@
+{
+  "generatorVersion": 3,
+  "difficulty": "intermediate",
+  "sessions": {
+    "practiceNaming": [
+      {
+        "type": "naming",
+        "generationIndex": 0,
+        "structuralIdentity": "diD@@Ldbbjjjh@@",
+        "payloadSha256": "c645c135aff0e842b5391d8530edaf0d7050fc26e07c10471fb1ce02b13dd29a"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 1,
+        "structuralIdentity": "dmTD@@QIeuUjnj@@",
+        "payloadSha256": "3ec0eee2a46baa6ada01d68d7be2eaa89296c47e958e67338db7ec9dab43b258"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 2,
+        "structuralIdentity": "dctD@@QIeuUZkjh@@",
+        "payloadSha256": "1b870a1fb58360907097158247e11e86c914f83a11c3f4c377cfc8c2d560b58b"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 3,
+        "structuralIdentity": "dmTH`IBHRYuVjij`@",
+        "payloadSha256": "010cbdc4b2d740acfd8cb1f2216b4215f6214a673608c67f19ba48c568cd8dd3"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 4,
+        "structuralIdentity": "dedH`ABHRYWZkjh@@",
+        "payloadSha256": "473beebd9fd53ce067e5d3f09789ace06b40440498db055038ad3da5cf33a511"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 5,
+        "structuralIdentity": "diDH`FCDRZVzkj@@",
+        "payloadSha256": "83d69abfc616fb74ad99c902ca4138eaeb7f7fb56dff20b07736acfea5bdfa2e"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 6,
+        "structuralIdentity": "diDD@@QIeuZkh@@",
+        "payloadSha256": "80060086eb76130e123ab35aa07b67b0bfbb241d94ef7fd24665432bd9ea691f"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 7,
+        "structuralIdentity": "diDD@@QIeuZjx@@",
+        "payloadSha256": "ecb8b7cb2fc83581bc25cfce850ec4aac2588e47df45080db68d5c03dd7a6d94"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 8,
+        "structuralIdentity": "dax@@LdbJeUT@@",
+        "payloadSha256": "2d5a5c85768a678d2f3a96b0843fa4b1e42602780d569b5b9d2bf074cc16dbce"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 9,
+        "structuralIdentity": "dedD@@QIeyvjk`@",
+        "payloadSha256": "5bd730a9c762afe7934bb55d49d4cd08a1107b46e3598b560207ed5757ecff5f"
+      }
+    ],
+    "practiceMixed": [
+      {
+        "type": "build",
+        "generationIndex": 0,
+        "structuralIdentity": "dmTD@@QIeWUjij@@",
+        "payloadSha256": "0fbd6d7efe0100dc985cffb51c38ef6eff40b7117bed2723f6bd738a42976e03"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 1,
+        "structuralIdentity": "dkLD@@QIeWUVjij`@",
+        "payloadSha256": "54535f4cb92c845820221f3d282f6d346675724d406a54897bedb76ac0bed636"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 2,
+        "structuralIdentity": "dax@@LdbJeUT@@",
+        "payloadSha256": "40a48347e1db2ab6869170ebdc7a4c2cc1ad34c1789a52327e7f28aa26083456",
+        "optionIdsSha256": "c94faad2f83752723dba54602abf20d64b342cb1a78d1320c72b4d9d609d17c7"
+      },
+      {
+        "type": "build",
+        "generationIndex": 3,
+        "structuralIdentity": "dmT@@LdbJRTjjj`@",
+        "payloadSha256": "37253cd5674fa6e867e3e250c739461db17e60c54c7bc9a4f3c56fb3224b8e3e"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 4,
+        "structuralIdentity": "ded@@DjWejjj@@",
+        "payloadSha256": "a16caccdbf2136eaf0f3e646a2d80e0bffc09282ee99df7cb303690c478d0e87"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 5,
+        "structuralIdentity": "dmTH@@RYoUjij`@",
+        "payloadSha256": "8c85416fa9eefbeacfd57a5fcfed8c004009d085c36824c740704bdf1424fe7c",
+        "optionIdsSha256": "23f077cc6c6960c14d66b444744395eff33f6fa88510ca6839bd2612ad7f3d53"
+      }
+    ],
+    "examMixed": [
+      {
+        "type": "build",
+        "generationIndex": 0,
+        "structuralIdentity": "dctH@@RgUUjijj@@",
+        "payloadSha256": "b35727f2fd0d9a3cb9fdbb3e6cb913a6a607ab8c74cb40bd801bbde665ceeb9c"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 1,
+        "structuralIdentity": "dedH@@RgUVjnh@@",
+        "payloadSha256": "65bdeddf4822efc2e48ec9610dba57f101ab94e8170d060c2bedd9850e03c853"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 2,
+        "structuralIdentity": "ded@@DjWyjjj@@",
+        "payloadSha256": "553a3e3932a192fe3e420747be57b87432fe9eaf7de05d759433ec9c0fa3e38f",
+        "optionIdsSha256": "3625e3682796d2a5019440e34687154d85bdc5a11eddf24e6d7d0d8c33711b82"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 3,
+        "structuralIdentity": "dmTH@@RgUUjnj`@",
+        "payloadSha256": "c0ddfdb500910c1e8c418e73cb4f0ade0a47dd45475fa5e3827ba982cc06da14",
+        "optionIdsSha256": "b287ed103e9aac528222c0b9e98efd449cd783eac8aad91e673fb138d7069b83"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 4,
+        "structuralIdentity": "dax@@LdbJeUT@@",
+        "payloadSha256": "e814b37e3107fd829d8010af0a583077f4adcd208e00e8c93ff019f55ab9a45f"
+      },
+      {
+        "type": "build",
+        "generationIndex": 5,
+        "structuralIdentity": "dedH`ABHRYWZijh@@",
+        "payloadSha256": "f0fecb66a0ce02b3fa7ff355483a9b233a21e391a29ef94785365ac68d4f4851"
+      },
+      {
+        "type": "multiple-choice",
+        "generationIndex": 6,
+        "structuralIdentity": "dmT@@DjWVZjjh@@",
+        "payloadSha256": "b4f9b2cdcf33ad1391ef4e872b7b127e33448dd7d95cbc194e35c478406b0dc4",
+        "optionIdsSha256": "5d4a565698a7195101838a0736cf3ae6091845a4d960a468b96a9552fafa58c3"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 7,
+        "structuralIdentity": "diDH`NBHrJQERjZ`@",
+        "payloadSha256": "a5c4a521f0773d9758907eefc4b2db6482455d65acd4ebab7d87fe0aa8194ef9"
+      },
+      {
+        "type": "build",
+        "generationIndex": 8,
+        "structuralIdentity": "dmTH@@RgUUjnj`@",
+        "payloadSha256": "43d33a3252c1f1d8f2d3475c4bbdfe6a0d420816a6646d04b93f82aa01c0a006"
+      },
+      {
+        "type": "naming",
+        "generationIndex": 9,
+        "structuralIdentity": "dmTH@@Re]Ujkj`@",
+        "payloadSha256": "5f761d9356b0003f0491253adf94877ceddb7ee0593cd1d6af6dcae7663109c3"
+      }
+    ]
+  }
+}

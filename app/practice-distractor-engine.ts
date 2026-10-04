@@ -11,6 +11,7 @@ import type { ExerciseChemistryOracles } from "./exercise-chemistry-oracles.ts";
 import { generateGraphDistractors } from "./practice-distractor-recipes.ts";
 import { VERIFIED_GRAPH_RECIPES } from "./practice-multiple-choice.ts";
 import { validateExerciseDomain } from "./exercise-domain.ts";
+import { exerciseDomainPolicy } from "./exercise-generation-profile.ts";
 
 export const DISTRACTOR_RECIPE_ORDER = Object.freeze(["WRONG_EZ_DESCRIPTOR", ...VERIFIED_GRAPH_RECIPES] as const);
 
@@ -140,7 +141,7 @@ export function createDeterministicDistractorEngine(engine: DistractorNamingEngi
     if (!oracles) return ez;
     try {
       const source = input.generatedMolecule;
-      if (!validateExerciseDomain(source.molecule, source.category, oracles).valid) return [];
+      if (!validateExerciseDomain(source.molecule, source.category, oracles, exerciseDomainPolicy(source.question)).valid) return [];
       const reference = oracles.reference(source.molecule);
       if (exerciseStructuralIdentity(source.molecule) !== source.reference.structuralIdentity
         || !reference.namingSupported || !sameReference(reference.names, source.reference.names)) return [];

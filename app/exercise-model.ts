@@ -1,8 +1,8 @@
 import type { AppLanguage } from "./i18n";
 
 /** Changes to RNG, seed framing, canonicalization or generation require a new version. */
-export const GENERATOR_VERSION = 2;
-export const SUPPORTED_GENERATOR_VERSIONS = Object.freeze([1, 2] as const);
+export const GENERATOR_VERSION = 3;
+export const SUPPORTED_GENERATOR_VERSIONS = Object.freeze([1, 2, 3] as const);
 export type GeneratorVersion = typeof SUPPORTED_GENERATOR_VERSIONS[number];
 
 export type ExerciseMode = "practice" | "exam";

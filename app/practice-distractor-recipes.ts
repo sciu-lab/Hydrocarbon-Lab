@@ -7,6 +7,7 @@ import type { DistractorDiagnosticCode, DistractorTransformation, MultipleChoice
 import { matchesHydrocarbonReferenceName } from "./practice-reference-answer.ts";
 import { deriveSeed } from "./seeded-rng.ts";
 import { generateLegacyEnglishName } from "./legacy-english-nomenclature.ts";
+import { exerciseDomainPolicy } from "./exercise-generation-profile.ts";
 
 export const MAX_GRAPH_DISTRACTOR_VARIANTS_PER_RECIPE = 3;
 
@@ -31,7 +32,7 @@ export function generateGraphDistractors(input: DistractorEngineInput, engine: D
     transform: (next: typeof model, analysis: ReturnType<DistractorNamingEngine["analyzeMolecule"]>) => DistractorTransformation | null) => {
     if (full(code)) return;
     try {
-      if (!validateExerciseDomain(alternative, source.category, oracles).valid) return;
+      if (!validateExerciseDomain(alternative, source.category, oracles, exerciseDomainPolicy(source.question)).valid) return;
       const nextAnalysis = engine.analyzeMolecule(alternative);
       const next = engine.buildLegacyEnglishNameModel(alternative, nextAnalysis);
       if (code !== "WRONG_PARENT_LENGTH" && JSON.stringify([...model.parent.atomIds].sort((a, b) => a - b))

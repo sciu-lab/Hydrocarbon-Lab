@@ -1,0 +1,547 @@
+{
+  "capturedAtHead": "0729971",
+  "generatorVersion": 2,
+  "sessions": {
+    "basic": {
+      "practiceNaming": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "gNp`@df]Zj@@",
+          "payloadSha256": "a826e1a901360c3d4c30c2a82570be99d2c45d8684b7dd662c380d24b364d5f9"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "ded@@DjWujjj@@",
+          "payloadSha256": "f8be5b4d7f50e6c428badc827f943defddc3a87b2db3e1bb4afe32c9353bb5e5"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 2,
+          "structuralIdentity": "gNp@LdbJjj@@",
+          "payloadSha256": "2b3c4f79681e1a8b2db09df452c9dcb2f528f3a17b3d0911f7da306162beb216"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "daxH@@RYUjj`@",
+          "payloadSha256": "c07deb5f98eb4fda3c84c97d9b7582d44b51d4da20245bcf98e3b8b758b4d015"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 4,
+          "structuralIdentity": "gJP@DiZh@",
+          "payloadSha256": "eb3dd9b26e2cd48fa99c85fff1a77ef42229e3db9eda6dda0bcff6bbf542e6c0"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "gNp`@dfUZj@@",
+          "payloadSha256": "27e8d3906b2d6255e9785b2a0a1ce11687d4a806aefc917e5c669cb84cf556c8"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 6,
+          "structuralIdentity": "gCa@@dmP@",
+          "payloadSha256": "eb99b0330970262ede5328232d4c16bc32bcaf62d2f6ccbc477da4f515a6f05f"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 7,
+          "structuralIdentity": "gNp@DiUjj@@",
+          "payloadSha256": "81b93abc26ebb4cdc0954f12649eaaf87517392efc8e1dd45ed6c48d88d51dbb"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 8,
+          "structuralIdentity": "dedH@@RUUVjjh@@",
+          "payloadSha256": "ba98f0b1509fb39db8f6bfd4ae5679f6fa3494ba8076e745958a383b9afbcb91"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 9,
+          "structuralIdentity": "dax@@DiUZjh@@",
+          "payloadSha256": "5550cc866bedd1101e33e201d87532ff7ee76b7d21e46a92bd6235ede7240318"
+        }
+      ],
+      "practiceMixed": [
+        {
+          "type": "multiple-choice",
+          "generationIndex": 0,
+          "structuralIdentity": "diDD@@QIe]Zjh@@",
+          "payloadSha256": "cb578c1d567fcaecdb337f8e28b3d6750d910d516f6a820824080250902cdac3",
+          "optionIdsSha256": "821624b894ecd95b6d246deba30776e3afdf033df873f4773a776190e3fce468"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "gNp@DjWjj@@",
+          "payloadSha256": "86b3bc8ab36207fb770b15ed781a7d2fe685d679ff80cfc2571b1a3ec1f1a41b"
+        },
+        {
+          "type": "build",
+          "generationIndex": 2,
+          "structuralIdentity": "gGP@DjVj`@",
+          "payloadSha256": "5bc7a691fbdd2851116bc92c28b36c311f8fa9bad6ba04e4c2ed20a69736710b"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 3,
+          "structuralIdentity": "gNp`@df]Zj@@",
+          "payloadSha256": "0f47c7783dcde19fca77153c2ef3413a8eb3b478b4aa4aa1b52dbfb0c5cd209c",
+          "optionIdsSha256": "a12b404b3c19a17ebaca782e42b02655b89c6cbd2c423edd28a4ee8763a847e0"
+        },
+        {
+          "type": "build",
+          "generationIndex": 4,
+          "structuralIdentity": "gJP@DjZh@",
+          "payloadSha256": "0a8d416a05faba25f8866bcfc4a959a5e8dac2295df25732fd93b5e6eebefa51"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "dedD@@QIeUVjj`@",
+          "payloadSha256": "f1b057ff16f7342353107f198c2ae1cb5633385d1c97fbdd85c48f656dce8524"
+        }
+      ],
+      "examMixed": [
+        {
+          "type": "multiple-choice",
+          "generationIndex": 0,
+          "structuralIdentity": "fH@@",
+          "payloadSha256": "addfb5eab54a66586376815c09d167cce0b7697ccaf8f81c44b1f5c4139282ca",
+          "optionIdsSha256": "7ec3fe11d3bdda2354193df55c717c550ac0ef5f3982ea77bfbf7f26a2f97d8b"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "gGQ@@dsuT@@",
+          "payloadSha256": "ccb20a832fa20b4d3e44851615012bd83e57277ba57bd032405b8ef6142e7277"
+        },
+        {
+          "type": "build",
+          "generationIndex": 2,
+          "structuralIdentity": "ded@@DjWWjjj@@",
+          "payloadSha256": "ce502494fb5af021b05120d93bb83cf81381c0bea58b36aca57832ba53adf209"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 3,
+          "structuralIdentity": "eF@Hp@",
+          "payloadSha256": "e145756831b85927db3b91e65d4194b8265c4c0ec570fcd6ebe739133160517d",
+          "optionIdsSha256": "c9cb0146f7682d1d51ddaeee3bd069644b8d511beae72e81b8c7592e5940ea08"
+        },
+        {
+          "type": "build",
+          "generationIndex": 4,
+          "structuralIdentity": "gGP@DiVj`@",
+          "payloadSha256": "33aeace8e4a0e23ffc2d91adec1fa363c5957e4951929401c32ae699673f75d4"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "gCa@@eMP@",
+          "payloadSha256": "0ce4d0b50a07ae4c92f2808786db35120cbf06562df1e7b4b85d023696e1d7c6"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 6,
+          "structuralIdentity": "dedH@@RYWVjjh@@",
+          "payloadSha256": "be285d333107a072fa9fad9fc236c2564f06939e8fab456f8154d78bd3e01edc",
+          "optionIdsSha256": "1a9cbb63811521d86e5380711e7e902071f876bae82d7ef74e9be4d97721a49e"
+        },
+        {
+          "type": "build",
+          "generationIndex": 7,
+          "structuralIdentity": "dedH@@RYUVjjh@@",
+          "payloadSha256": "77c5b2d14f2527ed7ffa75a5475aa8329519a08abfbeb68999de17ebcb73677e"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 8,
+          "structuralIdentity": "gNq@@eNmUP@",
+          "payloadSha256": "9924db6f4ed05916027760f7646856e4ef4559cb02e9fd837f8643c0d3762df2"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 9,
+          "structuralIdentity": "gNp@DiUjj@@",
+          "payloadSha256": "37145feeb6784c584d4af6491ef3de40c95f87f42b7f3f7cb6d859dcb160b20e"
+        }
+      ]
+    },
+    "intermediate": {
+      "practiceNaming": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "gJP@DjZh@",
+          "payloadSha256": "30dbea980f28c649b4bd257260e6ff683f1dadb97d2f43f0553fc1ef0b71be8f"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "gNp`@dfWZj@@",
+          "payloadSha256": "7a70b459f5ec9ba24bc03fe119afafd031a29bb2fb27cedf4a51a444c750defe"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 2,
+          "structuralIdentity": "dmTD@@QIeU]jjj@@",
+          "payloadSha256": "4958ec3002f90984492619b9e07bada9abff06bd0c0fecd86e5d5b315adbe09f"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "gGQ@@djuT@@",
+          "payloadSha256": "4f857ca9e1220aa7a3cf8850d465b574b6bd0a5eadcfa59e65aa3c63e54375ec"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 4,
+          "structuralIdentity": "diDD@@QIeuZjh@@",
+          "payloadSha256": "da7aeb1c28619e1f0b1b5d292d97979b33bac7386c7d49b22358e1ca95a5a390"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "dmT@@DjWuZjjh@@",
+          "payloadSha256": "e7eab0daa3e3a5c7a578b214018a87c7e862b433eab65837692201ccab38f434"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 7,
+          "structuralIdentity": "dkL@@DjWf_jjjj@@",
+          "payloadSha256": "e6bf0d1139ca080335f22ab9d5417f2483d042ddc752ae51f9f9faf981e66127"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 8,
+          "structuralIdentity": "gJQ@@dsU@@",
+          "payloadSha256": "ef7ce377950fa2d2e0a9b4b249c5005c8927c164775d14e5f2156c178b5f4e79"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 9,
+          "structuralIdentity": "dmTD@@QIeUUjjj@@",
+          "payloadSha256": "c30dd78b9166ffda2a7bb4e87f825035087e76f42714f2ae5f7dbe280ba58d6c"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 10,
+          "structuralIdentity": "dedH@@RYWVjjh@@",
+          "payloadSha256": "685e427f1bc5628d851214bb7d15b7b7331b62fdd4788b8aafe9eea24e3022f0"
+        }
+      ],
+      "practiceMixed": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "diD@@DjYVjj`@",
+          "payloadSha256": "0498cfbd18eb7807a536a200bbd8a94fa40122021a1ee67408c6cdb79997902e"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 1,
+          "structuralIdentity": "gGP@LdbMU@@",
+          "payloadSha256": "f348b61946e8953484f7149b561d4a429a5d3b21ef1e8330570ef8a9cf6339df",
+          "optionIdsSha256": "cfc514e6c015b9196510ed32814046e845e88381274582b24f2e936af21a55fd"
+        },
+        {
+          "type": "build",
+          "generationIndex": 2,
+          "structuralIdentity": "gCa@@dmP@",
+          "payloadSha256": "b6b595cab3aefbc63b24482f0771064b8447031a3a2206679a7f5b74d2f0e42c"
+        },
+        {
+          "type": "build",
+          "generationIndex": 3,
+          "structuralIdentity": "diDD@@QIe]Zjh@@",
+          "payloadSha256": "518d646c2185f769b6a2d445914ceba20d6ba8e2f9683fd851ed90a6ecaf1e66"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 4,
+          "structuralIdentity": "diDH@@RUUZjj@@",
+          "payloadSha256": "13a8ac6dcd8a3d8d21e7508cce1f899c90a9408032d5217148e302192d344738"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 5,
+          "structuralIdentity": "gJP@DiZh@",
+          "payloadSha256": "d005853550e8c119eb0a01dfb08c446e2751ce4d061bf8ea3e42ef56e3776ff6",
+          "optionIdsSha256": "8ca49ec387f630d13874b4c59ba76bf9e72d76a744089b9e3f91628277e9d7a3"
+        }
+      ],
+      "examMixed": [
+        {
+          "type": "multiple-choice",
+          "generationIndex": 0,
+          "structuralIdentity": "gGP@DjVj`@",
+          "payloadSha256": "0630a45e66b6b81d6ab05c51956616a66ca9deb39d9c6ef31950ba3a2c9b3e6c",
+          "optionIdsSha256": "aeec40dcd968d30c23381cac2f41561500feca41fb4fae5760b80ccfb39a6772"
+        },
+        {
+          "type": "build",
+          "generationIndex": 1,
+          "structuralIdentity": "diD@@DiUVjj`@",
+          "payloadSha256": "55682808104d2a391451980dce0684461c35a0d22ee5099712b6d2324ebe86fd"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 2,
+          "structuralIdentity": "dmTH@@RYUUjjj`@",
+          "payloadSha256": "e57607b27737cdf2730371257b4fbfebc2a50deb8739afcbaa2a35fdf3a9aa4d"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "diD@@DjWnjj`@",
+          "payloadSha256": "5c0b31db523bca52d44e53d2c839aaed87953797e220b83827e327a5b6f1287f"
+        },
+        {
+          "type": "build",
+          "generationIndex": 4,
+          "structuralIdentity": "eF@Hp@",
+          "payloadSha256": "4432c4d2fe10660c2374a7611d6b77c1c0303060bffb504c6fe08d14ccbbf396"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 5,
+          "structuralIdentity": "ded@@DiUUjjj@@",
+          "payloadSha256": "facbe31e474205969e7fc0ff1d06c0566e172910202a93244b0547e2cea1d312",
+          "optionIdsSha256": "07f922ff318c9c35d952dc9a6992b614a2dace8b48a7b3775e896bf124b14e34"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 6,
+          "structuralIdentity": "diD@@DjYVjj`@",
+          "payloadSha256": "f050af2af37f035f9645ccd492cb80536320e3c767d30bdb18a41bc78e1f0797"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 7,
+          "structuralIdentity": "dax@@DjWZjh@@",
+          "payloadSha256": "833de7fd82e2f836872950a4f0516982bcc852c175c7db748b016a0c90603239",
+          "optionIdsSha256": "5ee7445308e6c63df66a3a822da41ab1ed8ed580521ff39040da10e3f22d312a"
+        },
+        {
+          "type": "build",
+          "generationIndex": 8,
+          "structuralIdentity": "dax@@DiUZjh@@",
+          "payloadSha256": "18e0c5b64f2ea04bde0a687b5ec5a42e07b962efc21ccc1ddb19bf49062b1a5b"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 9,
+          "structuralIdentity": "gJP@DiZh@",
+          "payloadSha256": "316f34f973ab2b2b22d73c25e80b322fc5d05de58a62921c3912f3dcc6e0c006",
+          "optionIdsSha256": "b8040693b33e7bde338e54ccadd9671dd9142332ebfd5290d105c6fa37c87692"
+        }
+      ]
+    },
+    "advanced": {
+      "practiceNaming": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "dmTD@@QIeU]jjj@@",
+          "payloadSha256": "a0404087a5693bbcd09fd2eeaa33b92fe014d7613c2d8b5965cedfef4576f9eb"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 1,
+          "structuralIdentity": "eMHAIh@",
+          "payloadSha256": "58fc50e8dc8a6b369aea5efe0ae8cea67f6ebf6b778565e05010f1bec2498efb"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "dedD@@QIeUVjj`@",
+          "payloadSha256": "c9e43d2a7fc7d11ee085a15457c1a746ef8204021d08f606df2f17552aebd969"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 4,
+          "structuralIdentity": "daxH@@RYUjj`@",
+          "payloadSha256": "880552ffb05c74c6385c1167060be2b95b7b330f4b0c1793370a1ed313b19101"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 5,
+          "structuralIdentity": "diDD@@QIe]Zjh@@",
+          "payloadSha256": "04a37871d228b835891fe452fb574c9cb80c0478f70566ecbe97c35b9af50b11"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 6,
+          "structuralIdentity": "dedH@@RYU^jjh@@",
+          "payloadSha256": "150923c564c60f809515c259d870e1d33c077279aeb1de940b68874c4f22aa84"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 7,
+          "structuralIdentity": "gNp`@df]Zj@@",
+          "payloadSha256": "fd490cd0122b506a34f8333dc1819475cf66307ef024224baa31db94530585ac"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 9,
+          "structuralIdentity": "gNq@@djmUP@",
+          "payloadSha256": "6b03e2e0ea92028da38297a165b6821518d7d02981a735fda7ea841b2c4c0f23"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 10,
+          "structuralIdentity": "fH@@",
+          "payloadSha256": "7b32fd719e65514e77a0cb190dee22b4a1f5989c3567aed1d329fd85aa3cea33"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 11,
+          "structuralIdentity": "daxD@@QIeujj@@",
+          "payloadSha256": "1145d4285f615c96e00289de8e8d640215c71f01c26d47662cad8c86fc0d97c0"
+        }
+      ],
+      "practiceMixed": [
+        {
+          "type": "multiple-choice",
+          "generationIndex": 0,
+          "structuralIdentity": "gCa@@dmP@",
+          "payloadSha256": "4c0f4a1f42295aaebc05ac15ee0040f6140e41854e7fa382ab7ee59b00006a8e",
+          "optionIdsSha256": "21683f4d6221d6f72448fb48b9af1f33fe830a2af5ed62d2e254c1b0ff68fbaa"
+        },
+        {
+          "type": "build",
+          "generationIndex": 1,
+          "structuralIdentity": "gJP@DjZh@",
+          "payloadSha256": "b736793e5e7ba3d6767331ab5620be5b3ff8885d9a39642f9161057e4dcca4ff"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 2,
+          "structuralIdentity": "fH@@",
+          "payloadSha256": "fe9d79024f1696382cb0f81c575e67627dad6d0ffa53c704fb0bcfd8a90fa6d5"
+        },
+        {
+          "type": "build",
+          "generationIndex": 3,
+          "structuralIdentity": "dedD@@QIeUvjj`@",
+          "payloadSha256": "5f6a1ee4c9eeca012fdd667bcc1b46689c488de630e7c33cdf93fbdccb4de36a"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 4,
+          "structuralIdentity": "gGP`@df]j`@",
+          "payloadSha256": "b5e1249ed37d64dab59b45a696db49c950085d357c6c33da28a8f33288b92ea9"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 5,
+          "structuralIdentity": "gJQ@@dkU@@",
+          "payloadSha256": "c3c39a7d8003effc895d046662ad3d459d66c95513e4a98299eff244cc6ec7d2",
+          "optionIdsSha256": "349f1ef35779353ddf3cea36d95ca388d2230d3eef83ccf2a0f982a5d657b613"
+        }
+      ],
+      "examMixed": [
+        {
+          "type": "naming",
+          "generationIndex": 0,
+          "structuralIdentity": "daxH@@RUUjj`@",
+          "payloadSha256": "5c0a20f8f47c82f0f48f5f2a4be14a77c5ec614051fc3d63f5b10e9c5718ba04"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 1,
+          "structuralIdentity": "diDH@@ReUzjj@@",
+          "payloadSha256": "15e7386c90a35950b713dcc6c3bf68cb4eca5608d557fe2b79af7a4d364331f9",
+          "optionIdsSha256": "dc120fff7d54b60683b648000e6e2b5f7db926344ca145750058db0ecb310147"
+        },
+        {
+          "type": "build",
+          "generationIndex": 2,
+          "structuralIdentity": "dmTH@@ReUWjjj`@",
+          "payloadSha256": "098be94d322b35a7b3c24c44b9805c6c3fb9c9af9719d2250e055c439988c437"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 3,
+          "structuralIdentity": "dmTH@@ReUWjjj`@",
+          "payloadSha256": "97ed7d6290b23df8a2bd9969052a3b865a1156146243a800c09a2a6c2a902934"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 4,
+          "structuralIdentity": "dmTH@@RYuUjjj`@",
+          "payloadSha256": "843e27e3f2061dcd567b0182ad6ce46f41177d0f5ef534f56672bd3673a626ee",
+          "optionIdsSha256": "27abac20aaf9433d4b90f026d086f65637f970287a48c5e690c4ab3107747f74"
+        },
+        {
+          "type": "build",
+          "generationIndex": 5,
+          "structuralIdentity": "dmTH@@RUUUjjj`@",
+          "payloadSha256": "3f29f059d458143e1cc8e1820bd9c8699b27f409a54912d3d7c938e63a8fc0db"
+        },
+        {
+          "type": "naming",
+          "generationIndex": 6,
+          "structuralIdentity": "ded@@DiUUjjj@@",
+          "payloadSha256": "92ebdfdfe9260c3e256b9b7c14d4fb484cd0e7a08a1cdb88df7fce1991f983b8"
+        },
+        {
+          "type": "build",
+          "generationIndex": 7,
+          "structuralIdentity": "gC`@H}P@",
+          "payloadSha256": "c62db66fe1bbc3868efbda6234b7ad447c01a68fd18be577bb982bd4771f9cc9"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 8,
+          "structuralIdentity": "diDH@@RYuZjj@@",
+          "payloadSha256": "e35de187d68df2eba61697d71600140c13cc59972a27bc96dec30d80ccc646ac",
+          "optionIdsSha256": "cb4ecffbba37b70902e7da251fbe59f346aa169765ef6120c68ab30442e8d8a8"
+        },
+        {
+          "type": "multiple-choice",
+          "generationIndex": 9,
+          "structuralIdentity": "gGQ@@eNuT@@",
+          "payloadSha256": "5bee024962c01dccc98be08d13b85c116bf4478ffbe2d64e6fd7b273c8fd7a5b",
+          "optionIdsSha256": "7463993d04d00b6ce2978c85d8b8429c662b0edfbc8fc653e88233e9ae66c5b3"
+        }
+      ]
+    }
+  },
+  "classCsv": [
+    {
+      "difficulty": "basic",
+      "locale": "es",
+      "csvSha256": "3de5faba7d0393e5407b80ab048f71501dec544060ae74803695ae4db87407b6"
+    },
+    {
+      "difficulty": "basic",
+      "locale": "en",
+      "csvSha256": "6a34d7f446fcb9c923026526294470c034cf99b381595f289d78113ef515e82d"
+    },
+    {
+      "difficulty": "intermediate",
+      "locale": "es",
+      "csvSha256": "80180766ab8fceaff00308c0ff67be1bf25e0c3a4de7f10cdd01f676b8bdc98d"
+    },
+    {
+      "difficulty": "intermediate",
+      "locale": "en",
+      "csvSha256": "dc8ecfa2ba87f88de2b90d0e392b2e98e7a507a55ddd33dbfceca20f83821d89"
+    },
+    {
+      "difficulty": "advanced",
+      "locale": "es",
+      "csvSha256": "f00ee86a231c7328f22e127c2faf8c99bb4c80936a0f593f6c0c85b6f2a9840a"
+    },
+    {
+      "difficulty": "advanced",
+      "locale": "en",
+      "csvSha256": "d49db3050bfcba75b64a97cfd879c60857a6677d43f642f46b999852947a1197"
+    }
+  ]
+}

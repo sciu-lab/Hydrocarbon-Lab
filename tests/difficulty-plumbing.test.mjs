@@ -20,16 +20,20 @@ import { buildCompletedSessionReview } from "../app/session-review.ts";
 import { reconstructSessionReviewQuestion } from "../app/session-review-question.ts";
 import { getExerciseUniquenessKey } from "../app/session-question-selection.ts";
 import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
-import { createPracticeConfig, startPractice, markPracticeQuestionAvailable, updatePracticeAnswer,
+import { createPracticeConfig as currentPracticeConfig, startPractice, markPracticeQuestionAvailable, updatePracticeAnswer,
   updatePracticeStructure, submitPracticeAnswer, submitPracticeStructure, nextPracticeQuestion,
   localizePracticeState, startPracticeCorrections, endPractice, PRACTICE_RECENT_LIMIT } from "../app/practice-session.ts";
-import { createExamConfig, startExam, markExamQuestionAvailable, updateExamAnswer, updateExamStructure,
+import { createExamConfig as currentExamConfig, startExam, markExamQuestionAvailable, updateExamAnswer, updateExamStructure,
   navigateExam, submitExam, localizeExamState, openExamPostReview } from "../app/exam-session.ts";
 import { createClassAssignmentConfig, normalizeClassAssignmentConfig, generateClassAssignments,
   participantSessionConfig, classConfigFingerprint, classVariantInputSignature,
   CLASS_SCHEMA_VERSION, CLASS_DERIVATION_VERSION } from "../app/class-assignment.ts";
 import { serializeClassAssignmentCsv, reconstructClassSessionFromCsvRow,
   CLASS_ASSIGNMENT_CSV_COLUMNS } from "../app/class-assignment-csv.ts";
+
+// Freeze these D1/D2 lifecycle inputs at their published v2 behavior.
+const createPracticeConfig = (c,n,l,s,t = ['naming'],d = 'basic',v = 2) => currentPracticeConfig(c,n,l,s,t,d,v);
+const createExamConfig = (c,n,l,s,t = ['naming'],d = 'basic',v = 2) => currentExamConfig(c,n,l,s,t,d,v);
 
 const baseline = JSON.parse(readFileSync(new URL("./fixtures/difficulty-d1-basic-session.json", import.meta.url), "utf8"));
 const nonBasic = JSON.parse(readFileSync(new URL("./fixtures/difficulty-d1-nonbasic-session.json", import.meta.url), "utf8"));
@@ -87,7 +91,7 @@ test("canonical difficulty validation defaults only absent legacy fields and pre
   }
   assert.equal(createPracticeConfig(categories, 3, "es", "D1", types, undefined).difficulty, "basic");
   assert.equal(createExamConfig(categories, 3, "es", "D1", types, undefined).difficulty, "basic");
-  assert.equal(GENERATOR_VERSION, 2);
+  assert.equal(GENERATOR_VERSION, 3);
 });
 
 test("historical basic targets, indices, MCQ IDs/order/provenance and Build payloads remain exact", async () => {

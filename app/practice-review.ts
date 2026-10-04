@@ -159,6 +159,8 @@ export function buildPracticeReviewSteps(molecule: GeneratedMolecule, analysis: 
 
   for (const locant of analysis.doubleBondLocants) {
     const [a, b] = parent.slice(locant - 1, locant + 1);
+    if (!molecule.bonds.some(([left, right, order, explicit]) => explicit && order === 2
+      && ((left === a && right === b) || (left === b && right === a)))) continue;
     const inspection = inspectDoubleBondStereochemistry(molecule, a, b);
     if (inspection.stereogenic && inspection.configuration && inspection.priorityAtomIds) {
       add(`ez:${locant}`, "ez", `review.ez.${inspection.configuration}`, { locant, descriptor: inspection.configuration },

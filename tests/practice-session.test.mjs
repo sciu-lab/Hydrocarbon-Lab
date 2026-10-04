@@ -21,7 +21,7 @@ const answerCorrectly = (state, locale = "es") => submit(updatePracticeAnswer(st
 test("Practice constructs the existing SessionConfig with Naming/basic and canonical category IDs", () => {
   assert.deepEqual(createPracticeConfig(["alcohol", "alkane", "alcohol"], 10, "en", " exact seed "), {
     mode: "practice", questionCount: 10, questionTypes: ["naming"], categories: ["alkane", "alcohol"],
-    difficulty: "basic", locale: "en", seed: " exact seed ", generatorVersion: 2,
+    difficulty: "basic", locale: "en", seed: " exact seed ", generatorVersion: 3,
   });
   for (const count of [1, 5, 7, 15, 23, 30, 37, "endless"]) assert.equal(configFor(count).questionCount, count);
   assert.throws(() => createPracticeConfig([], 5, "es", "seed", ["naming"], "basic", 1));

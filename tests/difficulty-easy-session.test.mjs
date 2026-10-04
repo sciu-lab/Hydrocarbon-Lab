@@ -11,10 +11,10 @@ import { moleculeFromSmiles } from "../app/openchemlib-adapter.ts";
 import { createPracticeQuestionGenerator, InsufficientSafeDistractorsError, validateMultipleChoiceQuestion } from "../app/practice-question.ts";
 import { createDeterministicDistractorEngine } from "../app/practice-distractor-engine.ts";
 import { createBuildSubmissionValidator, createStructuralAnswerEvaluator } from "../app/practice-structural-answer.ts";
-import { createPracticeConfig, startPractice, markPracticeQuestionAvailable, updatePracticeAnswer,
+import { createPracticeConfig as currentPracticeConfig, startPractice, markPracticeQuestionAvailable, updatePracticeAnswer,
   updatePracticeStructure, submitPracticeAnswer, submitPracticeStructure, nextPracticeQuestion,
   localizePracticeState, startPracticeCorrections, endPractice } from "../app/practice-session.ts";
-import { createExamConfig, startExam, markExamQuestionAvailable, updateExamAnswer, updateExamStructure,
+import { createExamConfig as currentExamConfig, startExam, markExamQuestionAvailable, updateExamAnswer, updateExamStructure,
   navigateExam, submitExam, localizeExamState } from "../app/exam-session.ts";
 import { getExerciseUniquenessKey, PRACTICE_DUPLICATE_LIMIT, PRACTICE_MCQ_SEARCH_LIMIT, PRACTICE_RECENT_LIMIT } from "../app/session-question-selection.ts";
 import { buildCompletedSessionReview } from "../app/session-review.ts";
@@ -22,6 +22,10 @@ import { reconstructSessionReviewQuestion } from "../app/session-review-question
 import { createClassAssignmentConfig, generateClassAssignments, participantSessionConfig,
   classConfigFingerprint, CLASS_SCHEMA_VERSION, CLASS_DERIVATION_VERSION } from "../app/class-assignment.ts";
 import { serializeClassAssignmentCsv, reconstructClassSessionFromCsvRow, CLASS_ASSIGNMENT_CSV_COLUMNS } from "../app/class-assignment-csv.ts";
+
+// Freeze these D1/D2 lifecycle inputs at their published v2 behavior.
+const createPracticeConfig = (c,n,l,s,t = ['naming'],d = 'basic',v = 2) => currentPracticeConfig(c,n,l,s,t,d,v);
+const createExamConfig = (c,n,l,s,t = ['naming'],d = 'basic',v = 2) => currentExamConfig(c,n,l,s,t,d,v);
 
 const categories = EXERCISE_CATEGORIES.filter((c) => c !== "ez"), types = ["naming", "multiple-choice", "build"];
 const time = (ms) => ({ monotonicMs: ms, wallTimeMs: 1700000000000 + ms });
@@ -178,7 +182,7 @@ test("16 categories × 2 modes × 2 seeds: finite Easy session sweep counts atte
 test("v2 Class Seed + CSV reconstruct all difficulties/version; three participant plans remain deterministic Easy", () => {
   const fingerprints = new Set(), seeds = new Set();
   for (const difficulty of ["basic", "intermediate", "advanced"]) {
-    const config = createClassAssignmentConfig({ mode: "exam", questionCount: 3, categories, questionTypes: types, difficulty }, "CHEM-4B-2026");
+    const config = createClassAssignmentConfig({ mode: "exam", questionCount: 3, categories, questionTypes: types, difficulty }, "CHEM-4B-2026", 2);
     assert.equal(config.generatorVersion, 2);
     const manifest = generateClassAssignments(config, ["001", "002", "003"]);
     assert.deepEqual(manifest, generateClassAssignments(config, ["001", "002", "003"]));

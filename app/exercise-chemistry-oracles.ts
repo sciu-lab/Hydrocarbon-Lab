@@ -16,6 +16,7 @@ export type ExerciseReference = AnalysisSource & {
   namingSupported: boolean;
   /** Structural parent evidence already computed for the EN reference. */
   parent?: Pick<LegacyEnglishNameModel["parent"], "carbonCount" | "atomIds">;
+  principalFunctionalGroup?: string;
 };
 
 export type ExerciseChemistryOracles = {
@@ -43,16 +44,18 @@ export function createExerciseChemistryOracles<A extends AnalysisSource>(engine:
     reference(molecule) {
       const analysis = engine.analyzeMolecule(molecule);
       const model = engine.buildLegacyEnglishNameModel(molecule, analysis);
+      const english = generateLegacyEnglishName(model);
       return {
         name: analysis.name,
         formula: analysis.formula,
         family: analysis.family,
         names: {
           es: analysis.name,
-          en: generateLegacyEnglishName(model).name,
+          en: english.name,
         },
         namingSupported: !engine.localNamerCannotSafelyName(molecule, analysis),
         parent: { carbonCount: model.parent.carbonCount, atomIds: [...model.parent.atomIds] },
+        principalFunctionalGroup: english.reasoning.principalFunctionalGroup,
       };
     },
   };

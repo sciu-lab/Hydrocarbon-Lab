@@ -13,6 +13,8 @@ export type ExerciseDomainValidation =
   | { valid: false; reason: string };
 
 export const EXERCISE_DOMAIN_VERSION = 1;
+export const INTERMEDIATE_DOMAIN_VERSION = 2;
+export type ExerciseDomainPolicy = "legacy" | "intermediate";
 export const EXERCISE_ALLOWED_ELEMENTS = Object.freeze(["C", "O", "N", "F", "Cl", "Br", "I"] as const);
 const reject = (reason: string): { valid: false; reason: string } => ({ valid: false, reason });
 const element = (atom: GeneratedMolecule["atoms"][number]) => atom.element ?? "C";
@@ -65,7 +67,7 @@ export function validateExerciseChemistry(
   return { valid: true };
 }
 
-const expectedGroup: Partial<Record<ExerciseCategory, string>> = {
+export const expectedExerciseGroup: Partial<Record<ExerciseCategory, string>> = {
   halogenated: "halogen", alcohol: "alcohol", aldehyde: "aldehyde", ketone: "ketone",
   "carboxylic-acid": "carboxylicAcid", ether: "ether", ester: "ester", amine: "amine",
   amide: "amide", nitrile: "nitrile", nitro: "nitro",
@@ -80,6 +82,7 @@ export function validateExerciseDomain(
   molecule: GeneratedMolecule,
   category: ExerciseCategory,
   oracles: ExerciseChemistryOracles,
+  policy: ExerciseDomainPolicy = "legacy",
 ): ExerciseDomainValidation {
   if (!EXERCISE_CATEGORIES.includes(category)) return reject("unsupported-category");
   const chemical = validateExerciseChemistry(molecule, oracles);
@@ -129,11 +132,12 @@ export function validateExerciseDomain(
   if (topology !== requiredTopology) return reject("category-topology-mismatch");
 
   // Only the explicit, charge-balanced nitro motif permits nonzero charges.
-  if (category !== "nitro" && molecule.atoms.some((atom) => (atom.charge ?? 0) !== 0)) return reject("unsupported-charge");
-  if (category === "nitro") {
+  const nitroPresent = policy === "intermediate" && molecule.atoms.some((atom) => element(atom) === "N" && atom.charge === 1);
+  if (category !== "nitro" && !nitroPresent && molecule.atoms.some((atom) => (atom.charge ?? 0) !== 0)) return reject("unsupported-charge");
+  if (category === "nitro" || nitroPresent) {
     const nitrogen = molecule.atoms.filter((atom) => element(atom) === "N");
     const oxygen = molecule.atoms.filter((atom) => element(atom) === "O");
-    if (nitrogen.length !== 1 || oxygen.length !== 2 || nitrogen[0].charge !== 1) return reject("unsupported-nitro-pattern");
+    if (nitrogen.length !== 1 || (policy === "legacy" && oxygen.length !== 2) || nitrogen[0].charge !== 1) return reject("unsupported-nitro-pattern");
     const neighbors = adjacent(nitrogen[0].id);
     const doubleO = neighbors.find((neighbor) => at(neighbor.id) === "O" && neighbor.order === 2);
     const singleO = neighbors.find((neighbor) => at(neighbor.id) === "O" && neighbor.order === 1);
@@ -141,15 +145,24 @@ export function validateExerciseDomain(
       || neighbors.filter((neighbor) => at(neighbor.id) === "C" && neighbor.order === 1).length !== 1
       || (atoms.get(doubleO.id)!.charge ?? 0) !== 0 || atoms.get(singleO.id)!.charge !== -1
       || adjacent(doubleO.id).length !== 1 || adjacent(singleO.id).length !== 1
-      || molecule.atoms.some((atom) => element(atom) === "C" && (atom.charge ?? 0) !== 0)) return reject("unsupported-nitro-pattern");
+      || molecule.atoms.some((atom) => ![nitrogen[0].id, singleO.id].includes(atom.id) && (atom.charge ?? 0) !== 0)) return reject("unsupported-nitro-pattern");
   }
 
   let groups;
   try { groups = oracles.detectFunctionalGroups(molecule); } catch { return reject("group-oracle-failed"); }
-  const requiredGroup = expectedGroup[category];
+  const requiredGroup = expectedExerciseGroup[category];
   if (requiredGroup) {
-    if (!groups.length || groups.some((group) => group.kind !== requiredGroup)
-      || (category !== "halogenated" && groups.length !== 1)) return reject("category-group-mismatch");
+    if (policy === "legacy") {
+      if (!groups.length || groups.some((group) => group.kind !== requiredGroup)
+        || (category !== "halogenated" && groups.length !== 1)) return reject("category-group-mismatch");
+    } else {
+      const principal = groups.filter((group) => !["halogen", "nitro"].includes(group.kind));
+      if (groups.filter((group) => group.kind === requiredGroup).length !== 1
+        || principal.length !== (["halogen", "nitro"].includes(requiredGroup) ? 0 : 1)
+        || groups.some((group) => ![requiredGroup, "halogen", "nitro"].includes(group.kind))
+        || groups.filter((group) => group.kind === "halogen").length > 1
+        || groups.filter((group) => group.kind === "nitro").length > 1) return reject("category-group-mismatch");
+    }
   } else if (groups.length) return reject("unexpected-functional-group");
   const covered = new Set(groups.flatMap((group) => group.atomIds));
   if (molecule.atoms.some((atom) => element(atom) !== "C" && !covered.has(atom.id))) return reject("unrecognized-heteroatom");
@@ -163,7 +176,8 @@ export function validateExerciseDomain(
   if (category === "alkene" || category === "ez" || category === "alkyne") {
     const requiredOrder = category === "alkyne" ? 3 : 2;
     if (carbonMultiple.length !== 1 || carbonMultiple[0][2] !== requiredOrder) return reject("category-unsaturation-mismatch");
-  } else if (category !== "aromatic" && carbonMultiple.length) return reject("unsupported-combination");
+  } else if (category !== "aromatic" && carbonMultiple.length
+    && !(policy === "intermediate" && requiredGroup && carbonMultiple.length === 1)) return reject("unsupported-combination");
   else if (category === "aromatic" && carbonMultiple.length !== 3) return reject("unsupported-aromatic-pattern");
 
   const explicit = molecule.bonds.filter((bond) => bond[3]);
@@ -173,4 +187,13 @@ export function validateExerciseDomain(
     if (!inspection.stereogenic || !inspection.configuration) return reject("invalid-ez-configuration");
   } else if (explicit.length) return reject("unexpected-ez-configuration");
   return { valid: true, topology };
+}
+
+/** Neutral comparison envelope: includes elementary answers, and only the
+ * single-function/single-unsaturation expansion. Target difficulty is separate. */
+export function validateExerciseComparison(molecule: GeneratedMolecule, category: ExerciseCategory,
+  oracles: ExerciseChemistryOracles): ExerciseDomainValidation {
+  const legacy = validateExerciseDomain(molecule, category, oracles);
+  if (legacy.valid) return legacy;
+  return validateExerciseDomain(molecule, category, oracles, "intermediate");
 }

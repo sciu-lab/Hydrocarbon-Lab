@@ -52,11 +52,36 @@ export function deriveUnsaturationNameContributions(
   analysis: FragmentAnalysis,
   displayedName: string,
   language: AppLanguage,
+  generatedNames?: readonly string[],
 ): UnsaturationNameContribution[] {
   const name = displayedName.trim();
   const parent = localizedName(analysis.chainName, language).replace(/^(?:ácido|acid) /, "");
   const root = /^[a-záéíóúüñ]+/i.exec(parent)?.[0] ?? "";
-  if (!root || !name.endsWith(parent)) return [];
+  if (!root) return [];
+  // The available EN legacy profile puts the single multiple-bond locant before
+  // the parent root (3-hexen-2-ol). Copy its two disjoint written spans only when
+  // the naming pipeline supplied that exact name; never guess a new variant.
+  if (!name.endsWith(parent) && language === "en" && generatedNames?.includes(name)
+    && analysis.doubleBondLocants.length + analysis.tripleBondLocants.length === 1) {
+    const bondType = analysis.doubleBondLocants.length ? "double" as const : "triple" as const;
+    const locant = (bondType === "double" ? analysis.doubleBondLocants : analysis.tripleBondLocants)[0];
+    const marker = bondType === "double" ? "en" : "yn";
+    const prefix = `${root}-${locant}-${marker}`;
+    const legacyParent = `${locant}-${root}${marker}${parent.slice(prefix.length)}`;
+    if (parent.startsWith(prefix) && name.endsWith(legacyParent)) {
+      const atoms = analysis.mainChain.slice(locant - 1, locant + 1);
+      if (atoms.length !== 2) return [];
+      const start = name.length - legacyParent.length;
+      const common = { semanticId: `unsaturation:${bondType}:${locant}`, bondType, locant, atomIds: atoms,
+        bondIds: [[Math.min(...atoms), Math.max(...atoms)]] as [number, number][],
+        label: `${bondType === "double" ? "Double" : "Triple"} bond at position ${locant}`,
+        kind: "unsaturation" as const,
+        explanation: `The ${bondType} bond C${locant}${bondType === "double" ? "=" : "≡"}C${locant + 1} contributes locant ${locant} and the parent form “${marker}”.` };
+      return [{ ...common, text: String(locant), start },
+        { ...common, text: marker, start: start + String(locant).length + 1 + root.length }];
+    }
+  }
+  if (!name.endsWith(parent)) return [];
   const parentStart = name.length - parent.length;
   const parentTail = parent.slice(root.length);
   const tokens: { value: string; start: number; end: number }[] = [];
@@ -457,7 +482,7 @@ export function deriveReasoningNameFragments(input: FragmentInput): Record<strin
   const evidence = functionalNameEvidence(analysis, name, language);
   const unsaturationStep = steps.find((step) => step.nameRole === "unsaturation");
   if (unsaturationStep) {
-    const contributions = deriveUnsaturationNameContributions(analysis, name, language);
+    const contributions = deriveUnsaturationNameContributions(analysis, name, language, input.generatedNames);
     const [first, ...rest] = contributions;
     if (first) fragments[unsaturationStep.number] = { ...first, additionalFragments: rest };
   }
