@@ -6,6 +6,7 @@ import type { ExerciseChemistryOracles } from "./exercise-chemistry-oracles.ts";
 import { validateExerciseChemistry, validateExerciseComparison, validateExerciseDomain } from "./exercise-domain.ts";
 import { inspectDoubleBondStereochemistry } from "./double-bond-stereochemistry.ts";
 import { moleculeToSmiles } from "./openchemlib-adapter.ts";
+import { validateHardFoundationExercise, validateHardFoundationComparison } from "./exercise-advanced-profile.ts";
 
 export const BUILD_CATEGORIES = EXERCISE_CATEGORIES;
 export type StructuralStatus = "EQUIVALENT" | "DIFFERENT_ELEMENTS" | "DIFFERENT_BOND_ORDERS"
@@ -22,16 +23,20 @@ export type StructuralAnswerEvaluator = (input: {
 }) => StructuralEvaluation;
 export type BuildSubmissionValidation = { valid: true } | { valid: false; reason: "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" };
 export type BuildSubmissionValidator = (molecule: GeneratedMolecule) => BuildSubmissionValidation;
+/** Opt-in readiness for manual/future certified targets; sessions retain current. */
+export type BuildComparisonCapability = "current" | "hard-foundation";
 
 /** Submission-only validation: no target, identity comparison or correctness. */
-export function createBuildSubmissionValidator(oracles: ExerciseChemistryOracles): BuildSubmissionValidator {
+export function createBuildSubmissionValidator(oracles: ExerciseChemistryOracles,
+  capability: BuildComparisonCapability = "current"): BuildSubmissionValidator {
   return (molecule) => {
     try {
       if (!molecule || molecule.atoms?.length > 120 || molecule.bonds?.length > 150) return { valid: false, reason: "INVALID_SUBMISSION" };
       const chemical = validateExerciseChemistry(molecule, oracles);
       if (!chemical.valid) return { valid: false, reason: chemical.reason.endsWith("oracle-failed") ? "UNSUPPORTED_COMPARISON" : "INVALID_SUBMISSION" };
       return (EXERCISE_CATEGORIES.some((category) => validateExerciseDomain(molecule, category, oracles).valid)
-        || EXERCISE_CATEGORIES.some((category) => validateExerciseDomain(molecule, category, oracles, "intermediate").valid))
+        || EXERCISE_CATEGORIES.some((category) => validateExerciseDomain(molecule, category, oracles, "intermediate").valid)
+        || capability === "hard-foundation" && validateHardFoundationComparison(molecule, oracles).valid)
         ? { valid: true } : { valid: false, reason: "INVALID_SUBMISSION" };
     } catch { return { valid: false, reason: "UNSUPPORTED_COMPARISON" }; }
   };
@@ -70,14 +75,16 @@ function stereo(source: GeneratedMolecule) {
 
 /** Uses the real validation oracles, never their generated names. An invalid
  * drawing is recoverable without an AttemptRecord; toolkit failures are technical. */
-export function createStructuralAnswerEvaluator(oracles: ExerciseChemistryOracles): StructuralAnswerEvaluator {
-  const validateSubmission = createBuildSubmissionValidator(oracles);
+export function createStructuralAnswerEvaluator(oracles: ExerciseChemistryOracles,
+  capability: BuildComparisonCapability = "current"): StructuralAnswerEvaluator {
+  const validateSubmission = createBuildSubmissionValidator(oracles, capability);
   return ({ referenceMolecule, submittedMolecule, category }) => {
     const result: StructuralEvaluation = { version: 1, correct: false, status: "UNSUPPORTED_COMPARISON",
       referenceIdentity: null, submittedIdentity: null, submittedSmiles: null,
       checks: { referenceValid: false, submissionValid: false, constitutionEqual: false, stereoEqual: false } };
     try {
-      if (!validateExerciseComparison(referenceMolecule, category, oracles).valid) return result;
+      if (!validateExerciseComparison(referenceMolecule, category, oracles).valid
+        && !(capability === "hard-foundation" && validateHardFoundationExercise(referenceMolecule, category, oracles).valid)) return result;
       result.checks.referenceValid = true;
       const validation = validateSubmission(submittedMolecule);
       if (!validation.valid) return { ...result, status: validation.reason };

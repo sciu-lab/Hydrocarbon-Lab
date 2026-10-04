@@ -1,0 +1,547 @@
+{
+  "capturedAtHead": "e4f9d2f",
+  "fixtures": [
+    {
+      "id": 1,
+      "smiles": "CC(O)C=CC(C)C",
+      "category": "alcohol",
+      "minimumDifficulty": "intermediate",
+      "names": {
+        "es": "5-metilhex-3-en-2-ol",
+        "en": "5-methyl-3-hexen-2-ol"
+      },
+      "structuralIdentity": "daxH@@RYvjZ`@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            2
+          ]
+        }
+      ],
+      "doubleLocants": [
+        3
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 2,
+      "smiles": "CC(O)C=C(Br)C(C)CC",
+      "category": "alcohol",
+      "minimumDifficulty": "intermediate",
+      "names": {
+        "es": "4-bromo-5-metilhept-3-en-2-ol",
+        "en": "4-bromo-5-methyl-3-hepten-2-ol"
+      },
+      "structuralIdentity": "dedH`NCDRYYfZjh@@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol",
+        "halogen"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            2
+          ]
+        },
+        {
+          "kind": "halogen",
+          "locants": [
+            4
+          ]
+        }
+      ],
+      "doubleLocants": [
+        3
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 3,
+      "smiles": "CC(=O)C=C(C)C(Cl)C",
+      "category": "ketone",
+      "minimumDifficulty": "intermediate",
+      "names": {
+        "es": "5-cloro-4-metilhex-3-en-2-ona",
+        "en": "5-chloro-4-methyl-3-hexen-2-one"
+      },
+      "structuralIdentity": "diDH`NBHRYojff@@",
+      "principalGroup": "ketone",
+      "groups": [
+        "halogen",
+        "ketone"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "ketone",
+          "locants": [
+            2
+          ]
+        },
+        {
+          "kind": "halogen",
+          "locants": [
+            5
+          ]
+        }
+      ],
+      "doubleLocants": [
+        3
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 4,
+      "smiles": "OCC=CC(C)C([N+](=O)[O-])C",
+      "category": "alcohol",
+      "minimumDifficulty": "intermediate",
+      "names": {
+        "es": "4-metil-5-nitrohex-2-en-1-ol",
+        "en": "4-methyl-5-nitro-2-hexen-1-ol"
+      },
+      "structuralIdentity": "dmVLAHAEbTyIn[ujjZ@@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol",
+        "nitro"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            1
+          ]
+        },
+        {
+          "kind": "nitro",
+          "locants": [
+            5
+          ]
+        }
+      ],
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 5,
+      "smiles": "C=C(O)C(OCC)C(C)CC",
+      "category": "alcohol",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "3-etoxi-4-metilhex-1-en-2-ol",
+        "en": "3-ethoxy-4-methyl-1-hexen-2-ol"
+      },
+      "structuralIdentity": "dmTD@@[IEDhiZjfh@@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol",
+        "ether"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            2
+          ]
+        },
+        {
+          "kind": "ether",
+          "locants": [
+            3
+          ]
+        }
+      ],
+      "doubleLocants": [
+        1
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 6,
+      "smiles": "OCC=C(C)C(N)CC",
+      "category": "alcohol",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "4-amino-3-metilhex-2-en-1-ol",
+        "en": "4-amino-3-methyl-2-hexen-1-ol"
+      },
+      "structuralIdentity": "diFH@FCHdhhZZj@@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol",
+        "amine"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            1
+          ]
+        },
+        {
+          "kind": "amine",
+          "locants": [
+            4
+          ]
+        }
+      ],
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 7,
+      "smiles": "O=CC=C(C)C(O)CC",
+      "category": "aldehyde",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "4-hidroxi-3-metilhex-2-enal",
+        "en": "4-hydroxy-3-methyl-2-hexenal"
+      },
+      "structuralIdentity": "diDD@@[HdhhVZj@@",
+      "principalGroup": "aldehyde",
+      "groups": [
+        "alcohol",
+        "aldehyde"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "aldehyde",
+          "locants": [
+            1
+          ]
+        },
+        {
+          "kind": "alcohol",
+          "locants": [
+            4
+          ]
+        }
+      ],
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 8,
+      "smiles": "CC(=O)C=C(C)C(O)C(Br)C",
+      "category": "ketone",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "6-bromo-5-hidroxi-4-metilhept-3-en-2-ona",
+        "en": "6-bromo-5-hydroxy-4-methyl-3-hepten-2-one"
+      },
+      "structuralIdentity": "dmTD`BdLSHhhXmJjZX@@",
+      "principalGroup": "ketone",
+      "groups": [
+        "alcohol",
+        "halogen",
+        "ketone"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "ketone",
+          "locants": [
+            2
+          ]
+        },
+        {
+          "kind": "alcohol",
+          "locants": [
+            5
+          ]
+        },
+        {
+          "kind": "halogen",
+          "locants": [
+            6
+          ]
+        }
+      ],
+      "doubleLocants": [
+        3
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 9,
+      "smiles": "O=C(O)C=C(C)C(O)C(N)C",
+      "category": "carboxylic-acid",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "ácido 5-amino-4-hidroxi-3-metilhex-2-enoico",
+        "en": "5-amino-4-hydroxy-3-methyl-2-hexenoic acid"
+      },
+      "structuralIdentity": "dmVL@IANrJYQPqijj@@",
+      "principalGroup": "carboxylicAcid",
+      "groups": [
+        "alcohol",
+        "amine",
+        "carboxylicAcid"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "carboxylicAcid",
+          "locants": [
+            1
+          ]
+        },
+        {
+          "kind": "alcohol",
+          "locants": [
+            4
+          ]
+        },
+        {
+          "kind": "amine",
+          "locants": [
+            5
+          ]
+        }
+      ],
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 10,
+      "smiles": "CC(=O)C(C)=CCC(=O)C",
+      "category": "ketone",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "3-metilhept-3-en-2,6-diona",
+        "en": "3-methyl-3-hepten-2,6-dione"
+      },
+      "structuralIdentity": "dedD@@EIf}ffi`@",
+      "principalGroup": "ketone",
+      "groups": [
+        "ketone",
+        "ketone"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 0,
+      "functionalLocants": [
+        {
+          "kind": "ketone",
+          "locants": [
+            2
+          ]
+        },
+        {
+          "kind": "ketone",
+          "locants": [
+            6
+          ]
+        }
+      ],
+      "doubleLocants": [
+        3
+      ],
+      "tripleLocants": []
+    },
+    {
+      "id": 11,
+      "smiles": "CC(O)C#CC(C)C(O)C",
+      "category": "alcohol",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "5-metilhept-3-in-2,6-diol",
+        "en": "5-methyl-3-heptyn-2,6-diol"
+      },
+      "structuralIdentity": "dedD@@EIgYjnj`@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol",
+        "alcohol"
+      ],
+      "doubleCount": 0,
+      "tripleCount": 1,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            2
+          ]
+        },
+        {
+          "kind": "alcohol",
+          "locants": [
+            6
+          ]
+        }
+      ],
+      "doubleLocants": [],
+      "tripleLocants": [
+        3
+      ]
+    },
+    {
+      "id": 12,
+      "smiles": "CC(O)C=CC(C)C#CC",
+      "category": "alcohol",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "5-metiloct-3-en-6-in-2-ol",
+        "en": "5-methyl-3-octen-6-yn-2-ol"
+      },
+      "structuralIdentity": "dedH@@RYv^ijx@@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            2
+          ]
+        }
+      ],
+      "doubleLocants": [
+        3
+      ],
+      "tripleLocants": [
+        6
+      ]
+    },
+    {
+      "id": 13,
+      "smiles": "O=C(O)C=CC(C)C#CC",
+      "category": "carboxylic-acid",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "ácido 4-metilhept-2-en-5-inoico",
+        "en": "4-methyl-2-hepten-5-ynoic acid"
+      },
+      "structuralIdentity": "dedD@@QImYvfk`@",
+      "principalGroup": "carboxylicAcid",
+      "groups": [
+        "carboxylicAcid"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "functionalLocants": [
+        {
+          "kind": "carboxylicAcid",
+          "locants": [
+            1
+          ]
+        }
+      ],
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ]
+    },
+    {
+      "id": 14,
+      "smiles": "OCC=C(C)C(N)C(Br)C#C",
+      "category": "alcohol",
+      "minimumDifficulty": "advanced",
+      "names": {
+        "es": "4-amino-5-bromo-3-metilhept-2-en-6-in-1-ol",
+        "en": "4-amino-5-bromo-3-methyl-2-hepten-6-yn-1-ol"
+      },
+      "structuralIdentity": "dmVH`JTLSHheCEjnfh@@",
+      "principalGroup": "alcohol",
+      "groups": [
+        "alcohol",
+        "amine",
+        "halogen"
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "functionalLocants": [
+        {
+          "kind": "alcohol",
+          "locants": [
+            1
+          ]
+        },
+        {
+          "kind": "amine",
+          "locants": [
+            4
+          ]
+        },
+        {
+          "kind": "halogen",
+          "locants": [
+            5
+          ]
+        }
+      ],
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        6
+      ]
+    }
+  ],
+  "additionalFixtures": [
+    {
+      "family": "hydroxy-acid",
+      "smiles": "O=C(O)C=C(C)C(O)CC",
+      "category": "carboxylic-acid",
+      "names": {
+        "es": "ácido 4-hidroxi-3-metilhex-2-enoico",
+        "en": "4-hydroxy-3-methyl-2-hexenoic acid"
+      },
+      "structuralIdentity": "dedL@@SlbfTTKSUP@@"
+    },
+    {
+      "family": "amino-acid",
+      "smiles": "O=C(O)C=C(C)C(N)CC",
+      "category": "carboxylic-acid",
+      "names": {
+        "es": "ácido 4-amino-3-metilhex-2-enoico",
+        "en": "4-amino-3-methyl-2-hexenoic acid"
+      },
+      "structuralIdentity": "defD@NALbfTTKSUP@@"
+    },
+    {
+      "family": "enyne-hydrocarbon",
+      "smiles": "CCC=CC(C)C#CC",
+      "category": "alkene",
+      "names": {
+        "es": "4-metiloct-5-en-2-ino",
+        "en": "4-methyl-5-octen-2-yne"
+      },
+      "structuralIdentity": "diD@@Di[wjf`@"
+    }
+  ]
+}

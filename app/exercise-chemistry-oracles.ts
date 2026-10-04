@@ -1,5 +1,5 @@
 import { generateLegacyEnglishName } from "./legacy-english-nomenclature.ts";
-import type { LegacyEnglishNameModel } from "./legacy-english-nomenclature.ts";
+import type { LegacyEnglishNameModel, LegacyFunctionalGroup } from "./legacy-english-nomenclature.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 
 export type ExerciseFunctionalGroup = { kind: string; atomIds: number[] };
@@ -17,6 +17,8 @@ export type ExerciseReference = AnalysisSource & {
   /** Structural parent evidence already computed for the EN reference. */
   parent?: Pick<LegacyEnglishNameModel["parent"], "carbonCount" | "atomIds">;
   principalFunctionalGroup?: string;
+  /** Existing nomenclature evidence, not part of generated question payloads. */
+  functionalGroups?: readonly LegacyFunctionalGroup[];
 };
 
 export type ExerciseChemistryOracles = {
@@ -56,6 +58,7 @@ export function createExerciseChemistryOracles<A extends AnalysisSource>(engine:
         namingSupported: !engine.localNamerCannotSafelyName(molecule, analysis),
         parent: { carbonCount: model.parent.carbonCount, atomIds: [...model.parent.atomIds] },
         principalFunctionalGroup: english.reasoning.principalFunctionalGroup,
+        functionalGroups: model.functionalGroups.map((group) => ({ ...group })),
       };
     },
   };
