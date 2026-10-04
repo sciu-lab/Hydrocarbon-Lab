@@ -15,6 +15,7 @@
     "validate:pages": "node scripts/validate-pages.mjs",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:critical": "node --test --test-concurrency=1 tests/exercise-model.test.mjs tests/exercise-domain.test.mjs tests/practice-structural-answer.test.mjs tests/difficulty-plumbing.test.mjs tests/difficulty-easy-session.test.mjs tests/difficulty-intermediate-session.test.mjs tests/difficulty-hard-foundation.test.mjs tests/difficulty-hard-frozen.test.mjs tests/practice-session.test.mjs tests/practice-007b-duplicate-integrity.test.mjs tests/practice-008-reference-answer.test.mjs tests/exam-session.test.mjs",
     "test:reference-corpus": "node --test --test-concurrency=1 tests/reference-corpus-schema.test.mjs tests/reference-name-corpus.test.mjs tests/reference-roundtrip.test.mjs tests/reference-corpus-coverage.test.mjs",
     "report:reference-corpus": "node scripts/report-reference-corpus.mjs",
     "audit:reference-corpus": "node scripts/audit-reference-corpus.mjs",

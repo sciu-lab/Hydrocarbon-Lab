@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -32,6 +33,12 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      - name: Ejecutar regresiones críticas
+        run: npm run test:critical
+
+      - name: Ejecutar la batería completa antes de publicar
+        run: npm test
 
       - name: Construir la versión estática
         run: npm run build:pages
