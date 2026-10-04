@@ -17,6 +17,7 @@ import { deriveReasoningNameFragments } from "../app/reasoning-name-fragments.ts
 import { buildReasoningNameLinkParts } from "../app/reasoning-name-links.ts";
 
 const fixture=JSON.parse(readFileSync(new URL("./fixtures/difficulty-d4-hard-foundation.json",import.meta.url)));
+const functionalFixture=JSON.parse(readFileSync(new URL("./fixtures/difficulty-d4-2a-hard-functional.json",import.meta.url)));
 let chemistry, validate, evaluate, currentValidate, currentEvaluate, review;
 before(async()=>{
   chemistry=await loadExerciseChemistry();
@@ -102,7 +103,7 @@ test("principal/prefix roles, repeated functions, and feature categories use the
   assert.equal(hard(halo,"alcohol").valid,false);
 });
 
-test("all thirteen admission families have independently analyzed positive evidence",()=>{
+test("all admission families have independently analyzed positive evidence, including D4.2A",()=>{
   const seen=new Set(fixture.fixtures.filter(f=>f.minimumDifficulty==="advanced").map(f=>hard(graph(f.smiles),f.category).evidence.family));
   for(const {smiles,category,family:id,names,structuralIdentity} of fixture.additionalFixtures) {
     const m=graph(smiles),r=hard(m,category);assert.ok(r.valid,JSON.stringify(r));assert.equal(r.evidence.family,id);
@@ -111,6 +112,16 @@ test("all thirteen admission families have independently analyzed positive evide
     assert.equal(exerciseStructuralIdentity(m),structuralIdentity);
     const out=moleculeToSmiles(m);assert.ok(out.ok);assert.ok(hard(graph(out.smiles),category).valid);
     assert.equal(evaluate({referenceMolecule:m,submittedMolecule:redraw(m),category}).correct,true);seen.add(id);
+  }
+  // One smoke assertion per new family keeps the existing critical gate small.
+  for(const f of functionalFixture.fixtures.filter(f=>f.id.endsWith("-branched"))) {
+    const m=graph(f.smiles),r=hard(m,f.category);assert.ok(r.valid,JSON.stringify(r));
+    assert.equal(r.evidence.family,f.family);assert.equal(classifyMinimumExerciseDifficulty(m,f.category,chemistry.oracles),"advanced");
+    assert.equal(validateEasyExercise(m,f.category,chemistry.oracles).valid,false);
+    assert.equal(validateIntermediateExercise(m,f.category,chemistry.oracles).valid,false);
+    assert.deepEqual(chemistry.oracles.reference(m).names,f.names);
+    assert.equal(exerciseStructuralIdentity(m),f.structuralIdentity);
+    assert.equal(evaluate({referenceMolecule:m,submittedMolecule:redraw(m),category:f.category}).correct,true);seen.add(f.family);
   }
   assert.deepEqual([...seen].sort(),HARD_FOUNDATION_FAMILIES.map(f=>f.id).sort());
 });

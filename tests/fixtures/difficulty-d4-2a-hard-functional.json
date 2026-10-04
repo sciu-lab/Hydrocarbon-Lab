@@ -1,0 +1,363 @@
+{
+  "capability": "hard-foundation",
+  "productionGeneration": false,
+  "mechanism": "One C=C and one C≡C on the analyzed parent; C=O and C≡N are not C–C axes.",
+  "fixtures": [
+    {
+      "id": "ester-branched",
+      "category": "ester",
+      "family": "enyne-ester",
+      "smiles": "COC(=O)C=CC(C)C#CC",
+      "structuralIdentity": "dmTD@@QIev]jZn@@",
+      "names": {
+        "es": "4-metilhept-2-en-5-inoato de metilo",
+        "en": "methyl 4-methyl-2-hepten-5-ynoate"
+      },
+      "formula": "C₉H₁₂O₂",
+      "principalGroup": "ester",
+      "groups": [
+        "ester"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "ester",
+          "locant": 1,
+          "carbonIncludedInParent": true,
+          "attachedAlkylName": "metil"
+        }
+      ],
+      "parentCarbonCount": 7,
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "ester-linear",
+      "category": "ester",
+      "family": "enyne-ester",
+      "smiles": "CCOC(=O)C=CCC#CC",
+      "structuralIdentity": "dmTD@@QIeWUjZn@@",
+      "names": {
+        "es": "hept-2-en-5-inoato de etilo",
+        "en": "ethyl 2-hepten-5-ynoate"
+      },
+      "formula": "C₉H₁₂O₂",
+      "principalGroup": "ester",
+      "groups": [
+        "ester"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "ester",
+          "locant": 1,
+          "carbonIncludedInParent": true,
+          "attachedAlkylName": "etil"
+        }
+      ],
+      "parentCarbonCount": 7,
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "amine-branched",
+      "category": "amine",
+      "family": "enyne-amine",
+      "smiles": "CC(N)C=CC(C)C#CC",
+      "structuralIdentity": "def@@@RYv^ijx@@",
+      "names": {
+        "es": "5-metiloct-3-en-6-in-2-amina",
+        "en": "5-methyl-3-octen-6-yn-2-amine"
+      },
+      "formula": "C₉H₁₅N",
+      "principalGroup": "amine",
+      "groups": [
+        "amine"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "amine",
+          "locant": 2,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 8,
+      "doubleLocants": [
+        3
+      ],
+      "tripleLocants": [
+        6
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "amine-linear",
+      "category": "amine",
+      "family": "enyne-amine",
+      "smiles": "NCC=CCC#CC",
+      "structuralIdentity": "daz@@@RUUik`@",
+      "names": {
+        "es": "hept-2-en-5-in-1-amina",
+        "en": "2-hepten-5-yn-1-amine"
+      },
+      "formula": "C₇H₁₁N",
+      "principalGroup": "amine",
+      "groups": [
+        "amine"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "amine",
+          "locant": 1,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 7,
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "amide-branched",
+      "category": "amide",
+      "family": "enyne-amide",
+      "smiles": "NC(=O)C=CC(C)C#CC",
+      "structuralIdentity": "defH@DAImYvfk`@",
+      "names": {
+        "es": "4-metilhept-2-en-5-inamida",
+        "en": "4-methyl-2-hepten-5-ynamide"
+      },
+      "formula": "C₈H₁₁NO",
+      "principalGroup": "amide",
+      "groups": [
+        "amide"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "amide",
+          "locant": 1,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 7,
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "amide-linear",
+      "category": "amide",
+      "family": "enyne-amide",
+      "smiles": "NC(=O)C=CCC#CC",
+      "structuralIdentity": "diFH@DAImUZZx@@",
+      "names": {
+        "es": "hept-2-en-5-inamida",
+        "en": "2-hepten-5-ynamide"
+      },
+      "formula": "C₇H₉NO",
+      "principalGroup": "amide",
+      "groups": [
+        "amide"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "amide",
+          "locant": 1,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 7,
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "nitrile-branched",
+      "category": "nitrile",
+      "family": "enyne-nitrile",
+      "smiles": "N#CC=CC(C)C#CC",
+      "structuralIdentity": "diF@@@RUY~Zn@@",
+      "names": {
+        "es": "4-metilhept-2-en-5-inonitrilo",
+        "en": "4-methyl-2-hepten-5-ynenitrile"
+      },
+      "formula": "C₈H₉N",
+      "principalGroup": "nitrile",
+      "groups": [
+        "nitrile"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "nitrile",
+          "locant": 1,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 7,
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "nitrile-linear",
+      "category": "nitrile",
+      "family": "enyne-nitrile",
+      "smiles": "N#CC=CCC#CC",
+      "structuralIdentity": "daz@@@RUUyk`@",
+      "names": {
+        "es": "hept-2-en-5-inonitrilo",
+        "en": "2-hepten-5-ynenitrile"
+      },
+      "formula": "C₇H₇N",
+      "principalGroup": "nitrile",
+      "groups": [
+        "nitrile"
+      ],
+      "secondaryGroups": [],
+      "functionalLocants": [
+        {
+          "kind": "nitrile",
+          "locant": 1,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 7,
+      "doubleLocants": [
+        2
+      ],
+      "tripleLocants": [
+        5
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "nitro-branched",
+      "category": "nitro",
+      "family": "enyne-nitro",
+      "smiles": "CC([N+](=O)[O-])C=CC(C)C#CC",
+      "structuralIdentity": "dcvDAHAHeNR[gYvjZn@@",
+      "names": {
+        "es": "4-metil-7-nitrooct-5-en-2-ino",
+        "en": "4-methyl-7-nitro-5-octen-2-yne"
+      },
+      "formula": "C₉H₁₃NO₂",
+      "principalGroup": null,
+      "groups": [
+        "nitro"
+      ],
+      "secondaryGroups": [
+        "nitro"
+      ],
+      "functionalLocants": [
+        {
+          "kind": "nitro",
+          "locant": 7,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 8,
+      "doubleLocants": [
+        5
+      ],
+      "tripleLocants": [
+        2
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    },
+    {
+      "id": "nitro-linear",
+      "category": "nitro",
+      "family": "enyne-nitro",
+      "smiles": "CC([N+](=O)[O-])C=CCC#CC",
+      "structuralIdentity": "dmVDAHAHeNR[gUZik`@",
+      "names": {
+        "es": "7-nitrooct-5-en-2-ino",
+        "en": "7-nitro-5-octen-2-yne"
+      },
+      "formula": "C₈H₁₁NO₂",
+      "principalGroup": null,
+      "groups": [
+        "nitro"
+      ],
+      "secondaryGroups": [
+        "nitro"
+      ],
+      "functionalLocants": [
+        {
+          "kind": "nitro",
+          "locant": 7,
+          "carbonIncludedInParent": true
+        }
+      ],
+      "parentCarbonCount": 8,
+      "doubleLocants": [
+        5
+      ],
+      "tripleLocants": [
+        2
+      ],
+      "doubleCount": 1,
+      "tripleCount": 1,
+      "minimumDifficulty": "advanced",
+      "buildSupported": true
+    }
+  ]
+}

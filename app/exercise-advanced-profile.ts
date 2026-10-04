@@ -8,6 +8,7 @@ import { resolveFunctionalHierarchy } from "./legacy-english-nomenclature.ts";
 type Family = Readonly<{
   id: string; functions: readonly string[]; doubles: readonly number[]; triples: readonly number[];
   halo?: "optional-bromo" | "required-bromo"; alkoxy?: boolean;
+  esterAlkyl?: boolean; nitro?: boolean;
 }>;
 
 /** Admission families, not production recipes or permission to compose their
@@ -26,6 +27,11 @@ export const HARD_FOUNDATION_FAMILIES: readonly Family[] = Object.freeze([
   { id: "enyne-acid", functions: ["carboxylicAcid"], doubles: [1], triples: [1] },
   { id: "enyne-hydrocarbon", functions: [], doubles: [1], triples: [1] },
   { id: "amino-alcohol-enyne-bromo", functions: ["alcohol", "amine"], doubles: [1], triples: [1], halo: "required-bromo" },
+  { id: "enyne-ester", functions: ["ester"], doubles: [1], triples: [1], esterAlkyl: true },
+  { id: "enyne-amine", functions: ["amine"], doubles: [1], triples: [1] },
+  { id: "enyne-amide", functions: ["amide"], doubles: [1], triples: [1] },
+  { id: "enyne-nitrile", functions: ["nitrile"], doubles: [1], triples: [1] },
+  { id: "enyne-nitro", functions: [], doubles: [1], triples: [1], nitro: true },
 ]);
 
 export type HardFoundationEvidence = Readonly<{
@@ -51,7 +57,6 @@ export function validateHardFoundationExercise(molecule: GeneratedMolecule, cate
   if (!chemical.valid) return chemical;
   if (molecule.atoms.some((a) => !EXERCISE_ALLOWED_ELEMENTS.includes((a.element ?? "C") as typeof EXERCISE_ALLOWED_ELEMENTS[number]))) return reject("excluded-element");
   if (molecule.atoms.some((a) => a.tetrahedralParity !== undefined || a.tetrahedralBondTo !== undefined)) return reject("rs-outside-domain");
-  if (molecule.atoms.some((a) => (a.charge ?? 0) !== 0)) return reject("hard-charge-not-certified");
   if (molecule.bonds.length - molecule.atoms.length + 1 !== 0) return reject("hard-cycles-not-certified");
   if (molecule.rings !== undefined && (!Array.isArray(molecule.rings) || molecule.rings.length)) return reject("invalid-ring-metadata");
   if (molecule.bonds.some((b) => b[3])) return reject("hard-explicit-ez-not-certified");
@@ -72,27 +77,58 @@ export function validateHardFoundationExercise(molecule: GeneratedMolecule, cate
     if (multiples.length > 2 || multiples.some(([a, b], index) => multiples.some(([c, d], j) => index !== j && [c, d].some((id) => id === a || id === b)))) return reject("hard-unsaturation-not-certified");
     const functions = groups.filter((g) => !["halogen", "nitro"].includes(g.kind));
     const halos = groups.filter((g) => g.kind === "halogen");
-    if (groups.some((g) => g.kind === "nitro")) return reject("hard-nitro-variant-not-certified");
+    const nitros = groups.filter((g) => g.kind === "nitro");
     const family = HARD_FOUNDATION_FAMILIES.find((f) => kindKey(functions) === f.functions.slice().sort().join("|")
       && f.doubles.includes(doubles) && f.triples.includes(triples)
       && (f.id === "diol" ? multiples.length <= 1 : true)
+      && nitros.length === (f.nitro ? 1 : 0)
       && (f.halo === "required-bromo" ? halos.length === 1 : f.halo === "optional-bromo" ? halos.length <= 1 : halos.length === 0));
     if (!family) return reject("hard-family-not-certified");
     if (halos.some((g) => !g.atomIds.some((id) => atomMap.get(id)?.element === "Br"))) return reject("hard-halo-variant-not-certified");
     const required = expectedExerciseGroup[category];
     const anchorMatches = required ? (required === "halogen" || required === "nitro" || required === "ether"
       ? groups.some((g) => g.kind === required) : hierarchy.principalKind === required)
-      : functions.length === 0 && ((category === "alkene" && doubles > 0) || (category === "alkyne" && triples > 0));
+      : groups.length === 0 && ((category === "alkene" && doubles > 0) || (category === "alkyne" && triples > 0));
     if (!anchorMatches) return reject("hard-category-anchor-mismatch");
     const covered = new Set(groups.flatMap((g) => g.atomIds));
     if (molecule.atoms.some((a) => !carbon(a.id) && !covered.has(a.id))) return reject("unrecognized-heteroatom");
-    if (molecule.atoms.some((a) => a.element === "N" && (neighbors(a.id).length !== 1 || neighbors(a.id)[0].order !== 1))) return reject("unsupported-n-substitution");
+    // Only this independently certified family permits the canonical nitro
+    // charge pair. Net neutrality alone never admits salts or arbitrary ions.
+    const nitroAtoms = new Set<number>();
+    if (family.nitro) {
+      const nitrogen = molecule.atoms.filter((a) => a.element === "N");
+      if (nitrogen.length !== 1 || nitrogen[0].charge !== 1) return reject("hard-nitro-pattern-not-certified");
+      const n = nitrogen[0], ns = neighbors(n.id);
+      const doubleO = ns.find((b) => atomMap.get(b.id)?.element === "O" && b.order === 2);
+      const singleO = ns.find((b) => atomMap.get(b.id)?.element === "O" && b.order === 1);
+      const carbonNeighbor = ns.filter((b) => carbon(b.id) && b.order === 1);
+      if (ns.length !== 3 || !doubleO || !singleO || carbonNeighbor.length !== 1
+        || (atomMap.get(doubleO.id)?.charge ?? 0) !== 0 || atomMap.get(singleO.id)?.charge !== -1
+        || neighbors(doubleO.id).length !== 1 || neighbors(singleO.id).length !== 1
+        || kindKey(nitros) !== "nitro"
+        || nitros[0].atomIds.length !== 4
+        || [n.id, doubleO.id, singleO.id, carbonNeighbor[0].id].some((id) => !nitros[0].atomIds.includes(id))) return reject("hard-nitro-pattern-not-certified");
+      nitroAtoms.add(n.id); nitroAtoms.add(singleO.id);
+    }
+    if (molecule.atoms.some((a) => !nitroAtoms.has(a.id) && (a.charge ?? 0) !== 0)) return reject("hard-charge-not-certified");
     const parent = new Set(r.parent.atomIds);
     if (parent.size !== r.parent.carbonCount || parent.size < 6 || parent.size > 9 || [...parent].some((id) => !carbons.has(id))) return reject("hard-parent-not-certified");
     if (r.functionalGroups.some((g) => g.kind !== "ether" && !g.carbonIncludedInParent)) return reject("hard-function-outside-parent");
     if (multiples.some(([a, b]) => !parent.has(a) || !parent.has(b))) return reject("hard-unsaturation-outside-parent");
     // The oracle's parent must be a simple carbon path, not merely a set.
     if (r.parent.atomIds.slice(1).some((id, i) => !neighbors(id).some((n) => n.id === r.parent!.atomIds[i]))) return reject("hard-parent-path-mismatch");
+    for (const n of molecule.atoms.filter((a) => a.element === "N")) {
+      if (family.nitro && nitros[0].atomIds.includes(n.id)) continue;
+      const ns = neighbors(n.id);
+      if (family.id === "enyne-nitrile") {
+        const nitrile = groups.find((g) => g.kind === "nitrile" && g.atomIds.includes(n.id));
+        const c = ns[0];
+        if (!nitrile || ns.length !== 1 || c.order !== 3 || !carbon(c.id) || !parent.has(c.id)
+          || !nitrile.atomIds.includes(c.id) || neighbors(c.id).length !== 2
+          || neighbors(c.id).filter((b) => carbon(b.id) && b.order === 1 && parent.has(b.id)).length !== 1) return reject("hard-nitrile-pattern-not-certified");
+      } else if (ns.length !== 1 || ns[0].order !== 1
+        || !groups.some((g) => ["amine", "amide"].includes(g.kind) && g.atomIds.includes(n.id))) return reject("unsupported-n-substitution");
+    }
     for (const kind of ["alcohol", "ketone"]) {
       const sites = groups.filter((g) => g.kind === kind).map((g) => g.atomIds.filter(carbon));
       if (sites.some((s) => s.length !== 1 || !parent.has(s[0])) || new Set(sites.flat()).size !== sites.length) return reject("hard-functional-sites-not-certified");
@@ -111,11 +147,13 @@ export function validateHardFoundationExercise(molecule: GeneratedMolecule, cate
       if (boundary.length !== 1 || edges.some((b) => (b[2] ?? 1) !== 1)) return reject("hard-complex-branch");
       const [a, b] = boundary[0], anchor = component.has(a) ? b : a;
       if (parent.has(anchor) && component.size === 1) branches++;
-      else if (family.alkoxy && component.size <= 2 && atomMap.get(anchor)?.element === "O"
-        && neighbors(anchor).length === 2 && neighbors(anchor).some((n) => parent.has(n.id))) alkoxy++;
+      else if ((family.alkoxy || family.esterAlkyl) && component.size <= 2 && atomMap.get(anchor)?.element === "O"
+        && neighbors(anchor).length === 2 && neighbors(anchor).some((n) => parent.has(n.id))
+        && (!family.esterAlkyl || groups.some((g) => g.kind === "ester" && g.atomIds.includes(anchor)
+          && neighbors(anchor).some((n) => parent.has(n.id) && g.atomIds.includes(n.id))))) alkoxy++;
       else return reject("hard-complex-branch");
     }
-    if (branches > 1 || alkoxy !== (family.alkoxy ? 1 : 0)
+    if (branches > 1 || alkoxy !== (family.alkoxy || family.esterAlkyl ? 1 : 0)
       || [...carbons].some((id) => neighbors(id).filter((n) => carbon(n.id)).length > 3)) return reject("hard-branch-budget");
     const principalInstances = groups.filter((g) => g.kind === hierarchy.principalKind);
     return { valid: true, topology: "acyclic", evidence: {
