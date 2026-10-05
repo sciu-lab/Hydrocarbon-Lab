@@ -144,6 +144,38 @@ test("invalid Build is neutral and blocks completion without target/attempt feed
   const html = render(s); assert.match(html, /La estructura no es válida para enviar/);
   assert.doesNotMatch(html, /DIFFERENT_STRUCTURE|incorrect|is-correct|practice-feedback|Estructura de referencia/);
 });
+test("D7 Hard v4 Naming/MCQ/Build remain neutral in both locales before atomic submission", () => {
+  for (const language of ["es", "en"]) for (const type of ["naming", "multiple-choice", "build"]) {
+    let state = startExam(createExamConfig(["amide"], 1, language, "D7-HARD-PRIVACY", [type], "advanced", 4), generate);
+    assert.equal(state.phase, "EXAM_QUESTION");
+    const q = state.plan.slots[0].question, frozen = structuredClone(state.plan);
+    let editor;
+    const renderBuilder = props => { editor = props; return React.createElement("div", { "data-student-editor": true }); };
+    const props = { renderBuilder, ...(type === "build" ? { renderStructure: () => { throw Error("Build target leaked"); } } : {}) };
+    const html = render(state, language, props);
+    assert.doesNotMatch(html, /practice-feedback|practice-review|is-correct|is-incorrect|correctOptionId|data-correct|diagnosticCode|review\.build|WRONG_|UNKNOWN_|mcq:reference/);
+    if (type === "naming") for (const name of Object.values(q.reference.names)) assert.ok(!html.includes(name));
+    if (type === "multiple-choice") {
+      assert.equal((html.match(/type="radio"/g) ?? []).length, 4);
+      for (const option of q.options) assert.ok(html.includes(option.name[language]));
+    }
+    if (type === "build") {
+      // The requested name is the legitimate Build prompt; its answer graph,
+      // evaluation and hidden naming dock must never reach the student editor.
+      assert.equal(editor.initialMolecule, undefined); assert.equal(editor.hideCategory, true);
+      assert.ok(!("target" in editor)); assert.ok(!("referenceMolecule" in editor));
+    }
+    state = ready(state, 0);
+    state = type === "build" ? updateExamStructure(state, q.molecule, validate)
+      : updateExamAnswer(state, type === "multiple-choice" ? q.options.find(o => !o.correct).id : "unrelated D7 draft");
+    state = navigateExam(state, 1, time(100));
+    assert.equal(state.phase, "EXAM_REVIEW");
+    const neutral = render(state, language);
+    assert.doesNotMatch(neutral, /practice-feedback|practice-review|is-correct|is-incorrect|correctOptionId|data-correct|review\.build|WRONG_|UNKNOWN_/);
+    for (const name of Object.values(q.reference.names)) assert.ok(!neutral.includes(name));
+    assert.deepEqual(state.attempts, []); assert.deepEqual(state.plan, frozen);
+  }
+});
 test("post-exam Reviewer uses the same frozen MCQ provenance and Build structural comparison", () => {
   for (const type of ["naming", "multiple-choice", "build"]) {
     const results = submitExam(answered([type], type !== "build"), "es", time(9000), evaluate);

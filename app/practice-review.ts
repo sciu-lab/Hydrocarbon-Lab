@@ -95,8 +95,8 @@ export function buildPracticeReviewSteps(molecule: GeneratedMolecule, analysis: 
   const principal = analysis.functionalGroups.filter((g) => g.kind === analysis.primaryFunctionalGroup);
   const principalLocants = unique(principal.flatMap((g) => g.carbonIds
     .map((id) => analysis.numberedAtoms.get(id)).filter((n): n is number => n !== undefined)));
-  if (principal.length) add("function", "function", "review.function",
-    { group: analysis.primaryFunctionalGroup!, locants: principalLocants }, principal.flatMap((g) => g.atomIds));
+  if (principal.length) add("function", "function", principal.length > 1 ? "review.function.multiple" : "review.function",
+    { group: analysis.primaryFunctionalGroup!, locants: principalLocants, count: principal.length }, principal.flatMap((g) => g.atomIds));
   else if (analysis.functionalGroups.some((g) => g.kind === "ether")) {
     add("ether", "function", "review.ether", {}, analysis.functionalGroups.filter((g) => g.kind === "ether").flatMap((g) => g.atomIds));
   }
@@ -193,8 +193,15 @@ export function createPracticeReviewer<A extends PracticeNamingAnalysis>(engine:
     if (isBuildQuestion(question)) {
       if (attempt.questionType !== "build" || !attempt.structuralAnswer?.checks.submissionValid
         || attempt.structuralAnswer.correct !== attempt.correct) throw new Error("Review Build type mismatch.");
-      issues = attempt.correct ? [] : [{ code: "UNKNOWN_STRUCTURAL_MISMATCH", messageKey: "review.build.mismatch",
-        params: {}, relatedAtomIds: [], relatedBondIds: [] }];
+      const status = attempt.structuralAnswer.status;
+      const classified = ["DIFFERENT_ELEMENTS", "DIFFERENT_BOND_ORDERS", "DIFFERENT_FORMAL_CHARGE",
+        "DIFFERENT_STRUCTURE", "DIFFERENT_STEREOCHEMISTRY"].includes(status);
+      const stereoStep = status === "DIFFERENT_STEREOCHEMISTRY" && attempt.structuralAnswer.checks.constitutionEqual
+        ? steps.find((step) => step.kind === "ez") : undefined;
+      issues = attempt.correct ? [] : [{ code: "UNKNOWN_STRUCTURAL_MISMATCH",
+        messageKey: classified && (status !== "DIFFERENT_STEREOCHEMISTRY" || stereoStep)
+          ? `review.build.${status}` : "review.build.mismatch",
+        params: {}, relatedAtomIds: stereoStep?.highlightAtomIds ?? [], relatedBondIds: stereoStep?.highlightBondIds ?? [] }];
     } else if (isMultipleChoiceQuestion(question)) {
       issues = reviewMultipleChoiceSelection(question, attempt, steps);
     } else {
@@ -223,7 +230,8 @@ function reviewMultipleChoiceSelection(question: GeneratedMultipleChoiceQuestion
   } else if (transform.kind === "replace-locant") {
     params = { expected: transform.from, actual: transform.to };
     step = steps.find((item) => item.kind === (transform.component === "function" ? "function" : transform.component)
-      && (transform.component !== "substituent" || !transform.name || item.id === `substituent:${transform.name}`));
+      && (transform.component !== "substituent" || !transform.name || item.id === `substituent:${transform.name}`)
+      && (transform.component !== "unsaturation" || item.params.locant === transform.from));
   } else if (transform.kind === "omit-substituent") {
     params = { name: term(transform.name) }; step = steps.find((item) => item.id === `substituent:${transform.name}`);
   } else if (transform.kind === "opposite-ez-descriptor") {
@@ -231,6 +239,7 @@ function reviewMultipleChoiceSelection(question: GeneratedMultipleChoiceQuestion
   } else throw new Error("Unsupported review provenance.");
   if (!step) throw new Error("Review provenance has no structural step.");
   return [{ code, messageKey: code === "WRONG_PARENT_LENGTH" ? "review.mcq.parent-length"
-    : code === "MISSING_SUBSTITUENT" ? "review.mcq.omitted-substituent" : `review.issue.${code}`,
+    : code === "MISSING_SUBSTITUENT" ? "review.mcq.omitted-substituent"
+      : transform.kind === "replace-locant" ? `review.mcq.${transform.component}-locant` : `review.issue.${code}`,
   params, relatedAtomIds: step.highlightAtomIds, relatedBondIds: step.highlightBondIds }];
 }

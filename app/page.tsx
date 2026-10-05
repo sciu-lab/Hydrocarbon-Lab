@@ -554,6 +554,7 @@ export type IupacReasoningStep = {
     comparison: -1 | 0 | 1;
   };
   unsaturationContributions?: UnsaturationNameContribution[];
+  stereoDescriptors?: ReturnType<typeof getMainChainStereoDescriptors>;
 };
 
 export function splitChemicalNameForWrapping(value: string) {
@@ -4659,6 +4660,8 @@ export function buildIupacReasoningSteps(
       number: "06",
       title: "Estereoquímica (E/Z o R/S)",
       explanation: `Se aplican las reglas CIP. ${descriptorDetails.join("; ")}.`,
+      ...(stereoDescriptors.length === 1 && !tetrahedralDescriptors.length
+        ? { nameRole: "stereo" as const, stereoDescriptors } : {}),
     });
   }
 

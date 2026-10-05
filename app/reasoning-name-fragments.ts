@@ -2,11 +2,12 @@ import type { AppLanguage } from "./i18n.ts";
 import { uiText } from "./i18n.ts";
 import { translateSpanishIupacForDisplay } from "./iupac-name-normalization.ts";
 import { functionalNameEvidence, matchFunctionalParentSuffix, type FunctionalContribution, type FunctionalReasoningAnalysis } from "./reasoning-functional-groups.ts";
+import type { StereoDescriptor } from "./double-bond-stereochemistry.ts";
 
 export type ReasoningNameEvidence = {
   text: string;
   label: string;
-  kind: "function" | "parent" | "numbering" | "substituent" | "unsaturation";
+  kind: "function" | "parent" | "numbering" | "substituent" | "unsaturation" | "stereo";
   start?: number;
   atomIds?: readonly number[];
   semanticId?: string;
@@ -37,9 +38,23 @@ type FragmentInput = {
   /** Available local profile outputs supplied by the existing naming pipeline. */
   generatedNames?: readonly string[];
   language: AppLanguage;
-  steps: readonly { number: string; nameRole?: ReasoningNameFragment["kind"] }[];
+  steps: readonly { number: string; nameRole?: ReasoningNameFragment["kind"]; stereoDescriptors?: readonly StereoDescriptor[] }[];
   canHighlight: boolean;
 };
+
+/** The existing CIP inspection supplies E/Z. Text only verifies its written span;
+ * an arbitrary descriptor, R/S or a different local name supplies no evidence. */
+function verifiedStereoPrefix(input: FragmentInput) {
+  const descriptors = input.steps.find(step => step.nameRole === "stereo")?.stereoDescriptors;
+  if (descriptors?.length !== 1) return;
+  const descriptor = descriptors[0], name = input.displayedName.trim();
+  if (descriptor.atomIds.length !== 2 || !input.analysis.doubleBondLocants.includes(descriptor.locant)
+    || descriptor.atomIds.some((id, index) => input.analysis.mainChain[descriptor.locant - 1 + index] !== id)
+    || !["E", "Z"].includes(descriptor.configuration)
+    || name !== input.analysis.name && !input.generatedNames?.includes(name)) return;
+  const text = `(${descriptor.locant}${descriptor.configuration})`;
+  return name.startsWith(`${text}-`) ? { descriptor, text } : undefined;
+}
 
 function unsaturationMorpheme(token: string, bondType: "double" | "triple") {
   const normalized = token.toLocaleLowerCase("en");
@@ -496,7 +511,9 @@ export function deriveReasoningNameFragments(input: FragmentInput): Record<strin
     && analysis.functionalGroups.some((group) => group.kind === "ether" && group.atomIds?.length
       && item.atomIds?.length === group.atomIds.length
       && group.atomIds.every((id) => item.atomIds!.includes(id))));
+  const stereo = verifiedStereoPrefix(input);
   const supportedText = /^[a-záéíóúüñ0-9, -]+$/i.test(name)
+    || stereo && /^[a-záéíóúüñ0-9, -]+$/i.test(name.slice(stereo.text.length + 1))
     || complexEther && /^[a-záéíóúüñ0-9(), -]+$/i.test(name);
   if (!canHighlight || !supportedText
     || !["acyclic", "cycloalkane", "aromatic"].includes(analysis.family)) return fragments;
@@ -506,6 +523,15 @@ export function deriveReasoningNameFragments(input: FragmentInput): Record<strin
     && !input.generatedNames?.includes(name)
     && !Object.keys(fragments).length) return fragments;
   const evidence = functionalNameEvidence(analysis, name, language);
+  const stereoStep = steps.find(step => step.nameRole === "stereo");
+  if (stereo && stereoStep) {
+    const { descriptor, text } = stereo;
+    fragments[stereoStep.number] = { text, start: 0, kind: "stereo", semanticId: `stereo:ez:${descriptor.locant}`,
+      label: language === "en" ? `E/Z descriptor at position ${descriptor.locant}` : `Descriptor E/Z en la posición ${descriptor.locant}`,
+      bondType: "double", locant: descriptor.locant, atomIds: descriptor.atomIds, bondIds: [descriptor.atomIds],
+      explanation: language === "en" ? `The explicit double bond at C${descriptor.locant} has descriptor ${descriptor.configuration}, as verified by the structural CIP inspection.`
+        : `El doble enlace explícito en C${descriptor.locant} tiene el descriptor ${descriptor.configuration}, verificado por la inspección CIP estructural.` };
+  }
   const unsaturationStep = steps.find((step) => step.nameRole === "unsaturation");
   if (unsaturationStep) {
     const contributions = deriveUnsaturationNameContributions(analysis, name, language, input.generatedNames);
