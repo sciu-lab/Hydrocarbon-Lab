@@ -14,9 +14,12 @@ import { validateEasyExercise, validateEasyParent } from "./exercise-easy-profil
 import { buildIntermediateChemicalCandidate } from "./exercise-intermediate-candidate.ts";
 import { validateIntermediateExercise, validateIntermediateParent } from "./exercise-intermediate-profile.ts";
 import { exerciseGenerationProfile, exerciseGenerationDomainVersion } from "./exercise-generation-profile.ts";
+import { buildAdvancedChemicalCandidate } from "./exercise-advanced-candidate.ts";
+import { validateHardFoundationExercise } from "./exercise-advanced-profile.ts";
+import { classifyMinimumExerciseDifficulty } from "./exercise-difficulty-classification.ts";
 
 export const MAX_CHEMICAL_GENERATION_ATTEMPTS = 16;
-export type CandidateRejection = { attempt: number; stage: "construction" | "chemical" | "domain" | "easy" | "intermediate" | "oracle"; reason: string };
+export type CandidateRejection = { attempt: number; stage: "construction" | "chemical" | "domain" | "easy" | "intermediate" | "advanced" | "oracle"; reason: string };
 
 export class ChemicalGenerationError extends Error {
   readonly code: "unsupported-request" | "attempts-exhausted";
@@ -50,6 +53,8 @@ export type GeneratedExerciseMolecule = {
     attempt: number;
     topology: ExerciseTopology;
     rejections: CandidateRejection[];
+    /** Graph-certified family, emitted only by the new v4 advanced route. */
+    family?: string;
   };
 };
 
@@ -107,8 +112,9 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
       throw new ChemicalGenerationError("unsupported-request", "Chemical generation requires a supported question type.");
     }
     const profile = exerciseGenerationProfile(canonical);
-    const easy = profile === "easy", intermediate = profile === "intermediate";
-    const validateTarget = intermediate ? validateIntermediateExercise : easy ? validateEasyExercise : validateExerciseDomain;
+    const easy = profile === "easy", intermediate = profile === "intermediate", advanced = profile === "advanced";
+    const validateTarget = advanced ? validateHardFoundationExercise
+      : intermediate ? validateIntermediateExercise : easy ? validateEasyExercise : validateExerciseDomain;
     // Fail the whole unsupported selection before drawing a category. Never
     // silently replace E/Z with an unspecified alkene or a different topic.
     if (easy && canonical.categories.includes("ez")) {
@@ -130,18 +136,24 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
       const candidateSeed = deriveChemicalCandidateSeed(question.seed, category, attempt);
       let stage: CandidateRejection["stage"] = "construction";
       try {
-        const molecule = intermediate ? buildIntermediateChemicalCandidate(category, candidateSeed)
+        const molecule = advanced ? buildAdvancedChemicalCandidate(category, candidateSeed,
+          { seed: deriveGenerationIdentity(canonical, 0).seed, index: questionIndex + attempt })
+          : intermediate ? buildIntermediateChemicalCandidate(category, candidateSeed)
           : buildExerciseChemicalCandidate(category, candidateSeed, easy ? "easy" : "legacy");
         stage = "chemical";
         const chemical = validateExerciseChemistry(molecule, oracles);
         if (!chemical.valid) { rejections.push({ attempt, stage, reason: chemical.reason }); continue; }
-        stage = intermediate ? "intermediate" : easy ? "easy" : "domain";
+        stage = advanced ? "advanced" : intermediate ? "intermediate" : easy ? "easy" : "domain";
         const domain = validateTarget(molecule, category, oracles);
         if (!domain.valid) { rejections.push({ attempt, stage, reason: domain.reason }); continue; }
         stage = "oracle";
         const reference = oracles.reference(molecule);
         if (!reference.namingSupported || !usableName(reference.names.es) || !usableName(reference.names.en)) {
           rejections.push({ attempt, stage, reason: "naming-unavailable" }); continue;
+        }
+        const hard = advanced ? validateHardFoundationExercise(molecule, category, oracles, reference) : undefined;
+        if (advanced && (!hard?.valid || classifyMinimumExerciseDifficulty(molecule, category, oracles) !== "advanced")) {
+          rejections.push({ attempt, stage: "advanced", reason: "minimum-difficulty-not-advanced" }); continue;
         }
         if (easy) {
           const parent = validateEasyParent(molecule, category, reference);
@@ -193,7 +205,8 @@ export function createRestrictedChemicalGenerator(oracles: ExerciseChemistryOrac
             profiles: { es: "local-systematic-es", en: "iupac-1979-legacy-en" },
             formula: reference.formula, smiles: exported.smiles, structuralIdentity: identity,
           },
-          generation: { domainVersion: exerciseGenerationDomainVersion(profile), candidateSeed, attempt, topology: domain.topology, rejections },
+          generation: { domainVersion: exerciseGenerationDomainVersion(profile), candidateSeed, attempt, topology: domain.topology, rejections,
+            ...(hard?.valid ? { family: hard.evidence.family } : {}) },
         };
       } catch (error) {
         rejections.push({ attempt, stage, reason: error instanceof Error ? error.message : "candidate-failed" });

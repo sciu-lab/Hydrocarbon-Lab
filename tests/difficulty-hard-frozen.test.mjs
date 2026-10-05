@@ -12,7 +12,7 @@ import { parseClassCsv } from "./helpers/class-csv-parser.mjs";
 
 test("D4 preserves all v3 difficulty plans captured before foundation edits in fresh ES/EN processes",()=>{
   const fixture=JSON.parse(readFileSync(new URL("./fixtures/difficulty-d4-frozen-v3-session.json",import.meta.url)));
-  assert.equal(fixture.capturedAtHead,"e4f9d2f");assert.equal(GENERATOR_VERSION,3);assert.deepEqual(SUPPORTED_GENERATOR_VERSIONS,[1,2,3]);
+  assert.equal(fixture.capturedAtHead,"e4f9d2f");assert.equal(GENERATOR_VERSION,4);assert.deepEqual(SUPPORTED_GENERATOR_VERSIONS,[1,2,3,4]);
   for(const locale of ["es","en"]) {
     const source=`import {captureDifficultySessions} from './tests/helpers/difficulty-session-snapshot.mjs';
       const sessions={};for(const d of ['basic','intermediate','advanced'])sessions[d]=await captureDifficultySessions(d,'${locale}',3);

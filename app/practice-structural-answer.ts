@@ -1,6 +1,7 @@
 import { Molecule as OCLMolecule, CanonizerUtil } from "openchemlib";
 import { EXERCISE_CATEGORIES } from "./exercise-model.ts";
-import type { ExerciseCategory } from "./exercise-model.ts";
+import type { ExerciseCategory, SessionConfig } from "./exercise-model.ts";
+import { exerciseGenerationProfile } from "./exercise-generation-profile.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import type { ExerciseChemistryOracles } from "./exercise-chemistry-oracles.ts";
 import { validateExerciseChemistry, validateExerciseComparison, validateExerciseDomain } from "./exercise-domain.ts";
@@ -20,23 +21,26 @@ export type StructuralEvaluation = {
 };
 export type StructuralAnswerEvaluator = (input: {
   referenceMolecule: GeneratedMolecule; submittedMolecule: GeneratedMolecule; category: ExerciseCategory;
+  config?: Pick<SessionConfig, "generatorVersion" | "difficulty">;
 }) => StructuralEvaluation;
 export type BuildSubmissionValidation = { valid: true } | { valid: false; reason: "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" };
-export type BuildSubmissionValidator = (molecule: GeneratedMolecule) => BuildSubmissionValidation;
-/** Opt-in readiness for manual/future certified targets; sessions retain current. */
+export type BuildSubmissionValidator = (molecule: GeneratedMolecule,
+  config?: Pick<SessionConfig, "generatorVersion" | "difficulty">) => BuildSubmissionValidation;
+/** Manual capability opt-in; v4 advanced sessions also activate it via config. */
 export type BuildComparisonCapability = "current" | "hard-foundation";
 
 /** Submission-only validation: no target, identity comparison or correctness. */
 export function createBuildSubmissionValidator(oracles: ExerciseChemistryOracles,
   capability: BuildComparisonCapability = "current"): BuildSubmissionValidator {
-  return (molecule) => {
+  return (molecule, config) => {
     try {
       if (!molecule || molecule.atoms?.length > 120 || molecule.bonds?.length > 150) return { valid: false, reason: "INVALID_SUBMISSION" };
       const chemical = validateExerciseChemistry(molecule, oracles);
       if (!chemical.valid) return { valid: false, reason: chemical.reason.endsWith("oracle-failed") ? "UNSUPPORTED_COMPARISON" : "INVALID_SUBMISSION" };
       return (EXERCISE_CATEGORIES.some((category) => validateExerciseDomain(molecule, category, oracles).valid)
         || EXERCISE_CATEGORIES.some((category) => validateExerciseDomain(molecule, category, oracles, "intermediate").valid)
-        || capability === "hard-foundation" && validateHardFoundationComparison(molecule, oracles).valid)
+        || (capability === "hard-foundation" || config && exerciseGenerationProfile(config) === "advanced")
+          && validateHardFoundationComparison(molecule, oracles).valid)
         ? { valid: true } : { valid: false, reason: "INVALID_SUBMISSION" };
     } catch { return { valid: false, reason: "UNSUPPORTED_COMPARISON" }; }
   };
@@ -78,15 +82,16 @@ function stereo(source: GeneratedMolecule) {
 export function createStructuralAnswerEvaluator(oracles: ExerciseChemistryOracles,
   capability: BuildComparisonCapability = "current"): StructuralAnswerEvaluator {
   const validateSubmission = createBuildSubmissionValidator(oracles, capability);
-  return ({ referenceMolecule, submittedMolecule, category }) => {
+  return ({ referenceMolecule, submittedMolecule, category, config }) => {
     const result: StructuralEvaluation = { version: 1, correct: false, status: "UNSUPPORTED_COMPARISON",
       referenceIdentity: null, submittedIdentity: null, submittedSmiles: null,
       checks: { referenceValid: false, submissionValid: false, constitutionEqual: false, stereoEqual: false } };
     try {
       if (!validateExerciseComparison(referenceMolecule, category, oracles).valid
-        && !(capability === "hard-foundation" && validateHardFoundationExercise(referenceMolecule, category, oracles).valid)) return result;
+        && !((capability === "hard-foundation" || config && exerciseGenerationProfile(config) === "advanced")
+          && validateHardFoundationExercise(referenceMolecule, category, oracles).valid)) return result;
       result.checks.referenceValid = true;
-      const validation = validateSubmission(submittedMolecule);
+      const validation = validateSubmission(submittedMolecule, config);
       if (!validation.valid) return { ...result, status: validation.reason };
       result.checks.submissionValid = true;
       const reference = buildConstitutionalIdentity(referenceMolecule), submission = buildConstitutionalIdentity(submittedMolecule);

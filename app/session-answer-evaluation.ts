@@ -4,6 +4,7 @@ import { isBuildQuestion, isMultipleChoiceQuestion } from "./practice-question.t
 import type { PracticeQuestion } from "./practice-question.ts";
 import { matchesHydrocarbonReferenceName } from "./practice-reference-answer.ts";
 import type { StructuralAnswerEvaluator, StructuralEvaluation } from "./practice-structural-answer.ts";
+import type { SessionConfig } from "./exercise-model.ts";
 
 export type SessionAnswerEvaluation =
   | { ok: false; reason: "INCOMPLETE" | "INVALID_SUBMISSION" | "UNSUPPORTED_COMPARISON" }
@@ -14,11 +15,13 @@ export type SessionAnswerEvaluation =
  * Policies decide when this boundary may be invoked.
  */
 export function evaluateSessionAnswer(question: PracticeQuestion, answer: string, locale: AppLanguage,
-  studentMolecule?: GeneratedMolecule, evaluateStructure?: StructuralAnswerEvaluator): SessionAnswerEvaluation {
+  studentMolecule?: GeneratedMolecule, evaluateStructure?: StructuralAnswerEvaluator,
+  config?: Pick<SessionConfig, "generatorVersion" | "difficulty">): SessionAnswerEvaluation {
   if (isBuildQuestion(question)) {
     if (!studentMolecule || !evaluateStructure) return { ok: false, reason: "INCOMPLETE" };
     try {
-      const structuralAnswer = evaluateStructure({ referenceMolecule: question.molecule, submittedMolecule: studentMolecule, category: question.category });
+      const structuralAnswer = evaluateStructure({ referenceMolecule: question.molecule, submittedMolecule: studentMolecule, category: question.category,
+        ...(config && config.generatorVersion >= 4 ? { config } : {}) });
       if (structuralAnswer.status === "INVALID_SUBMISSION" || structuralAnswer.status === "UNSUPPORTED_COMPARISON") {
         return { ok: false, reason: structuralAnswer.status };
       }

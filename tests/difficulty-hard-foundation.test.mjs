@@ -3,7 +3,10 @@ import { before, after, test } from "node:test";
 import { readFileSync } from "node:fs";
 import { loadExerciseChemistry } from "./helpers/exercise-chemistry.mjs";
 import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
-import { exerciseStructuralIdentity } from "../app/exercise-chemical-generator.ts";
+import { exerciseStructuralIdentity, createRestrictedChemicalGenerator } from "../app/exercise-chemical-generator.ts";
+import { createPracticeConfig } from "../app/practice-session.ts";
+import { createPracticeQuestionGenerator, validateMultipleChoiceQuestion } from "../app/practice-question.ts";
+import { createDeterministicDistractorEngine } from "../app/practice-distractor-engine.ts";
 import { validateExerciseChemistry, validateExerciseDomain } from "../app/exercise-domain.ts";
 import { validateHardFoundationExercise, HARD_FOUNDATION_FAMILIES } from "../app/exercise-advanced-profile.ts";
 import { classifyMinimumExerciseDifficulty } from "../app/exercise-difficulty-classification.ts";
@@ -78,6 +81,16 @@ for(const f of fixture.fixtures) test(`D4 graph anchor #${f.id}: ${f.names.es}`,
   const wrong=evaluate({referenceMolecule:m,submittedMolecule:mutated,category:f.category});
   assert.ok(wrong.checks.submissionValid);assert.equal(wrong.correct,false);assert.match(wrong.status,/^DIFFERENT_/);
   assert.deepEqual(m,original,"all profile/comparison operations are pure");
+});
+
+test("v4 Hard production smoke: real target, safe MCQ and version-gated Build", () => {
+  const c = createPracticeConfig(["alcohol"], 1, "es", "D5-CRITICAL", ["naming"], "advanced", 4);
+  const generate = createPracticeQuestionGenerator(createRestrictedChemicalGenerator(chemistry.oracles),
+    createDeterministicDistractorEngine(chemistry.engine, chemistry.oracles));
+  const q = generate(c, 0, { questionType: "multiple-choice", displayIndex: 0 });
+  assert.equal(classifyMinimumExerciseDifficulty(q.molecule, q.category, chemistry.oracles), "advanced");
+  assert.ok(validateMultipleChoiceQuestion(q)); assert.equal(q.options.length, 4);
+  assert.equal(currentEvaluate({ referenceMolecule: q.molecule, submittedMolecule: redraw(q.molecule), category: q.category, config: c }).status, "EQUIVALENT");
 });
 
 test("minimum eligible profile is explicit and does not use molecular size or names",()=>{

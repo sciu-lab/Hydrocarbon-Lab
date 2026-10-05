@@ -58,6 +58,32 @@ export function deriveUnsaturationNameContributions(
   const parent = localizedName(analysis.chainName, language).replace(/^(?:ácido|acid) /, "");
   const root = /^[a-záéíóúüñ]+/i.exec(parent)?.[0] ?? "";
   if (!root) return [];
+  // D4-REASON-001: the verified legacy EN enyne output moves the double
+  // locant before the root. Preserve each analyzed bond's semantic identity;
+  // this presentation adapter copies spans and never constructs a name.
+  if (language === "en" && generatedNames?.includes(name)
+    && analysis.doubleBondLocants.length === 1 && analysis.tripleBondLocants.length === 1) {
+    const double = analysis.doubleBondLocants[0], triple = analysis.tripleBondLocants[0];
+    const systematic = analysis.chainName.replace(/^ácido /, "");
+    const stem = /^[a-záéíóúüñ]+/i.exec(systematic)?.[0] ?? "";
+    const written = `${double}-${stem}en-${triple}-yn`;
+    const start = name.lastIndexOf(written);
+    if (stem && systematic.startsWith(`${stem}-${double}-en-${triple}-in`)
+      && start >= 0 && (start === 0 || /[ -]/.test(name[start - 1]))) {
+      const spans = [{ type: "double" as const, locant: double, text: String(double), start },
+        { type: "double" as const, locant: double, text: "en", start: start + String(double).length + 1 + stem.length },
+        { type: "triple" as const, locant: triple, text: `${triple}-yn`,
+          start: start + String(double).length + 1 + stem.length + 3 }];
+      return spans.map(span => {
+        const atoms = analysis.mainChain.slice(span.locant - 1, span.locant + 1);
+        return { semanticId: `unsaturation:${span.type}:${span.locant}`, bondType: span.type, locant: span.locant,
+          atomIds: atoms, bondIds: [[Math.min(...atoms), Math.max(...atoms)]] as [number, number][],
+          text: span.text, start: span.start, kind: "unsaturation" as const,
+          label: `${span.type === "double" ? "Double" : "Triple"} bond at position ${span.locant}`,
+          explanation: `The ${span.type} bond C${span.locant}${span.type === "double" ? "=" : "≡"}C${span.locant + 1} contributes its locant and parent unsaturation form.` };
+      });
+    }
+  }
   // The available EN legacy profile puts the single multiple-bond locant before
   // the parent root (3-hexen-2-ol). Copy its two disjoint written spans only when
   // the naming pipeline supplied that exact name; never guess a new variant.

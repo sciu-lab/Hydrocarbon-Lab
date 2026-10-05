@@ -50,7 +50,7 @@ function capture(difficulty, version, locale) {
 }
 test("all certified categories submit their exact reference as correct in both locales", () => {
   for(const category of EXERCISE_CATEGORIES)for(const locale of ["es","en"]) {
-    const c=createPracticeConfig([category],1,locale,"D3-SELF-ACCEPT",["naming"],"intermediate");
+    const c=createPracticeConfig([category],1,locale,"D3-SELF-ACCEPT",["naming"],"intermediate",3);
     const s=submit(startPractice(c,generate));assert.equal(s.phase,"FEEDBACK");assert.equal(s.correct,true,`${category}/${locale}`);
   }
 });
@@ -81,7 +81,7 @@ test("v3 Intermediate mixed plan fixture repeats in fresh ES/EN processes withou
   assert.deepEqual(capture("intermediate",3,"es"),a); assert.deepEqual(capture("intermediate",3,"en"),a);
 });
 test("v3 Practice mixed grading, original attempts, corrections and Session Review retain configuration and target", () => {
-  const config=createPracticeConfig(["alkane","alcohol","ketone","ether","ez"],6,"es","D3-LIFECYCLE",types,"intermediate");
+  const config=createPracticeConfig(["alkane","alcohol","ketone","ether","ez"],6,"es","D3-LIFECYCLE",types,"intermediate",3);
   let s=startPractice(config,generate); const questions=[];
   while(s.phase==="QUESTION") {
     assertTarget(s.question); questions.push(s.question); const i=s.index;
@@ -106,7 +106,7 @@ test("v3 Practice mixed grading, original attempts, corrections and Session Revi
   }
 });
 test("v3 Exam preserves neutral drafts/navigation/locale and frozen plan, then grades atomically with post-submit Review", () => {
-  let s=startExam(createExamConfig(["alcohol","ketone","ether","ez"],6,"es","D3-EXAM",types,"intermediate"),generate);
+  let s=startExam(createExamConfig(["alcohol","ketone","ether","ez"],6,"es","D3-EXAM",types,"intermediate",3),generate);
   assert.equal(s.phase,"EXAM_QUESTION"); const plan=s.plan; s=localizeExamState(s,"en"); assert.equal(s.plan,plan);
   for(let i=0;i<6;i++) {
     const q=plan.slots[i].question; assertTarget(q);
@@ -127,7 +127,7 @@ test("v3 Exam preserves neutral drafts/navigation/locale and frozen plan, then g
   }
 });
 test("v3 Endless accepts Intermediate and retains bounded history; unsupported Easy E/Z still fails safely", () => {
-  let s=startPractice(createPracticeConfig(["alcohol","ester","ez"],"endless","es","D3-ENDLESS",["naming"],"intermediate"),generate);
+  let s=startPractice(createPracticeConfig(["alcohol","ester","ez"],"endless","es","D3-ENDLESS",["naming"],"intermediate",3),generate);
   for(let i=0;i<24;i++) {assert.equal(s.phase,"QUESTION");assertTarget(s.question);assert.ok(s.recentIdentities.length<=8);
     assert.ok(s.usedExerciseKeys.length<=8);s=nextPracticeQuestion(submit(s,true,i*1000),generate);}
   assert.equal(endPractice(s).phase,"COMPLETE");
@@ -143,7 +143,7 @@ test("17 categories × 2 modes × 2 seeds: finite Intermediate sweep records val
     for(const mode of ["practice","exam"]) for(const seed of [0,1]) {
       stat.sessions++; const seen=new Set();
       const builder=mode==="exam"?createExamConfig:createPracticeConfig;
-      const c=builder([category],5,"en",`D3-FINITE:${seed}`,["naming"],"intermediate");
+      const c=builder([category],5,"en",`D3-FINITE:${seed}`,["naming"],"intermediate",3);
       const tracked=(...args)=>{
         const q=chemical(...args); stat.candidates+=q.generation.attempt+1;
         for(const r of q.generation.rejections) {if(r.stage==="intermediate")stat.profileRejects++;else if(r.stage==="chemical")stat.chemistryRejects++;else stat.oracleRejects++;}
@@ -187,7 +187,7 @@ test("Class v2 fingerprints/seeds are frozen; v3 namespaces and CSV preserve ori
     }
   }
   assert.equal(namespaces.size,6);assert.equal(CLASS_SCHEMA_VERSION,1);assert.equal(CLASS_DERIVATION_VERSION,1);
-  const c=createClassAssignmentConfig({mode:"exam",questionCount:6,categories:["alcohol","ether","ez"],questionTypes:types,difficulty:"intermediate"},"CHEM-4B-2026");
+  const c=createClassAssignmentConfig({mode:"exam",questionCount:6,categories:["alcohol","ether","ez"],questionTypes:types,difficulty:"intermediate"},"CHEM-4B-2026",3);
   for(const participant of generateClassAssignments(c,["001","002","003"]).participants) {
     const a=startExam(participantSessionConfig(c,participant,"es"),generate),b=startExam(participantSessionConfig(c,participant,"en"),generate);
     assert.equal(a.phase,"EXAM_QUESTION");assert.equal(b.phase,"EXAM_QUESTION");

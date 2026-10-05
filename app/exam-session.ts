@@ -154,7 +154,8 @@ export function updateExamStructure(state: ExamState, molecule: GeneratedMolecul
     || (expected && (expected.index !== state.index || expected.questionId !== state.plan.slots[state.index].questionIdentity))) return state;
   const studentMolecule = structuredClone(molecule);
   let validation;
-  try { validation = validate(studentMolecule); } catch { validation = { valid: false as const, reason: "UNSUPPORTED_COMPARISON" as const }; }
+  try { validation = state.config.generatorVersion >= 4 ? validate(studentMolecule, state.config) : validate(studentMolecule); }
+  catch { validation = { valid: false as const, reason: "UNSUPPORTED_COMPARISON" as const }; }
   const draft: ExamDraft = { type: "build", studentMolecule, validForGrading: validation.valid,
     ...(!validation.valid ? { validationError: validation.reason } : {}) };
   return { ...state, drafts: state.drafts.map((value, index) => index === state.index ? draft : value) };
@@ -191,7 +192,7 @@ export function submitExam(state: ExamState, locale: AppLanguage, submitted: Pra
         reference: { ...slot.question.reference, name: slot.question.reference.names[locale] } };
       const graded = evaluateSessionAnswer(question, draft.type === "naming" ? draft.rawText
         : draft.type === "multiple-choice" ? draft.selectedOptionId ?? "" : "", locale,
-        draft.type === "build" ? draft.studentMolecule : undefined, evaluateStructure);
+        draft.type === "build" ? draft.studentMolecule : undefined, evaluateStructure, state.config);
       if (!graded.ok) throw new Error("Grade unavailable.");
       return createInitialAttempt({ question, displayOrdinal: slot.displayOrdinal,
         generationIndex: slot.generationIndex, ...graded, started: timing.firstPresented,

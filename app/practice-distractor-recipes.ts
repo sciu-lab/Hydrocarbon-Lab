@@ -1,6 +1,7 @@
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import type { ExerciseChemistryOracles } from "./exercise-chemistry-oracles.ts";
-import { validateExerciseDomain } from "./exercise-domain.ts";
+import { validateExerciseDomain, validateExerciseComparison } from "./exercise-domain.ts";
+import { validateHardFoundationComparison } from "./exercise-advanced-profile.ts";
 import { exerciseStructuralIdentity } from "./exercise-chemical-generator.ts";
 import type { DistractorEngineInput, DistractorNamingEngine } from "./practice-distractor-engine.ts";
 import type { DistractorDiagnosticCode, DistractorTransformation, MultipleChoiceDistractorOption } from "./practice-multiple-choice.ts";
@@ -16,6 +17,7 @@ export const MAX_GRAPH_DISTRACTOR_VARIANTS_PER_RECIPE = 3;
 export function generateGraphDistractors(input: DistractorEngineInput, engine: DistractorNamingEngine,
   oracles: ExerciseChemistryOracles): MultipleChoiceDistractorOption[] {
   const source = input.generatedMolecule;
+  const advanced = source.question.generatorVersion >= 4 && source.generation.domainVersion === 3;
   const graph = source.molecule;
   const analysis = engine.analyzeMolecule(graph);
   const model = engine.buildLegacyEnglishNameModel(graph, analysis);
@@ -28,11 +30,22 @@ export function generateGraphDistractors(input: DistractorEngineInput, engine: D
     functionalGroups: [...value.functionalGroups].sort((a, b) => a.locant - b.locant || compareText(a.kind, b.kind)),
   });
   const same = (a: typeof model, b: typeof model) => JSON.stringify(normalizedModel(a)) === JSON.stringify(normalizedModel(b));
+  const renumberRing = (expected: typeof model, nextAnalysis: ReturnType<DistractorNamingEngine["analyzeMolecule"]>) => {
+    if (!advanced || !["ring", "aromatic"].includes(model.parent.kind)) return;
+    // A single branch edit can canonically renumber a ring. Keep each remaining
+    // substituent attached to its actual carbon; verify the complete new model.
+    for (const item of expected.substituents) {
+      const carbon = [...analysis.numberedAtoms].find(([, locant]) => locant === item.locant)?.[0];
+      if (carbon !== undefined) item.locant = nextAnalysis.numberedAtoms.get(carbon)!;
+    }
+  };
   const accept = (alternative: GeneratedMolecule, code: DistractorDiagnosticCode,
     transform: (next: typeof model, analysis: ReturnType<DistractorNamingEngine["analyzeMolecule"]>) => DistractorTransformation | null) => {
     if (full(code)) return;
     try {
-      if (!validateExerciseDomain(alternative, source.category, oracles, exerciseDomainPolicy(source.question)).valid) return;
+      if (!(advanced ? validateExerciseComparison(alternative, source.category, oracles).valid
+        || validateHardFoundationComparison(alternative, oracles).valid
+        : validateExerciseDomain(alternative, source.category, oracles, exerciseDomainPolicy(source.question)).valid)) return;
       const nextAnalysis = engine.analyzeMolecule(alternative);
       const next = engine.buildLegacyEnglishNameModel(alternative, nextAnalysis);
       if (code !== "WRONG_PARENT_LENGTH" && JSON.stringify([...model.parent.atomIds].sort((a, b) => a - b))
@@ -110,21 +123,26 @@ export function generateGraphDistractors(input: DistractorEngineInput, engine: D
       accept(alternative, "WRONG_SUBSTITUENT_LOCANT", (next, nextAnalysis) => {
         const to = nextAnalysis.numberedAtoms.get(target);
         if (!to || to === branch.locant) return null;
-        const expected = structuredClone(model); expected.substituents[index].locant = to;
+        const expected = structuredClone(model); renumberRing(expected, nextAnalysis); expected.substituents[index].locant = to;
         return same(expected, next) ? { kind: "replace-locant", component: "substituent", name: branch.name, from: branch.locant, to } : null;
       });
     }
     const alternative = structuredClone(graph);
     alternative.atoms = alternative.atoms.filter((atom) => !ids.has(atom.id));
     alternative.bonds = alternative.bonds.filter(([a, b]) => !ids.has(a) && !ids.has(b));
-    accept(alternative, "MISSING_SUBSTITUENT", (next) => {
+    accept(alternative, "MISSING_SUBSTITUENT", (next, nextAnalysis) => {
       const expected = structuredClone(model); expected.substituents.splice(index, 1);
+      renumberRing(expected, nextAnalysis);
       return same(expected, next) ? { kind: "omit-substituent", name: branch.name, locant: branch.locant } : null;
     });
   }
 
-  if (["alcohol", "amine", "ketone"].includes(source.category) && model.functionalGroups.length === 1) {
-    const group = analysis.functionalGroups[0];
+  const movableFunctions = advanced ? analysis.functionalGroups.filter(group => ["alcohol", "amine", "ketone"].includes(group.kind))
+    : ["alcohol", "amine", "ketone"].includes(source.category) && model.functionalGroups.length === 1 ? [analysis.functionalGroups[0]] : [];
+  for (const group of movableFunctions) {
+    const groupIndex = advanced ? model.functionalGroups.findIndex(item => item.kind === group.kind
+      && item.locant === analysis.numberedAtoms.get(group.carbonId)) : 0;
+    if (groupIndex < 0) continue;
     const bond = graph.bonds.find(([a, b]) => (a === group.carbonId && b === group.heteroAtomId) || (b === group.carbonId && a === group.heteroAtomId));
     if (bond) for (const target of analysis.mainChain.filter((id) => id !== group.carbonId)) {
       if (full("WRONG_FUNCTIONAL_GROUP_LOCANT")) break;
@@ -132,9 +150,10 @@ export function generateGraphDistractors(input: DistractorEngineInput, engine: D
       alternative.bonds = alternative.bonds.filter(([a, b]) => !((a === bond[0] && b === bond[1]) || (a === bond[1] && b === bond[0])));
       alternative.bonds.push([target, group.heteroAtomId, bond[2]]);
       accept(alternative, "WRONG_FUNCTIONAL_GROUP_LOCANT", (next) => {
-        if (next.functionalGroups.length !== 1) return null;
-        const from = model.functionalGroups[0].locant, to = next.functionalGroups[0].locant;
-        const expected = structuredClone(model); expected.functionalGroups[0].locant = to;
+        if (next.functionalGroups.length !== model.functionalGroups.length) return null;
+        const from = model.functionalGroups[groupIndex].locant,
+          to = advanced ? next.parent.atomIds.indexOf(target) + 1 : next.functionalGroups[0].locant;
+        const expected = structuredClone(model); expected.functionalGroups[groupIndex].locant = to;
         return to !== from && same(expected, next) ? { kind: "replace-locant", component: "function", from, to } : null;
       });
     }

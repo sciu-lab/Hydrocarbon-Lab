@@ -158,7 +158,7 @@ export function updatePracticeStructure(state: PracticeState, molecule: Generate
 export function submitPracticeStructure(state: PracticeState, locale: AppLanguage, submitted: PracticeTime,
   evaluate: StructuralAnswerEvaluator): PracticeState {
   if (!isPracticeAnswerState(state) || !isBuildQuestion(state.question) || !state.timing || !state.studentMolecule) return state;
-  const graded = evaluateSessionAnswer(state.question, "", locale, state.studentMolecule, evaluate);
+  const graded = evaluateSessionAnswer(state.question, "", locale, state.studentMolecule, evaluate, state.config);
   if (!graded.ok) return { ...state, buildError: graded.reason === "INVALID_SUBMISSION" ? "INVALID_SUBMISSION" : "UNSUPPORTED_COMPARISON" };
   const structuralAnswer = graded.structuralAnswer!;
   const input = { answer: structuralAnswer.submittedSmiles!, correct: structuralAnswer.correct, structuralAnswer,

@@ -122,10 +122,10 @@ test("all seventeen anchors have independent Hard evidence; D4 and all five D4.2
   assert.equal(covered.size, 17); assert.deepEqual(EXERCISE_CATEGORIES.filter(c => !covered.has(c)), []);
 });
 
-test("production current/version routing remains frozen; v4 is still rejected", () => {
-  assert.equal(GENERATOR_VERSION, 3);
+test("historical advanced v1/v2/v3 remains legacy; unknown version is rejected", () => {
+  assert.equal(GENERATOR_VERSION, 4);
   for (const generatorVersion of [1, 2, 3]) assert.equal(exerciseGenerationProfile({ generatorVersion, difficulty: "advanced" }), "legacy");
-  assert.throws(() => normalizeSessionConfig({ mode: "practice", questionCount: 5, categories: ["alkane"], questionTypes: ["naming"], difficulty: "advanced", locale: "es", seed: "D4.2B", generatorVersion: 4 }));
+  assert.throws(() => normalizeSessionConfig({ mode: "practice", questionCount: 5, categories: ["alkane"], questionTypes: ["naming"], difficulty: "advanced", locale: "es", seed: "D4.2B", generatorVersion: 5 }));
 });
 
 const boundaries = [

@@ -19,18 +19,18 @@ const graph = (smiles) => { const result = moleculeFromSmiles(smiles); assert.ok
 const config = (category, seed = "D2-CONTRACT", difficulty = "basic", version = 2) =>
   createPracticeConfig([category], 5, "es", seed, ["naming"], difficulty, version);
 
-test("new builders use current v3; explicit v1/v2 persist; absent/unknown versions retain strict validation", () => {
-  assert.equal(GENERATOR_VERSION, 3);
+test("new builders use current v4; explicit v1/v2/v3 persist; absent/unknown versions retain strict validation", () => {
+  assert.equal(GENERATOR_VERSION, 4);
   for (const builder of [createPracticeConfig, createExamConfig]) {
-    assert.equal(builder(["alkane"], 5, "es", "D2").generatorVersion, 3);
-    for (const version of [1, 2]) {
+    assert.equal(builder(["alkane"], 5, "es", "D2").generatorVersion, 4);
+    for (const version of [1, 2, 3]) {
       const c = builder(["alkane"], 5, "es", "D2", ["naming"], "basic", version);
       assert.deepEqual(normalizeSessionConfig(JSON.parse(JSON.stringify(c))), c);
       const legacy = { ...c }; delete legacy.difficulty;
       assert.deepEqual(normalizeSessionConfig(legacy), c);
     }
   }
-  for (const value of [undefined, null, 0, 4, "1", "2", NaN]) {
+  for (const value of [undefined, null, 0, 5, "1", "2", NaN]) {
     const c = { ...config("alkane"), generatorVersion: value };
     if (value === undefined) delete c.generatorVersion;
     assert.throws(() => normalizeSessionConfig(c));
