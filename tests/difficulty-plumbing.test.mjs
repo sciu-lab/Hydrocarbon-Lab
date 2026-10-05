@@ -91,7 +91,7 @@ test("canonical difficulty validation defaults only absent legacy fields and pre
   }
   assert.equal(createPracticeConfig(categories, 3, "es", "D1", types, undefined).difficulty, "basic");
   assert.equal(createExamConfig(categories, 3, "es", "D1", types, undefined).difficulty, "basic");
-  assert.equal(GENERATOR_VERSION, 3);
+  assert.equal(GENERATOR_VERSION, 4);
 });
 
 test("historical basic targets, indices, MCQ IDs/order/provenance and Build payloads remain exact", async () => {

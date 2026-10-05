@@ -85,7 +85,7 @@ test("principal suffix numbering outranks the lower reverse unsaturation locant"
 
 test("17 families × 8 seeds × 2 indices: direct certified targets repeat in ES/EN, Build, and reference self-accept", () => {
   const rows = [], start = performance.now();
-  assert.equal(GENERATOR_VERSION, 3);
+  assert.equal(GENERATOR_VERSION, 4);
   for (const category of EXERCISE_CATEGORIES) {
     let attempts = 0, doubles = 0, triples = 0;
     for (let seed = 0; seed < 8; seed++) for (const index of [0, 11]) {

@@ -1,0 +1,1063 @@
+{
+  "capturedAtHead": "3f31484",
+  "snapshot": {
+    "generatorVersion": 4,
+    "difficulty": "advanced",
+    "runs": [
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "alkane"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:alkane",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dct@@LdbbRjeUUU@@",
+            "names": {
+              "es": "6-etil-2,5-dimetiloctano",
+              "en": "6-ethyl-2,5-dimethyloctane"
+            },
+            "formula": "C₁₂H₂₆",
+            "family": "mixed-trialkyl-alkane",
+            "payloadSha256": "4e38af1da4c5fa4183351b2c642829943e9758e21a4ba21004d98852b18f84cd",
+            "optionIdsSha256": "efb21620d73c5a84851e4c8b243efdc3ea3cd3dc113c7ff0aa02d8755c9a1e97",
+            "optionSetSha256": "64d12464efaf3377b55f1b39a4de56fd7c706d52fe06415fead95b256d920e60"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dkL@@LdbRTUTjjjj@@",
+            "names": {
+              "es": "4-etil-2,8-dimetilnonano",
+              "en": "4-ethyl-2,8-dimethylnonane"
+            },
+            "formula": "C₁₃H₂₈",
+            "family": "mixed-trialkyl-alkane",
+            "payloadSha256": "a2df8a3fda5ac88f6e42df34c37e1f4a9650dfbb7f070999a8201dc19623a207",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dct@@LdbbRtMUUU@@",
+            "names": {
+              "es": "4-etil-3,6-dimetiloctano",
+              "en": "4-ethyl-3,6-dimethyloctane"
+            },
+            "formula": "C₁₂H₂₆",
+            "family": "mixed-trialkyl-alkane",
+            "payloadSha256": "93a87edfe9cf3ad3e57b4e7bf3c5172bdae4c7a047c3e73cd9bd8b7248abb888"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "alkene"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:alkene",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "ded@@DkV]zjZ@@",
+            "names": {
+              "es": "5-metilnon-6-en-1-ino",
+              "en": "5-methyl-6-nonen-1-yne"
+            },
+            "formula": "C₁₀H₁₆",
+            "family": "enyne-hydrocarbon",
+            "payloadSha256": "7a9dea09a6554524195977ddbd6a7a60e5adb263729ff180fa8663c57f6b7d89"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "ded@@DiY]zjZ@@",
+            "names": {
+              "es": "4-metilnon-2-en-5-ino",
+              "en": "4-methyl-2-nonen-5-yne"
+            },
+            "formula": "C₁₀H₁₆",
+            "family": "enyne-hydrocarbon",
+            "payloadSha256": "e408f5251985e5ec1f5ca1ae0876444dec8de9253735f47c5b78b39f02f006c5",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dax@@DkUnZh@@",
+            "names": {
+              "es": "6-metilhept-3-en-1-ino",
+              "en": "6-methyl-3-hepten-1-yne"
+            },
+            "formula": "C₈H₁₂",
+            "family": "enyne-hydrocarbon",
+            "payloadSha256": "4d1c9c2cd86f29966cd82eb707d2898a51757f2d5d40056f8abe2d22718b339c",
+            "optionIdsSha256": "edf237d840ecd230924ceddf9edfe13d4de08a57de60f9fb60c29b1def47f738",
+            "optionSetSha256": "1d8ecf55f00c25441c0136500a2164bbe91ea6cf9fd424f5deb8948540de1fa2"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "alkyne"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:alkyne",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "ded@@DkYuzjZ@@",
+            "names": {
+              "es": "4-metilnon-6-en-1-ino",
+              "en": "4-methyl-6-nonen-1-yne"
+            },
+            "formula": "C₁₀H₁₆",
+            "family": "enyne-hydrocarbon",
+            "payloadSha256": "8fde85b7c76e8f3082fec94cad96c35fa2189a0d9bfa657426bab32fc94891ad"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "ded@@DiUyzZj@@",
+            "names": {
+              "es": "7-metilnon-5-en-3-ino",
+              "en": "7-methyl-5-nonen-3-yne"
+            },
+            "formula": "C₁₀H₁₆",
+            "family": "enyne-hydrocarbon",
+            "payloadSha256": "f1c9fe2dc5feaaa12809d97e9d48d5b4754fbcf908051db7af296b71b93f7652",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dax@@DkUnfh@@",
+            "names": {
+              "es": "6-metilhept-4-en-1-ino",
+              "en": "6-methyl-4-hepten-1-yne"
+            },
+            "formula": "C₈H₁₂",
+            "family": "enyne-hydrocarbon",
+            "payloadSha256": "84f4d1c004a05d5ebdf10323fc4be039690304436ac1b0074d22fb44bebee139",
+            "optionIdsSha256": "762b86430b9a32f4fa8c5244c622ae6b03e9942f8e772f4bb15af92c979c23f5",
+            "optionSetSha256": "0f2b7f679e05eeb464870836459228202448787db58e8b74db7eba3244e23d7d"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "halogenated"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:halogenated",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "build",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dctD`LTLQIZ}VjjfX@@",
+            "names": {
+              "es": "8-bromo-7-hidroxi-7-metiloct-3-en-2-ona",
+              "en": "8-bromo-7-hydroxy-7-methyl-3-octen-2-one"
+            },
+            "formula": "C₉H₁₅BrO₂",
+            "family": "hydroxy-ketone",
+            "payloadSha256": "56d56a8f41eb094702cae77d4391f2803320a509a8199ca6120368a0e75637a2",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dkNH`ALLQIi]gZjni`@",
+            "names": {
+              "es": "7-amino-5-bromo-5-metilnon-8-en-2-in-1-ol",
+              "en": "7-amino-5-bromo-5-methyl-8-nonen-2-yn-1-ol"
+            },
+            "formula": "C₁₀H₁₆BrNO",
+            "family": "amino-alcohol-enyne-bromo",
+            "payloadSha256": "327d1f96ea8837107d98d9cb5ff56d5afb127e23e0cbba8185db90d9a40fb136",
+            "optionIdsSha256": "9e62c2e3cf8945b35ed76a004f978cb0be40da34ebb61aa811f8df23bcd4859a",
+            "optionSetSha256": "4b6c898fd1caa190958c2249f93b5ba7abbc8fd5543cdbed1b72c33af5c031ba"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dctD`FTLSHhdhXiUUTp@@",
+            "names": {
+              "es": "6-bromo-4-hidroxi-3-metiloctan-2-ona",
+              "en": "6-bromo-4-hydroxy-3-methyl-2-octanone"
+            },
+            "formula": "C₉H₁₇BrO₂",
+            "family": "hydroxy-ketone",
+            "payloadSha256": "13c05ce45e69f8fc9101d061ff9e49b5696f8c7912939bb1fb6490de0577f4ad"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "alcohol"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:alcohol",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dcvH`BtLQIfgwjjgh@@",
+            "names": {
+              "es": "4-amino-5-bromo-4-metiloct-2-en-7-in-1-ol",
+              "en": "4-amino-5-bromo-4-methyl-2-octen-7-yn-1-ol"
+            },
+            "formula": "C₉H₁₄BrNO",
+            "family": "amino-alcohol-enyne-bromo",
+            "payloadSha256": "e8d71fc568288b92705baa99d0e35b1251334300389da5724bfa05537a802bbe",
+            "optionIdsSha256": "f7f8f866b854896d426f00398d32aa04ae30ccb0add79f01bd6419575c481509",
+            "optionSetSha256": "739f763e6c22d506c9c40486f07fb3341f976fac666bfd71a55c212163199869"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dmTH@@rJQEIJjin@@",
+            "names": {
+              "es": "2-metilnon-5-en-7-in-2-ol",
+              "en": "2-methyl-5-nonen-7-yn-2-ol"
+            },
+            "formula": "C₁₀H₁₆O",
+            "family": "enyne-alcohol",
+            "payloadSha256": "262f8c17a4cf18e77f29a1653c9fb889a8f60c4f240af103dc94dc26c8cb8160"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dkLD@@{IELeDXjjjj`@",
+            "names": {
+              "es": "7-metil-4-metoxinonan-2-ol",
+              "en": "4-methoxy-7-methyl-2-nonanol"
+            },
+            "formula": "C₁₁H₂₄O₂",
+            "family": "alkoxy-alcohol",
+            "payloadSha256": "5c1c9bd8428d09a6fd30b82ae1399968b03c403a77491f4d4b580ed101bf5afa",
+            "buildTargetIdentity": "null|ez:unspecified"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "aldehyde"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:aldehyde",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dctD@@IIVuYZjjh@@",
+            "names": {
+              "es": "3-hidroxi-7-metilnonanal",
+              "en": "3-hydroxy-7-methylnonanal"
+            },
+            "formula": "C₁₀H₂₀O₂",
+            "family": "hydroxy-aldehyde",
+            "payloadSha256": "9a6c6fc66dbbcd1d326131524885381f81a7a76c49c5a5618914fbcff158e577"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dedD@@iIUkvjj`@",
+            "names": {
+              "es": "4-hidroxi-4-metilheptanal",
+              "en": "4-hydroxy-4-methylheptanal"
+            },
+            "formula": "C₈H₁₆O₂",
+            "family": "hydroxy-aldehyde",
+            "payloadSha256": "2a1458c3b72e6b3498ca933a392afa348d631bbdc94986d0866bae4485466296",
+            "optionIdsSha256": "5ec6b3d7e9a07c187f065ff0d67efbeafe42b298d1c49edac1d5b504b86c25d6",
+            "optionSetSha256": "b6a0368ad35a1b8093a4dca53c89fdd19dde0151ee314f866bc3f27aff63948b"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dmTD@@IIVuejfj@@",
+            "names": {
+              "es": "3-hidroxi-6-metiloct-4-enal",
+              "en": "3-hydroxy-6-methyl-4-octenal"
+            },
+            "formula": "C₉H₁₆O₂",
+            "family": "hydroxy-aldehyde",
+            "payloadSha256": "a23ce0fb79a49b128ae97a83f6bdc248cccf85ef83487f08caf0d4ba290d686e",
+            "buildTargetIdentity": "null|ez:unspecified"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "ketone"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:ketone",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dedD@@iIe^Vfj`@",
+            "names": {
+              "es": "1-hidroxi-5-metilhept-3-en-2-ona",
+              "en": "1-hydroxy-5-methyl-3-hepten-2-one"
+            },
+            "formula": "C₈H₁₄O₂",
+            "family": "hydroxy-ketone",
+            "payloadSha256": "b419a7b3b7175b62c599e9a124768aeefaa471be845e914eef4e29cfa53ae55e",
+            "optionIdsSha256": "e27039ff31369c611677d0c099d5426d1af7d71e992ed4546eb38ca0dd8ca6aa",
+            "optionSetSha256": "9286bb8ac20f15aa40c29337e0bc606fcb7b97d6eaf39ad81fb86250dce83adc"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dmTD@@eIgYyijf@@",
+            "names": {
+              "es": "5-metiloct-3-en-2,7-diona",
+              "en": "5-methyl-3-octen-2,7-dione"
+            },
+            "formula": "C₉H₁₄O₂",
+            "family": "dione",
+            "payloadSha256": "e69859a46a7aaa577b2ce1d83eb78284118e901e024b3f2820c4825f61f3e1ec"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dmTD@@eIgYyijj@@",
+            "names": {
+              "es": "7-hidroxi-5-metiloct-3-en-2-ona",
+              "en": "7-hydroxy-5-methyl-3-octen-2-one"
+            },
+            "formula": "C₉H₁₆O₂",
+            "family": "hydroxy-ketone",
+            "payloadSha256": "4a4b2c3ae5c290d73b8a68ab1d9999d15f3a106bdfd8cbee6df7a02144f4f421",
+            "buildTargetIdentity": "null|ez:unspecified"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "carboxylic-acid"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:carboxylic-acid",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dmTL@@Pdf{VVjZh@@",
+            "names": {
+              "es": "ácido 2-hidroxi-5-metilhept-3-enoico",
+              "en": "2-hydroxy-5-methyl-3-heptenoic acid"
+            },
+            "formula": "C₈H₁₄O₃",
+            "family": "hydroxy-acid",
+            "payloadSha256": "fd671ae306b50ca885fbfbe4a92b89b8ddf0f9c23b07eabddff10668bc0ea58f",
+            "optionIdsSha256": "bdc4ef8b58d53ba54a0797a11de78e7ba8be0e74821ea7cc77f12e71d3fc0380",
+            "optionSetSha256": "b240b709ee6b56945ca5b766ee4585cad0be0b5a75860d8140271e639ecdde71"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dkNL@FAArJZJFYIjjjX@@",
+            "names": {
+              "es": "ácido 3-amino-4-hidroxi-2-metiloct-6-enoico",
+              "en": "3-amino-4-hydroxy-2-methyl-6-octenoic acid"
+            },
+            "formula": "C₉H₁₇NO₃",
+            "family": "amino-hydroxy-acid",
+            "payloadSha256": "f8c648908b728a75662c60a475584bfb5be2e33d88aaeeb45d238901968f5d40"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dcvL@NABR[mnVjjj@@",
+            "names": {
+              "es": "ácido 4-amino-2-hidroxi-5-metilheptanoico",
+              "en": "4-amino-2-hydroxy-5-methylheptanoic acid"
+            },
+            "formula": "C₈H₁₇NO₃",
+            "family": "amino-hydroxy-acid",
+            "payloadSha256": "f380a34491f084f0f700415c7c629621d698b3c979dec683000c050d73342ec1",
+            "buildTargetIdentity": "null|ez:unspecified"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "ether"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:ether",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "build",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dctD@@uJZwWjjfh@@",
+            "names": {
+              "es": "5-metil-5-metoxioct-2-en-1-ol",
+              "en": "5-methoxy-5-methyl-2-octen-1-ol"
+            },
+            "formula": "C₁₀H₂₀O₂",
+            "family": "alkoxy-alcohol",
+            "payloadSha256": "a67ce3e28cb5299da89be196f13bd2974a057dee5b3e080bb7348af0cbe18c3a",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dmTD@@gIELhcJijh@@",
+            "names": {
+              "es": "6-metil-5-metoxihept-3-en-2-ol",
+              "en": "5-methoxy-6-methyl-3-hepten-2-ol"
+            },
+            "formula": "C₉H₁₈O₂",
+            "family": "alkoxy-alcohol",
+            "payloadSha256": "96846aa6c7ecf42b7b976c8c0669fbbd5d31a3f13c7e60f4ec852414085ef098"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dctD@@wIEDbeEUSUP@@",
+            "names": {
+              "es": "6-etoxi-2-metilhept-4-en-1-ol",
+              "en": "6-ethoxy-2-methyl-4-hepten-1-ol"
+            },
+            "formula": "C₁₀H₂₀O₂",
+            "family": "alkoxy-alcohol",
+            "payloadSha256": "0a1d8e1ee0bb9f9efe75bbcdbdf862ddaa242eaf106521115ebeded62a3af6b8",
+            "optionIdsSha256": "f55863c0b5b0dd7944e18d04941eb41efaf8f0482a3665b68ae63fea4218d543",
+            "optionSetSha256": "79bc795999aa2ce3d0922dc0f8715f05f30d784dd890b1646031dcd30f68a2a5"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "ester"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:ester",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "build",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dglD@@QIeWUejjfk@@",
+            "names": {
+              "es": "7-metilnon-5-en-8-inoato de etilo",
+              "en": "ethyl 7-methyl-5-nonen-8-ynoate"
+            },
+            "formula": "C₁₂H₁₈O₂",
+            "family": "enyne-ester",
+            "payloadSha256": "9700bd3b1cb89134e9f5277f9faed800aac4735c4c674508f35485b1c5d9e26a",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dkLD@@QIeuVVkfj`@",
+            "names": {
+              "es": "7-metilnon-4-en-2-inoato de metilo",
+              "en": "methyl 7-methyl-4-nonen-2-ynoate"
+            },
+            "formula": "C₁₁H₁₆O₂",
+            "family": "enyne-ester",
+            "payloadSha256": "f7c7870cf21c063cb752ce2736ece231a8da668268ecf505fdc71bdd9c713288"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dkLD@@QIeugVjjfp@",
+            "names": {
+              "es": "5-metilnon-6-en-8-inoato de metilo",
+              "en": "methyl 5-methyl-6-nonen-8-ynoate"
+            },
+            "formula": "C₁₁H₁₆O₂",
+            "family": "enyne-ester",
+            "payloadSha256": "788e5ae9000b179d567d991c55f84270304b7fa03d9954ad938708dd7b922028",
+            "optionIdsSha256": "597ffe8f17c897d7af1684d9252792b8ac9a21794684647accea25551378a322",
+            "optionSetSha256": "1ef933b16671d7b2e1786e5ae4d662df3f564c099838a5bd1a89f9cfcace6fdd"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "amine"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:amine",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dmV@@@RUUgjfk`@",
+            "names": {
+              "es": "6-metilnon-4-en-7-in-1-amina",
+              "en": "6-methyl-4-nonen-7-yn-1-amine"
+            },
+            "formula": "C₁₀H₁₇N",
+            "family": "enyne-amine",
+            "payloadSha256": "083319b19a46f9574aeaaae0ab440c9feb8f00f804ce76ac7992d654345f2558"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "diF@@@rJQEJj[`@",
+            "names": {
+              "es": "2-metilhept-3-en-5-in-2-amina",
+              "en": "2-methyl-3-hepten-5-yn-2-amine"
+            },
+            "formula": "C₈H₁₃N",
+            "family": "enyne-amine",
+            "payloadSha256": "e955dcbf81f81dc916776de43ca13998264f8d0d1abbacedf9ac28f780a7c754",
+            "optionIdsSha256": "d7f78f28f4512a1fd31ed2c0472504fcd8eb551ce77a689e4cc629aa38a645c6",
+            "optionSetSha256": "8ac274e5c497ad690c08f0459fee61e549808db294e482dcc8ec5419d70c8298"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "diF@@@RYoZj[@@",
+            "names": {
+              "es": "3-metilhept-4-en-6-in-2-amina",
+              "en": "3-methyl-4-hepten-6-yn-2-amine"
+            },
+            "formula": "C₈H₁₃N",
+            "family": "enyne-amine",
+            "payloadSha256": "81d756e5c474d7b5f7d9158995b9039febc0cae2cea5c71c41233caa4f7f5df2",
+            "buildTargetIdentity": "null|ez:unspecified"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "amide"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:amide",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dcvH@DAImYuZjil@@",
+            "names": {
+              "es": "4-metilnon-6-en-8-inamida",
+              "en": "4-methyl-6-nonen-8-ynamide"
+            },
+            "formula": "C₁₀H₁₅NO",
+            "family": "enyne-amide",
+            "payloadSha256": "6bb807133faaadc8345b4fdbe877f7a0fef60997aa2d9f8ab0d0e13886efaa1d"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "defH@DAImVVkjP@",
+            "names": {
+              "es": "5-metilhept-6-en-3-inamida",
+              "en": "5-methyl-6-hepten-3-ynamide"
+            },
+            "formula": "C₈H₁₁NO",
+            "family": "enyne-amide",
+            "payloadSha256": "5f4fabd84b5c6a6a7b1a369a11f68352dee608fbab69dbdea5078741ad7055aa",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dcvH@DAImUgZZjl@@",
+            "names": {
+              "es": "6-metilnon-2-en-8-inamida",
+              "en": "6-methyl-2-nonen-8-ynamide"
+            },
+            "formula": "C₁₀H₁₅NO",
+            "family": "enyne-amide",
+            "payloadSha256": "dfc70149f9cac8bff3e6e2ee5f775027dc355273507733a1defbddef9fdcfb7a",
+            "optionIdsSha256": "92e548796d2f440d2925253de73bf2cc93035fc475e6e245c8dad1e99b1f6001",
+            "optionSetSha256": "6bce0ccba5a8556683479a033dc674c14fb09a63dc31242a503dac9e0cdce6d0"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "simple-carbocycle"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:simple-carbocycle",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "deT@@DjYgIjjjh@@",
+            "names": {
+              "es": "1,2-dietil-3-metilciclopentano",
+              "en": "1,2-diethyl-3-methylcyclopentane"
+            },
+            "formula": "C₁₀H₂₀",
+            "family": "mixed-trialkyl-carbocycle",
+            "payloadSha256": "ea9606c225769f99407c4fcb1dc8b7cd5e4210eb468e10faa8df547842d6f04c",
+            "optionIdsSha256": "440fafc7666f47cfd9424fd7514339e374897756d6635f37bc797f186d1587eb",
+            "optionSetSha256": "ec861021b36154a828a40d6727d54d41c0686e218194d492400030018337f7b1"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "deT@@LdbRTM]UUU@@",
+            "names": {
+              "es": "4-etil-1,2-dimetilciclohexano",
+              "en": "4-ethyl-1,2-dimethylcyclohexane"
+            },
+            "formula": "C₁₀H₂₀",
+            "family": "mixed-trialkyl-carbocycle",
+            "payloadSha256": "0c7da5c8fb61821bc54abc86ebb62477abb67e931311eb3c3e4102de704097b7"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "deT@@LdbbQqMUUU@@",
+            "names": {
+              "es": "1,4-dietil-2-metilciclopentano",
+              "en": "1,4-diethyl-2-methylcyclopentane"
+            },
+            "formula": "C₁₀H₂₀",
+            "family": "mixed-trialkyl-carbocycle",
+            "payloadSha256": "f7c6cd8acb87c280a65297473a229575e3e2700193bfb742a9cb3ab02697fc19",
+            "buildTargetIdentity": "null|ez:unspecified"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "aromatic"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:aromatic",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "deT@@LdbbRkBDQD@@",
+            "names": {
+              "es": "1-etil-2,4-dimetilbenceno",
+              "en": "1-ethyl-2,4-dimethylbenzene"
+            },
+            "formula": "C₁₀H₁₄",
+            "family": "mixed-trialkyl-benzene",
+            "payloadSha256": "20ab9f0ece225a59e3fbb8b0794dd038744646ca961bfb73337b0b62431b2482"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 2,
+            "generationIndex": 2,
+            "structuralIdentity": "deT@@LdbRTM\\DDT@@",
+            "names": {
+              "es": "4-etil-1,2-dimetilbenceno",
+              "en": "4-ethyl-1,2-dimethylbenzene"
+            },
+            "formula": "C₁₀H₁₄",
+            "family": "mixed-trialkyl-benzene",
+            "payloadSha256": "340990e7b116d77d48f11784590bfbeeb714b2d0def45e158d10a069bbacb625",
+            "optionIdsSha256": "a813240b4e269ee5457061a1d73e00697c3c53bac405941aef150eb8e77cc1cb",
+            "optionSetSha256": "176639a5601db7b9ae0f83272acf1559889d50c01cbfd63dcbc5b58d589bb794"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 3,
+            "generationIndex": 3,
+            "structuralIdentity": "dmt@@DjYeVdHbb@@",
+            "names": {
+              "es": "1,2-dietil-3-metilbenceno",
+              "en": "1,2-diethyl-3-methylbenzene"
+            },
+            "formula": "C₁₁H₁₆",
+            "family": "mixed-trialkyl-benzene",
+            "payloadSha256": "58e83f46d6dbd65e58601921fc1f38e37328fd36e5ccb956b2848b19ea7f1f0b",
+            "buildTargetIdentity": "null|ez:unspecified"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "ez"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:ez",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dct@@LdRbbeSUUUA@P",
+            "names": {
+              "es": "(3E)-6-etil-2,5-dimetiloct-3-eno",
+              "en": "(3E)-6-ethyl-2,5-dimethyl-3-octene"
+            },
+            "formula": "C₁₂H₂₄",
+            "family": "mixed-trialkyl-ez",
+            "payloadSha256": "e8357bdc4816ac18b3503ca4b84b8d8f26e141603d19ce33c5b8bb7883b1db41"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dkL@@DiYYyZjjjB@P",
+            "names": {
+              "es": "(3Z)-5,6-dietil-7-metiloct-3-eno",
+              "en": "(3Z)-5,6-diethyl-7-methyl-3-octene"
+            },
+            "formula": "C₁₃H₂₆",
+            "family": "mixed-trialkyl-ez",
+            "payloadSha256": "be57b5fd6b7ed965a7569aedf66886cd3b4bae175e22c8b99d362ab5be270625",
+            "buildTargetIdentity": "null|ez:Z"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dgl@@DiYYwfjjjhHB@",
+            "names": {
+              "es": "(3E)-5,6-dietil-8-metilnon-3-eno",
+              "en": "(3E)-5,6-diethyl-8-methyl-3-nonene"
+            },
+            "formula": "C₁₄H₂₈",
+            "family": "mixed-trialkyl-ez",
+            "payloadSha256": "75f05dc9ca92584ebce119f32cbe8b432165674477d51b051edf7dc51ed677fb",
+            "optionIdsSha256": "6913c551814eed2c0f588c9465ad61e5fdadb7ef5d69913931b24a1c177e6a81",
+            "optionSetSha256": "48917bfd40fcc658f7056c60f9cc34744bd63f6c85bee029492bea7ae789a2f3"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "nitrile"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:nitrile",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "naming",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "diF@@@RV]^ik@@",
+            "names": {
+              "es": "2-metilhept-3-en-6-inonitrilo",
+              "en": "2-methyl-3-hepten-6-ynenitrile"
+            },
+            "formula": "C₈H₉N",
+            "family": "enyne-nitrile",
+            "payloadSha256": "e1afafcd6e1014878c7e90ffaf8078437bea9e0df325381d4cdb66ae64f29c27"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dmV@@@RV]Uzfz`@",
+            "names": {
+              "es": "2-metilnon-3-en-5-inonitrilo",
+              "en": "2-methyl-3-nonen-5-ynenitrile"
+            },
+            "formula": "C₁₀H₁₃N",
+            "family": "enyne-nitrile",
+            "payloadSha256": "e272c3212ac1fee5f9aa2a843f0ae57bb5c443a03bdc2ba60367cee0ee34c9c0",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "def@@@RUgWjfx@@",
+            "names": {
+              "es": "3-metiloct-4-en-6-inonitrilo",
+              "en": "3-methyl-4-octen-6-ynenitrile"
+            },
+            "formula": "C₉H₁₁N",
+            "family": "enyne-nitrile",
+            "payloadSha256": "ed5a085d16f1a4eeb81f513719ce93abd2a4ab56a768e79395f77a1542981199",
+            "optionIdsSha256": "eb584bee2584a8865f4b73b41e01f4ce7f4350cdd64e6e22c8cd45ab8ad3b440",
+            "optionSetSha256": "1ac7e2caad2b2ac8e91d530a758fe6808873aaa3e32758d65dad4f0d1606dd8d"
+          }
+        ]
+      },
+      {
+        "config": {
+          "mode": "exam",
+          "questionCount": 3,
+          "questionTypes": [
+            "naming",
+            "multiple-choice",
+            "build"
+          ],
+          "categories": [
+            "nitro"
+          ],
+          "difficulty": "advanced",
+          "locale": "es",
+          "seed": "D5-V4-FIXTURE:nitro",
+          "generatorVersion": 4
+        },
+        "questions": [
+          {
+            "type": "multiple-choice",
+            "displayOrdinal": 1,
+            "generationIndex": 0,
+            "structuralIdentity": "dcvDAHAHeNR[fWvjj^@@",
+            "names": {
+              "es": "3-metil-4-nitrooct-1-en-6-ino",
+              "en": "3-methyl-4-nitro-1-octen-6-yne"
+            },
+            "formula": "C₉H₁₃NO₂",
+            "family": "enyne-nitro",
+            "payloadSha256": "2c11de27b7db3ab3e3b28de45a1001472e20c5409e803aa5ea603dbc258c4479",
+            "optionIdsSha256": "dc0549608c72b64932216e04aeeb45195e201b2cb3270bfc4fb3bccfea842e07",
+            "optionSetSha256": "64b273e74ca6f5e832ec8843b8ea5699fc31216039f10df6453a71a2c7fe5ba2"
+          },
+          {
+            "type": "build",
+            "displayOrdinal": 2,
+            "generationIndex": 1,
+            "structuralIdentity": "dcvDAHAHeNR[UgVijz@@",
+            "names": {
+              "es": "4-metil-1-nitrooct-2-en-5-ino",
+              "en": "4-methyl-1-nitro-2-octen-5-yne"
+            },
+            "formula": "C₉H₁₃NO₂",
+            "family": "enyne-nitro",
+            "payloadSha256": "766bd4c132151d473e72f5dab76a56cd7f8da7f0421a01321f6ec3a6ec9bb700",
+            "buildTargetIdentity": "null|ez:unspecified"
+          },
+          {
+            "type": "naming",
+            "displayOrdinal": 3,
+            "generationIndex": 2,
+            "structuralIdentity": "dcvDAHAHeNR[i]Vjmj@@",
+            "names": {
+              "es": "4-metil-4-nitrooct-2-en-5-ino",
+              "en": "4-methyl-4-nitro-2-octen-5-yne"
+            },
+            "formula": "C₉H₁₃NO₂",
+            "family": "enyne-nitro",
+            "payloadSha256": "5aad4a3b1bb5fdb265294bb32ab384b625c085ee78faa8b0565402624903c133"
+          }
+        ]
+      }
+    ]
+  }
+}

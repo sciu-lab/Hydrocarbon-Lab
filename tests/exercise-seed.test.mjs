@@ -65,7 +65,7 @@ test("meaningful configuration differences produce different exercise contexts",
     assert.notEqual(different.id, original.id);
     assert.notEqual(different.seed, original.seed);
   }
-  assert.throws(() => deriveQuestionIdentity({ ...config, generatorVersion: 4 }, 0), RangeError);
+  assert.throws(() => deriveQuestionIdentity({ ...config, generatorVersion: 5 }, 0), RangeError);
 });
 
 test("configuration and question metadata JSON round-trips reconstruct the same sequence", () => {
@@ -150,7 +150,7 @@ test("generation projection validates the original locale, version and index bef
   for (const locale of ["fr", undefined, null]) {
     assert.throws(() => deriveGenerationIdentity({ ...config, locale }, 0), TypeError);
   }
-  assert.throws(() => deriveGenerationIdentity({ ...config, generatorVersion: 4 }, 0), RangeError);
+  assert.throws(() => deriveGenerationIdentity({ ...config, generatorVersion: 5 }, 0), RangeError);
   for (const index of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, "0"]) {
     assert.throws(() => deriveGenerationIdentity(config, index), RangeError);
   }
