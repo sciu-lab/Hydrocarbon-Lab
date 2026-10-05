@@ -258,7 +258,7 @@ test("Practice entry is adjacent to How to use, controls its view, and preserves
   assert.match(css, /\.practice-question-heading \.scope-pill\s*\{\s*display: inline-flex;/);
 });
 
-for (const language of ["es", "en"]) test(`configuration ${language}: topics, defaults, enabled Exam, class opt-in and no future controls`, () => {
+for (const language of ["es", "en"]) test(`configuration ${language}: topics, defaults, enabled Exam, class opt-in and public difficulty`, () => {
   const html = renderToStaticMarkup(React.createElement(ui.PracticePanel, {
     language, onLanguageChange: noop, onBackToLab: noop, generate, renderStructure,
   }));
@@ -273,7 +273,7 @@ for (const language of ["es", "en"]) test(`configuration ${language}: topics, de
   assert.equal((classOptIn.match(/type="checkbox"/g) ?? []).length, 1);
   assert.doesNotMatch(classOptIn, /checked=""/);
   assert.ok(classOptIn.includes(uiText(language, "Generar variantes para una clase")));
-  assert.equal((html.match(/checked=""/g) ?? []).length, 2);
+  assert.equal((html.match(/checked=""/g) ?? []).length, 3);
   assert.match(html, /type="number" min="1" step="1" aria-invalid="false" value="10"/);
   assert.ok(html.includes(uiText(language, "Sin límite")));
   assert.doesNotMatch(html, /\bmax="|<option/);
@@ -281,7 +281,8 @@ for (const language of ["es", "en"]) test(`configuration ${language}: topics, de
   assert.ok(html.includes(uiText(language, "Iniciar práctica")));
   assert.ok(html.includes(uiText(language, "Opción múltiple")));
   assert.ok(html.includes(uiText(language, "Construir la molécula")));
-  assert.doesNotMatch(html, /Build the Molecule|Difficulty|Dificultad|score|Score|timer/);
+  assert.ok(html.includes(uiText(language, "Dificultad")));
+  assert.doesNotMatch(html, /Build the Molecule|score|Score|timer/);
   assert.deepEqual(ui.PRACTICE_TOPIC_GROUPS.flatMap((group) => group.topics.map(([id]) => id)).sort(), [...EXERCISE_CATEGORIES].sort());
 });
 

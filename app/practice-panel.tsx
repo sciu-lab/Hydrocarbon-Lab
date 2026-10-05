@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import type { AppLanguage } from "./i18n.ts";
 import { uiText } from "./i18n.ts";
-import type { ExerciseCategory } from "./exercise-model.ts";
+import type { ExerciseCategory, ExerciseDifficulty } from "./exercise-model.ts";
 import { parseFiniteQuestionCount } from "./exercise-model.ts";
 import type { GeneratedMolecule } from "./name-to-molecule.ts";
 import {
@@ -31,6 +31,7 @@ import type { BuildEditorRenderer } from "./practice-build-editor.tsx";
 import { moleculeFromSmiles } from "./openchemlib-adapter.ts";
 import type { PracticeQuestionType } from "./practice-question.ts";
 import { ClassVariantsPanel } from "./class-variants-panel.tsx";
+import { DifficultySelector } from "./difficulty-selector.tsx";
 
 export const PRACTICE_TOPIC_GROUPS = [
   { label: "Hidrocarburos", topics: [["alkane", "Alcanos"], ["alkene", "Alquenos"], ["alkyne", "Alquinos"]] },
@@ -246,6 +247,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
   const [exam, setExam] = useState<ExamState | null>(null);
   const [categories, setCategories] = useState<ExerciseCategory[]>(["alkane"]);
   const [questionTypes, setQuestionTypes] = useState<PracticeQuestionType[]>(["naming"]);
+  const [difficulty, setDifficulty] = useState<ExerciseDifficulty>("basic");
   const [countText, setCountText] = useState("10");
   const [endless, setEndless] = useState(false);
   const finiteCount = parseFiniteQuestionCount(countText);
@@ -311,8 +313,8 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
       if (count === null) return;
       try {
         const resolved = resolvePracticeSeed(seed, () => `practice-${crypto.randomUUID()}`);
-        if (mode === "exam") setExam(startExam(createExamConfig(categories, Number(count), language, resolved, questionTypes), generate));
-        else setSession(startPractice(createPracticeConfig(categories, count, language, resolved, questionTypes), generate));
+        if (mode === "exam") setExam(startExam(createExamConfig(categories, Number(count), language, resolved, questionTypes, difficulty), generate));
+        else setSession(startPractice(createPracticeConfig(categories, count, language, resolved, questionTypes, difficulty), generate));
       } catch { setConfigError(true); }
     }}>
       <p>{t(mode === "exam" ? "Responde todas las preguntas y revisa tus borradores antes de enviar el examen. Tu molécula del laboratorio se conserva." : "Practica nombres con estructuras generadas. Tu molécula del laboratorio se conserva.")}</p>
@@ -335,6 +337,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
         </label>)}
       </fieldset>
       {!questionTypes.length && <p role="status">{t("Selecciona al menos un tipo de pregunta.")}</p>}
+      <DifficultySelector language={language} value={difficulty} onChange={setDifficulty} />
       <div className="practice-config-fields">
         <label>{t("Preguntas")}<input type="number" min="1" step="1" value={countText}
           disabled={mode === "practice" && endless} aria-invalid={count === null}
@@ -344,7 +347,7 @@ export function PracticePanel({ language, onLanguageChange, onBackToLab, generat
         <label>{t("Semilla (opcional)")}<input value={seed} onChange={(event) => setSeed(event.target.value)} autoComplete="off" spellCheck={false} /></label>
       </div>
       {count === null && <p role="status">{t("Introduce un número entero positivo de preguntas.")}</p>}
-      <ClassVariantsPanel selection={{ mode, questionCount: count, categories, questionTypes }} language={language} onUseSeed={setSeed} />
+      <ClassVariantsPanel selection={{ mode, questionCount: count, categories, questionTypes, difficulty }} language={language} onUseSeed={setSeed} />
       {configError && <p role="alert">{t(mode === "exam" ? "No se pudo iniciar el examen. Revisa los temas y vuelve a intentarlo." : "No se pudo iniciar la práctica. Revisa los temas y vuelve a intentarlo.")}</p>}
       <button type="submit" className="practice-primary" disabled={!categories.length || !questionTypes.length || count === null}>{t(mode === "exam" ? "Iniciar examen" : "Iniciar práctica")}</button>
     </form> : <>

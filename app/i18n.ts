@@ -3,6 +3,13 @@ export type AppLanguage = "es" | "en";
 export const LANGUAGE_STORAGE_KEY = "hydrocarbon-lab-language";
 
 const ENGLISH_UI: Record<string, string> = {
+  "Dificultad": "Difficulty",
+  "Fácil": "Easy",
+  "Intermedio": "Intermediate",
+  "Difícil": "Hard",
+  "Una idea principal de nomenclatura a la vez.": "One main naming idea at a time.",
+  "Combina reglas de nomenclatura, insaturación y sustituyentes.": "Combines naming rules, unsaturation and substituents.",
+  "Combina varias decisiones de nomenclatura y mayor complejidad estructural.": "Combines several naming decisions and greater structural complexity.",
   "Revisión de sesión": "Session review",
   "Correcta en el primer intento": "Correct first try",
   "Corregida": "Corrected",
