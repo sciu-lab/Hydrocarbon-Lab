@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import {
-  createDocxAssessmentModel, createNamingAssessmentConfig, namingAssessmentFilename,
-  namingAssessmentSessionConfig, normalizeNamingAssessmentConfig,
+  createDocxAssessmentModel, createMultipleChoiceAssessmentConfig, createNamingAssessmentConfig,
+  multipleChoiceAssessmentFilename, namingAssessmentFilename,
+  multipleChoiceAssessmentSessionConfig, namingAssessmentSessionConfig, normalizeNamingAssessmentConfig,
 } from "../app/docx-export-model.ts";
-import { selectNamingAssessmentQuestions } from "../app/docx-assessment-selection.ts";
+import { selectMultipleChoiceAssessmentQuestions, selectNamingAssessmentQuestions } from "../app/docx-assessment-selection.ts";
 import { renderStudentDocxBuffer, renderTeacherDocxBuffer } from "../app/docx-export.ts";
 import { getWordDocumentText, readZipEntries } from "../scripts/docx-archive.mjs";
 import { inspectDocxStructureRaster, renderDocxStructurePngAssets, renderDocxStructureSvg } from "../scripts/docx-structure-assets.mjs";
@@ -40,7 +41,8 @@ function engineGenerator() {
 
 function syntheticQuestions(config) {
   return Array.from({ length: config.questionCount }, (_, index) => ({
-    question: { id: `exercise:${index}`, seed: `question:${index}`, generatorVersion: config.generatorVersion },
+    question: { id: `exercise:${index}`, seed: `question:${index}`, generatorVersion: config.generatorVersion,
+      difficulty: config.difficulty },
     category: config.categories[index % config.categories.length],
     reference: {
       structuralIdentity: `structure:${index}`,
@@ -85,6 +87,24 @@ test("config applies explicit defaults and strictly validates finite Naming asse
   assert.equal(namingAssessmentSessionConfig(defaults).generatorVersion, 4);
   assert.equal(namingAssessmentFilename("student"), "hydrocarbon-lab-naming-student.docx");
   assert.equal(namingAssessmentFilename("teacher"), "hydrocarbon-lab-naming-teacher.docx");
+  const mcqDefaults = createMultipleChoiceAssessmentConfig({ seed: "DOCX-MCQ-CONFIG-DEFAULT" });
+  assert.deepEqual({ locale: mcqDefaults.locale, questionCount: mcqDefaults.questionCount, difficulty: mcqDefaults.difficulty,
+    categories: mcqDefaults.categories, questionType: mcqDefaults.questionType, generatorVersion: mcqDefaults.generatorVersion }, {
+    locale: "en", questionCount: 10, difficulty: "basic", categories: ["alkane", "alkene", "alkyne"],
+    questionType: "multiple-choice", generatorVersion: 4,
+  });
+  for (const questionCount of [5, 10, 20, 30]) {
+    assert.equal(createMultipleChoiceAssessmentConfig({ seed: "DOCX-MCQ-COUNT", questionCount }).questionCount, questionCount);
+  }
+  for (const difficulty of ["basic", "intermediate", "advanced"]) {
+    assert.equal(createMultipleChoiceAssessmentConfig({ seed: `DOCX-MCQ-${difficulty}`, difficulty }).difficulty, difficulty);
+  }
+  assert.deepEqual(createMultipleChoiceAssessmentConfig({ seed: "DOCX-MCQ-CATEGORIES", categories: ["alcohol", "alkene"] }).categories,
+    ["alkene", "alcohol"]);
+  assert.throws(() => createMultipleChoiceAssessmentConfig({ seed: "DOCX-MCQ-INVALID", questionType: "naming" }), /Multiple Choice/);
+  assert.equal(multipleChoiceAssessmentSessionConfig(mcqDefaults).questionTypes[0], "multiple-choice");
+  assert.equal(multipleChoiceAssessmentFilename("student"), "hydrocarbon-lab-mcq-student.docx");
+  assert.equal(multipleChoiceAssessmentFilename("teacher"), "hydrocarbon-lab-mcq-teacher.docx");
 
   for (const questionCount of [0, -1, 3, 100, Number.NaN, "10"]) {
     assert.throws(() => normalizeNamingAssessmentConfig({ seed: "DOCX-INVALID", questionCount }), /questionCount/);
@@ -94,7 +114,7 @@ test("config applies explicit defaults and strictly validates finite Naming asse
   assert.throws(() => normalizeNamingAssessmentConfig({ seed: "DOCX-INVALID", categories: [] }), /category/);
   assert.throws(() => normalizeNamingAssessmentConfig({ seed: "DOCX-INVALID", categories: ["all"] }), /canonical category/);
   assert.throws(() => normalizeNamingAssessmentConfig({ seed: "DOCX-INVALID", categories: ["alkane", "alkane"] }), /unique/);
-  assert.throws(() => normalizeNamingAssessmentConfig({ seed: "DOCX-INVALID", questionType: "multiple-choice" }), /Naming/);
+  assert.throws(() => createNamingAssessmentConfig({ seed: "DOCX-INVALID", questionType: "multiple-choice" }), /Naming/);
   assert.throws(() => normalizeNamingAssessmentConfig({ seed: "DOCX-INVALID", generatorVersion: 3 }), /generatorVersion 4/);
   assert.throws(() => normalizeNamingAssessmentConfig({ seed: "  " }), /seed/);
   assert.throws(() => normalizeNamingAssessmentConfig({ seed: "DOCX-INVALID", extra: true }), /Unexpected/);
@@ -235,4 +255,120 @@ test("one real assessment gives identical ES/EN chemistry and one shared Student
     "locale must not alter the generated structure image order");
   assertNoAnswerBytes(englishStudentEntries, englishModel.questions.map(({ referenceAnswer }) => referenceAnswer));
   for (const answer of englishModel.questions.map(({ referenceAnswer }) => referenceAnswer)) assert.ok(englishTeacherText.includes(answer));
+});
+
+test("real engine MCQ exports retain deterministic alternatives, exact evaluation, privacy, locale and shared Student/Teacher identity", async () => {
+  const base = { seed: "DOCX-2-MCQ-ES-EN-IDENTITY", questionCount: 5, difficulty: "intermediate",
+    categories: ["alkane", "alkene", "alcohol"] };
+  const spanishConfig = createMultipleChoiceAssessmentConfig({ ...base, locale: "es" });
+  const englishConfig = createMultipleChoiceAssessmentConfig({ ...base, locale: "en" });
+  const generate = engineGenerator();
+  const spanishQuestions = selectMultipleChoiceAssessmentQuestions(spanishConfig, generate);
+  const englishQuestions = selectMultipleChoiceAssessmentQuestions(englishConfig, generate);
+  const repeatSpanish = selectMultipleChoiceAssessmentQuestions(spanishConfig, generate);
+  const identities = (questions) => questions.map((question) => ({
+    id: question.question.id,
+    structuralIdentity: question.reference.structuralIdentity,
+    category: question.category,
+    options: question.options.map((option) => option.id),
+    correctOptionId: question.correctOptionId,
+  }));
+  assert.deepEqual(identities(spanishQuestions), identities(englishQuestions), "locale cannot change selected structures or option identities/order");
+  assert.deepEqual(identities(spanishQuestions), identities(repeatSpanish), "same MCQ config must repeat exact selected questions and alternatives");
+  assert.ok(spanishQuestions.every((question) => question.options.length === 4));
+  assert.ok(spanishQuestions.every((question) => new Set(question.options.map((option) => option.name.es)).size === 4
+    && new Set(question.options.map((option) => option.name.en)).size === 4), "engine alternatives remain unique in both locales");
+
+  const spanishAssets = await renderDocxStructurePngAssets(spanishQuestions, chemistry.engine.MoleculeHistoryPreview);
+  const spanishModel = createDocxAssessmentModel({ config: spanishConfig, questions: spanishQuestions, structureAssets: spanishAssets });
+  const teacherModel = spanishModel;
+  assert.equal(teacherModel, spanishModel);
+  assert.equal(spanishModel.metadata.questionType, "multiple-choice");
+  assert.equal(spanishModel.questions.length, 5);
+  for (const [index, question] of spanishModel.questions.entries()) {
+    assert.equal(question.questionType, "multiple-choice");
+    assert.equal(question.options.length, 4);
+    assert.deepEqual(question.options.map(({ optionId }) => optionId), spanishQuestions[index].options.map(({ id }) => id));
+    assert.equal(question.correctOptionIndex, spanishQuestions[index].options.findIndex(({ id }) => id === spanishQuestions[index].correctOptionId));
+    assert.equal(question.options[question.correctOptionIndex].text, question.referenceAnswer);
+    assert.equal(new Set(question.options.map(({ text }) => text)).size, 4);
+  }
+
+  const englishAssets = await renderDocxStructurePngAssets(englishQuestions, chemistry.engine.MoleculeHistoryPreview);
+  const englishModel = createDocxAssessmentModel({ config: englishConfig, questions: englishQuestions, structureAssets: englishAssets });
+  assert.deepEqual(spanishModel.questions.map(({ exerciseId, structuralIdentity, options }) => ({
+    exerciseId, structuralIdentity, optionIds: options.map(({ optionId }) => optionId),
+  })), englishModel.questions.map(({ exerciseId, structuralIdentity, options }) => ({
+    exerciseId, structuralIdentity, optionIds: options.map(({ optionId }) => optionId),
+  })));
+  assert.ok(spanishModel.questions.some((question, index) => question.prompt !== englishModel.questions[index].prompt));
+  assert.ok(spanishModel.questions.some((question, index) => question.options.some((option, optionIndex) =>
+    option.text !== englishModel.questions[index].options[optionIndex].text)), "localized alternative names must follow the chosen locale");
+
+  const [studentBuffer, teacherBuffer] = await Promise.all([
+    renderStudentDocxBuffer(spanishModel), renderTeacherDocxBuffer(teacherModel),
+  ]);
+  const studentEntries = readZipEntries(studentBuffer);
+  const teacherEntries = readZipEntries(teacherBuffer);
+  const studentXml = studentEntries.get("word/document.xml").toString("utf8");
+  const teacherXml = teacherEntries.get("word/document.xml").toString("utf8");
+  const studentText = getWordDocumentText(studentXml);
+  const teacherText = getWordDocumentText(teacherXml);
+  const normalizedTeacherText = teacherText.replace(/\s+/g, " ");
+  assert.ok(studentText.includes("Opción múltiple de nomenclatura IUPAC"));
+  assert.ok(studentText.includes("¿Cuál es el nombre IUPAC correcto?"));
+  assert.equal((studentText.match(/¿Cuál es el nombre IUPAC correcto\?/g) ?? []).length, 5);
+  assert.ok(studentText.includes("Nombre:") && studentText.includes("Curso:") && studentText.includes("Fecha:"));
+  assert.ok(!studentText.includes("Respuestas") && !studentText.includes("Versión docente"));
+  let documentCursor = 0;
+  let keyCursor = normalizedTeacherText.indexOf("Respuestas");
+  for (const question of spanishModel.questions) {
+    const promptPosition = studentText.indexOf(question.prompt, documentCursor);
+    assert.ok(promptPosition >= documentCursor, `student document must preserve question ${question.number} order`);
+    documentCursor = promptPosition + question.prompt.length;
+    for (const [optionIndex, option] of question.options.entries()) {
+      const labeledOption = `${String.fromCharCode(65 + optionIndex)}. ${option.text}`;
+      const position = studentText.indexOf(labeledOption, documentCursor);
+      assert.ok(position >= documentCursor, `student alternatives must preserve question ${question.number} order`);
+      documentCursor = position + labeledOption.length;
+    }
+    const answerLine = `${question.number}. ${String.fromCharCode(65 + question.correctOptionIndex)}. ${question.referenceAnswer}`;
+    const answerPosition = normalizedTeacherText.indexOf(answerLine, keyCursor);
+    assert.ok(answerPosition >= keyCursor, `teacher key must include ordered entry ${answerLine}`);
+    keyCursor = answerPosition + answerLine.length;
+    assert.ok(studentText.includes(question.referenceAnswer), "the correct chemistry name is expected among the four student options");
+  }
+  assert.ok(teacherText.includes("Versión docente") && teacherText.includes("Respuestas"));
+  for (const entries of [studentEntries, teacherEntries]) {
+    assert.equal([...entries.keys()].filter((name) => name.startsWith("word/media/") && !name.endsWith("/")).length, 5);
+    assert.equal((entries.get("word/document.xml").toString("utf8").match(/<a:blip\b/g) ?? []).length, 5);
+  }
+  assert.deepEqual(docxImageTargets(studentEntries), docxImageTargets(teacherEntries));
+  const studentPackageText = [...studentEntries.values()].map((data) => data.toString("utf8")).join("\n");
+  for (const metadata of ["correctOptionIndex", "correctOptionId", "optionSetIdentity", "diagnosticCode", "recipeId", "optionId"]) {
+    assert.ok(!studentPackageText.includes(metadata), `student package must not contain ${metadata}`);
+  }
+  for (const question of spanishQuestions) for (const option of question.options) {
+    assert.ok(!studentPackageText.includes(option.id), "student package must not contain engine option IDs");
+  }
+
+  const englishStudentBuffer = await renderStudentDocxBuffer(englishModel);
+  const englishStudentEntries = readZipEntries(englishStudentBuffer);
+  const englishStudentText = getWordDocumentText(englishStudentEntries.get("word/document.xml").toString("utf8"));
+  assert.ok(englishStudentText.includes("IUPAC Multiple Choice"));
+  assert.ok(englishStudentText.includes("What is the correct IUPAC name?"));
+  assert.deepEqual(docxImageTargets(studentEntries), docxImageTargets(englishStudentEntries));
+});
+
+test("real engine MCQ selection accepts each frozen Difficulty profile without changing generator version", () => {
+  const generate = engineGenerator();
+  for (const difficulty of ["basic", "intermediate", "advanced"]) {
+    const config = createMultipleChoiceAssessmentConfig({ seed: `DOCX-2-MCQ-${difficulty}`, questionCount: 5,
+      difficulty, categories: ["alkane", "alkene", "alcohol"] });
+    const questions = selectMultipleChoiceAssessmentQuestions(config, generate);
+    assert.equal(questions.length, 5);
+    assert.ok(questions.every((question) => question.type === "multiple-choice"
+      && question.question.generatorVersion === 4 && config.categories.includes(question.category)));
+    assert.equal(new Set(questions.map((question) => question.reference.structuralIdentity)).size, 5);
+  }
 });

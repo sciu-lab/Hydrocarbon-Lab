@@ -50,10 +50,22 @@ export function createDocxDocument(model: DocxAssessment, audience: DocxAudience
       spacing: { after: 60 },
       keepNext: true,
     }));
-    children.push(new Paragraph({
-      text: english ? "Answer: ______________________________" : "Respuesta: ______________________________",
-      spacing: { after: 160 },
-    }));
+    if (question.questionType === "multiple-choice") {
+      question.options.forEach((option, optionIndex) => {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: `${String.fromCharCode(65 + optionIndex)}. ${option.text}` })],
+          indent: { left: 360 },
+          spacing: { after: 45 },
+          keepLines: true,
+        }));
+      });
+      children.push(new Paragraph({ text: "", spacing: { after: 130 } }));
+    } else {
+      children.push(new Paragraph({
+        text: english ? "Answer: ______________________________" : "Respuesta: ______________________________",
+        spacing: { after: 160 },
+      }));
+    }
   }
 
   if (audience === "teacher") {
@@ -64,11 +76,11 @@ export function createDocxDocument(model: DocxAssessment, audience: DocxAudience
       spacing: { after: 200 },
     }));
     for (const question of model.questions) {
+      const answer = question.questionType === "multiple-choice"
+        ? `${String.fromCharCode(65 + question.correctOptionIndex)}. ${question.referenceAnswer}`
+        : question.referenceAnswer;
       children.push(new Paragraph({
-        children: [
-          new TextRun({ text: `${question.number}. `, bold: true }),
-          new TextRun({ text: question.referenceAnswer }),
-        ],
+        children: [new TextRun({ text: `${question.number}. `, bold: true }), new TextRun({ text: answer })],
         spacing: { after: 120 },
         keepLines: true,
       }));
