@@ -7,7 +7,7 @@ import {
 import { selectNamingAssessmentQuestions } from "../app/docx-assessment-selection.ts";
 import { renderStudentDocxBuffer, renderTeacherDocxBuffer } from "../app/docx-export.ts";
 import { getWordDocumentText, readZipEntries } from "../scripts/docx-archive.mjs";
-import { renderDocxStructurePngAssets } from "../scripts/docx-structure-assets.mjs";
+import { inspectDocxStructureRaster, renderDocxStructurePngAssets, renderDocxStructureSvg } from "../scripts/docx-structure-assets.mjs";
 import { loadExerciseChemistry } from "./helpers/exercise-chemistry.mjs";
 
 const onePixelPng = new Uint8Array(Buffer.from(
@@ -159,6 +159,24 @@ test("one real assessment gives identical ES/EN chemistry and one shared Student
   assert.ok(spanishQuestions.some((question, index) => question.reference.names.es !== englishQuestions[index].reference.names.en));
 
   const assets = await renderDocxStructurePngAssets(spanishQuestions, chemistry.engine.MoleculeHistoryPreview);
+  const visualProbes = ["alkane", "alkene", "alcohol"].map((category) => {
+    const index = spanishQuestions.findIndex((question) => question.category === category);
+    assert.ok(index >= 0, `expected a real ${category} question for the image proof`);
+    return { category, question: spanishQuestions[index], asset: assets[index], index };
+  });
+  for (const { category, question, asset, index } of visualProbes) {
+    const svg = renderDocxStructureSvg(question, chemistry.engine.MoleculeHistoryPreview, index);
+    const ink = await inspectDocxStructureRaster(question, svg, asset.data);
+    assert.match(svg, /<style>[\s\S]*practice-molecule-preview line/);
+    assert.ok(!svg.includes("var("), "the isolated SVG must not depend on external CSS variables");
+    assert.ok(ink.carbonBondSegments > 0, `${category} should have carbon-carbon bond segments`);
+    assert.equal(ink.visibleCarbonBondSegments, ink.carbonBondSegments,
+      `${category} must rasterize ink on every carbon-carbon bond segment`);
+  }
+  assert.ok(visualProbes.find(({ category }) => category === "alkene").question.molecule.bonds
+    .some((bond) => (bond[2] ?? 1) === 2), "the alkene probe must include a double bond");
+  assert.ok(visualProbes.find(({ category }) => category === "alcohol").question.molecule.atoms
+    .some((atom) => atom.element === "O"), "the substituent probe must include its oxygen atom");
   const studentModel = createDocxAssessmentModel({ config: spanishConfig, questions: spanishQuestions, structureAssets: assets });
   const teacherModel = studentModel;
   assert.equal(studentModel, teacherModel);

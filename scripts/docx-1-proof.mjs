@@ -7,7 +7,7 @@ import { createDocxAssessmentModel, createNamingAssessmentConfig, namingAssessme
 import { selectNamingAssessmentQuestions } from "../app/docx-assessment-selection.ts";
 import { renderStudentDocxBuffer, renderTeacherDocxBuffer } from "../app/docx-export.ts";
 import { getWordDocumentText, readZipEntries } from "./docx-archive.mjs";
-import { renderDocxStructurePngAssets } from "./docx-structure-assets.mjs";
+import { inspectDocxStructureRaster, renderDocxStructurePngAssets, renderDocxStructureSvg } from "./docx-structure-assets.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const outputDirectory = join(root, "outputs", "docx-1");
@@ -74,6 +74,39 @@ try {
   const generate = questionModule.createPracticeQuestionGenerator(generateMolecule, distractors);
   const questions = selectNamingAssessmentQuestions(proofConfig, generate);
   const structureAssets = await renderDocxStructurePngAssets(questions, engine.MoleculeHistoryPreview);
+  const visualPhase = process.argv[2] === "baseline" ? "baseline" : "fixed";
+  const visualDirectory = join(outputDirectory, "visual", visualPhase);
+  const visualProbes = [];
+  for (const category of ["alkane", "alkene", "alcohol"]) {
+    const index = questions.findIndex((question) => question.category === category);
+    if (index < 0) throw new Error(`Proof seed did not produce the required ${category} visual probe.`);
+    const question = questions[index];
+    const svg = renderDocxStructureSvg(question, engine.MoleculeHistoryPreview, index);
+    const png = structureAssets[index].data;
+    const rasterInspection = await inspectDocxStructureRaster(question, svg, png);
+    await mkdir(visualDirectory, { recursive: true });
+    await Promise.all([
+      writeFile(join(visualDirectory, `${category}.svg`), svg),
+      writeFile(join(visualDirectory, `${category}.png`), png),
+    ]);
+    if (rasterInspection.carbonBondSegments === 0) throw new Error(`${category} probe has no carbon-carbon bond segments.`);
+    if (visualPhase === "fixed" && rasterInspection.visibleCarbonBondSegments !== rasterInspection.carbonBondSegments) {
+      throw new Error(`${category} probe rasterized only ${rasterInspection.visibleCarbonBondSegments}/${rasterInspection.carbonBondSegments} carbon-carbon bond segments.`);
+    }
+    if (visualPhase === "baseline" && rasterInspection.visibleCarbonBondSegments !== 0) {
+      throw new Error(`Expected the original unstyled SVG bug, but ${category} has visible bond ink.`);
+    }
+    visualProbes.push({
+      category,
+      atoms: question.molecule.atoms.length,
+      bonds: question.molecule.bonds.length,
+      ...rasterInspection,
+      svg: join(visualDirectory, `${category}.svg`),
+      png: join(visualDirectory, `${category}.png`),
+    });
+  }
+  const alkeneProbe = visualProbes.find(({ category }) => category === "alkene");
+  if (alkeneProbe.doubleBondSegments === 0) throw new Error("The alkene visual probe has no double-bond segments.");
   const model = createDocxAssessmentModel({ config: proofConfig, questions, structureAssets });
   const [studentBuffer, teacherBuffer] = await Promise.all([
     renderStudentDocxBuffer(model), renderTeacherDocxBuffer(model),
@@ -93,6 +126,8 @@ try {
     status: "PASS",
     config: proofConfig,
     questionCategories: model.questions.map(({ category }) => category),
+    visualPhase,
+    visualProbes,
     referenceAnswerLengths: answers.map((answer) => answer.length),
     student: { path: studentPath, bytes: student.bytes, mediaAssets: student.media },
     teacher: { path: teacherPath, bytes: teacher.bytes, mediaAssets: teacher.media },
