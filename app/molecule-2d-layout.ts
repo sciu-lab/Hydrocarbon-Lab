@@ -39,8 +39,9 @@ function pointAt(origin: SkeletalPoint, angle: number): SkeletalPoint {
 }
 
 function semiDevelopedStereoBonds(molecule: LayoutMolecule): SemiDevelopedStereoBond[] {
-  return molecule.bonds.flatMap(([left, right, order = 1]) => {
-    if (order !== 2) return [];
+  return molecule.bonds.flatMap((bond) => {
+    const [left, right, order = 1] = bond;
+    if (order !== 2 || bond[3] !== true) return [];
     const inspection = inspectDoubleBondStereochemistry(molecule as Parameters<typeof inspectDoubleBondStereochemistry>[0], left, right);
     return inspection.stereogenic && inspection.configuration
       ? [{ leftAtomId: left, rightAtomId: right, configuration: inspection.configuration }]
