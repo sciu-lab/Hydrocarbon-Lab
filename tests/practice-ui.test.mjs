@@ -139,6 +139,19 @@ function assertPracticeGraphProjection(state, width = 600) {
   return { received, points, html };
 }
 
+test("active Practice question renders skeletal carbon bonds without round-cap dots", () => {
+  const state = startPractice(createPracticeConfig(["alkane"], 1, "es", "UI-VIS-002-PRACTICE", ["naming"]), generate);
+  const html = htmlFor(state);
+  const svg = /<svg\b[\s\S]*?<\/svg>/.exec(html)?.[0];
+  assert.ok(svg, "active Practice question renders its molecular SVG");
+  assert.ok((svg.match(/<line\b/g) ?? []).length > 0, "skeletal bonds remain visible");
+  assert.doesNotMatch(svg, /<circle\b[^>]*class="history-carbon"/, "implicit carbons emit no marker circles");
+  assert.equal((svg.match(/<circle\b/g) ?? []).length, 0, "alkane vertices have no painted circles");
+  const stylesheet = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const rule = /\.practice-molecule-preview line\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? "";
+  assert.match(rule, /stroke-linecap:\s*butt\s*;/, "active bonds do not paint circular caps at implicit carbons");
+});
+
 test("PRACTICE-003: generated ethyl/methyl cyclopentane reaches the renderer with visible branches", () => {
   const config = createPracticeConfig(["simple-carbocycle"], 5, "es", "PRACTICE-003:59", ["naming"], "basic", 1);
   const state = startPractice(config, generate);

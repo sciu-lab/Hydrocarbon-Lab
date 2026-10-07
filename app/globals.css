@@ -9797,7 +9797,7 @@ html[data-theme="dark"] .docx-export-error { color: #ffaaa2; }
 .practice-structure { width: 100%; min-width: 0; }
 .practice-structure.is-reviewing { position: sticky; top: 8px; z-index: 2; background: var(--paper); border-radius: 12px; }
 .practice-structure .practice-molecule-preview { height: 300px; background-color: var(--canvas); border-color: var(--line); }
-.practice-molecule-preview line { stroke: var(--ink); stroke-width: 2.4; }
+.practice-molecule-preview line { stroke: var(--ink); stroke-width: 2.4; stroke-linecap: butt; }
 .practice-molecule-preview .history-carbon { fill: var(--ink); }
 .practice-molecule-preview .history-hetero { fill: var(--paper); stroke: var(--blue); }
 .practice-molecule-preview text { fill: var(--ink); font-size: 14px; }

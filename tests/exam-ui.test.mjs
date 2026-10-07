@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { before, after, test } from "node:test";
 import { readFileSync } from "node:fs";
+import { before, after, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
@@ -39,6 +39,19 @@ const render = (state, language = "es", props = {}) => {
     "Exam question, results and review must not paint implicit-carbon dots");
   return html;
 };
+
+test("active Exam question renders skeletal carbon bonds without round-cap dots", () => {
+  const exam = startExam(createExamConfig(["alkane"], 1, "es", "UI-VIS-002-EXAM", ["naming"]), generate);
+  const html = render(exam);
+  const svg = /<svg\b[\s\S]*?<\/svg>/.exec(html)?.[0];
+  assert.ok(svg, "active Exam question renders its molecular SVG");
+  assert.ok((svg.match(/<line\b/g) ?? []).length > 0, "skeletal bonds remain visible");
+  assert.doesNotMatch(svg, /<circle\b[^>]*class="history-carbon"/, "implicit carbons emit no marker circles");
+  assert.equal((svg.match(/<circle\b/g) ?? []).length, 0, "alkane vertices have no painted circles");
+  const stylesheet = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const rule = /\.practice-molecule-preview line\s*\{([^}]*)\}/.exec(stylesheet)?.[1] ?? "";
+  assert.match(rule, /stroke-linecap:\s*butt\s*;/, "active bonds do not paint circular caps at implicit carbons");
+});
 const ready = (s, i) => markExamQuestionAvailable(s, time(i * 1000), { index: s.index, questionId: s.plan.slots[s.index].questionIdentity });
 
 for (const category of ["alcohol", "ketone", "carboxylic-acid", "ester", "nitrile", "ez"]) {
