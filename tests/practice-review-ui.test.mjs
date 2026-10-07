@@ -97,6 +97,8 @@ test("SVG highlights and numbering use semantic IDs for every review step withou
     const baseline = projection(renderToStaticMarkup(renderStructure(feedback.question.molecule, "Review structure", 320, 300)));
     for (const step of model.steps) {
       const html = renderToStaticMarkup(renderStructure(feedback.question.molecule, "Review structure", 320, 300, step));
+      assert.doesNotMatch(html, /<circle\b[^>]*class="history-carbon"/,
+        "review uses rings and bond halos without base carbon dots");
       assert.deepEqual(projection(html), baseline, "highlighting changes no atom transform or bond endpoint/order");
       const atomIds = [...html.matchAll(/<g[^>]*data-atom-id="(\d+)"[^>]*data-review-highlight="true"/g)].map((m) => +m[1]).sort((a, b) => a - b);
       const bondIds = [...new Set([...html.matchAll(/<line[^>]*data-bond-start="(\d+)"[^>]*data-bond-end="(\d+)"[^>]*data-bond-order="\d+"[^>]*data-review-highlight="true"/g)].map((m) => reviewBondId(+m[1], +m[2])))].sort();

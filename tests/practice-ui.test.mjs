@@ -83,6 +83,8 @@ function assertPracticeGraphProjection(state, width = 600) {
   assert.deepEqual(createExerciseChemistryOracles(engine).reference(received).names, original.reference.names);
   const attribute = (attributes, name) => new RegExp(`\\b${name}="([^"]*)"`).exec(attributes)?.[1];
   const points = new Map();
+  assert.doesNotMatch(html, /<circle\b[^>]*class="history-carbon"/,
+    "Practice, correction and feedback use clean implicit-carbon vertices");
   for (const [, attributes] of html.matchAll(/<g\b([^>]*data-atom-id[^>]*)>/g)) {
     const id = +attribute(attributes, "data-atom-id");
     const transform = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(attribute(attributes, "transform"));

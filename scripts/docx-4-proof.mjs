@@ -193,7 +193,7 @@ try {
   }, oracles);
   const generate = questionModule.createPracticeQuestionGenerator(generateMolecule, distractors);
   assert.match(DOCX_STRUCTURE_SVG_STYLES, /stroke:\s*#18312d/);
-  assert.match(DOCX_STRUCTURE_SVG_STYLES, /\.history-carbon\s*\{\s*fill:\s*#18312d/);
+  assert.doesNotMatch(DOCX_STRUCTURE_SVG_STYLES, /\.history-carbon/);
   assert.match(DOCX_STRUCTURE_SVG_STYLES, /\.history-hetero\s*\{\s*fill:\s*#ffffff/);
   assert.doesNotMatch(DOCX_STRUCTURE_SVG_STYLES, /var\(|currentColor|prefers-color-scheme|\.dark\b/,
     "print SVG paint must not inherit dark/light theme tokens");
@@ -246,6 +246,8 @@ try {
       assert.equal(inspection.visibleCarbonBondSegments, inspection.carbonBondSegments,
         `${id} question ${index + 1} lost a rendered carbon bond`);
       assert.match(svg, /<style>[\s\S]*practice-molecule-preview line/);
+      assert.doesNotMatch(svg, /<circle\b[^>]*class="history-carbon"/,
+        `${id} must not paint implicit-carbon circles`);
       assert.doesNotMatch(svg, /var\(|currentColor/);
       if (question.molecule.atoms.some((atom) => atom.element && atom.element !== "C")) {
         assert.match(svg, /<text\b/, `${id} question ${index + 1} must retain heteroatom labels`);

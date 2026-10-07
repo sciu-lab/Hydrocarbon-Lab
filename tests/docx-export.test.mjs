@@ -188,6 +188,8 @@ test("one real assessment gives identical ES/EN chemistry and one shared Student
     const svg = renderDocxStructureSvg(question, chemistry.engine.MoleculeHistoryPreview, index);
     const ink = await inspectDocxStructureRaster(question, svg, asset.data);
     assert.match(svg, /<style>[\s\S]*practice-molecule-preview line/);
+    assert.doesNotMatch(svg, /<circle\b[^>]*class="history-carbon"/,
+      "DOCX structure assets must not paint implicit-carbon dots");
     assert.ok(!svg.includes("var("), "the isolated SVG must not depend on external CSS variables");
     assert.ok(ink.carbonBondSegments > 0, `${category} should have carbon-carbon bond segments`);
     assert.equal(ink.visibleCarbonBondSegments, ink.carbonBondSegments,
@@ -208,6 +210,7 @@ test("one real assessment gives identical ES/EN chemistry and one shared Student
   const tripleProbe = alkyneQuestions.findIndex((question) => question.molecule.bonds.some((bond) => (bond[2] ?? 1) === 3));
   assert.ok(tripleProbe >= 0, "the alkyne visual probe must contain a triple bond");
   const tripleSvg = renderDocxStructureSvg(alkyneQuestions[tripleProbe], chemistry.engine.MoleculeHistoryPreview, tripleProbe);
+  assert.doesNotMatch(tripleSvg, /<circle\b[^>]*class="history-carbon"/);
   const tripleInk = await inspectDocxStructureRaster(alkyneQuestions[tripleProbe], tripleSvg, alkyneAssets[tripleProbe].data);
   assert.ok(tripleInk.tripleBondSegments > 0, "the triple-bond SVG strokes must be present");
   assert.equal(tripleInk.visibleCarbonBondSegments, tripleInk.carbonBondSegments,
@@ -295,6 +298,10 @@ test("real engine MCQ exports retain deterministic alternatives, exact evaluatio
     && new Set(question.options.map((option) => option.name.en)).size === 4), "engine alternatives remain unique in both locales");
 
   const spanishAssets = await renderDocxStructurePngAssets(spanishQuestions, chemistry.engine.MoleculeHistoryPreview);
+  for (const [index, question] of spanishQuestions.entries()) {
+    assert.doesNotMatch(renderDocxStructureSvg(question, chemistry.engine.MoleculeHistoryPreview, index),
+      /<circle\b[^>]*class="history-carbon"/, "MCQ must use the same clean skeletal preview");
+  }
   const spanishModel = createDocxAssessmentModel({ config: spanishConfig, questions: spanishQuestions, structureAssets: spanishAssets });
   const teacherModel = spanishModel;
   assert.equal(teacherModel, spanishModel);

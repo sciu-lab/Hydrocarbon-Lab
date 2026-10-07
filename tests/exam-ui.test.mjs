@@ -32,8 +32,13 @@ const time = (ms) => ({ monotonicMs: ms, wallTimeMs: 1700000000000 + ms });
 const start = (types = ["naming"]) => startExam(createExamConfig(["alcohol"], 5, "es", "EXAM-UI", types, "basic", 1), generate);
 const renderStructure = (molecule, label, width, height) => React.createElement(chemistry.engine.MoleculeHistoryPreview,
   { molecule, ariaLabel: label, width, height, practiceView: true });
-const render = (state, language = "es", props = {}) => renderToStaticMarkup(React.createElement(ui.ExamSessionView,
-  { state: localizeExamState(state, language), language, actions, renderStructure, review: reviewer, ...props }));
+const render = (state, language = "es", props = {}) => {
+  const html = renderToStaticMarkup(React.createElement(ui.ExamSessionView,
+    { state: localizeExamState(state, language), language, actions, renderStructure, review: reviewer, ...props }));
+  assert.doesNotMatch(html, /<circle\b[^>]*class="history-carbon"/,
+    "Exam question, results and review must not paint implicit-carbon dots");
+  return html;
+};
 const ready = (s, i) => markExamQuestionAvailable(s, time(i * 1000), { index: s.index, questionId: s.plan.slots[s.index].questionIdentity });
 
 for (const category of ["alcohol", "ketone", "carboxylic-acid", "ester", "nitrile", "ez"]) {

@@ -6052,8 +6052,8 @@ export function MoleculeHistoryPreview({
         const position = positions.get(atom.id)!;
         const element = atom.element ?? "C";
         const chargeText = atom.charge === 1 ? "+" : atom.charge === -1 ? "−" : "";
-        const isolatedCarbon = practiceView && element === "C" && molecule.atoms.length === 1;
-        const hydrogens = practiceView ? getImplicitHydrogens(atom.id, molecule) : 0;
+        const isolatedCarbon = element === "C" && molecule.atoms.length === 1;
+        const hydrogens = practiceView || isolatedCarbon ? getImplicitHydrogens(atom.id, molecule) : 0;
         const labeled = element !== "C" || isolatedCarbon;
         return (
           <g key={atom.id} data-atom-id={practiceView ? atom.id : undefined}
@@ -6062,12 +6062,13 @@ export function MoleculeHistoryPreview({
             {practiceView && reviewHighlights?.highlightAtomIds.includes(atom.id) &&
               <circle className="practice-review-atom-ring" r={labeled ? isolatedCarbon ? 28 : 20 : 10}
                 aria-hidden="true" pointerEvents="none" />}
-            <circle className={labeled ? "history-hetero" : "history-carbon"}
-              r={practiceView && labeled ? isolatedCarbon ? 24 : 16 : element === "C" ? 3.5 : 7} />
+            {/* Implicit carbons are bond vertices; keep their semantic groups for review overlays. */}
+            {labeled && <circle className="history-hetero"
+              r={practiceView ? isolatedCarbon ? 24 : 16 : 7} />}
             {labeled && (
               <text textAnchor="middle" dominantBaseline="central">
                 {element}{hydrogens > 0 ? "H" : ""}
-                {hydrogens > 1 && <tspan baselineShift="sub" fontSize="10">{hydrogens}</tspan>}
+                {hydrogens > 1 && <tspan baselineShift="sub" fontSize={practiceView ? 10 : 5}>{hydrogens}</tspan>}
                 {chargeText && <tspan baselineShift={practiceView ? "super" : undefined} fontSize={practiceView ? 10 : undefined}>{chargeText}</tspan>}
               </text>
             )}
