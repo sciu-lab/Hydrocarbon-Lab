@@ -1,9 +1,15 @@
 import {
   buildOpenChainSkeletalPositions,
-  buildOpenChainSemiDevelopedPositions,
-  type SkeletalPoint,
 } from "./skeletal-layout.ts";
 import { findOrderedSimpleMonocycle } from "./simple-cycle.ts";
+import {
+  calculateSemiDevelopedLayout,
+  type SemiDevelopedStereoBond,
+  type SemiDevelopedPoint,
+} from "./semi-developed-layout.ts";
+import { inspectDoubleBondStereochemistry } from "./double-bond-stereochemistry.ts";
+
+type SkeletalPoint = { x: number; y: number };
 
 type LayoutAtom = {
   id: number;
@@ -30,6 +36,16 @@ function pointAt(origin: SkeletalPoint, angle: number): SkeletalPoint {
     x: origin.x + Math.cos(angle) * BOND_LENGTH,
     y: origin.y + Math.sin(angle) * BOND_LENGTH,
   };
+}
+
+function semiDevelopedStereoBonds(molecule: LayoutMolecule): SemiDevelopedStereoBond[] {
+  return molecule.bonds.flatMap(([left, right, order = 1]) => {
+    if (order !== 2) return [];
+    const inspection = inspectDoubleBondStereochemistry(molecule as Parameters<typeof inspectDoubleBondStereochemistry>[0], left, right);
+    return inspection.stereogenic && inspection.configuration
+      ? [{ leftAtomId: left, rightAtomId: right, configuration: inspection.configuration }]
+      : [];
+  });
 }
 
 function distanceToSegment(
@@ -395,18 +411,17 @@ export function calculateMolecule2DLayout(
   molecule: LayoutMolecule,
   mainChain: readonly number[],
   viewMode: "skeletal" | "condensed" = "skeletal",
-): Map<number, SkeletalPoint> {
+): Map<number, SkeletalPoint | SemiDevelopedPoint> {
+  if (viewMode === "condensed") {
+    return calculateSemiDevelopedLayout(molecule, mainChain, semiDevelopedStereoBonds(molecule));
+  }
   const explicitRings = molecule.rings ?? [];
   const inferredCycle = explicitRings.length ? null : findOrderedSimpleMonocycle(molecule);
   const rings = explicitRings.length
     ? explicitRings
     : inferredCycle ? [{ atomIds: inferredCycle, inferred: true }]
       : [];
-  if (!rings.length) {
-    return viewMode === "condensed"
-      ? buildOpenChainSemiDevelopedPositions(molecule, mainChain)
-      : buildOpenChainSkeletalPositions(molecule, mainChain);
-  }
+  if (!rings.length) return buildOpenChainSkeletalPositions(molecule, mainChain);
 
   return buildRingAwarePositions(molecule, rings);
 }

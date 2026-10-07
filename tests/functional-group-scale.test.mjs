@@ -5,6 +5,7 @@ import ts from "typescript";
 import { getMoleculeVisualBounds } from "../app/molecule-visual-bounds.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const semiDevelopedRenderer = readFileSync(new URL("../app/semi-developed-svg-renderer.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
 function functionFromPage(name) {
@@ -41,7 +42,8 @@ test("functional-group scale defaults to 100% and accepts only 60% through 200%"
 
 test("one global SVG transform scales every heteroatom label without scaling bonds or numbering", () => {
   assert.match(page, /className="functional-group-label" transform=\{`scale\(\$\{functionalGroupScale\}\)`\}/);
-  assert.match(page, /className=\{carbonAtom \? undefined : "functional-group-label"\}/);
+  assert.match(page, /<SemiDevelopedAtomSvg[\s\S]*?functionalGroupScale=\{functionalGroupScale\}/);
+  assert.match(semiDevelopedRenderer, /transform=\{carbon \? undefined : `scale\(\$\{functionalGroupScale\}\)`\}/);
   assert.match(page, /className="number-label"[\s\S]*?fontSize: numberingGeometry\.fontSize/);
   assert.match(page, /className="hydrogen-subscript" baselineShift="sub"/);
   assert.doesNotMatch(page, /molecule-stage[^\n]*scale\(\$\{functionalGroupScale\}/);
@@ -53,8 +55,9 @@ test("the selected label size and resolved number badges share fitted export bou
   assert.match(page, /const offset = skeletalNumberBadgeOffsets\.get\(atom\.id\)!/);
   assert.match(
     page,
-    /additionalExtents: \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.tetrahedralBadgeExtents, \.\.\.steroidRingLabelExtents\]/s,
+    /const visualExtents = \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.tetrahedralBadgeExtents, \.\.\.steroidRingLabelExtents\]/s,
   );
+  assert.match(page, /getSemiDevelopedBounds\(displayPositions\.values\(\), \{[\s\S]*?extents: visualExtents/);
   assert.match(page, /const clonedSvg = sourceSvg\.cloneNode\(true\) as SVGSVGElement/);
   assert.match(page, /fitViewBoxToContent\(clonedSvg, SVG_EXPORT_VIEWBOX_PADDING\)/);
 });

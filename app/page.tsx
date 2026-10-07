@@ -24,6 +24,9 @@ import { createDeterministicDistractorEngine } from "./practice-distractor-engin
 import { createPracticeReviewer, reviewBondId } from "./practice-review";
 import type { ReviewHighlights } from "./practice-review";
 import { calculatePracticeMolecule2DLayout } from "./practice-molecule-layout";
+import { buildSemiDevelopedRenderModel } from "./semi-developed-renderer";
+import { SemiDevelopedAtomSvg } from "./semi-developed-svg-renderer";
+import { getSemiDevelopedBounds } from "./semi-developed-layout";
 import { createRestrictedChemicalGenerator } from "./exercise-chemical-generator";
 import { createExerciseChemistryOracles } from "./exercise-chemistry-oracles";
 import { buildHydrocarbonFromIupacName } from "./name-to-molecule";
@@ -96,7 +99,7 @@ import {
   normalizeNumberingScale,
   NUMBERING_SCALE_STEP,
 } from "./skeletal-bond-geometry";
-import { clipCondensedBondSegments, CONDENSED_NODE_RADIUS } from "./condensed-bond-geometry";
+import { clipSemiDevelopedBondSegments } from "./semi-developed-bond-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
 import {
   clearTetrahedralConfiguration,
@@ -9640,6 +9643,11 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       y: point.y * coordinateScale,
     }]),
   );
+  const semiDevelopedRenderModel = viewMode === "condensed"
+    ? buildSemiDevelopedRenderModel(molecule, displayPositions, (atomId) => getImplicitHydrogens(atomId, molecule))
+    : null;
+  const semiDevelopedAtomGlyphs = new Map(semiDevelopedRenderModel?.atoms.map((glyph) => [glyph.atomId, glyph]) ?? []);
+  const semiDevelopedBondGlyphs = new Map(semiDevelopedRenderModel?.bonds.map((glyph) => [glyph.bondId, glyph]) ?? []);
   const tetrahedralStereoBonds = viewMode === "skeletal" && stereochemistryEnabled
     ? getTetrahedralStereoBonds({
         ...molecule,
@@ -9860,18 +9868,21 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     width: 32,
     height: 32,
   }));
-  const moleculeVisualBounds = getMoleculeVisualBounds(displayPositions.values(), {
-    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents],
-  });
+  const visualExtents = [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents];
+  const moleculeVisualBounds = viewMode === "condensed"
+    ? { ...getSemiDevelopedBounds(displayPositions.values(), { labelRadius: 48, padding: 72, extents: visualExtents }), padding: 72 }
+    : getMoleculeVisualBounds(displayPositions.values(), { additionalExtents: visualExtents });
   // The normal canvas keeps a generous classroom workspace. The expanded
   // editor instead starts from the same content bounds used by export, with a
   // smaller presentation margin, so its SVG fills the modal without scaling
   // DOM pixels or changing the molecular coordinates.
-  const expandedFitBounds = getMoleculeVisualBounds(displayPositions.values(), {
-    atomExtent: 58,
-    padding: 36,
-    additionalExtents: [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents],
-  });
+  const expandedFitBounds = viewMode === "condensed"
+    ? { ...getSemiDevelopedBounds(displayPositions.values(), { labelRadius: 58, padding: 36, extents: visualExtents }), padding: 36 }
+    : getMoleculeVisualBounds(displayPositions.values(), {
+        atomExtent: 58,
+        padding: 36,
+        additionalExtents: visualExtents,
+      });
   const readExpandedFitBounds = useEffectEvent(() => expandedFitBounds);
   /* eslint-disable react-hooks/set-state-in-effect -- modal-open transition synchronizes its derived viewport once */
   useEffect(() => {
@@ -10766,7 +10777,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               </div>
             )}
           <div
-            className={`molecule-stage ${placementTool ? "is-placing" : ""} ${draggedRingTemplate ? "is-dragging-ring" : ""} ${viewMode === "skeletal" ? "skeletal-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasScaleClass}`}
+            className={`molecule-stage ${placementTool ? "is-placing" : ""} ${draggedRingTemplate ? "is-dragging-ring" : ""} ${viewMode === "skeletal" ? "skeletal-view" : "semi-developed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasScaleClass}`}
             style={structureColorStyle}
             tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
             role={advancedScreenReaderEnabled ? "group" : undefined}
@@ -10869,7 +10880,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               <g className="molecule-bonds-layer">
               {molecule.bonds.map((bond) => {
                 const [a, b] = bond;
-                const order = getBondOrder(bond);
+                const semiBond = semiDevelopedBondGlyphs.get(`${Math.min(a, b)}:${Math.max(a, b)}`);
+                const order = viewMode === "skeletal" ? getBondOrder(bond) : semiBond?.order ?? getBondOrder(bond);
                 const positionA = displayPositions.get(a)!;
                 const positionB = displayPositions.get(b)!;
                 const isMainBond = mainChainSet.has(a) && mainChainSet.has(b);
@@ -10989,7 +11001,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                             bondClipOptions,
                           )
                       : rawBondSegments
-                  : clipCondensedBondSegments(rawBondSegments, positionA, positionB);
+                  : clipSemiDevelopedBondSegments(rawBondSegments, positionA, positionB);
                 const lockedBond = isFunctionalBond
                   || Boolean(molecule.rings?.length && !containingRing);
                 const reasoningHighlighted = activeReasoningBondIds.some(([left, right]) =>
@@ -11262,9 +11274,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                 const showHydrogenOnLabel = showHydrogens;
                 const atomLabel = carbonAtom
                   ? showHydrogenOnLabel
-                    ? hydrogenCount === 0
-                      ? "C"
-                      : "CH"
+                    ? (semiDevelopedAtomGlyphs.get(atom.id)?.carbonGroup?.startsWith("CH") ? "CH" : "C")
                     : "C"
                   : showHydrogenOnLabel && hydrogenCount > 0
                     ? `${element}H`
@@ -11278,7 +11288,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                 return (
                   <g
                     key={atom.id}
-                    className={`carbon-node ${carbonAtom ? "carbon-element" : `hetero-node element-${element.toLowerCase()}`} ${viewMode === "skeletal" ? (carbonAtom ? "skeletal-node" : "skeletal-hetero-node") : "condensed-node"} ${isSelected ? "selected" : ""} ${mainChainSet.has(atom.id) ? "on-main-chain" : "on-branch"}`}
+                    className={`carbon-node ${carbonAtom ? "carbon-element" : `hetero-node element-${element.toLowerCase()}`} ${viewMode === "skeletal" ? (carbonAtom ? "skeletal-node" : "skeletal-hetero-node") : "semi-developed-node"} ${isSelected ? "selected" : ""} ${mainChainSet.has(atom.id) ? "on-main-chain" : "on-branch"}`}
                     transform={`translate(${position.x} ${position.y})`}
                     data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "carbon" && atom.id === guidedTourCarbonAtomId ? "carbon" : undefined}
                     data-guided-tour-target={showGuidedTour && guidedTourTarget === "carbon" && atom.id === guidedTourCarbonAtomId ? "active" : undefined}
@@ -11431,24 +11441,14 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                       )
                     ) : (
                       <>
-                        {isSelected && <circle className="selection-ring" r="39" />}
-                        <circle className="atom-circle" r={CONDENSED_NODE_RADIUS} />
-                        <g
-                          className={carbonAtom ? undefined : "functional-group-label"}
-                          transform={carbonAtom ? undefined : `scale(${functionalGroupScale})`}
-                        >
-                          <text className="atom-label" textAnchor="middle" dominantBaseline="central">
-                            <tspan>{atomLabel}</tspan>
-                            {hydrogenSubscript && (
-                              <tspan className="hydrogen-subscript" baselineShift="sub">
-                                {hydrogenSubscript}
-                              </tspan>
-                            )}
-                            {chargeText && (
-                              <tspan className="atom-charge" baselineShift="super">{chargeText}</tspan>
-                            )}
-                          </text>
-                        </g>
+                        <SemiDevelopedAtomSvg
+                          glyph={semiDevelopedAtomGlyphs.get(atom.id)!}
+                          label={atomLabel}
+                          hydrogenSubscript={hydrogenSubscript}
+                          charge={chargeText}
+                          selected={isSelected}
+                          functionalGroupScale={functionalGroupScale}
+                        />
                         {effectiveShowNumbering && chainNumber && (
                           <>
                             {numberBadgeNeedsLeader.has(atom.id) && (

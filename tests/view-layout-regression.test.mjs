@@ -149,16 +149,19 @@ test("alcohol, ketone and aldehyde layouts preserve identity and group attachmen
   }
 });
 
-test("explicit and inferred rings retain their polygons in both views", () => {
+test("explicit and inferred rings retain cyclic topology in independent view layouts", () => {
   for (const smiles of ["C1CCCCC1", "c1ccccc1", "CCc1ccccc1"]) {
     const explicit = imported(smiles);
     for (const molecule of [explicit, { ...explicit, rings: undefined }]) {
       const path = chemistry.engine.analyzeMolecule(explicit).mainChain;
       const skeletal = calculateMolecule2DLayout(molecule, path, "skeletal");
       const condensed = calculateMolecule2DLayout(molecule, path, "condensed");
-      assert.deepEqual(condensed, skeletal);
+      assert.notDeepEqual(condensed, skeletal, "semi-developed ring layout owns its display geometry");
       const ringPoints = pointsOn(condensed, explicit.rings[0].atomIds);
       assert.ok(span(ringPoints.map((p) => p.y)) > 100, "ring is not flattened");
+      for (const [left, right] of explicit.bonds.filter(([a, b]) => explicit.rings[0].atomIds.includes(a) && explicit.rings[0].atomIds.includes(b))) {
+        assert.ok(distance(condensed.get(left), condensed.get(right)) > 50, "ring edge remains visible");
+      }
     }
   }
 });
