@@ -44,7 +44,7 @@ test("keeps one live canvas in the sticky left card and all information in the r
   assert.match(styleSource, /\.workspace-grid \{ grid-template-columns: minmax\(0, 59fr\) minmax\(0, 41fr\)/);
   assert.match(styleSource, /\.builder-card \{\s*position: sticky;[\s\S]*?height: calc\(100dvh - var\(--iupac-dock-height\)/);
   assert.match(styleSource, /\.builder-card \.molecule-workspace:not\(\.is-expanded\) \.molecule-stage \{[\s\S]*?flex: 1 1 auto/);
-  assert.match(styleSource, /@media \(max-width: 760px\) \{\s*\.workspace-grid \{ grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styleSource, /@media \(max-width: 820px\) \{\s*\.workspace-grid \{ grid-template-columns: minmax\(0, 1fr\)/);
 });
 
 test("keeps constructor actions aligned across locales and balances two-column desktop rows", () => {

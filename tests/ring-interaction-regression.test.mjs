@@ -126,7 +126,7 @@ test("the dock exposes exactly the two current profiles in both locales", () => 
 
 test("contextual selection focus preserves the page scroll and expanded SVG uses fitted bounds", () => {
   assert.match(page, /\.ring-option:not\(:disabled\)[\s\S]*?\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(page, /const expandedFitBounds = getMoleculeVisualBounds\(displayPositions\.values\(\)/);
+  assert.match(page, /const expandedFitBounds = viewMode === "condensed"[\s\S]*?getSemiDevelopedBounds\(displayPositions\.values\(\), \{[\s\S]*?\}\)[\s\S]*?: getMoleculeVisualBounds\(displayPositions\.values\(\)/);
   assert.match(page, /const activeViewBounds = canvasExpanded/);
   assert.match(page, /setExpandedZoom\(1\)/);
   assert.match(page, /fitExpandedMolecule/);

@@ -50,5 +50,7 @@ test("R/S badge preference is persistent, resettable, and scales layout plus SVG
 
 test("the visual badge extent follows the selected scale for canvas and export framing", () => {
   assert.match(page, /tetrahedralBadgeExtentsAtScale\([\s\S]*effectiveTetrahedralBadgeScale/);
-  assert.match(page, /additionalExtents: \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.tetrahedralBadgeExtents, \.\.\.steroidRingLabelExtents\]/);
+  assert.match(page, /const visualExtents = \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.tetrahedralBadgeExtents, \.\.\.steroidRingLabelExtents\]/);
+  assert.match(page, /: getMoleculeVisualBounds\(displayPositions\.values\(\), \{[\s\S]*?additionalExtents: visualExtents/);
+  assert.match(page, /getSemiDevelopedBounds\(displayPositions\.values\(\), \{[\s\S]*?extents: visualExtents/);
 });
