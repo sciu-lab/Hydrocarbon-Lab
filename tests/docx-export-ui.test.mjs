@@ -8,6 +8,7 @@ import {
   DOCX_EXPORT_QUESTION_COUNTS,
 } from "../app/docx-export-ui-model.ts";
 import { renderDocxStructurePngAssetsBrowser } from "../app/docx-structure-assets-browser.ts";
+import { downloadWorksheetFiles } from "../app/docx-browser-export.ts";
 
 const pixelPng = new Uint8Array(Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jW5kAAAAASUVORK5CYII=", "base64",
@@ -104,6 +105,53 @@ test("browser raster adapter materializes SVG paint and returns PNG bytes withou
   } finally {
     globalThis.document = originalDocument;
     globalThis.Image = originalImage;
+    if (originalCreateObjectURL === undefined) delete URL.createObjectURL;
+    else URL.createObjectURL = originalCreateObjectURL;
+    if (originalRevokeObjectURL === undefined) delete URL.revokeObjectURL;
+    else URL.revokeObjectURL = originalRevokeObjectURL;
+  }
+});
+
+test("Both downloads retain separate object URLs until the browser handoff delay expires", async () => {
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+  const anchors = [];
+  const created = [];
+  const revoked = [];
+  const delayedRevocations = [];
+  globalThis.document = {
+    body: { appendChild() {} },
+    createElement(tag) {
+      assert.equal(tag, "a");
+      const anchor = { style: {}, href: "", download: "", click() { anchors.push({ href: this.href, filename: this.download }); }, remove() {} };
+      return anchor;
+    },
+  };
+  globalThis.window = { setTimeout(callback, delay) {
+    if (delay === 180) { callback(); return 0; }
+    delayedRevocations.push(callback);
+    return delayedRevocations.length;
+  } };
+  URL.createObjectURL = () => { const url = `blob:docx-both/${created.length + 1}`; created.push(url); return url; };
+  URL.revokeObjectURL = (url) => revoked.push(url);
+  try {
+    await downloadWorksheetFiles([
+      { filename: "hydrocarbon-lab-naming-student.docx", blob: new Blob(["student"]) },
+      { filename: "hydrocarbon-lab-naming-teacher.docx", blob: new Blob(["teacher"]) },
+    ]);
+    assert.deepEqual(anchors.map(({ filename }) => filename), [
+      "hydrocarbon-lab-naming-student.docx", "hydrocarbon-lab-naming-teacher.docx",
+    ]);
+    assert.deepEqual(anchors.map(({ href }) => href), created);
+    assert.equal(delayedRevocations.length, 2);
+    assert.deepEqual(revoked, [], "download object URLs must not be revoked before the browser handoff delay");
+    delayedRevocations.forEach((revoke) => revoke());
+    assert.deepEqual(revoked, created, "each temporary download URL must be released after handoff");
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.window = originalWindow;
     if (originalCreateObjectURL === undefined) delete URL.createObjectURL;
     else URL.createObjectURL = originalCreateObjectURL;
     if (originalRevokeObjectURL === undefined) delete URL.revokeObjectURL;

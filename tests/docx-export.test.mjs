@@ -197,6 +197,21 @@ test("one real assessment gives identical ES/EN chemistry and one shared Student
     .some((bond) => (bond[2] ?? 1) === 2), "the alkene probe must include a double bond");
   assert.ok(visualProbes.find(({ category }) => category === "alcohol").question.molecule.atoms
     .some((atom) => atom.element === "O"), "the substituent probe must include its oxygen atom");
+  const alcoholProbe = visualProbes.find(({ category }) => category === "alcohol");
+  assert.match(renderDocxStructureSvg(alcoholProbe.question, chemistry.engine.MoleculeHistoryPreview, alcoholProbe.index),
+    /<text\b[^>]*>OH<\/text>/, "the substituted hydroxyl label must remain in the isolated SVG");
+
+  const alkyneConfig = createNamingAssessmentConfig({ locale: "en", questionCount: 5, difficulty: "basic",
+    categories: ["alkyne"], seed: "DOCX-VIS-001-TRIPLE-BOND" });
+  const alkyneQuestions = selectNamingAssessmentQuestions(alkyneConfig, generate);
+  const alkyneAssets = await renderDocxStructurePngAssets(alkyneQuestions, chemistry.engine.MoleculeHistoryPreview);
+  const tripleProbe = alkyneQuestions.findIndex((question) => question.molecule.bonds.some((bond) => (bond[2] ?? 1) === 3));
+  assert.ok(tripleProbe >= 0, "the alkyne visual probe must contain a triple bond");
+  const tripleSvg = renderDocxStructureSvg(alkyneQuestions[tripleProbe], chemistry.engine.MoleculeHistoryPreview, tripleProbe);
+  const tripleInk = await inspectDocxStructureRaster(alkyneQuestions[tripleProbe], tripleSvg, alkyneAssets[tripleProbe].data);
+  assert.ok(tripleInk.tripleBondSegments > 0, "the triple-bond SVG strokes must be present");
+  assert.equal(tripleInk.visibleCarbonBondSegments, tripleInk.carbonBondSegments,
+    "the raster must retain every skeletal segment including the alkyne triple bond");
   const studentModel = createDocxAssessmentModel({ config: spanishConfig, questions: spanishQuestions, structureAssets: assets });
   const teacherModel = studentModel;
   assert.equal(studentModel, teacherModel);
