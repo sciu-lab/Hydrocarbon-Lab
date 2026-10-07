@@ -16,6 +16,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { PracticePanel } from "./practice-panel";
+import { DocxExportPanel } from "./docx-export-panel";
 import type { BuildEditorProps } from "./practice-build-editor";
 import { createStructuralAnswerEvaluator, createBuildSubmissionValidator } from "./practice-structural-answer";
 import { createPracticeQuestionGenerator } from "./practice-question";
@@ -6098,7 +6099,9 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   const [labLanguage, setLanguage] = useState<AppLanguage>(initialLanguage);
   const language = buildEditor?.language ?? labLanguage;
   const [practiceOpen, setPracticeOpen] = useState(false);
+  const [docxExportOpen, setDocxExportOpen] = useState(false);
   const practiceTriggerRef = useRef<HTMLButtonElement>(null);
+  const docxExportTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (isolatedBuild) return;
     const initialLanguage = detectInitialLanguage();
@@ -12117,8 +12120,19 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
             dismissGuidedTour();
             setPracticeOpen(true);
           }}>{t("Práctica / Examen")}</button>
+        <button type="button" className="guided-tour-launch docx-export-launch" ref={docxExportTriggerRef}
+          aria-haspopup="dialog" aria-expanded={docxExportOpen} onClick={() => {
+            dismissGuidedTour();
+            setDocxExportOpen(true);
+          }}>{t("Crear guía")}</button>
         </div>
       </header>
+
+      {docxExportOpen && <DocxExportPanel language={language} generate={generatePracticeMolecule} Preview={MoleculeHistoryPreview}
+        onClose={() => {
+          setDocxExportOpen(false);
+          window.requestAnimationFrame(() => docxExportTriggerRef.current?.focus());
+        }} />}
 
       {practiceOpen && <PracticePanel language={language} onLanguageChange={setLanguage}
         onBackToLab={() => {

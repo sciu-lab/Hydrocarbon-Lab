@@ -22,6 +22,7 @@
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "docx:proof": "node scripts/docx-1-proof.mjs",
     "docx:mcq-proof": "node scripts/docx-1-proof.mjs --mcq",
+    "test:docx-ui": "node --test tests/docx-export-ui.test.mjs tests/docx-export.test.mjs",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern dist-pages --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },

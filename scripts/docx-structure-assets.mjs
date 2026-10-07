@@ -1,13 +1,7 @@
 import { createElement } from "react";
 import sharp from "sharp";
 import { renderToStaticMarkup } from "react-dom/server";
-
-const DOCX_STRUCTURE_SVG_STYLES = `
-.practice-molecule-preview line { stroke: #18312d; stroke-width: 2.4px; stroke-linecap: round; fill: none; }
-.practice-molecule-preview .history-carbon { fill: #18312d; }
-.practice-molecule-preview .history-hetero { fill: #ffffff; stroke: #266b78; stroke-width: 1.5px; }
-.practice-molecule-preview text { fill: #18312d; font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: 800; }
-`;
+import { materializeDocxStructureSvg } from "../app/docx-structure-svg-style.js";
 
 export function renderDocxStructureSvg(question, MoleculeHistoryPreview, index = 0) {
   const svg = renderToStaticMarkup(createElement(MoleculeHistoryPreview, {
@@ -17,7 +11,7 @@ export function renderDocxStructureSvg(question, MoleculeHistoryPreview, index =
     practiceView: true,
     ariaLabel: `Chemical structure for question ${index + 1}`,
   }));
-  return svg.replace(/(<svg\b[^>]*>)/, `$1<style>${DOCX_STRUCTURE_SVG_STYLES}</style>`);
+  return materializeDocxStructureSvg(svg);
 }
 
 /** Counts rendered C-C bond midpoints in the PNG rather than trusting SVG markup alone. */

@@ -9622,6 +9622,91 @@ html[data-theme="dark"] .guided-tour-inline-action:not(:hover) {
 
 .lab-entry-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .lab-entry-actions .guided-tour-launch { margin-left: 0; min-height: 44px; }
+.docx-export-dialog {
+  width: min(700px, calc(100vw - 24px));
+  max-width: 700px;
+  max-height: min(900px, calc(100dvh - 24px));
+  overflow-y: auto;
+  padding: clamp(16px, 3vw, 24px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+}
+.docx-export-dialog::backdrop { background: rgba(12, 27, 24, .58); }
+.docx-export-dialog:focus { outline: none; }
+.docx-export-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.docx-export-heading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 22px; }
+.docx-export-heading button,
+.docx-export-category-actions button {
+  min-height: 40px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.docx-export-heading button { width: 40px; padding: 0; font-size: 21px; }
+.docx-export-dialog button:focus-visible,
+.docx-export-dialog input:focus-visible,
+.docx-export-dialog select:focus-visible { outline: 3px solid #c17d18; outline-offset: 2px; }
+.docx-export-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
+.docx-export-fields > fieldset,
+.docx-export-fields > .difficulty-selector { min-width: 0; margin: 10px 0; padding: 0; border: 0; }
+.docx-export-fields legend { margin-bottom: 8px; font-weight: 750; }
+.docx-export-choice-row { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.docx-export-choice-row label,
+.docx-export-category-grid label { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.docx-export-choice-row input,
+.docx-export-category-grid input { accent-color: #247b68; }
+.docx-export-field { display: grid; align-content: start; gap: 6px; min-width: 0; margin: 10px 0; font-weight: 700; }
+.docx-export-field select,
+.docx-export-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+.docx-export-categories { grid-column: 1 / -1; }
+.docx-export-category-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.docx-export-category-group { margin: 9px 0; padding: 9px 0 0; border: 0; border-top: 1px solid var(--soft-line); }
+.docx-export-category-group legend { padding: 8px 0 0; color: var(--muted); font-size: 13px; }
+.docx-export-category-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
+.docx-export-category-grid label { overflow-wrap: anywhere; }
+.docx-export-help { grid-column: 1 / -1; margin: 4px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.docx-export-footer { position: sticky; bottom: calc(-1 * clamp(16px, 3vw, 24px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px calc(-1 * clamp(16px, 3vw, 24px)) calc(-1 * clamp(16px, 3vw, 24px)); padding: 12px clamp(16px, 3vw, 24px); border-top: 1px solid var(--soft-line); background: var(--paper); }
+.docx-export-feedback { flex: 1 1 auto; min-width: 0; }
+.docx-export-status,
+.docx-export-error { flex: 1 1 auto; min-width: 0; margin: 0; color: var(--muted); font-size: 13px; }
+.docx-export-error { color: #a52f2f; }
+.docx-export-downloads { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.docx-export-downloads a { color: var(--ink); font-size: 13px; font-weight: 750; text-decoration: underline; text-underline-offset: 2px; }
+.docx-export-generate { min-height: 44px; padding: 8px 16px; border: 1px solid #247b68; border-radius: 10px; background: #247b68; color: #fff; cursor: pointer; font: inherit; font-weight: 800; }
+.docx-export-generate:hover:not(:disabled) { background: #1d6658; }
+.docx-export-generate:disabled,
+.docx-export-heading button:disabled { cursor: not-allowed; opacity: .5; }
+.a11y-high-contrast .docx-export-dialog { border-width: 2px; }
+html[data-theme="dark"] .docx-export-dialog { border-color: #3d5b52; }
+html[data-theme="dark"] .docx-export-heading button,
+html[data-theme="dark"] .docx-export-category-actions button,
+html[data-theme="dark"] .docx-export-field select,
+html[data-theme="dark"] .docx-export-field input { border-color: #3d5b52; }
+html[data-theme="dark"] .docx-export-error { color: #ffaaa2; }
+@media (max-width: 600px) {
+  .docx-export-fields { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .docx-export-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 8px; }
+  .docx-export-footer { align-items: stretch; flex-direction: column; }
+  .docx-export-generate { width: 100%; }
+}
+.docx-export-dialog button:disabled { opacity: .55; }
+.docx-export-dialog [aria-live] { min-height: 1.25em; }
 .lab-workspace[hidden] { display: none; }
 .practice-card { max-width: 1050px; margin: 24px auto; padding: clamp(16px, 3vw, 30px); border: 1px solid var(--line); border-radius: 22px; background: var(--paper); box-shadow: 0 14px 40px rgba(24, 49, 45, .06); }
 .practice-build-working, .practice-build-editor { min-width: 0; max-width: 100%; }
