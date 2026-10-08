@@ -1,6 +1,21 @@
 import type { SemiDevelopedAtomGlyph } from "./semi-developed-renderer.ts";
 
-/** SVG atom presentation for the semi-developed view; editor hit targets stay in the owning canvas. */
+const SEMI_DEVELOPED_BADGE_MIN_RADIUS = 28;
+const SEMI_DEVELOPED_HIT_PADDING = 4;
+
+export function getSemiDevelopedAtomBadgeRadius(
+  label: string,
+  hydrogenSubscript?: number,
+  charge = "",
+) {
+  const badgeWidth = Math.max(
+    SEMI_DEVELOPED_BADGE_MIN_RADIUS,
+    label.length * 10 + (hydrogenSubscript ? 6 : 0) + (charge ? 7 : 0),
+  );
+  return Math.max(SEMI_DEVELOPED_BADGE_MIN_RADIUS, badgeWidth / 2 + 5);
+}
+
+/** Semi-developed atom glyph and hit target; interaction handlers stay on the owning canvas node. */
 export function SemiDevelopedAtomSvg({
   glyph,
   label,
@@ -17,11 +32,11 @@ export function SemiDevelopedAtomSvg({
   functionalGroupScale: number;
 }) {
   const carbon = glyph.element === "C";
-  const badgeWidth = Math.max(28, label.length * 10 + (hydrogenSubscript ? 6 : 0) + (charge ? 7 : 0));
+  const badgeRadius = getSemiDevelopedAtomBadgeRadius(label, hydrogenSubscript, charge);
   return (
     <g className="semi-developed-glyph" aria-hidden="true" pointerEvents="none">
       {selected && <circle className="selection-ring" r="39" />}
-      <circle className={`atom-circle semi-developed-label-background${carbon ? "" : " semi-developed-hetero-badge"}`} r={Math.max(28, badgeWidth / 2 + 5)} />
+      <circle className={`atom-circle semi-developed-label-background${carbon ? "" : " semi-developed-hetero-badge"}`} r={badgeRadius} />
       <g transform={carbon ? undefined : `scale(${functionalGroupScale})`}>
       <text className="atom-label semi-developed-label" textAnchor="middle" dominantBaseline="central">
         <tspan>{label}</tspan>
@@ -31,6 +46,14 @@ export function SemiDevelopedAtomSvg({
         {charge && <tspan className="atom-charge" baselineShift="super">{charge}</tspan>}
       </text>
       </g>
+      <circle
+        className="semi-developed-hit-target"
+        data-editor-only="true"
+        aria-hidden="true"
+        r={badgeRadius + SEMI_DEVELOPED_HIT_PADDING}
+        fill="transparent"
+        pointerEvents="all"
+      />
     </g>
   );
 }

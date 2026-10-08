@@ -3022,6 +3022,14 @@ button {
   stroke-dasharray: 5 4;
 }
 
+.semi-developed-hit-target {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .skeletal-hit-target {
   fill: rgba(255, 255, 255, 0.001);
   stroke: transparent;
