@@ -4,6 +4,7 @@ import {
   type StereoConfiguration,
 } from "./double-bond-stereochemistry.ts";
 import { findOrderedSimpleMonocycle } from "./simple-cycle.ts";
+import type { ManualDisplayDirection } from "./manual-display-direction.ts";
 
 /** Display-only geometry for the semi-developed representation.
  *
@@ -18,6 +19,11 @@ export type SemiDevelopedGraph = {
   bonds: readonly (readonly [number, number, ...unknown[]])[];
   rings?: readonly { atomIds: readonly number[] }[];
   isMirrored?: boolean;
+  manualDisplayDirections?: readonly {
+    parentAtomId: number;
+    childAtomId: number;
+    direction: ManualDisplayDirection;
+  }[];
 };
 
 export type SemiDevelopedStereoBond = {
@@ -305,6 +311,13 @@ function calculateAcyclicPositions(
   const adjacency = makeAdjacency(graph);
   const stereoSides = new Map<string, { endpointId: number; priorityId: number; side: -1 | 1 }>();
   const stereoPriorityEdges = new Set<string>();
+  const manualDirections = new Map<string, { parentAtomId: number; childAtomId: number; direction: ManualDisplayDirection }>();
+  for (const placement of graph.manualDisplayDirections ?? []) {
+    if (!adjacency.get(placement.parentAtomId)?.includes(placement.childAtomId)) continue;
+    manualDirections.set(edgeKey(placement.parentAtomId, placement.childAtomId), {
+      ...placement,
+    });
+  }
   const stereoSource = graph as Parameters<typeof inspectDoubleBondStereochemistry>[0];
   for (const target of stereoBonds) {
     const inspection = inspectDoubleBondStereochemistry(stereoSource, target.leftAtomId, target.rightAtomId);
@@ -322,13 +335,36 @@ function calculateAcyclicPositions(
       side: target.configuration === "E" ? -1 : 1,
     });
   }
-  const backbone = selectSemiDevelopedDisplayPath(graph, preferredBackbone, stereoPriorityEdges);
+  const excludedPathEdges = new Set(stereoPriorityEdges);
+  for (const [key, placement] of manualDirections) {
+    if (placement.direction === "up" || placement.direction === "down") excludedPathEdges.add(key);
+  }
+  const backbone = selectSemiDevelopedDisplayPath(graph, preferredBackbone, excludedPathEdges);
+  for (const { parentAtomId, childAtomId, direction } of manualDirections.values()) {
+    if (direction !== "left" && direction !== "right") continue;
+    const parentIndex = backbone.indexOf(parentAtomId), childIndex = backbone.indexOf(childAtomId);
+    if (parentIndex < 0 || childIndex < 0 || Math.abs(parentIndex - childIndex) !== 1) continue;
+    const pathDirection = childIndex > parentIndex ? "right" : "left";
+    if (pathDirection !== direction) backbone.reverse();
+    break;
+  }
   const stereoChildSide = (parentId: number, childId: number) => {
     const constraint = stereoSides.get(edgeKey(parentId, childId));
     if (!constraint) return undefined;
     if (parentId === constraint.endpointId && childId === constraint.priorityId) return constraint.side;
     if (childId === constraint.endpointId && parentId === constraint.priorityId) return -constraint.side as -1 | 1;
     return undefined;
+  };
+  const manualDirectionBetween = (parentId: number, childId: number) => {
+    const placement = manualDirections.get(edgeKey(parentId, childId));
+    if (!placement) return undefined;
+    if (placement.parentAtomId === parentId && placement.childAtomId === childId) return placement.direction;
+    switch (placement.direction) {
+      case "up": return "down";
+      case "down": return "up";
+      case "left": return "right";
+      case "right": return "left";
+    }
   };
 
   backbone.forEach((id, index) => {
@@ -374,10 +410,16 @@ function calculateAcyclicPositions(
       for (const childId of children) {
         const branchPath = pathFromRoot(graph, childId, adjacency, visited);
         const forcedSide = stereoChildSide(parentId, childId);
+        const manualRootDirection = manualDirectionBetween(parentId, childId);
         let placement: { points: Map<number, SemiDevelopedPoint>; edges: LayoutEdge[] } | null = null;
         const laneCandidates: number[] = [];
         if (forcedSide) {
           for (let lane = 1; lane <= graph.atoms.length + 1; lane += 1) laneCandidates.push(forcedSide * lane);
+        } else if (manualRootDirection === "up" || manualRootDirection === "down") {
+          const side = manualRootDirection === "up" ? -1 : 1;
+          for (let lane = 1; lane <= graph.atoms.length + 1; lane += 1) laneCandidates.push(side * lane);
+        } else if (manualRootDirection === "left" || manualRootDirection === "right") {
+          for (let lane = 1; lane <= graph.atoms.length + 1; lane += 1) laneCandidates.push(lane);
         } else {
           // SVG Y increases downward, so negative lanes are the visual UP side.
           for (let lane = 1; lane <= graph.atoms.length + 1; lane += 1) laneCandidates.push(-lane, lane);
@@ -389,14 +431,21 @@ function calculateAcyclicPositions(
             for (let index = 0; index < branchPath.length; index += 1) {
               const id = branchPath[index];
               let point: SemiDevelopedPoint;
-              if (index === 0) point = { x: parent.x, y: parent.y + lane * BRANCH_LANE_SPACING };
+              if (index === 0 && (manualRootDirection === "left" || manualRootDirection === "right")) {
+                const side = manualRootDirection === "left" ? -1 : 1;
+                point = { x: parent.x + side * lane * BRANCH_SPACING, y: parent.y };
+              } else if (index === 0) point = { x: parent.x, y: parent.y + lane * BRANCH_LANE_SPACING };
               else {
                 const previousId = branchPath[index - 1];
                 const previous = candidatePoints.get(previousId)!;
                 const targetSide = stereoChildSide(previousId, id);
-                point = targetSide === undefined
-                  ? { x: previous.x + direction * BRANCH_SPACING, y: previous.y }
-                  : { x: previous.x, y: previous.y + targetSide * BRANCH_SPACING };
+                const manualDirection = manualDirectionBetween(previousId, id);
+                if (targetSide !== undefined) point = { x: previous.x, y: previous.y + targetSide * BRANCH_SPACING };
+                else if (manualDirection === "up" || manualDirection === "down") {
+                  point = { x: previous.x, y: previous.y + (manualDirection === "up" ? -1 : 1) * BRANCH_SPACING };
+                } else if (manualDirection === "left" || manualDirection === "right") {
+                  point = { x: previous.x + (manualDirection === "left" ? -1 : 1) * BRANCH_SPACING, y: previous.y };
+                } else point = { x: previous.x + direction * BRANCH_SPACING, y: previous.y };
               }
               candidatePoints.set(id, point);
               const previousId = index === 0 ? parentId : branchPath[index - 1];
@@ -518,6 +567,21 @@ export function calculateSemiDevelopedLayout(
   // descendants continue horizontally on that lane, with sub-branches placed
   // on alternating parallel lanes. No complexity threshold changes renderer.
   const queue: { id: number; parentId: number | null; lane: number; direction: -1 | 1 }[] = [];
+  const manualDirections = new Map((graph.manualDisplayDirections ?? []).map((placement) => [
+    edgeKey(placement.parentAtomId, placement.childAtomId),
+    { ...placement },
+  ]));
+  const manualDirectionBetween = (parentAtomId: number, childAtomId: number) => {
+    const placement = manualDirections.get(edgeKey(parentAtomId, childAtomId));
+    if (!placement) return undefined;
+    if (placement.parentAtomId === parentAtomId && placement.childAtomId === childAtomId) return placement.direction;
+    switch (placement.direction) {
+      case "up": return "down";
+      case "down": return "up";
+      case "left": return "right";
+      case "right": return "left";
+    }
+  };
   const queueParents = ringAtomIds.size ? [...ringAtomIds].sort((a, b) => a - b) : backbone;
   for (const parentId of queueParents) {
     const parent = positions.get(parentId);
@@ -527,7 +591,14 @@ export function calculateSemiDevelopedLayout(
       let lane = (index % 2 === 0 ? 1 : -1) as -1 | 1;
       let direction: -1 | 1 = parentId === backbone[0] && backbone.length > 1 && parent.x > positions.get(backbone[1])!.x ? -1 : 1;
       let childPoint: SemiDevelopedPoint;
-      if (ringAtomIds.has(parentId)) {
+      const manualDirection = manualDirectionBetween(parentId, childId);
+      if (manualDirection === "up" || manualDirection === "down") {
+        lane = manualDirection === "up" ? -1 : 1;
+        childPoint = { x: parent.x, y: parent.y + lane * BOND };
+      } else if (manualDirection === "left" || manualDirection === "right") {
+        direction = manualDirection === "left" ? -1 : 1;
+        childPoint = { x: parent.x + direction * BOND, y: parent.y };
+      } else if (ringAtomIds.has(parentId)) {
         const ringUnitVectors = (adjacency.get(parentId) ?? [])
           .filter((neighborId) => ringAtomIds.has(neighborId))
           .map((neighborId) => {
@@ -561,11 +632,16 @@ export function calculateSemiDevelopedLayout(
     const children = (adjacency.get(current.id) ?? []).filter((id) => !visited.has(id));
     children.forEach((childId, childIndex) => {
       const lane = childIndex === 0 ? current.lane : current.lane * -1;
-      const direction = current.direction;
-      positions.set(childId, {
-        x: origin.x + direction * BOND,
-        y: origin.y + (childIndex === 0 ? 0 : lane * BRANCH_LANE),
-      });
+      const manualDirection = manualDirectionBetween(current.id, childId);
+      const direction = manualDirection === "left" ? -1 : manualDirection === "right" ? 1 : current.direction;
+      positions.set(childId, manualDirection === "up" || manualDirection === "down"
+        ? { x: origin.x, y: origin.y + (manualDirection === "up" ? -1 : 1) * BOND }
+        : manualDirection === "left" || manualDirection === "right"
+          ? { x: origin.x + direction * BOND, y: origin.y }
+          : {
+              x: origin.x + direction * BOND,
+              y: origin.y + (childIndex === 0 ? 0 : lane * BRANCH_LANE),
+            });
       visited.add(childId);
       queue.push({ id: childId, parentId: current.id, lane, direction });
     });

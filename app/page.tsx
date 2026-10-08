@@ -125,6 +125,13 @@ import {
 import { findOrderedSimpleMonocycle } from "./simple-cycle";
 import { getAutoPlacedCarbonPosition, placeAttachmentTemplate } from "./manual-layout";
 import {
+  canonicalManualDisplayDirection,
+  hasManualDisplayDirection,
+  manualDisplayDirectionFromVector,
+  retainValidManualDisplayPlacements,
+  type ManualDisplayPlacement,
+} from "./manual-display-direction";
+import {
   fuseRingOnBond,
   hasSharedRingAtoms,
   removeFusedRingAtom,
@@ -378,6 +385,8 @@ type Molecule = {
   atoms: CarbonAtom[];
   bonds: Bond[];
   rings?: RingInfo[];
+  /** Editor-only direction constraints for Semi-developed display bonds. */
+  manualDisplayDirections?: ManualDisplayPlacement[];
   /** UI-only orientation for display-only skeletal coordinates. */
   isMirrored?: boolean;
 };
@@ -1573,6 +1582,9 @@ function cloneMolecule(molecule: Molecule): Molecule {
     rings: molecule.rings
       ? molecule.rings.map((ring) => ({ id: ring.id, kind: ring.kind, atomIds: [...ring.atomIds] }))
       : undefined,
+    ...(molecule.manualDisplayDirections?.length
+      ? { manualDisplayDirections: molecule.manualDisplayDirections.map((placement) => ({ ...placement })) }
+      : {}),
     ...(molecule.isMirrored ? { isMirrored: true } : {}),
   };
 }
@@ -7658,6 +7670,10 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       );
       return false;
     }
+    sanitizedNext.manualDisplayDirections = retainValidManualDisplayPlacements(
+      sanitizedNext.manualDisplayDirections,
+      sanitizedNext,
+    );
     setPlacementTool(null);
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
     setUndoPristineStates((items) => [...items, isPristineInitialMolecule]);
@@ -8084,6 +8100,12 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       setNotice("En los ciclos de esta etapa, los sustituyentes se conectan al anillo con enlaces simples.");
       return;
     }
+    const manualDirection = manualDisplayDirectionFromVector(dx, dy);
+    if (viewMode === "condensed" && manualDirection
+      && hasManualDisplayDirection(molecule, selectedAtom.id, manualDirection)) {
+      setNotice("Ese espacio ya está ocupado. Prueba otra dirección.");
+      return;
+    }
     const violation = getAtomValenceViolation(molecule, selectedAtom.id, newBondOrder);
     if (violation) {
       showValenceError(formatBondValenceError(newBondOrder, violation));
@@ -8101,6 +8123,18 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       ...molecule,
       atoms: [...molecule.atoms, { id: nextId, x: targetX, y: targetY, element: "C" }],
       bonds: [...molecule.bonds, [selectedAtom.id, nextId, newBondOrder] as Bond],
+      ...(viewMode === "condensed" && manualDirection
+        ? {
+            manualDisplayDirections: [
+              ...(molecule.manualDisplayDirections ?? []),
+              {
+                parentAtomId: selectedAtom.id,
+                childAtomId: nextId,
+                direction: canonicalManualDisplayDirection(manualDirection, molecule.isMirrored),
+              },
+            ],
+          }
+        : {}),
     };
     const committed = commit(
       next,

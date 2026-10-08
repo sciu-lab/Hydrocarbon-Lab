@@ -4,9 +4,14 @@ import type {
   GeneratedMolecule,
   GeneratedRing,
 } from "../name-to-molecule";
+import {
+  normalizeManualDisplayPlacements,
+  type ManualDisplayPlacement,
+} from "../manual-display-direction.ts";
 
 export type PersistedMolecule = Pick<GeneratedMolecule, "atoms" | "bonds"> & {
   rings?: GeneratedRing[];
+  manualDisplayDirections?: ManualDisplayPlacement[];
   /** Display orientation is retained for backwards compatibility with the editor. */
   isMirrored?: boolean;
 };
@@ -146,10 +151,14 @@ export function normalizeMoleculePayload(value: unknown): PersistedMolecule | nu
     }
   }
 
+  const manualDisplayDirections = normalizeManualDisplayPlacements(candidate.manualDisplayDirections, { atoms, bonds });
+  if (candidate.manualDisplayDirections !== undefined && manualDisplayDirections === undefined) return null;
+
   return {
     atoms,
     bonds,
     ...(rings?.length ? { rings } : {}),
     ...(candidate.isMirrored === true ? { isMirrored: true } : {}),
+    ...(manualDisplayDirections?.length ? { manualDisplayDirections } : {}),
   };
 }

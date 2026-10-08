@@ -76,6 +76,28 @@ test("cloud molecule persistence preserves R/S parity and its tetrahedral carrie
   assert.equal(recovered.atoms[0].tetrahedralBondTo, 2);
 });
 
+test("cloud persistence retains editor-only directional placement without changing chemical identity", () => {
+  const molecule = {
+    atoms: [
+      { id: 1, x: 0, y: 0 },
+      { id: 2, x: 1, y: 0 },
+      { id: 3, x: 2, y: 0 },
+      { id: 4, x: 1, y: -1 },
+    ],
+    bonds: [[1, 2, 1], [2, 3, 1], [2, 4, 1]],
+    manualDisplayDirections: [{ parentAtomId: 2, childAtomId: 4, direction: "up" }],
+  };
+
+  const recovered = assertSameIsomericSmiles(molecule);
+  assert.deepEqual(recovered.manualDisplayDirections, molecule.manualDisplayDirections);
+  assert.deepEqual(recovered.atoms, molecule.atoms);
+  assert.deepEqual(recovered.bonds, molecule.bonds);
+  assert.equal(normalizeMoleculePayload({
+    ...molecule,
+    manualDisplayDirections: [{ parentAtomId: 1, childAtomId: 4, direction: "up" }],
+  }), null);
+});
+
 test("sulfur is accepted and preserved because the molecule model and chemistry adapter support it", () => {
   const thioether = {
     atoms: [

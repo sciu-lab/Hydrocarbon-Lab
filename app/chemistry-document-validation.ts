@@ -1,7 +1,12 @@
 import type { GeneratedMolecule } from "./name-to-molecule";
+import {
+  normalizeManualDisplayPlacements,
+  type ManualDisplayPlacement,
+} from "./manual-display-direction.ts";
 
 export type PortableMolecule = GeneratedMolecule & {
   isMirrored?: boolean;
+  manualDisplayDirections?: ManualDisplayPlacement[];
 };
 
 export type PortableStructure = {
@@ -186,11 +191,14 @@ function normalizePortableMolecule(
   }
 
   if (value.isMirrored !== undefined && typeof value.isMirrored !== "boolean") return null;
+  const manualDisplayDirections = normalizeManualDisplayPlacements(value.manualDisplayDirections, { atoms, bonds });
+  if (value.manualDisplayDirections !== undefined && manualDisplayDirections === undefined) return null;
   return {
     atoms,
     bonds,
     ...(rings !== undefined ? { rings } : {}),
     ...(value.isMirrored !== undefined ? { isMirrored: value.isMirrored } : {}),
+    ...(manualDisplayDirections?.length ? { manualDisplayDirections } : {}),
   };
 }
 

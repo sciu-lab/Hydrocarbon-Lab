@@ -8,6 +8,7 @@ import {
   type SemiDevelopedPoint,
 } from "./semi-developed-layout.ts";
 import { inspectDoubleBondStereochemistry } from "./double-bond-stereochemistry.ts";
+import type { ManualDisplayPlacement } from "./manual-display-direction.ts";
 
 type SkeletalPoint = { x: number; y: number };
 
@@ -24,6 +25,7 @@ type LayoutMolecule = {
   bonds: readonly LayoutBond[];
   rings?: readonly { atomIds: readonly number[] }[];
   isMirrored?: boolean;
+  manualDisplayDirections?: readonly ManualDisplayPlacement[];
 };
 
 const BOND_LENGTH = 130;
