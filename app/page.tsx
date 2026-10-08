@@ -7670,10 +7670,15 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       );
       return false;
     }
-    sanitizedNext.manualDisplayDirections = retainValidManualDisplayPlacements(
+    const retainedManualDisplayDirections = retainValidManualDisplayPlacements(
       sanitizedNext.manualDisplayDirections,
       sanitizedNext,
     );
+    if (retainedManualDisplayDirections?.length) {
+      sanitizedNext.manualDisplayDirections = retainedManualDisplayDirections;
+    } else {
+      delete sanitizedNext.manualDisplayDirections;
+    }
     setPlacementTool(null);
     setUndoStack((items) => [...items, cloneMolecule(molecule)]);
     setUndoPristineStates((items) => [...items, isPristineInitialMolecule]);

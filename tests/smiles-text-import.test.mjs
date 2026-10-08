@@ -5,6 +5,7 @@ import ts from "typescript";
 import { Molecule as OCLMolecule, SmilesParser } from "openchemlib";
 import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
 import { readSmilesFileRecord } from "../app/smiles-file.ts";
+import { retainValidManualDisplayPlacements } from "../app/manual-display-direction.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -31,6 +32,7 @@ function editor() {
     undoStack: [], future: [], undoPristineStates: [], futurePristineStates: [],
     isPristineInitialMolecule: true, smilesFeedback: null, analysisCalls: 0,
     language: "en", moleculeFromSmiles,
+    retainValidManualDisplayPlacements,
     cloneMolecule: structuredClone,
     findMoleculeValenceViolation: () => null,
     analyzeMolecule: () => { context.analysisCalls += 1; return { name: "test name" }; },

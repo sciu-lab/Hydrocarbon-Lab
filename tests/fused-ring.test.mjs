@@ -12,6 +12,7 @@ import {
   getPreferredAttachmentDirection,
   placeAttachmentTemplate,
 } from "../app/manual-layout.ts";
+import { retainValidManualDisplayPlacements } from "../app/manual-display-direction.ts";
 
 // Exercise the actual editor helpers/actions, as in keyboard-interactions.test.mjs.
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -398,7 +399,7 @@ test("substituent undo and redo preserve graph, formula and geometry exactly", (
 
   const context = { molecule: initial, undoStack: [], future: [],
     undoPristineStates: [], futurePristineStates: [], isPristineInitialMolecule: true, cloneMolecule,
-    findMoleculeValenceViolation: () => null };
+    findMoleculeValenceViolation: () => null, retainValidManualDisplayPlacements };
   for (const key of ["molecule", "undoStack", "future", "undoPristineStates", "futurePristineStates", "isPristineInitialMolecule"]) {
     context[`set${key[0].toUpperCase()}${key.slice(1)}`] = value => { context[key] = typeof value === "function" ? value(context[key]) : value; };
   }
@@ -457,7 +458,7 @@ test("actual commit, fusion, undo and redo preserve exact snapshots as one edit"
   const initial = { ...makeRing(6, "cycloalkane"), isMirrored: true };
   const context = { molecule: initial, undoStack: [], future: [],
     undoPristineStates: [], futurePristineStates: [], isPristineInitialMolecule: true,
-    cloneMolecule, fuseRingOnBond,
+    cloneMolecule, fuseRingOnBond, retainValidManualDisplayPlacements,
     selectedFusionBond: { a: 1, b: 2 }, language: "es",
     findMoleculeValenceViolation: () => null, ringFusionError,
   };
