@@ -108,6 +108,7 @@ import {
   SEMI_DEVELOPED_LABEL_SCALE_STEP,
 } from "./semi-developed-label-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
+import { normalizeViewMode, serializeLegacyViewMode, type LegacyPersistedViewMode, type ViewMode } from "./view-mode";
 import {
   clearTetrahedralConfiguration,
   getMainChainTetrahedralDescriptors,
@@ -160,6 +161,7 @@ import { readSmilesFileRecord } from "./smiles-file";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
 import {
   readChemistryDocument as validateChemistryDocument,
+  type SerializedPortableStructure,
   type PortableStructure,
 } from "./chemistry-document-validation";
 import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
@@ -420,13 +422,17 @@ type HistoryEntry = {
   updatedAt: string;
 };
 
+type PersistedHistoryEntry = Omit<HistoryEntry, "viewMode"> & {
+  viewMode: LegacyPersistedViewMode | "semi-developed";
+};
+
 type ChemistryDocument = {
   format: "laboratorio-quimica-organica";
   version: 1;
   kind: "structure" | "library";
   exportedAt: string;
-  structure?: PortableStructure;
-  structures?: PortableStructure[];
+  structure?: SerializedPortableStructure;
+  structures?: SerializedPortableStructure[];
 };
 
 type HistoryTransferNotice = {
@@ -465,7 +471,6 @@ type HistoryScope = "account" | "device";
 type HistorySyncState = "loading" | "saved" | "saving" | "error";
 type LibrarySection = "history" | "saved";
 
-type ViewMode = "condensed" | "skeletal";
 type ThemePreference = "auto" | "light" | "dark";
 type RingInsertMode = "replace" | "attach";
 type RingLibraryContext = RingInsertMode | "fuse";
@@ -5163,6 +5168,16 @@ type LocalLibraryState = {
   saved: HistoryEntry[];
 };
 
+function normalizeHistoryEntry(value: unknown): HistoryEntry | null {
+  if (!value || typeof value !== "object") return null;
+  const entry = value as HistoryEntry;
+  if (!entry.molecule?.atoms?.length) return null;
+  return {
+    ...entry,
+    viewMode: normalizeViewMode((value as { viewMode?: unknown }).viewMode) ?? "semi-developed",
+  };
+}
+
 type LocalLibraryWritePayload = {
   name: string;
   formula: string;
@@ -5343,14 +5358,14 @@ function readLocalLibrary(): LocalLibraryState {
   try {
     const stored = window.localStorage.getItem(localLibraryStorageKey);
     if (!stored) return { draft: null, history: [], saved: [] };
-    const parsed = JSON.parse(stored) as Partial<LocalLibraryState>;
+    const parsed = JSON.parse(stored) as Partial<{ draft: unknown; history: unknown[]; saved: unknown[] }>;
     return {
-      draft: parsed.draft?.molecule?.atoms?.length ? parsed.draft : null,
+      draft: normalizeHistoryEntry(parsed.draft),
       history: Array.isArray(parsed.history)
-        ? parsed.history.filter((entry) => entry?.molecule?.atoms?.length).slice(0, 50)
+        ? parsed.history.map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 50)
         : [],
       saved: Array.isArray(parsed.saved)
-        ? parsed.saved.filter((entry) => entry?.molecule?.atoms?.length).slice(0, 200)
+        ? parsed.saved.map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 200)
         : [],
     };
   } catch {
@@ -5359,7 +5374,14 @@ function readLocalLibrary(): LocalLibraryState {
 }
 
 function writeLocalLibrary(state: LocalLibraryState) {
-  window.localStorage.setItem(localLibraryStorageKey, JSON.stringify(state));
+  const serializeEntry = (entry: HistoryEntry | null) => entry
+    ? { ...entry, viewMode: serializeLegacyViewMode(entry.viewMode) }
+    : null;
+  window.localStorage.setItem(localLibraryStorageKey, JSON.stringify({
+    draft: serializeEntry(state.draft),
+    history: state.history.map((entry) => serializeEntry(entry)),
+    saved: state.saved.map((entry) => serializeEntry(entry)),
+  }));
 }
 
 function makeLocalEntry(payload: LocalLibraryWritePayload, existing?: HistoryEntry) {
@@ -5430,13 +5452,13 @@ function clearLocalHistoryEntries() {
   });
 }
 
-function toPortableStructure(entry: HistoryEntry): PortableStructure {
+export function toPortableStructure(entry: HistoryEntry): SerializedPortableStructure {
   return {
     name: entry.name,
     formula: entry.formula,
     family: entry.family,
     molecule: cloneMolecule(entry.molecule),
-    viewMode: entry.viewMode,
+    viewMode: serializeLegacyViewMode(entry.viewMode),
     atomCount: entry.atomCount,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
@@ -6420,7 +6442,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   const [tetrahedralBadgeScale, setTetrahedralBadgeScale] = useState(DEFAULT_TETRAHEDRAL_BADGE_SCALE);
   const [tetrahedralBadgeScalePreferenceReady, setTetrahedralBadgeScalePreferenceReady] = useState(false);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>("condensed");
+  const [viewMode, setViewMode] = useState<ViewMode>("semi-developed");
   const [newBondOrder, setNewBondOrder] = useState<BondOrder>(1);
   const [fusionSelection, setFusionSelection] = useState<{ molecule: Molecule; a: number; b: number } | null>(null);
   const selectedFusionBond = fusionSelection?.molecule === molecule ? fusionSelection : null;
@@ -7427,16 +7449,17 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         setSavedEntries(data.saved);
         if (data.draft?.molecule?.atoms?.length) {
           const restored = cloneMolecule(data.draft.molecule);
+          const restoredViewMode = normalizeViewMode(data.draft.viewMode) ?? "semi-developed";
           lastPersistedSignature.current = JSON.stringify({
             molecule: restored,
-            viewMode: data.draft.viewMode,
+            viewMode: restoredViewMode,
           });
           setMolecule(restored);
           setIsPristineInitialMolecule(false);
           setSourceNameOverride(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setReasoningSourceName(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setSelectedId(restored.atoms[0].id);
-          setViewMode(data.draft.viewMode);
+          setViewMode(restoredViewMode);
           setNotice(`Continuamos donde quedaste: ${data.draft.name}.`);
         }
         setHistorySyncState("saved");
@@ -7455,8 +7478,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       }).then(async (response) => {
         const data = await response.json() as {
           scope?: HistoryScope;
-          draft?: HistoryEntry | null;
-          history?: HistoryEntry[];
+          draft?: PersistedHistoryEntry | null;
+          history?: PersistedHistoryEntry[];
           error?: string;
         };
         if (!response.ok) throw new Error(data.error || "No se pudo cargar el historial.");
@@ -7467,7 +7490,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       }).then(async (response) => {
         const data = await response.json() as {
           scope?: HistoryScope;
-          saved?: HistoryEntry[];
+          saved?: PersistedHistoryEntry[];
           error?: string;
         };
         if (!response.ok) throw new Error(data.error || "No se pudo cargar Guardados.");
@@ -7478,20 +7501,21 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         if (cancelled) return;
         setHistoryIdentity(visitorId);
         setHistoryScope(data.scope ?? savedData.scope ?? "device");
-        setHistoryEntries(data.history ?? []);
-        setSavedEntries(savedData.saved ?? []);
+        setHistoryEntries((data.history ?? []).map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null));
+        setSavedEntries((savedData.saved ?? []).map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null));
         if (data.draft?.molecule?.atoms?.length) {
           const restored = cloneMolecule(data.draft.molecule);
+          const restoredViewMode = normalizeViewMode(data.draft.viewMode) ?? "semi-developed";
           lastPersistedSignature.current = JSON.stringify({
             molecule: restored,
-            viewMode: data.draft.viewMode,
+            viewMode: restoredViewMode,
           });
           setMolecule(restored);
           setIsPristineInitialMolecule(false);
           setSourceNameOverride(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setReasoningSourceName(preservesSourceName(data.draft.name) ? data.draft.name : null);
           setSelectedId(restored.atoms[0].id);
-          setViewMode(data.draft.viewMode);
+          setViewMode(restoredViewMode);
           setNotice(`Continuamos donde quedaste: ${data.draft.name}.`);
         }
         setHistorySyncState("saved");
@@ -7630,7 +7654,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         .then(async (response) => {
           const data = await response.json() as {
             scope?: HistoryScope;
-            item?: HistoryEntry | null;
+            item?: PersistedHistoryEntry | null;
             error?: string;
           };
           if (!response.ok) throw new Error(data.error || "No se pudo guardar.");
@@ -7638,8 +7662,9 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         })
         .then((data) => {
           lastPersistedSignature.current = signature;
-          if (data.item) {
-            setHistoryEntries((items) => mergeHistoryEntry(items, data.item!));
+          const item = normalizeHistoryEntry(data.item);
+          if (item) {
+            setHistoryEntries((items) => mergeHistoryEntry(items, item));
           }
           setHistoryScope(data.scope ?? historyScope);
           setHistorySyncState("saved");
@@ -8147,7 +8172,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       return;
     }
     const manualDirection = manualDisplayDirectionFromVector(dx, dy);
-    if (viewMode === "condensed" && manualDirection
+    if (viewMode === "semi-developed" && manualDirection
       && hasManualDisplayDirection(molecule, selectedAtom.id, manualDirection)) {
       setNotice("Ese espacio ya está ocupado. Prueba otra dirección.");
       return;
@@ -8169,7 +8194,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       ...molecule,
       atoms: [...molecule.atoms, { id: nextId, x: targetX, y: targetY, element: "C" }],
       bonds: [...molecule.bonds, [selectedAtom.id, nextId, newBondOrder] as Bond],
-      ...(viewMode === "condensed" && manualDirection
+      ...(viewMode === "semi-developed" && manualDirection
         ? {
             manualDisplayDirections: [
               ...(molecule.manualDisplayDirections ?? []),
@@ -8755,17 +8780,18 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
           formula: analysis.formula,
           family: historyFamilyLabel,
           molecule,
-          viewMode,
+          viewMode: serializeLegacyViewMode(viewMode),
         }),
       });
       const data = await response.json() as {
         scope?: HistoryScope;
-        item?: HistoryEntry | null;
+        item?: PersistedHistoryEntry | null;
         error?: string;
       };
       if (!response.ok) throw new Error(data.error || "No se pudo guardar.");
-      if (data.item) {
-        setSavedEntries((items) => mergeHistoryEntry(items, data.item!, 200));
+      const item = normalizeHistoryEntry(data.item);
+      if (item) {
+        setSavedEntries((items) => mergeHistoryEntry(items, item, 200));
       }
       const scope = data.scope ?? historyScope;
       setHistoryScope(scope);
@@ -9269,17 +9295,19 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
             formula: structure.formula,
             family: structure.family,
             molecule: structure.molecule,
-            viewMode: structure.viewMode,
+            viewMode: serializeLegacyViewMode(structure.viewMode),
           }),
         });
         const data = await response.json() as {
-          item?: HistoryEntry | null;
+          item?: PersistedHistoryEntry | null;
           error?: string;
         };
         if (!response.ok || !data.item) {
           throw new Error(data.error || `No fue posible importar ${structure.name}.`);
         }
-        importedEntries.push(data.item);
+        const item = normalizeHistoryEntry(data.item);
+        if (!item) throw new Error(`No fue posible importar ${structure.name}.`);
+        importedEntries.push(item);
       }
 
       setSavedEntries((items) =>
@@ -9674,7 +9702,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         setSmilesFeedback(null);
       } else if (key === "3") {
         event.preventDefault();
-        changeViewMode("condensed");
+        changeViewMode("semi-developed");
       } else if (key === "4") {
         event.preventDefault();
         changeViewMode("skeletal");
@@ -9723,7 +9751,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       y: point.y * coordinateScale,
     }]),
   );
-  const semiDevelopedRenderModel = viewMode === "condensed"
+  const semiDevelopedRenderModel = viewMode === "semi-developed"
     ? buildSemiDevelopedRenderModel(molecule, displayPositions, (atomId) => getImplicitHydrogens(atomId, molecule))
     : null;
   const semiDevelopedAtomGlyphs = new Map(semiDevelopedRenderModel?.atoms.map((glyph) => [glyph.atomId, glyph]) ?? []);
@@ -9782,7 +9810,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       label,
       hydrogenSubscript: showHydrogens && hydrogenCount > 1 ? hydrogenCount : undefined,
       charge: atom.charge === 1 ? "+" : atom.charge === -1 ? "−" : "",
-      scale: viewMode === "condensed"
+      scale: viewMode === "semi-developed"
         ? semiDevelopedLabelScale
         : carbon ? 1 : functionalGroupScale,
     };
@@ -9822,7 +9850,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     const labelObstacles = molecule.atoms.flatMap((otherAtom) => {
       if (otherAtom.id === atom.id || isCarbonAtom(otherAtom)) return [];
       const otherPosition = displayPositions.get(otherAtom.id)!;
-      const labelRadius = viewMode === "condensed"
+      const labelRadius = viewMode === "semi-developed"
         ? (() => {
             const presentation = getAtomLabelPresentation(otherAtom);
             const extent = getSemiDevelopedLabelExtent(
@@ -9893,7 +9921,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     const carbon = isCarbonAtom(atom);
     if (viewMode === "skeletal" && carbon) return [];
     const position = displayPositions.get(atom.id)!;
-    if (viewMode === "condensed") {
+    if (viewMode === "semi-developed") {
       const presentation = getAtomLabelPresentation(atom);
       const extent = getSemiDevelopedLabelExtent(
         presentation.label,
@@ -9989,14 +10017,14 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     height: 32,
   }));
   const visualExtents = [...numberingBadgeExtents, ...atomLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents];
-  const moleculeVisualBounds = viewMode === "condensed"
+  const moleculeVisualBounds = viewMode === "semi-developed"
     ? { ...getSemiDevelopedBounds(displayPositions.values(), { labelRadius: 48, padding: 72, extents: visualExtents }), padding: 72 }
     : getMoleculeVisualBounds(displayPositions.values(), { additionalExtents: visualExtents });
   // The normal canvas keeps a generous classroom workspace. The expanded
   // editor instead starts from the same content bounds used by export, with a
   // smaller presentation margin, so its SVG fills the modal without scaling
   // DOM pixels or changing the molecular coordinates.
-  const expandedFitBounds = viewMode === "condensed"
+  const expandedFitBounds = viewMode === "semi-developed"
     ? { ...getSemiDevelopedBounds(displayPositions.values(), { labelRadius: 58, padding: 36, extents: visualExtents }), padding: 36 }
     : getMoleculeVisualBounds(displayPositions.values(), {
         atomExtent: 58,
@@ -10400,9 +10428,9 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               </>}
               <div className="view-mode-switch" role="group" aria-label={t("Tipo de representación molecular")}>
                 <button
-                  className={viewMode === "condensed" ? "active" : ""}
-                  onClick={() => changeViewMode("condensed")}
-                  aria-pressed={viewMode === "condensed"}
+                  className={viewMode === "semi-developed" ? "active" : ""}
+                  onClick={() => changeViewMode("semi-developed")}
+                  aria-pressed={viewMode === "semi-developed"}
                   title={t("Vista semidesarrollada")}
                 >
                   <span className="condensed-icon" aria-hidden="true">CH₃</span>
@@ -10979,7 +11007,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               ref={moleculeSvgRef}
               role={advancedScreenReaderEnabled ? "img" : undefined}
               aria-label={advancedScreenReaderEnabled ? language === "en"
-                ? `${viewMode === "skeletal" ? "Skeletal representation" : "Condensed structural representation"} ${showIupacName ? `of ${displayedIupacName}` : "of the constructed molecule"}`
+                ? `${viewMode === "skeletal" ? "Skeletal representation" : "Semi-developed structural representation"} ${showIupacName ? `of ${displayedIupacName}` : "of the constructed molecule"}`
                 : `${viewMode === "skeletal" ? "Representación esquelética" : "Representación semidesarrollada"} ${showIupacName ? `de ${displayedIupacName}` : "de la molécula construida"}` : undefined}
               viewBox={`${viewCenterX - viewWidth / 2} ${viewCenterY - viewHeight / 2} ${viewWidth} ${viewHeight}`}
             >
@@ -12699,7 +12727,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                   </div>
                 </div>
               )}
-              {viewMode === "condensed" && (
+              {viewMode === "semi-developed" && (
                 <div className="settings-scale-control" role="group" aria-label={t("Tamaño semidesarrollado")}>
                   <strong>{t("Tamaño semidesarrollado")}</strong>
                   <div className="settings-scale-actions">

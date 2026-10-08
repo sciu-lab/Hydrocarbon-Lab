@@ -9,6 +9,7 @@ import {
 } from "./semi-developed-layout.ts";
 import { inspectDoubleBondStereochemistry } from "./double-bond-stereochemistry.ts";
 import type { ManualDisplayPlacement } from "./manual-display-direction.ts";
+import type { ViewMode } from "./view-mode.ts";
 
 type SkeletalPoint = { x: number; y: number };
 
@@ -413,9 +414,9 @@ function buildRingAwarePositions(
 export function calculateMolecule2DLayout(
   molecule: LayoutMolecule,
   mainChain: readonly number[],
-  viewMode: "skeletal" | "condensed" = "skeletal",
+  viewMode: ViewMode = "skeletal",
 ): Map<number, SkeletalPoint | SemiDevelopedPoint> {
-  if (viewMode === "condensed") {
+  if (viewMode === "semi-developed") {
     return calculateSemiDevelopedLayout(molecule, mainChain, semiDevelopedStereoBonds(molecule));
   }
   const explicitRings = molecule.rings ?? [];

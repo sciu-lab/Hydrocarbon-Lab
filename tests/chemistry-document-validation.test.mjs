@@ -10,6 +10,9 @@ const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 let server;
 let analyzeMolecule;
 let readChemistryDocument;
+let toPortableStructure;
+let normalizeViewMode;
+let serializeLegacyViewMode;
 
 before(async () => {
   server = await createServer({
@@ -20,7 +23,8 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, readChemistryDocument } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ analyzeMolecule, readChemistryDocument, toPortableStructure } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ normalizeViewMode, serializeLegacyViewMode } = await server.ssrLoadModule("/app/view-mode.ts"));
 });
 
 after(async () => {
@@ -68,6 +72,7 @@ test("accepts a valid current .quimica structure and returns a safe graph copy",
 
   assert.deepEqual(restored.molecule, molecule);
   assert.equal(restored.formula, structure.formula);
+  assert.equal(restored.viewMode, "skeletal");
   const ring = moleculeFromSmiles("C1CCCCC1");
   assert.equal(ring.ok, true);
   assert.deepEqual(mustRead(makeStructure(ring.molecule)).molecule, ring.molecule);
@@ -152,4 +157,28 @@ test("a library is validated in full before its structures are returned for impo
   const valid = makeStructure(simpleEthanol());
   const invalid = makeStructure(simpleEthanol(), { formula: "C3H8O" });
   assert.throws(() => readChemistryDocument(documentFor([valid, invalid], "library")));
+});
+
+test("legacy condensed documents normalize internally and retain the V1 wire value on export", () => {
+  const molecule = simpleEthanol();
+  const legacy = makeStructure(molecule, { name: "ethanol legacy", viewMode: "condensed" });
+  const [restored] = readChemistryDocument(documentFor([legacy]));
+
+  assert.equal(restored.viewMode, "semi-developed");
+  assert.equal(restored.name, legacy.name);
+  assert.equal(restored.formula, legacy.formula);
+  assert.deepEqual(restored.molecule, molecule);
+  assert.equal(normalizeViewMode("condensed"), "semi-developed");
+  assert.equal(normalizeViewMode("skeletal"), "skeletal");
+  assert.equal(normalizeViewMode("unknown"), null);
+
+  assert.equal(serializeLegacyViewMode("semi-developed"), "condensed");
+  const portable = toPortableStructure({
+    id: "legacy-roundtrip",
+    ...restored,
+    atomCount: molecule.atoms.length,
+    createdAt: "2026-09-28T00:00:00.000Z",
+    updatedAt: "2026-09-28T00:00:00.000Z",
+  });
+  assert.equal(portable.viewMode, "condensed");
 });

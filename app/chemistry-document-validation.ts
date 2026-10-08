@@ -3,6 +3,7 @@ import {
   normalizeManualDisplayPlacements,
   type ManualDisplayPlacement,
 } from "./manual-display-direction.ts";
+import { normalizeViewMode, type LegacyPersistedViewMode, type ViewMode } from "./view-mode.ts";
 
 export type PortableMolecule = GeneratedMolecule & {
   isMirrored?: boolean;
@@ -14,10 +15,14 @@ export type PortableStructure = {
   formula: string;
   family: string;
   molecule: PortableMolecule;
-  viewMode: "condensed" | "skeletal";
+  viewMode: ViewMode;
   atomCount: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SerializedPortableStructure = Omit<PortableStructure, "viewMode"> & {
+  viewMode: LegacyPersistedViewMode;
 };
 
 type ChemistryChecks = {
@@ -208,7 +213,7 @@ function normalizePortableStructure(value: unknown, checks: ChemistryChecks): Po
     typeof value.name !== "string"
     || typeof value.formula !== "string"
     || typeof value.family !== "string"
-    || (value.viewMode !== "condensed" && value.viewMode !== "skeletal")
+    || !normalizeViewMode(value.viewMode)
     || !Number.isSafeInteger(value.atomCount)
     || typeof value.createdAt !== "string"
     || typeof value.updatedAt !== "string"
@@ -232,7 +237,7 @@ function normalizePortableStructure(value: unknown, checks: ChemistryChecks): Po
     formula: value.formula,
     family: value.family,
     molecule,
-    viewMode: value.viewMode,
+    viewMode: normalizeViewMode(value.viewMode)!,
     atomCount: value.atomCount as number,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,

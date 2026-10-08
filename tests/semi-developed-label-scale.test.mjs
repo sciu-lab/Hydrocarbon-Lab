@@ -16,6 +16,8 @@ const renderer = readFileSync(new URL("../app/semi-developed-svg-renderer.tsx", 
 const skeletalGeometry = readFileSync(new URL("../app/skeletal-bond-geometry.ts", import.meta.url), "utf8");
 
 test("the supported Semi-developed label scales are discrete and default to 125%", () => {
+  assert.equal(uiText("en", "Semides."), "Semi-dev.");
+  assert.equal(uiText("en", "Vista semidesarrollada"), "Semi-developed structural view");
   assert.deepEqual(SEMI_DEVELOPED_LABEL_SCALE_OPTIONS, [0.75, 1, 1.25, 1.5, 1.75]);
   assert.equal(DEFAULT_SEMI_DEVELOPED_LABEL_SCALE, 1.25);
   assert.equal(normalizeSemiDevelopedLabelScale("1.5"), 1.5);
@@ -84,7 +86,7 @@ test("the preference persists locally and is isolated from Skeletal and numberin
   assert.match(page, /hydrocarbonLab\.semiDevelopedLabelScale\.v1/);
   assert.match(page, /normalizeSemiDevelopedLabelScale\(stored\)/);
   assert.match(page, /localStorage\.setItem\(SEMI_DEVELOPED_LABEL_SCALE_STORAGE_KEY, String\(semiDevelopedLabelScale\)\)/);
-  assert.match(page, /viewMode === "condensed" && \([\s\S]*?Tamaño semidesarrollado[\s\S]*?semiDevelopedLabelScale/);
+  assert.match(page, /viewMode === "semi-developed" && \([\s\S]*?Tamaño semidesarrollado[\s\S]*?semiDevelopedLabelScale/);
   assert.match(page, /viewMode === "skeletal" && \([\s\S]*?Tamaño de grupos funcionales/);
   assert.match(page, /numberingGeometry = getSkeletalNumberBadgeGeometry\(numberingScale\)/);
   assert.match(page, /<SemiDevelopedAtomSvg[\s\S]*?labelScale=\{semiDevelopedLabelScale\}/);

@@ -4,6 +4,7 @@ import test, { before, after } from "node:test";
 import ts from "typescript";
 
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
+import { normalizeViewMode } from "../app/view-mode.ts";
 import { flipCoordinates } from "../app/coordinate-flip.ts";
 import { getAutoPlacedCarbonPosition } from "../app/manual-layout.ts";
 import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemistry.ts";
@@ -63,7 +64,7 @@ for (const length of [2, 3, 4, 5, 6, 8, 10]) {
     const snapshot = structuredClone(molecule);
     const path = pathOf(molecule);
     assertZigzag(pointsOn(calculateMolecule2DLayout(molecule, path, "skeletal"), path));
-    assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, path, "condensed"), path));
+    assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, path, "semi-developed"), path));
     assert.deepEqual(molecule, snapshot);
   });
 }
@@ -75,7 +76,7 @@ test("C10 generated continuations cannot inherit diagonal drift from raw coordin
     const molecule = chain(10, slope);
     for (const backbone of [[], [1], [1, 2, 3]]) {
       assertZigzag(pointsOn(calculateMolecule2DLayout(molecule, backbone, "skeletal"), pathOf(molecule)));
-      assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, backbone, "condensed"), pathOf(molecule)));
+      assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, backbone, "semi-developed"), pathOf(molecule)));
     }
   }
 });
@@ -84,7 +85,7 @@ test("a branched alkane separates substituents without moving the backbone off i
   const molecule = chain(4);
   molecule.atoms.push({ id: 5, x: 1, y: -1 });
   molecule.bonds.push([2, 5, 1]);
-  for (const mode of ["skeletal", "condensed"]) {
+  for (const mode of ["skeletal", "semi-developed"]) {
     const positions = calculateMolecule2DLayout(molecule, [1, 2, 3, 4], mode);
     const backbone = pointsOn(positions, [1, 2, 3, 4]);
     if (mode === "skeletal") assertZigzag(backbone);
@@ -108,7 +109,7 @@ test("unsaturated textual chains retain their double/triple bond orders", () => 
     const molecule = chain(4);
     molecule.bonds[1][2] = order;
     const snapshot = structuredClone(molecule);
-    assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, [1, 2, 3, 4], "condensed"), [1, 2, 3, 4]));
+    assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, [1, 2, 3, 4], "semi-developed"), [1, 2, 3, 4]));
     assert.deepEqual(molecule, snapshot);
   }
 });
@@ -119,7 +120,7 @@ test("defined E/Z and diene geometry survive both views and redraw", () => {
     const snapshot = structuredClone(molecule);
     const targets = molecule.bonds.filter((bond) => bond[2] === 2)
       .map(([a, b]) => ({ a, b, stereo: inspectDoubleBondStereochemistry(molecule, a, b) }));
-    for (const mode of ["skeletal", "condensed"]) {
+    for (const mode of ["skeletal", "semi-developed"]) {
       for (const source of [molecule, flipCoordinates(molecule)]) {
         const displayed = projected(source, mode);
         for (const { a, b, stereo } of targets) {
@@ -138,9 +139,9 @@ test("alcohol, ketone and aldehyde layouts preserve identity and group attachmen
     const analysis = chemistry.engine.analyzeMolecule(molecule);
     const before = moleculeToSmiles(molecule);
     assert.equal(before.ok, true);
-    for (const mode of ["skeletal", "condensed", "skeletal"]) {
+    for (const mode of ["skeletal", "semi-developed", "skeletal"]) {
       const positions = calculateMolecule2DLayout(molecule, analysis.mainChain, mode);
-      if (mode === "condensed") assertHorizontal(pointsOn(positions, analysis.mainChain));
+      if (mode === "semi-developed") assertHorizontal(pointsOn(positions, analysis.mainChain));
       assert.equal(positions.size, molecule.atoms.length);
     }
     assert.deepEqual(chemistry.engine.analyzeMolecule(molecule), analysis);
@@ -155,7 +156,7 @@ test("explicit and inferred rings retain cyclic topology in independent view lay
     for (const molecule of [explicit, { ...explicit, rings: undefined }]) {
       const path = chemistry.engine.analyzeMolecule(explicit).mainChain;
       const skeletal = calculateMolecule2DLayout(molecule, path, "skeletal");
-      const condensed = calculateMolecule2DLayout(molecule, path, "condensed");
+      const condensed = calculateMolecule2DLayout(molecule, path, "semi-developed");
       assert.notDeepEqual(condensed, skeletal, "semi-developed ring layout owns its display geometry");
       const ringPoints = pointsOn(condensed, explicit.rings[0].atomIds);
       assert.ok(span(ringPoints.map((p) => p.y)) > 100, "ring is not flattened");
@@ -173,7 +174,7 @@ test("atom IDs, atom order, bond order and bond endpoint order cannot introduce 
     atoms: molecule.atoms.map((atom, i) => ({ ...atom, id: ids[i] })).reverse(),
     bonds: molecule.bonds.map(([a, b, order]) => [ids[b - 1], ids[a - 1], order]).reverse(),
   };
-  for (const mode of ["skeletal", "condensed"]) {
+  for (const mode of ["skeletal", "semi-developed"]) {
     for (const path of [[], [1], pathOf(molecule)]) {
       const expected = pointsOn(calculateMolecule2DLayout(molecule, path, mode), pathOf(molecule));
       const actual = pointsOn(calculateMolecule2DLayout(remapped, path.map((id) => ids[id - 1]), mode), ids);
@@ -197,7 +198,7 @@ test("builder arrows, frozen OPSIN hexane and direct SMILES receive equivalent d
     const snapshot = structuredClone(molecule);
     const path = chemistry.engine.analyzeMolecule(molecule).mainChain;
     assertZigzag(pointsOn(calculateMolecule2DLayout(molecule, path, "skeletal"), path));
-    assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, path, "condensed"), path));
+    assertHorizontal(pointsOn(calculateMolecule2DLayout(molecule, path, "semi-developed"), path));
     assert.deepEqual(molecule, snapshot, "manual/imported coordinates stay persistent and untouched");
   }
 });
@@ -223,20 +224,36 @@ test("the actual canvas view switch selects derived layouts without touching mol
     setMolecule() { assert.fail("view switching must not overwrite editor coordinates"); },
   };
   const original = run(context, "skeletal");
-  const condensed = run(context, "condensed");
+  const condensed = run(context, "semi-developed");
   assertHorizontal(pointsOn(condensed, context.analysis.mainChain));
   assert.deepEqual(run(context, "skeletal"), original);
   assert.deepEqual(molecule, snapshot);
   assert.deepEqual(moleculeToSmiles(molecule), smiles);
   assert.deepEqual(context.undoStack, []);
   assert.deepEqual(context.future, []);
+  assert.match(page, /onClick=\{\(\) => changeViewMode\("semi-developed"\)\}/);
+  assert.match(page, /aria-pressed=\{viewMode === "semi-developed"\}/);
+  assert.match(page, /Semi-developed structural representation/);
+  assert.doesNotMatch(page, /changeViewMode\("condensed"\)/);
+});
+
+test("legacy condensed view identifiers normalize to the same Semi-developed layout", () => {
+  const molecule = chain(8, 0.2);
+  const path = pathOf(molecule);
+  const normalizedMode = normalizeViewMode("condensed");
+
+  assert.equal(normalizedMode, "semi-developed");
+  assert.deepEqual(
+    calculateMolecule2DLayout(molecule, path, normalizedMode),
+    calculateMolecule2DLayout(molecule, path, "semi-developed"),
+  );
 });
 
 test("redraw mirrors each mode reversibly while retaining its display convention", () => {
   const molecule = chain(10);
   const path = pathOf(molecule);
   const mirrored = flipCoordinates(molecule);
-  for (const mode of ["skeletal", "condensed"]) {
+  for (const mode of ["skeletal", "semi-developed"]) {
     const original = calculateMolecule2DLayout(molecule, path, mode);
     const redrawn = calculateMolecule2DLayout(mirrored, path, mode);
     if (mode === "skeletal") assertZigzag(pointsOn(redrawn, path), -1);

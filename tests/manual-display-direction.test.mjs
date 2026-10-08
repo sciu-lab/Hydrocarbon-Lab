@@ -70,7 +70,7 @@ function graphWithChain(length = 3) {
   };
 }
 
-function harness(sourceGraph = graphWithChain(), selectedId = 2, viewMode = "condensed") {
+function harness(sourceGraph = graphWithChain(), selectedId = 2, viewMode = "semi-developed") {
   const context = {
     molecule: structuredClone(sourceGraph),
     selectedAtom: sourceGraph.atoms.find((atom) => atom.id === selectedId),
@@ -130,7 +130,7 @@ function addWithDirection(context, direction) {
 }
 
 function positionsFor(molecule, preferred = []) {
-  return calculateMolecule2DLayout(molecule, preferred, "condensed");
+  return calculateMolecule2DLayout(molecule, preferred, "semi-developed");
 }
 
 function assertDirection(molecule, parentId, childId, direction, preferred = []) {
@@ -232,8 +232,8 @@ test("redraw mirrors manual placement; switching to Skeletal and back preserves 
   const graph = context.molecule;
   const condensed = positionsFor(graph, [1, 2, 3]);
   const skeletal = calculateMolecule2DLayout(graph, [1, 2, 3], "skeletal");
-  const condensedAgain = positionsFor(graph, [1, 2, 3]);
-  assert.deepEqual(condensedAgain, condensed);
+  const semiDevelopedAgain = positionsFor(graph, [1, 2, 3]);
+  assert.deepEqual(semiDevelopedAgain, condensed);
   assert.equal(skeletal.size, graph.atoms.length);
   assert.deepEqual(graph.manualDisplayDirections, [{ parentAtomId: 1, childAtomId: 4, direction: "left" }]);
   context.redrawMolecule();
@@ -274,7 +274,7 @@ test("presentation directions survive portable structure save/restore and reject
     formula: analyzeMolecule(molecule).formula,
     family: "acyclic",
     molecule,
-    viewMode: "condensed",
+    viewMode: "semi-developed",
     atomCount: molecule.atoms.length,
     createdAt: "2026-10-07T00:00:00.000Z",
     updatedAt: "2026-10-07T00:00:00.000Z",
