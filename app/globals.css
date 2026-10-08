@@ -3022,6 +3022,30 @@ button {
   stroke-dasharray: 5 4;
 }
 
+.semi-developed-hover-ring {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1.5;
+  pointer-events: none;
+  transition: 150ms ease;
+}
+
+.semi-developed-node:hover .semi-developed-hover-ring,
+.semi-developed-node:focus-visible .semi-developed-hover-ring {
+  fill: rgba(76, 155, 135, 0.025);
+  stroke: rgba(76, 155, 135, 0.34);
+}
+
+.semi-developed-node.selected .semi-developed-hover-ring {
+  display: none;
+}
+
+.semi-developed-selection-ring {
+  fill: rgba(92, 153, 138, 0.09);
+  stroke: #358b77;
+  stroke-width: 2;
+}
+
 .semi-developed-hit-target {
   fill: transparent;
   stroke: none;
@@ -6513,6 +6537,17 @@ html[data-theme="dark"] .carbon-node.on-branch .atom-circle {
 }
 
 html[data-theme="dark"] .selection-ring {
+  fill: rgba(103, 193, 169, 0.1);
+  stroke: #71c2aa;
+}
+
+html[data-theme="dark"] .semi-developed-node:hover .semi-developed-hover-ring,
+html[data-theme="dark"] .semi-developed-node:focus-visible .semi-developed-hover-ring {
+  fill: rgba(113, 194, 170, 0.04);
+  stroke: rgba(113, 194, 170, 0.45);
+}
+
+html[data-theme="dark"] .semi-developed-selection-ring {
   fill: rgba(103, 193, 169, 0.1);
   stroke: #71c2aa;
 }

@@ -650,6 +650,7 @@ const ENGLISH_UI: Record<string, string> = {
   "Etiquetas educativas de anillos esteroideos": "Educational steroid ring labels",
   "Tamaño de numeración": "Numbering size",
   "Tamaño de grupos funcionales": "Functional-group size",
+  "Tamaño semidesarrollado": "Semi-developed size",
   "Reducir tamaño de numeración": "Decrease numbering size",
   "Aumentar tamaño de numeración": "Increase numbering size",
   "Tamaño de badges R/S": "R/S badge size",

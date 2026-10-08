@@ -12,6 +12,7 @@ test("display preferences are available in Settings, not below the canvas", () =
   assert.match(settings, /Numerar carbonos/);
   assert.match(settings, /Tamaño de numeración/);
   assert.match(settings, /Tamaño de grupos funcionales/);
+  assert.match(settings, /Tamaño semidesarrollado/);
   assert.match(settings, /Tamaño de badges R\/S/);
   assert.match(settings, /Mostrar etiquetas de anillos esteroideos/);
   assert.match(settings, /Resaltar sustituyentes/);
@@ -19,8 +20,8 @@ test("display preferences are available in Settings, not below the canvas", () =
 });
 
 test("implicit-H toggle remains enabled in skeletal view", () => {
-  assert.match(page, /const showHydrogenOnLabel = showHydrogens;/);
   assert.match(page, /checked=\{showHydrogens\}/);
+  assert.match(page, /const label = carbon[\s\S]*?showHydrogens/);
   assert.doesNotMatch(page, /checked=\{showHydrogens\} disabled=\{viewMode === "skeletal"\}/);
 });
 
@@ -29,6 +30,8 @@ test("numbering and substituent-highlight controls remain present", () => {
   assert.match(page, /hydrocarbonLab\.numberingScale\.v1/);
   assert.match(page, /type="range"[\s\S]*MIN_NUMBERING_SCALE[\s\S]*MAX_NUMBERING_SCALE/);
   assert.match(page, /normalizeNumberingScale\(stored\)/);
+  assert.match(page, /hydrocarbonLab\.semiDevelopedLabelScale\.v1/);
+  assert.match(page, /normalizeSemiDevelopedLabelScale\(stored\)/);
   assert.match(page, /aria-label=\{t\("Tamaño de numeración"\)\}/);
   assert.match(page, /setHighlightSubstituents\(enabled\)/);
   assert.match(css, /\.numbering-size-control/);

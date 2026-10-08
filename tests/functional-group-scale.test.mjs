@@ -40,10 +40,11 @@ test("functional-group scale defaults to 100% and accepts only 60% through 200%"
   assert.equal(normalize(2.1), 1);
 });
 
-test("one global SVG transform scales every heteroatom label without scaling bonds or numbering", () => {
+test("functional-group scale stays on Skeletal labels while Semi-developed has its own text scale", () => {
   assert.match(page, /className="functional-group-label" transform=\{`scale\(\$\{functionalGroupScale\}\)`\}/);
-  assert.match(page, /<SemiDevelopedAtomSvg[\s\S]*?functionalGroupScale=\{functionalGroupScale\}/);
-  assert.match(semiDevelopedRenderer, /transform=\{carbon \? undefined : `scale\(\$\{functionalGroupScale\}\)`\}/);
+  assert.match(page, /<SemiDevelopedAtomSvg[\s\S]*?labelScale=\{semiDevelopedLabelScale\}/);
+  assert.match(semiDevelopedRenderer, /transform=\{labelScale === 1 \? undefined : `scale\(\$\{labelScale\}\)`\}/);
+  assert.doesNotMatch(page, /<SemiDevelopedAtomSvg[\s\S]*?functionalGroupScale=/);
   assert.match(page, /className="number-label"[\s\S]*?fontSize: numberingGeometry\.fontSize/);
   assert.match(page, /className="hydrogen-subscript" baselineShift="sub"/);
   assert.doesNotMatch(page, /molecule-stage[^\n]*scale\(\$\{functionalGroupScale\}/);
@@ -51,11 +52,12 @@ test("one global SVG transform scales every heteroatom label without scaling bon
 
 test("the selected label size and resolved number badges share fitted export bounds", () => {
   assert.match(page, /const \[functionalGroupScale, setFunctionalGroupScale\] = useState\(DEFAULT_FUNCTIONAL_GROUP_SCALE\)/);
+  assert.match(page, /const \[semiDevelopedLabelScale, setSemiDevelopedLabelScale\] = useState\(DEFAULT_SEMI_DEVELOPED_LABEL_SCALE\)/);
   assert.match(page, /<ViewportPortal active=\{canvasExpanded\}>/);
   assert.match(page, /const offset = skeletalNumberBadgeOffsets\.get\(atom\.id\)!/);
   assert.match(
     page,
-    /const visualExtents = \[\.\.\.numberingBadgeExtents, \.\.\.functionalLabelExtents, \.\.\.tetrahedralBadgeExtents, \.\.\.steroidRingLabelExtents\]/s,
+    /const visualExtents = \[\.\.\.numberingBadgeExtents, \.\.\.atomLabelExtents, \.\.\.tetrahedralBadgeExtents, \.\.\.steroidRingLabelExtents\]/s,
   );
   assert.match(page, /getSemiDevelopedBounds\(displayPositions\.values\(\), \{[\s\S]*?extents: visualExtents/);
   assert.match(page, /const clonedSvg = sourceSvg\.cloneNode\(true\) as SVGSVGElement/);

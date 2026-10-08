@@ -100,6 +100,13 @@ import {
   NUMBERING_SCALE_STEP,
 } from "./skeletal-bond-geometry";
 import { clipSemiDevelopedBondSegments } from "./semi-developed-bond-geometry";
+import {
+  DEFAULT_SEMI_DEVELOPED_LABEL_SCALE,
+  getSemiDevelopedLabelExtent,
+  normalizeSemiDevelopedLabelScale,
+  SEMI_DEVELOPED_LABEL_SCALE_OPTIONS,
+  SEMI_DEVELOPED_LABEL_SCALE_STEP,
+} from "./semi-developed-label-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
 import {
   clearTetrahedralConfiguration,
@@ -249,6 +256,7 @@ const SKELETAL_HINT_DISMISSED_STORAGE_KEY = "hydrocarbonLab.skeletalHintDismisse
 const BOND_HINT_DISMISSED_STORAGE_KEY = "hydrocarbonLab.bondHintDismissed.v1";
 const NUMBERING_SCALE_STORAGE_KEY = "hydrocarbonLab.numberingScale.v1";
 const FUNCTIONAL_GROUP_SCALE_STORAGE_KEY = "hydrocarbonLab.functionalGroupScale.v1";
+const SEMI_DEVELOPED_LABEL_SCALE_STORAGE_KEY = "hydrocarbonLab.semiDevelopedLabelScale.v1";
 const DEFAULT_FUNCTIONAL_GROUP_SCALE = 1;
 const MIN_FUNCTIONAL_GROUP_SCALE = 0.6;
 const MAX_FUNCTIONAL_GROUP_SCALE = 2;
@@ -6407,6 +6415,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   const [numberingScalePreferenceReady, setNumberingScalePreferenceReady] = useState(false);
   const [functionalGroupScale, setFunctionalGroupScale] = useState(DEFAULT_FUNCTIONAL_GROUP_SCALE);
   const [functionalGroupScalePreferenceReady, setFunctionalGroupScalePreferenceReady] = useState(false);
+  const [semiDevelopedLabelScale, setSemiDevelopedLabelScale] = useState(DEFAULT_SEMI_DEVELOPED_LABEL_SCALE);
+  const [semiDevelopedLabelScalePreferenceReady, setSemiDevelopedLabelScalePreferenceReady] = useState(false);
   const [tetrahedralBadgeScale, setTetrahedralBadgeScale] = useState(DEFAULT_TETRAHEDRAL_BADGE_SCALE);
   const [tetrahedralBadgeScalePreferenceReady, setTetrahedralBadgeScalePreferenceReady] = useState(false);
   const [highlightSubstituents, setHighlightSubstituents] = useState(true);
@@ -7351,6 +7361,33 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     if (isolatedBuild) return;
     const restorePreference = window.setTimeout(() => {
       try {
+        const stored = window.localStorage.getItem(SEMI_DEVELOPED_LABEL_SCALE_STORAGE_KEY);
+        setSemiDevelopedLabelScale(stored === null
+          ? DEFAULT_SEMI_DEVELOPED_LABEL_SCALE
+          : normalizeSemiDevelopedLabelScale(stored));
+      } catch {
+        setSemiDevelopedLabelScale(DEFAULT_SEMI_DEVELOPED_LABEL_SCALE);
+      } finally {
+        setSemiDevelopedLabelScalePreferenceReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(restorePreference);
+  }, [isolatedBuild]);
+
+  useEffect(() => {
+    if (isolatedBuild) return;
+    if (!semiDevelopedLabelScalePreferenceReady) return;
+    try {
+      window.localStorage.setItem(SEMI_DEVELOPED_LABEL_SCALE_STORAGE_KEY, String(semiDevelopedLabelScale));
+    } catch {
+      // The current session still keeps the chosen scale when storage is unavailable.
+    }
+  }, [isolatedBuild, semiDevelopedLabelScale, semiDevelopedLabelScalePreferenceReady]);
+
+  useEffect(() => {
+    if (isolatedBuild) return;
+    const restorePreference = window.setTimeout(() => {
+      try {
         const stored = window.localStorage.getItem(TETRAHEDRAL_BADGE_SCALE_STORAGE_KEY);
         setTetrahedralBadgeScale(stored === null
           ? DEFAULT_TETRAHEDRAL_BADGE_SCALE
@@ -8085,6 +8122,10 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   const updateFunctionalGroupScale = (value: number) => {
     const clamped = Math.min(MAX_FUNCTIONAL_GROUP_SCALE, Math.max(MIN_FUNCTIONAL_GROUP_SCALE, value));
     setFunctionalGroupScale(normalizeFunctionalGroupScale(clamped));
+  };
+
+  const updateSemiDevelopedLabelScale = (value: number) => {
+    setSemiDevelopedLabelScale(normalizeSemiDevelopedLabelScale(value));
   };
 
   const updateTetrahedralBadgeScale = (value: number) => {
@@ -9728,6 +9769,24 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         }],
       ))
     : null;
+  const getAtomLabelPresentation = (atom: CarbonAtom) => {
+    const carbon = isCarbonAtom(atom);
+    const element = getElement(atom);
+    const hydrogenCount = getImplicitHydrogens(atom.id, molecule);
+    const label = carbon
+      ? showHydrogens
+        ? (semiDevelopedAtomGlyphs.get(atom.id)?.carbonGroup?.startsWith("CH") ? "CH" : "C")
+        : "C"
+      : showHydrogens && hydrogenCount > 0 ? `${element}H` : element;
+    return {
+      label,
+      hydrogenSubscript: showHydrogens && hydrogenCount > 1 ? hydrogenCount : undefined,
+      charge: atom.charge === 1 ? "+" : atom.charge === -1 ? "−" : "",
+      scale: viewMode === "condensed"
+        ? semiDevelopedLabelScale
+        : carbon ? 1 : functionalGroupScale,
+    };
+  };
   const numberingGeometry = getSkeletalNumberBadgeGeometry(numberingScale);
   const numberBadgePreferredOffsets = new Map(
     molecule.atoms.map((atom) => {
@@ -9763,9 +9822,21 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     const labelObstacles = molecule.atoms.flatMap((otherAtom) => {
       if (otherAtom.id === atom.id || isCarbonAtom(otherAtom)) return [];
       const otherPosition = displayPositions.get(otherAtom.id)!;
+      const labelRadius = viewMode === "condensed"
+        ? (() => {
+            const presentation = getAtomLabelPresentation(otherAtom);
+            const extent = getSemiDevelopedLabelExtent(
+              presentation.label,
+              presentation.hydrogenSubscript,
+              presentation.charge,
+              presentation.scale,
+            );
+            return Math.max(18, Math.hypot(extent.halfWidth, extent.halfHeight));
+          })()
+        : Math.max(18, 22 * functionalGroupScale);
       return [{
         center: { x: otherPosition.x - position.x, y: otherPosition.y - position.y },
-        radius: Math.max(18, 22 * functionalGroupScale),
+        radius: labelRadius,
       }];
     });
     const priorBadgeObstacles = [...skeletalNumberBadgeOffsets.entries()].map(([otherAtomId, offset]) => {
@@ -9816,12 +9887,27 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         }];
       })
     : [];
-  // Heteroatom labels are functional-group labels in the editor (OH, NH2,
-  // carbonyl O, halogens, etc.). Keep their bounds explicit so enlarged
-  // labels are included by both the live SVG viewBox and export framing.
-  const functionalLabelExtents = molecule.atoms.flatMap((atom) => {
-    if (isCarbonAtom(atom)) return [];
+  // Semi-developed fit/obstacle bounds use the same scaled label footprint as
+  // bond clipping. Skeletal retains its existing hetero-label bounds exactly.
+  const atomLabelExtents = molecule.atoms.flatMap((atom) => {
+    const carbon = isCarbonAtom(atom);
+    if (viewMode === "skeletal" && carbon) return [];
     const position = displayPositions.get(atom.id)!;
+    if (viewMode === "condensed") {
+      const presentation = getAtomLabelPresentation(atom);
+      const extent = getSemiDevelopedLabelExtent(
+        presentation.label,
+        presentation.hydrogenSubscript,
+        presentation.charge,
+        presentation.scale,
+      );
+      return [{
+        x: position.x - extent.halfWidth,
+        y: position.y - extent.halfHeight,
+        width: extent.halfWidth * 2,
+        height: extent.halfHeight * 2,
+      }];
+    }
     const element = getElement(atom);
     const hydrogenCount = showHydrogens ? getImplicitHydrogens(atom.id, molecule) : 0;
     const visibleCharacterCount = element.length
@@ -9830,12 +9916,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       + (atom.charge ? 0.7 : 0);
     const width = Math.max(24, (visibleCharacterCount * 10 + 8) * functionalGroupScale);
     const height = Math.max(26, 24 * functionalGroupScale);
-    return [{
-      x: position.x - width / 2,
-      y: position.y - height / 2,
-      width,
-      height,
-    }];
+    return [{ x: position.x - width / 2, y: position.y - height / 2, width, height }];
   });
   const tetrahedralBadgeExtentsAtScale = (
     scale: number,
@@ -9853,7 +9934,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     tetrahedralStereoBonds,
     displayPositions,
     tetrahedralBadgeScale,
-    [...numberingBadgeExtents, ...functionalLabelExtents],
+    [...numberingBadgeExtents, ...atomLabelExtents],
   );
   const baseTetrahedralBadgeExtents = tetrahedralBadgeExtentsAtScale(
     tetrahedralBadgeScale,
@@ -9863,13 +9944,13 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     ? layoutSteroidRingLabels(
         analysis.steroidSystem.ringsByLabel,
         displayPositions,
-        [...numberingBadgeExtents, ...functionalLabelExtents, ...baseTetrahedralBadgeExtents],
+        [...numberingBadgeExtents, ...atomLabelExtents, ...baseTetrahedralBadgeExtents],
       )
     : [];
   const preliminaryBounds = getMoleculeVisualBounds(displayPositions.values(), {
     additionalExtents: [
       ...numberingBadgeExtents,
-      ...functionalLabelExtents,
+      ...atomLabelExtents,
       ...baseTetrahedralBadgeExtents,
       ...preliminarySteroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 })),
     ],
@@ -9886,7 +9967,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     effectiveTetrahedralBadgeScale,
     [
       ...numberingBadgeExtents,
-      ...functionalLabelExtents,
+      ...atomLabelExtents,
       ...preliminarySteroidRingLabels.map(({ x, y }) => ({ x: x - 16, y: y - 16, width: 32, height: 32 })),
     ],
   );
@@ -9898,7 +9979,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     ? layoutSteroidRingLabels(
         analysis.steroidSystem.ringsByLabel,
         displayPositions,
-        [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents],
+        [...numberingBadgeExtents, ...atomLabelExtents, ...tetrahedralBadgeExtents],
       )
     : [];
   const steroidRingLabelExtents = steroidRingLabels.map(({ x, y }) => ({
@@ -9907,7 +9988,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     width: 32,
     height: 32,
   }));
-  const visualExtents = [...numberingBadgeExtents, ...functionalLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents];
+  const visualExtents = [...numberingBadgeExtents, ...atomLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents];
   const moleculeVisualBounds = viewMode === "condensed"
     ? { ...getSemiDevelopedBounds(displayPositions.values(), { labelRadius: 48, padding: 72, extents: visualExtents }), padding: 72 }
     : getMoleculeVisualBounds(displayPositions.values(), { additionalExtents: visualExtents });
@@ -10971,6 +11052,15 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                   : null;
                 const parallelBondSegments = getParallelBondSegments(positionA, positionB, order);
                 const rawBondSegments = ringDoubleBondSegments ?? parallelBondSegments;
+                const getEndpointLabelExtent = (atom: CarbonAtom) => {
+                  const presentation = getAtomLabelPresentation(atom);
+                  return getSemiDevelopedLabelExtent(
+                    presentation.label,
+                    presentation.hydrogenSubscript,
+                    presentation.charge,
+                    presentation.scale,
+                  );
+                };
                 // Triple badges are placed clear of their painted circle, the
                 // 5.5 px bond stroke and a 2 px gap. A scaled label buffer must
                 // not invent a collision after that placement already cleared it.
@@ -11040,7 +11130,13 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                             bondClipOptions,
                           )
                       : rawBondSegments
-                  : clipSemiDevelopedBondSegments(rawBondSegments, positionA, positionB);
+                  : clipSemiDevelopedBondSegments(
+                      rawBondSegments,
+                      positionA,
+                      positionB,
+                      getEndpointLabelExtent(atomA),
+                      getEndpointLabelExtent(atomB),
+                    );
                 const lockedBond = isFunctionalBond
                   || Boolean(molecule.rings?.length && !containingRing);
                 const reasoningHighlighted = activeReasoningBondIds.some(([left, right]) =>
@@ -11298,7 +11394,6 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               {molecule.atoms.map((atom) => {
                 const element = getElement(atom);
                 const carbonAtom = isCarbonAtom(atom);
-                const hydrogenCount = getImplicitHydrogens(atom.id, molecule);
                 const isSelected = atom.id === selectedId;
                 const chainNumber = analysis.numberedAtoms.get(atom.id);
                 const position = displayPositions.get(atom.id)!;
@@ -11310,18 +11405,10 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                   numberLeaderStart,
                   numberBadgeDistance - numberingGeometry.radius - numberingGeometry.strokeWidth / 2 - 2,
                 );
-                const showHydrogenOnLabel = showHydrogens;
-                const atomLabel = carbonAtom
-                  ? showHydrogenOnLabel
-                    ? (semiDevelopedAtomGlyphs.get(atom.id)?.carbonGroup?.startsWith("CH") ? "CH" : "C")
-                    : "C"
-                  : showHydrogenOnLabel && hydrogenCount > 0
-                    ? `${element}H`
-                    : element;
-                const hydrogenSubscript = showHydrogenOnLabel && hydrogenCount > 1
-                  ? hydrogenCount
-                  : undefined;
-                const chargeText = atom.charge === 1 ? "+" : atom.charge === -1 ? "−" : "";
+                const labelPresentation = getAtomLabelPresentation(atom);
+                const atomLabel = labelPresentation.label;
+                const hydrogenSubscript = labelPresentation.hydrogenSubscript;
+                const chargeText = labelPresentation.charge;
                 const visibleLabelLength = atomLabel.length + (chargeText ? 1 : 0);
                 const heteroBadgeWidth = visibleLabelLength >= 3 ? 40 : visibleLabelLength === 2 ? 31 : 24;
                 return (
@@ -11481,12 +11568,11 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                     ) : (
                       <>
                         <SemiDevelopedAtomSvg
-                          glyph={semiDevelopedAtomGlyphs.get(atom.id)!}
                           label={atomLabel}
                           hydrogenSubscript={hydrogenSubscript}
                           charge={chargeText}
                           selected={isSelected}
-                          functionalGroupScale={functionalGroupScale}
+                          labelScale={semiDevelopedLabelScale}
                         />
                         {effectiveShowNumbering && chainNumber && (
                           <>
@@ -12603,14 +12689,38 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                   <button type="button" disabled={numberingScale === DEFAULT_NUMBERING_SCALE} onClick={() => updateNumberingScale(DEFAULT_NUMBERING_SCALE)}>{t("Restablecer")}</button>
                 </div>
               </div>
-              <div className="settings-scale-control" role="group" aria-label={t("Tamaño de grupos funcionales")}>
-                <strong>{t("Tamaño de grupos funcionales")}</strong>
-                <div className="settings-scale-actions">
-                  <input type="range" min={MIN_FUNCTIONAL_GROUP_SCALE} max={MAX_FUNCTIONAL_GROUP_SCALE} step={FUNCTIONAL_GROUP_SCALE_STEP} value={functionalGroupScale} onChange={(event) => updateFunctionalGroupScale(Number(event.target.value))} aria-label={t("Tamaño de grupos funcionales")} />
-                  <output aria-live="polite">{Math.round(functionalGroupScale * 100)} %</output>
-                  <button type="button" disabled={functionalGroupScale === DEFAULT_FUNCTIONAL_GROUP_SCALE} onClick={() => updateFunctionalGroupScale(DEFAULT_FUNCTIONAL_GROUP_SCALE)}>{t("Restablecer")}</button>
+              {viewMode === "skeletal" && (
+                <div className="settings-scale-control" role="group" aria-label={t("Tamaño de grupos funcionales")}>
+                  <strong>{t("Tamaño de grupos funcionales")}</strong>
+                  <div className="settings-scale-actions">
+                    <input type="range" min={MIN_FUNCTIONAL_GROUP_SCALE} max={MAX_FUNCTIONAL_GROUP_SCALE} step={FUNCTIONAL_GROUP_SCALE_STEP} value={functionalGroupScale} onChange={(event) => updateFunctionalGroupScale(Number(event.target.value))} aria-label={t("Tamaño de grupos funcionales")} />
+                    <output aria-live="polite">{Math.round(functionalGroupScale * 100)} %</output>
+                    <button type="button" disabled={functionalGroupScale === DEFAULT_FUNCTIONAL_GROUP_SCALE} onClick={() => updateFunctionalGroupScale(DEFAULT_FUNCTIONAL_GROUP_SCALE)}>{t("Restablecer")}</button>
+                  </div>
                 </div>
-              </div>
+              )}
+              {viewMode === "condensed" && (
+                <div className="settings-scale-control" role="group" aria-label={t("Tamaño semidesarrollado")}>
+                  <strong>{t("Tamaño semidesarrollado")}</strong>
+                  <div className="settings-scale-actions">
+                    <input
+                      type="range"
+                      min={SEMI_DEVELOPED_LABEL_SCALE_OPTIONS[0]}
+                      max={SEMI_DEVELOPED_LABEL_SCALE_OPTIONS.at(-1)}
+                      step={SEMI_DEVELOPED_LABEL_SCALE_STEP}
+                      value={semiDevelopedLabelScale}
+                      onChange={(event) => updateSemiDevelopedLabelScale(Number(event.target.value))}
+                      aria-label={t("Tamaño semidesarrollado")}
+                    />
+                    <output aria-live="polite">{Math.round(semiDevelopedLabelScale * 100)} %</output>
+                    <button
+                      type="button"
+                      disabled={semiDevelopedLabelScale === DEFAULT_SEMI_DEVELOPED_LABEL_SCALE}
+                      onClick={() => updateSemiDevelopedLabelScale(DEFAULT_SEMI_DEVELOPED_LABEL_SCALE)}
+                    >{t("Restablecer")}</button>
+                  </div>
+                </div>
+              )}
               <label className="settings-toggle">
                 <span>{t("Recordar estereoquímica")}</span>
                 <input

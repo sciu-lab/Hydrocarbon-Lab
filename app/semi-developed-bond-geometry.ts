@@ -1,4 +1,7 @@
 import { clipBondSegmentsToLabel } from "./bond-label-geometry.ts";
+import type { SemiDevelopedLabelExtent } from "./semi-developed-label-geometry.ts";
+
+export const SEMI_DEVELOPED_BOND_LABEL_GAP = 8;
 
 export type SemiDevelopedBondSegment = {
   x: number;
@@ -8,11 +11,17 @@ export type SemiDevelopedBondSegment = {
   role?: string | null;
 };
 
-/** Clip single, double, or triple bond strokes to the semi-developed label badges. */
+/** Clip bond strokes to the text footprint, independently of the larger atom hit target. */
 export function clipSemiDevelopedBondSegments(
   segments: readonly SemiDevelopedBondSegment[],
   start: { x: number; y: number },
   end: { x: number; y: number },
+  startExtent: Pick<SemiDevelopedLabelExtent, "halfWidth" | "halfHeight">,
+  endExtent: Pick<SemiDevelopedLabelExtent, "halfWidth" | "halfHeight">,
 ): SemiDevelopedBondSegment[] {
-  return clipBondSegmentsToLabel(segments, start, end, { radius: 28, overlap: 3 });
+  return clipBondSegmentsToLabel(segments, start, end, {
+    startExtent,
+    endExtent,
+    textPadding: SEMI_DEVELOPED_BOND_LABEL_GAP,
+  });
 }

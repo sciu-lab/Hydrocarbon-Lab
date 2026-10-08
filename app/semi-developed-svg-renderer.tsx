@@ -1,43 +1,30 @@
-import type { SemiDevelopedAtomGlyph } from "./semi-developed-renderer.ts";
-
-const SEMI_DEVELOPED_BADGE_MIN_RADIUS = 28;
-const SEMI_DEVELOPED_HIT_PADDING = 4;
-
-export function getSemiDevelopedAtomBadgeRadius(
-  label: string,
-  hydrogenSubscript?: number,
-  charge = "",
-) {
-  const badgeWidth = Math.max(
-    SEMI_DEVELOPED_BADGE_MIN_RADIUS,
-    label.length * 10 + (hydrogenSubscript ? 6 : 0) + (charge ? 7 : 0),
-  );
-  return Math.max(SEMI_DEVELOPED_BADGE_MIN_RADIUS, badgeWidth / 2 + 5);
-}
+import { getSemiDevelopedLabelExtent } from "./semi-developed-label-geometry.ts";
 
 /** Semi-developed atom glyph and hit target; interaction handlers stay on the owning canvas node. */
 export function SemiDevelopedAtomSvg({
-  glyph,
   label,
   hydrogenSubscript,
   charge,
   selected,
-  functionalGroupScale,
+  labelScale,
 }: {
-  glyph: SemiDevelopedAtomGlyph;
   label: string;
   hydrogenSubscript?: number;
   charge: string;
   selected: boolean;
-  functionalGroupScale: number;
+  labelScale: number;
 }) {
-  const carbon = glyph.element === "C";
-  const badgeRadius = getSemiDevelopedAtomBadgeRadius(label, hydrogenSubscript, charge);
+  const labelExtent = getSemiDevelopedLabelExtent(
+    label,
+    hydrogenSubscript,
+    charge,
+    labelScale,
+  );
   return (
     <g className="semi-developed-glyph" aria-hidden="true" pointerEvents="none">
-      {selected && <circle className="selection-ring" r="39" />}
-      <circle className={`atom-circle semi-developed-label-background${carbon ? "" : " semi-developed-hetero-badge"}`} r={badgeRadius} />
-      <g transform={carbon ? undefined : `scale(${functionalGroupScale})`}>
+      {selected && <circle className="selection-ring semi-developed-selection-ring" data-editor-only="true" r={labelExtent.hitRadius + 7} />}
+      <circle className="semi-developed-hover-ring" data-editor-only="true" aria-hidden="true" r={labelExtent.hitRadius + 3} />
+      <g transform={labelScale === 1 ? undefined : `scale(${labelScale})`}>
       <text className="atom-label semi-developed-label" textAnchor="middle" dominantBaseline="central">
         <tspan>{label}</tspan>
         {hydrogenSubscript && (
@@ -50,7 +37,7 @@ export function SemiDevelopedAtomSvg({
         className="semi-developed-hit-target"
         data-editor-only="true"
         aria-hidden="true"
-        r={badgeRadius + SEMI_DEVELOPED_HIT_PADDING}
+        r={labelExtent.hitRadius}
         fill="transparent"
         pointerEvents="all"
       />
