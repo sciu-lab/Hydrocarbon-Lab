@@ -108,7 +108,7 @@ import {
   SEMI_DEVELOPED_LABEL_SCALE_STEP,
 } from "./semi-developed-label-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
-import { normalizeViewMode, serializeLegacyViewMode, type LegacyPersistedViewMode, type ViewMode } from "./view-mode";
+import { decodeViewModeV1, encodeViewModeV1, type PersistedViewModeV1, type ViewMode } from "./view-mode";
 import {
   clearTetrahedralConfiguration,
   getMainChainTetrahedralDescriptors,
@@ -161,7 +161,8 @@ import { readSmilesFileRecord } from "./smiles-file";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
 import {
   readChemistryDocument as validateChemistryDocument,
-  type SerializedPortableStructure,
+  type ChemistryDocumentV1,
+  type SerializedPortableStructureV1,
   type PortableStructure,
 } from "./chemistry-document-validation";
 import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
@@ -423,16 +424,7 @@ type HistoryEntry = {
 };
 
 type PersistedHistoryEntry = Omit<HistoryEntry, "viewMode"> & {
-  viewMode: LegacyPersistedViewMode | "semi-developed";
-};
-
-type ChemistryDocument = {
-  format: "laboratorio-quimica-organica";
-  version: 1;
-  kind: "structure" | "library";
-  exportedAt: string;
-  structure?: SerializedPortableStructure;
-  structures?: SerializedPortableStructure[];
+  viewMode: PersistedViewModeV1;
 };
 
 type HistoryTransferNotice = {
@@ -5168,13 +5160,14 @@ type LocalLibraryState = {
   saved: HistoryEntry[];
 };
 
-function normalizeHistoryEntry(value: unknown): HistoryEntry | null {
+export function decodeHistoryEntryV1(value: unknown): HistoryEntry | null {
   if (!value || typeof value !== "object") return null;
   const entry = value as HistoryEntry;
   if (!entry.molecule?.atoms?.length) return null;
   return {
     ...entry,
-    viewMode: normalizeViewMode((value as { viewMode?: unknown }).viewMode) ?? "semi-developed",
+    // Versionless local/cloud history records use the existing V1 vocabulary.
+    viewMode: decodeViewModeV1((value as { viewMode?: unknown }).viewMode) ?? "semi-developed",
   };
 }
 
@@ -5360,12 +5353,12 @@ function readLocalLibrary(): LocalLibraryState {
     if (!stored) return { draft: null, history: [], saved: [] };
     const parsed = JSON.parse(stored) as Partial<{ draft: unknown; history: unknown[]; saved: unknown[] }>;
     return {
-      draft: normalizeHistoryEntry(parsed.draft),
+      draft: decodeHistoryEntryV1(parsed.draft),
       history: Array.isArray(parsed.history)
-        ? parsed.history.map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 50)
+        ? parsed.history.map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 50)
         : [],
       saved: Array.isArray(parsed.saved)
-        ? parsed.saved.map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 200)
+        ? parsed.saved.map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 200)
         : [],
     };
   } catch {
@@ -5374,8 +5367,9 @@ function readLocalLibrary(): LocalLibraryState {
 }
 
 function writeLocalLibrary(state: LocalLibraryState) {
+  // The versionless local library keeps the established V1 wire identifiers.
   const serializeEntry = (entry: HistoryEntry | null) => entry
-    ? { ...entry, viewMode: serializeLegacyViewMode(entry.viewMode) }
+    ? { ...entry, viewMode: encodeViewModeV1(entry.viewMode) }
     : null;
   window.localStorage.setItem(localLibraryStorageKey, JSON.stringify({
     draft: serializeEntry(state.draft),
@@ -5452,13 +5446,13 @@ function clearLocalHistoryEntries() {
   });
 }
 
-export function toPortableStructure(entry: HistoryEntry): SerializedPortableStructure {
+export function toPortableStructure(entry: HistoryEntry): SerializedPortableStructureV1 {
   return {
     name: entry.name,
     formula: entry.formula,
     family: entry.family,
     molecule: cloneMolecule(entry.molecule),
-    viewMode: serializeLegacyViewMode(entry.viewMode),
+    viewMode: encodeViewModeV1(entry.viewMode),
     atomCount: entry.atomCount,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
@@ -5476,7 +5470,7 @@ function safeChemistryFileName(value: string) {
   return normalized || "estructura-organica";
 }
 
-function downloadChemistryDocument(document: ChemistryDocument, fileName: string) {
+function downloadChemistryDocument(document: ChemistryDocumentV1, fileName: string) {
   const blob = new Blob([JSON.stringify(document, null, 2)], {
     type: "application/json;charset=utf-8",
   });
@@ -7449,7 +7443,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         setSavedEntries(data.saved);
         if (data.draft?.molecule?.atoms?.length) {
           const restored = cloneMolecule(data.draft.molecule);
-          const restoredViewMode = normalizeViewMode(data.draft.viewMode) ?? "semi-developed";
+          const restoredViewMode = decodeViewModeV1(data.draft.viewMode) ?? "semi-developed";
           lastPersistedSignature.current = JSON.stringify({
             molecule: restored,
             viewMode: restoredViewMode,
@@ -7501,11 +7495,11 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         if (cancelled) return;
         setHistoryIdentity(visitorId);
         setHistoryScope(data.scope ?? savedData.scope ?? "device");
-        setHistoryEntries((data.history ?? []).map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null));
-        setSavedEntries((savedData.saved ?? []).map(normalizeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null));
+        setHistoryEntries((data.history ?? []).map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null));
+        setSavedEntries((savedData.saved ?? []).map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null));
         if (data.draft?.molecule?.atoms?.length) {
           const restored = cloneMolecule(data.draft.molecule);
-          const restoredViewMode = normalizeViewMode(data.draft.viewMode) ?? "semi-developed";
+          const restoredViewMode = decodeViewModeV1(data.draft.viewMode) ?? "semi-developed";
           lastPersistedSignature.current = JSON.stringify({
             molecule: restored,
             viewMode: restoredViewMode,
@@ -7647,7 +7641,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
           formula: analysis.formula,
           family: historyFamilyLabel,
           molecule,
-          viewMode,
+          viewMode: encodeViewModeV1(viewMode),
           archive: true,
         }),
       })
@@ -7662,7 +7656,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         })
         .then((data) => {
           lastPersistedSignature.current = signature;
-          const item = normalizeHistoryEntry(data.item);
+          const item = decodeHistoryEntryV1(data.item);
           if (item) {
             setHistoryEntries((items) => mergeHistoryEntry(items, item));
           }
@@ -8780,7 +8774,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
           formula: analysis.formula,
           family: historyFamilyLabel,
           molecule,
-          viewMode: serializeLegacyViewMode(viewMode),
+          viewMode: encodeViewModeV1(viewMode),
         }),
       });
       const data = await response.json() as {
@@ -8789,7 +8783,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         error?: string;
       };
       if (!response.ok) throw new Error(data.error || "No se pudo guardar.");
-      const item = normalizeHistoryEntry(data.item);
+      const item = decodeHistoryEntryV1(data.item);
       if (item) {
         setSavedEntries((items) => mergeHistoryEntry(items, item, 200));
       }
@@ -8827,7 +8821,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   };
 
   const exportHistoryEntry = (entry: HistoryEntry) => {
-    const document: ChemistryDocument = {
+    const document: ChemistryDocumentV1 = {
       format: "laboratorio-quimica-organica",
       version: 1,
       kind: "structure",
@@ -8843,7 +8837,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
 
   const exportHistoryLibrary = () => {
     if (!historyEntries.length) return;
-    const document: ChemistryDocument = {
+    const document: ChemistryDocumentV1 = {
       format: "laboratorio-quimica-organica",
       version: 1,
       kind: "library",
@@ -8860,7 +8854,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
 
   const exportSavedLibrary = () => {
     if (!savedEntries.length) return;
-    const document: ChemistryDocument = {
+    const document: ChemistryDocumentV1 = {
       format: "laboratorio-quimica-organica",
       version: 1,
       kind: "library",
@@ -9295,7 +9289,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
             formula: structure.formula,
             family: structure.family,
             molecule: structure.molecule,
-            viewMode: serializeLegacyViewMode(structure.viewMode),
+            viewMode: encodeViewModeV1(structure.viewMode),
           }),
         });
         const data = await response.json() as {
@@ -9305,7 +9299,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         if (!response.ok || !data.item) {
           throw new Error(data.error || `No fue posible importar ${structure.name}.`);
         }
-        const item = normalizeHistoryEntry(data.item);
+        const item = decodeHistoryEntryV1(data.item);
         if (!item) throw new Error(`No fue posible importar ${structure.name}.`);
         importedEntries.push(item);
       }

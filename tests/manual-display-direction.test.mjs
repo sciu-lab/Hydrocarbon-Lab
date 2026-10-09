@@ -274,7 +274,7 @@ test("presentation directions survive portable structure save/restore and reject
     formula: analyzeMolecule(molecule).formula,
     family: "acyclic",
     molecule,
-    viewMode: "semi-developed",
+    viewMode: "condensed",
     atomCount: molecule.atoms.length,
     createdAt: "2026-10-07T00:00:00.000Z",
     updatedAt: "2026-10-07T00:00:00.000Z",

@@ -3,7 +3,12 @@ import {
   normalizeManualDisplayPlacements,
   type ManualDisplayPlacement,
 } from "./manual-display-direction.ts";
-import { normalizeViewMode, type LegacyPersistedViewMode, type ViewMode } from "./view-mode.ts";
+import {
+  decodeViewModeV1,
+  type PersistedViewModeV1,
+  type PersistedViewModeV2,
+  type ViewMode,
+} from "./view-mode.ts";
 
 export type PortableMolecule = GeneratedMolecule & {
   isMirrored?: boolean;
@@ -21,8 +26,33 @@ export type PortableStructure = {
   updatedAt: string;
 };
 
-export type SerializedPortableStructure = Omit<PortableStructure, "viewMode"> & {
-  viewMode: LegacyPersistedViewMode;
+export type SerializedPortableStructureV1 = Omit<PortableStructure, "viewMode"> & {
+  viewMode: PersistedViewModeV1;
+};
+
+export type SerializedPortableStructureV2 = Omit<PortableStructure, "viewMode"> & {
+  viewMode: PersistedViewModeV2;
+};
+
+type ChemistryDocumentKind = "structure" | "library";
+
+export type ChemistryDocumentV1 = {
+  format: "laboratorio-quimica-organica";
+  version: 1;
+  kind: ChemistryDocumentKind;
+  exportedAt: string;
+  structure?: SerializedPortableStructureV1;
+  structures?: SerializedPortableStructureV1[];
+};
+
+/** Type-only preparation; the current reader and writer intentionally remain V1. */
+export type ChemistryDocumentV2 = {
+  format: "laboratorio-quimica-organica";
+  version: 2;
+  kind: ChemistryDocumentKind;
+  exportedAt: string;
+  structure?: SerializedPortableStructureV2;
+  structures?: SerializedPortableStructureV2[];
 };
 
 type ChemistryChecks = {
@@ -209,11 +239,12 @@ function normalizePortableMolecule(
 
 function normalizePortableStructure(value: unknown, checks: ChemistryChecks): PortableStructure | null {
   if (!isRecord(value)) return null;
+  const viewMode = decodeViewModeV1(value.viewMode);
   if (
     typeof value.name !== "string"
     || typeof value.formula !== "string"
     || typeof value.family !== "string"
-    || !normalizeViewMode(value.viewMode)
+    || !viewMode
     || !Number.isSafeInteger(value.atomCount)
     || typeof value.createdAt !== "string"
     || typeof value.updatedAt !== "string"
@@ -237,7 +268,7 @@ function normalizePortableStructure(value: unknown, checks: ChemistryChecks): Po
     formula: value.formula,
     family: value.family,
     molecule,
-    viewMode: normalizeViewMode(value.viewMode)!,
+    viewMode,
     atomCount: value.atomCount as number,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
@@ -248,7 +279,13 @@ export function readChemistryDocument(value: unknown, checks: ChemistryChecks): 
   if (!isRecord(value)) {
     throw new Error("El archivo no contiene un documento químico válido.");
   }
-  if (value.format !== "laboratorio-quimica-organica" || value.version !== 1) {
+  if (value.format !== "laboratorio-quimica-organica") {
+    throw new Error("Este archivo no pertenece a una versión compatible del laboratorio.");
+  }
+  if (value.version === 2) {
+    throw new Error("Los documentos V2 aún no son compatibles con esta aplicación.");
+  }
+  if (value.version !== 1) {
     throw new Error("Este archivo no pertenece a una versión compatible del laboratorio.");
   }
 

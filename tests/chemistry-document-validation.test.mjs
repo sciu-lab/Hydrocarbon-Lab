@@ -11,8 +11,9 @@ let server;
 let analyzeMolecule;
 let readChemistryDocument;
 let toPortableStructure;
-let normalizeViewMode;
-let serializeLegacyViewMode;
+let decodeHistoryEntryV1;
+let decodeViewModeV1;
+let encodeViewModeV1;
 
 before(async () => {
   server = await createServer({
@@ -23,8 +24,8 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, readChemistryDocument, toPortableStructure } = await server.ssrLoadModule("/app/page.tsx"));
-  ({ normalizeViewMode, serializeLegacyViewMode } = await server.ssrLoadModule("/app/view-mode.ts"));
+  ({ analyzeMolecule, readChemistryDocument, toPortableStructure, decodeHistoryEntryV1 } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ decodeViewModeV1, encodeViewModeV1 } = await server.ssrLoadModule("/app/view-mode.ts"));
 });
 
 after(async () => {
@@ -161,18 +162,24 @@ test("a library is validated in full before its structures are returned for impo
 
 test("legacy condensed documents normalize internally and retain the V1 wire value on export", () => {
   const molecule = simpleEthanol();
-  const legacy = makeStructure(molecule, { name: "ethanol legacy", viewMode: "condensed" });
+  const [parentAtomId, childAtomId] = molecule.bonds[0];
+  const directedMolecule = {
+    ...molecule,
+    manualDisplayDirections: [{ parentAtomId, childAtomId, direction: "up" }],
+  };
+  const legacy = makeStructure(directedMolecule, { name: "ethanol legacy", viewMode: "condensed" });
   const [restored] = readChemistryDocument(documentFor([legacy]));
 
   assert.equal(restored.viewMode, "semi-developed");
   assert.equal(restored.name, legacy.name);
   assert.equal(restored.formula, legacy.formula);
-  assert.deepEqual(restored.molecule, molecule);
-  assert.equal(normalizeViewMode("condensed"), "semi-developed");
-  assert.equal(normalizeViewMode("skeletal"), "skeletal");
-  assert.equal(normalizeViewMode("unknown"), null);
+  assert.deepEqual(restored.molecule, directedMolecule);
+  assert.equal(decodeViewModeV1("condensed"), "semi-developed");
+  assert.equal(decodeViewModeV1("skeletal"), "skeletal");
+  assert.equal(decodeViewModeV1("semi-developed"), null);
+  assert.equal(decodeViewModeV1("unknown"), null);
 
-  assert.equal(serializeLegacyViewMode("semi-developed"), "condensed");
+  assert.equal(encodeViewModeV1("semi-developed"), "condensed");
   const portable = toPortableStructure({
     id: "legacy-roundtrip",
     ...restored,
@@ -181,4 +188,30 @@ test("legacy condensed documents normalize internally and retain the V1 wire val
     updatedAt: "2026-09-28T00:00:00.000Z",
   });
   assert.equal(portable.viewMode, "condensed");
+  const [roundTripped] = readChemistryDocument(documentFor([portable]));
+  assert.equal(roundTripped.viewMode, "semi-developed");
+  assert.deepEqual(roundTripped.molecule, directedMolecule);
+  assert.equal(roundTripped.name, legacy.name);
+  assert.equal(roundTripped.formula, legacy.formula);
+
+  const localHistoryEntry = decodeHistoryEntryV1({
+    id: "legacy-local-history",
+    ...legacy,
+  });
+  assert.equal(localHistoryEntry.viewMode, "semi-developed");
+  assert.deepEqual(localHistoryEntry.molecule, directedMolecule);
+});
+
+test("V1 rejects V2-only and invalid view identifiers; V2 documents fail closed", () => {
+  const structure = makeStructure(simpleEthanol(), { viewMode: "semi-developed" });
+  assert.throws(() => readChemistryDocument(documentFor([structure])));
+
+  const v2Document = {
+    ...documentFor([makeStructure(simpleEthanol(), { viewMode: "condensed" })]),
+    version: 2,
+  };
+  assert.throws(
+    () => readChemistryDocument(v2Document),
+    /documentos V2 aún no son compatibles/,
+  );
 });

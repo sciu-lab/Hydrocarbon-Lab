@@ -4,7 +4,7 @@ import test, { before, after } from "node:test";
 import ts from "typescript";
 
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
-import { normalizeViewMode } from "../app/view-mode.ts";
+import { decodeViewModeV1 } from "../app/view-mode.ts";
 import { flipCoordinates } from "../app/coordinate-flip.ts";
 import { getAutoPlacedCarbonPosition } from "../app/manual-layout.ts";
 import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemistry.ts";
@@ -240,7 +240,7 @@ test("the actual canvas view switch selects derived layouts without touching mol
 test("legacy condensed view identifiers normalize to the same Semi-developed layout", () => {
   const molecule = chain(8, 0.2);
   const path = pathOf(molecule);
-  const normalizedMode = normalizeViewMode("condensed");
+  const normalizedMode = decodeViewModeV1("condensed");
 
   assert.equal(normalizedMode, "semi-developed");
   assert.deepEqual(

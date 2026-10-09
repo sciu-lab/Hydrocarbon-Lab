@@ -2,13 +2,20 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { moleculeHistory } from "../../../db/schema";
 import { normalizeMoleculePayload } from "../molecule-payload";
+import {
+  decodeViewModeV1,
+  decodeViewModeV1ApiInput,
+  encodeViewModeV1,
+  type VersionlessApiViewModeV1Input,
+} from "../../view-mode";
 
+// This versionless API contract stores and returns the established V1 values.
 type HistoryPayload = {
   name?: string;
   formula?: string;
   family?: string;
   molecule?: unknown;
-  viewMode?: "condensed" | "skeletal";
+  viewMode?: VersionlessApiViewModeV1Input;
   archive?: boolean;
   updateDraft?: boolean;
 };
@@ -59,7 +66,7 @@ function toHistoryItem(row: typeof moleculeHistory.$inferSelect) {
       formula: row.formula,
       family: row.family,
       molecule,
-      viewMode: row.viewMode === "skeletal" ? "skeletal" : "condensed",
+      viewMode: encodeViewModeV1(decodeViewModeV1(row.viewMode) ?? "semi-developed"),
       atomCount: row.atomCount,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -141,7 +148,13 @@ export async function POST(request: Request) {
     const name = cleanText(payload.name, "Estructura sin nombre", 160);
     const formula = cleanText(payload.formula, "—", 80);
     const family = cleanText(payload.family, "Compuesto orgánico", 90);
-    const viewMode = payload.viewMode === "skeletal" ? "skeletal" : "condensed";
+    const decodedViewMode = payload.viewMode === undefined
+      ? "semi-developed"
+      : decodeViewModeV1ApiInput(payload.viewMode);
+    if (!decodedViewMode) {
+      return Response.json({ error: "El modo de representación no es válido." }, { status: 400 });
+    }
+    const viewMode = encodeViewModeV1(decodedViewMode);
     const fingerprint = await sha256(`${moleculeJson}|${viewMode}`);
     const now = new Date().toISOString();
     const db = await getDb();
