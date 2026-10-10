@@ -17,6 +17,7 @@ export const moleculeHistory = sqliteTable(
     family: text("family").notNull(),
     moleculeJson: text("molecule_json").notNull(),
     viewMode: text("view_mode").notNull().default("condensed"),
+    viewModeVersion: integer("view_mode_version").notNull().default(1),
     fingerprint: text("fingerprint").notNull(),
     atomCount: integer("atom_count").notNull().default(0),
     isDraft: integer("is_draft", { mode: "boolean" })
@@ -48,6 +49,7 @@ export const savedMolecules = sqliteTable(
     family: text("family").notNull(),
     moleculeJson: text("molecule_json").notNull(),
     viewMode: text("view_mode").notNull().default("condensed"),
+    viewModeVersion: integer("view_mode_version").notNull().default(1),
     fingerprint: text("fingerprint").notNull(),
     atomCount: integer("atom_count").notNull().default(0),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

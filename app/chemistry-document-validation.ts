@@ -4,11 +4,15 @@ import {
   type ManualDisplayPlacement,
 } from "./manual-display-direction.ts";
 import {
+  decodeViewModeV2,
   decodeViewModeV1,
+  encodeViewModeV2,
+  type CurrentV1ViewMode,
   type PersistedViewModeV1,
   type PersistedViewModeV2,
   type ViewMode,
 } from "./view-mode.ts";
+import { getCondensedUnavailableReason } from "./condensed-layout.ts";
 
 export type PortableMolecule = GeneratedMolecule & {
   isMirrored?: boolean;
@@ -45,7 +49,7 @@ export type ChemistryDocumentV1 = {
   structures?: SerializedPortableStructureV1[];
 };
 
-/** Type-only preparation; the current reader and writer intentionally remain V1. */
+/** V2 carries the actual Condensed meaning while V1 remains backward compatible. */
 export type ChemistryDocumentV2 = {
   format: "laboratorio-quimica-organica";
   version: 2;
@@ -54,6 +58,8 @@ export type ChemistryDocumentV2 = {
   structure?: SerializedPortableStructureV2;
   structures?: SerializedPortableStructureV2[];
 };
+
+export type ChemistryDocument = ChemistryDocumentV1 | ChemistryDocumentV2;
 
 type ChemistryChecks = {
   calculateFormula: (molecule: PortableMolecule) => string;
@@ -237,9 +243,18 @@ function normalizePortableMolecule(
   };
 }
 
-function normalizePortableStructure(value: unknown, checks: ChemistryChecks): PortableStructure | null {
+function normalizePortableStructure(
+  value: unknown,
+  checks: ChemistryChecks,
+  version: 1 | 2,
+): PortableStructure | null {
   if (!isRecord(value)) return null;
-  const viewMode = decodeViewModeV1(value.viewMode);
+  const decodedMode = version === 1
+    ? decodeViewModeV1(value.viewMode)
+    : decodeViewModeV2(value.viewMode);
+  const viewMode = version === 1
+    ? decodedMode as CurrentV1ViewMode | null
+    : decodedMode.ok ? decodedMode.viewMode : null;
   if (
     typeof value.name !== "string"
     || typeof value.formula !== "string"
@@ -263,12 +278,17 @@ function normalizePortableStructure(value: unknown, checks: ChemistryChecks): Po
     return null;
   }
 
+  const safeViewMode: ViewMode = viewMode === "condensed"
+    && getCondensedUnavailableReason(molecule)
+    ? "semi-developed"
+    : viewMode;
+
   return {
     name: value.name,
     formula: value.formula,
     family: value.family,
     molecule,
-    viewMode,
+    viewMode: safeViewMode,
     atomCount: value.atomCount as number,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
@@ -282,12 +302,10 @@ export function readChemistryDocument(value: unknown, checks: ChemistryChecks): 
   if (value.format !== "laboratorio-quimica-organica") {
     throw new Error("Este archivo no pertenece a una versión compatible del laboratorio.");
   }
-  if (value.version === 2) {
-    throw new Error("Los documentos V2 aún no son compatibles con esta aplicación.");
-  }
-  if (value.version !== 1) {
+  if (value.version !== 1 && value.version !== 2) {
     throw new Error("Este archivo no pertenece a una versión compatible del laboratorio.");
   }
+  const version = value.version;
 
   const structures = value.kind === "structure"
     ? value.structure ? [value.structure] : []
@@ -295,9 +313,24 @@ export function readChemistryDocument(value: unknown, checks: ChemistryChecks): 
       ? value.structures.slice(0, 50)
       : [];
 
-  const validated = structures.map((structure) => normalizePortableStructure(structure, checks));
+  const validated = structures.map((structure) => normalizePortableStructure(structure, checks, version));
   if (!validated.length || validated.some((structure) => structure === null)) {
     throw new Error("El documento no contiene estructuras orgánicas válidas.");
   }
   return validated as PortableStructure[];
+}
+
+export function toSerializedPortableStructureV1(
+  structure: PortableStructure,
+): SerializedPortableStructureV1 {
+  if (structure.viewMode === "condensed") {
+    throw new Error("Condensed requiere un documento V2.");
+  }
+  return { ...structure, viewMode: structure.viewMode === "semi-developed" ? "condensed" : "skeletal" };
+}
+
+export function toSerializedPortableStructureV2(
+  structure: PortableStructure,
+): SerializedPortableStructureV2 {
+  return { ...structure, viewMode: encodeViewModeV2(structure.viewMode) };
 }

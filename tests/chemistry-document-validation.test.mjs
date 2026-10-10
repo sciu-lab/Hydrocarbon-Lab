@@ -11,7 +11,8 @@ let server;
 let analyzeMolecule;
 let readChemistryDocument;
 let toPortableStructure;
-let decodeHistoryEntryV1;
+let createChemistryDocument;
+let decodeHistoryEntry;
 let decodeViewModeV1;
 let encodeViewModeV1;
 
@@ -24,7 +25,7 @@ before(async () => {
     plugins: [react()],
     server: { middlewareMode: true, hmr: false },
   });
-  ({ analyzeMolecule, readChemistryDocument, toPortableStructure, decodeHistoryEntryV1 } = await server.ssrLoadModule("/app/page.tsx"));
+  ({ analyzeMolecule, readChemistryDocument, toPortableStructure, createChemistryDocument, decodeHistoryEntry } = await server.ssrLoadModule("/app/page.tsx"));
   ({ decodeViewModeV1, encodeViewModeV1 } = await server.ssrLoadModule("/app/view-mode.ts"));
 });
 
@@ -194,7 +195,7 @@ test("legacy condensed documents normalize internally and retain the V1 wire val
   assert.equal(roundTripped.name, legacy.name);
   assert.equal(roundTripped.formula, legacy.formula);
 
-  const localHistoryEntry = decodeHistoryEntryV1({
+  const localHistoryEntry = decodeHistoryEntry({
     id: "legacy-local-history",
     ...legacy,
   });
@@ -202,16 +203,69 @@ test("legacy condensed documents normalize internally and retain the V1 wire val
   assert.deepEqual(localHistoryEntry.molecule, directedMolecule);
 });
 
-test("V1 rejects V2-only and invalid view identifiers; V2 documents fail closed", () => {
+test("V1 remains strict and V2 round-trips all three modes with cyclic Condensed fallback", () => {
   const structure = makeStructure(simpleEthanol(), { viewMode: "semi-developed" });
   assert.throws(() => readChemistryDocument(documentFor([structure])));
 
-  const v2Document = {
-    ...documentFor([makeStructure(simpleEthanol(), { viewMode: "condensed" })]),
+  for (const mode of ["skeletal", "semi-developed", "condensed"]) {
+    const v2Document = {
+      ...documentFor([makeStructure(simpleEthanol(), { viewMode: mode })]),
+      version: 2,
+    };
+    const [restored] = readChemistryDocument(v2Document);
+    assert.equal(restored.viewMode, mode);
+  }
+
+  const cyclic = moleculeFromSmiles("C1CCCCC1");
+  assert.equal(cyclic.ok, true);
+  const cyclicV2 = {
+    ...documentFor([makeStructure(cyclic.molecule, { viewMode: "condensed" })]),
     version: 2,
   };
-  assert.throws(
-    () => readChemistryDocument(v2Document),
-    /documentos V2 aún no son compatibles/,
+  assert.equal(readChemistryDocument(cyclicV2)[0].viewMode, "semi-developed");
+});
+
+test("V2 library documents preserve mixed per-structure modes", () => {
+  const structures = ["skeletal", "semi-developed", "condensed"].map((viewMode) =>
+    makeStructure(simpleEthanol(), { viewMode }),
   );
+  const document = { ...documentFor(structures, "library"), version: 2 };
+  assert.deepEqual(readChemistryDocument(document).map(({ viewMode }) => viewMode), [
+    "skeletal", "semi-developed", "condensed",
+  ]);
+});
+
+test("exports V1 when possible and uses V2 only when a structure needs real Condensed", () => {
+  const makeEntry = (viewMode) => ({
+    id: `entry-${viewMode}`,
+    ...makeStructure(simpleEthanol(), { viewMode }),
+  });
+  const timestamp = "2026-09-28T00:00:00.000Z";
+  const legacyCompatible = createChemistryDocument("library", [
+    makeEntry("skeletal"), makeEntry("semi-developed"),
+  ], timestamp);
+  assert.equal(legacyCompatible.version, 1);
+  const mixed = createChemistryDocument("library", [
+    makeEntry("skeletal"), makeEntry("semi-developed"), makeEntry("condensed"),
+  ], timestamp);
+  assert.equal(mixed.version, 2);
+  assert.deepEqual(mixed.structures.map(({ viewMode }) => viewMode), [
+    "skeletal", "semi-developed", "condensed",
+  ]);
+  assert.deepEqual(readChemistryDocument(mixed).map(({ viewMode }) => viewMode), [
+    "skeletal", "semi-developed", "condensed",
+  ]);
+});
+
+test("local history decoding distinguishes V1 legacy condensed from V2 real Condensed", () => {
+  const molecule = simpleEthanol();
+  const entry = makeStructure(molecule, { viewMode: "condensed" });
+  assert.equal(decodeHistoryEntry({ id: "old", ...entry }).viewMode, "semi-developed");
+  assert.equal(decodeHistoryEntry({ id: "new", ...entry, viewModeVersion: 2 }).viewMode, "condensed");
+
+  const ring = moleculeFromSmiles("C1CCCCC1");
+  assert.equal(ring.ok, true);
+  assert.equal(decodeHistoryEntry({
+    id: "cyclic-v2", ...makeStructure(ring.molecule, { viewMode: "condensed" }), viewModeVersion: 2,
+  }).viewMode, "semi-developed");
 });

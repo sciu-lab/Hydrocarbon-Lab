@@ -2425,6 +2425,43 @@ button {
   font-weight: 700;
 }
 
+.condensed-mode-icon {
+  color: currentColor;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+.condensed-renderer {
+  color: var(--structure-main);
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  font-weight: 650;
+}
+
+.condensed-main-token { color: var(--structure-main); }
+.condensed-branch-token { color: var(--structure-branch); }
+.condensed-token text,
+.condensed-token { fill: currentColor; }
+.condensed-atom { cursor: pointer; outline: none; }
+.condensed-atom-text { paint-order: stroke; stroke: var(--paper); stroke-width: 1px; stroke-linejoin: round; }
+.condensed-atom-hit-target,
+.condensed-bond-hit-target { fill: transparent; stroke: transparent; pointer-events: all; }
+.condensed-atom:hover .condensed-atom-text,
+.condensed-atom:focus-visible .condensed-atom-text { stroke: color-mix(in srgb, var(--structure-main) 22%, var(--paper)); stroke-width: 4px; }
+.condensed-selection-halo { fill: rgba(76, 155, 135, 0.08); stroke: #358b77; stroke-width: 2px; pointer-events: none; }
+.condensed-bond { cursor: pointer; outline: none; }
+.condensed-bond text { pointer-events: none; }
+.condensed-bond:hover text,
+.condensed-bond:focus-visible text { fill: #ba7430; stroke: var(--paper); stroke-width: 2px; paint-order: stroke; }
+.condensed-branch-open,
+.condensed-branch-close,
+.condensed-hydrogen-suffix { fill: var(--structure-main); pointer-events: none; }
+.condensed-stereo-badge rect { fill: #fff9e9; stroke: #9a7628; stroke-width: 1.5px; }
+.condensed-stereo-badge text { fill: #735913; font-size: 12px; font-weight: 800; }
+.condensed-locant { fill: #5f6c67; font-weight: 700; pointer-events: none; }
+
 .line-angle-icon {
   position: relative;
   display: inline-block;
@@ -6411,6 +6448,12 @@ html[data-theme="dark"] .bond-order-picker button.active {
   color: #93dbc4;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
+
+html[data-theme="dark"] .condensed-atom-text { stroke: var(--paper); }
+html[data-theme="dark"] .condensed-selection-halo { fill: rgba(103, 193, 169, 0.1); stroke: #71c2aa; }
+html[data-theme="dark"] .condensed-stereo-badge rect { fill: #302d1e; stroke: #c7aa58; }
+html[data-theme="dark"] .condensed-stereo-badge text { fill: #f0d884; }
+html[data-theme="dark"] .condensed-locant { fill: #b7c8c1; }
 
 html[data-theme="dark"] .history-controls button,
 html[data-theme="dark"] .name-visibility-button,

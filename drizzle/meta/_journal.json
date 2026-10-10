@@ -15,6 +15,13 @@
       "when": 1786715810213,
       "tag": "0001_blue_lightspeed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791599011932,
+      "tag": "0002_view_mode_version",
+      "breakpoints": true
     }
   ]
 }

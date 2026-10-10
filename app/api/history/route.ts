@@ -2,20 +2,24 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { moleculeHistory } from "../../../db/schema";
 import { normalizeMoleculePayload } from "../molecule-payload";
+import { getCondensedUnavailableReason } from "../../condensed-layout";
 import {
+  decodeApiViewMode,
   decodeViewModeV1,
-  decodeViewModeV1ApiInput,
+  decodeViewModeV2,
   encodeViewModeV1,
-  type VersionlessApiViewModeV1Input,
+  encodeViewModeV2,
+  viewModeFingerprintKey,
 } from "../../view-mode";
 
-// This versionless API contract stores and returns the established V1 values.
+// Versionless requests keep the established V1 interpretation; explicit V2 is opt-in.
 type HistoryPayload = {
   name?: string;
   formula?: string;
   family?: string;
   molecule?: unknown;
-  viewMode?: VersionlessApiViewModeV1Input;
+  viewMode?: unknown;
+  viewModeVersion?: unknown;
   archive?: boolean;
   updateDraft?: boolean;
 };
@@ -60,13 +64,24 @@ function toHistoryItem(row: typeof moleculeHistory.$inferSelect) {
   try {
     const molecule = normalizeMoleculePayload(JSON.parse(row.moleculeJson));
     if (!molecule) return null;
+    const viewModeVersion = row.viewModeVersion === 2 ? 2 : 1;
+    const decoded = viewModeVersion === 2
+      ? decodeViewModeV2(row.viewMode)
+      : { ok: true as const, viewMode: decodeViewModeV1(row.viewMode) ?? "semi-developed" };
+    const requestedMode = decoded.ok ? decoded.viewMode : "semi-developed";
+    const viewMode = requestedMode === "condensed" && getCondensedUnavailableReason(molecule)
+      ? "semi-developed"
+      : requestedMode;
     return {
       id: row.id,
       name: row.name,
       formula: row.formula,
       family: row.family,
       molecule,
-      viewMode: encodeViewModeV1(decodeViewModeV1(row.viewMode) ?? "semi-developed"),
+      viewModeVersion,
+      viewMode: viewModeVersion === 2
+        ? encodeViewModeV2(viewMode)
+        : encodeViewModeV1(viewMode === "condensed" ? "semi-developed" : viewMode),
       atomCount: row.atomCount,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -148,14 +163,18 @@ export async function POST(request: Request) {
     const name = cleanText(payload.name, "Estructura sin nombre", 160);
     const formula = cleanText(payload.formula, "—", 80);
     const family = cleanText(payload.family, "Compuesto orgánico", 90);
-    const decodedViewMode = payload.viewMode === undefined
-      ? "semi-developed"
-      : decodeViewModeV1ApiInput(payload.viewMode);
+    const decodedViewMode = decodeApiViewMode(payload.viewMode, payload.viewModeVersion);
     if (!decodedViewMode) {
       return Response.json({ error: "El modo de representación no es válido." }, { status: 400 });
     }
-    const viewMode = encodeViewModeV1(decodedViewMode);
-    const fingerprint = await sha256(`${moleculeJson}|${viewMode}`);
+    if (decodedViewMode === "condensed" && getCondensedUnavailableReason(molecule)) {
+      return Response.json({ error: "La vista condensada solo está disponible para estructuras acíclicas." }, { status: 400 });
+    }
+    const viewModeVersion = payload.viewModeVersion === 2 ? 2 : 1;
+    const viewMode = viewModeVersion === 2
+      ? encodeViewModeV2(decodedViewMode)
+      : encodeViewModeV1(decodedViewMode === "condensed" ? "semi-developed" : decodedViewMode);
+    const fingerprint = await sha256(`${moleculeJson}|${viewModeFingerprintKey(decodedViewMode)}`);
     const now = new Date().toISOString();
     const db = await getDb();
     const draftId = `draft:${owner.ownerKey}`;
@@ -171,6 +190,7 @@ export async function POST(request: Request) {
           family,
           moleculeJson,
           viewMode,
+          viewModeVersion,
           fingerprint,
           atomCount: molecule.atoms.length,
           isDraft: true,
@@ -185,6 +205,7 @@ export async function POST(request: Request) {
             family,
             moleculeJson,
             viewMode,
+            viewModeVersion,
             fingerprint,
             atomCount: molecule.atoms.length,
             updatedAt: now,
@@ -205,6 +226,7 @@ export async function POST(request: Request) {
           family,
           moleculeJson,
           viewMode,
+          viewModeVersion,
           fingerprint,
           atomCount: molecule.atoms.length,
           isDraft: false,
@@ -217,7 +239,7 @@ export async function POST(request: Request) {
             moleculeHistory.isDraft,
             moleculeHistory.fingerprint,
           ],
-          set: { name, formula, family, updatedAt: now },
+          set: { name, formula, family, viewMode, viewModeVersion, updatedAt: now },
         })
         .returning();
       archivedItem = row ? toHistoryItem(row) : null;

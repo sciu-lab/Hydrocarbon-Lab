@@ -108,7 +108,16 @@ import {
   SEMI_DEVELOPED_LABEL_SCALE_STEP,
 } from "./semi-developed-label-geometry";
 import { calculateMolecule2DLayout } from "./molecule-2d-layout";
-import { decodeViewModeV1, encodeViewModeV1, type PersistedViewModeV1, type ViewMode } from "./view-mode";
+import {
+  decodeViewModeV1,
+  decodeViewModeV2,
+  encodeViewModeV2,
+  type PersistedViewModeV1,
+  type PersistedViewModeV2,
+  type ViewMode,
+} from "./view-mode";
+import { buildCondensedRenderModel, getCondensedUnavailableReason } from "./condensed-layout";
+import { CondensedMoleculeSvg } from "./condensed-renderer";
 import {
   clearTetrahedralConfiguration,
   getMainChainTetrahedralDescriptors,
@@ -161,9 +170,13 @@ import { readSmilesFileRecord } from "./smiles-file";
 import { moleculeFromSmiles, moleculeToSmiles } from "./openchemlib-adapter";
 import {
   readChemistryDocument as validateChemistryDocument,
+  type ChemistryDocument,
   type ChemistryDocumentV1,
+  type ChemistryDocumentV2,
   type SerializedPortableStructureV1,
   type PortableStructure,
+  toSerializedPortableStructureV1,
+  toSerializedPortableStructureV2,
 } from "./chemistry-document-validation";
 import { HETEROCYCLE_DEFINITIONS } from "./heterocycle-registry";
 import { verifiedPubChemCommonName, verifiedPubChemRecordTitleEquivalent, verifiedPubChemSystematicDisplayName } from "./verified-common-name-equivalences";
@@ -424,7 +437,8 @@ type HistoryEntry = {
 };
 
 type PersistedHistoryEntry = Omit<HistoryEntry, "viewMode"> & {
-  viewMode: PersistedViewModeV1;
+  viewMode: PersistedViewModeV1 | PersistedViewModeV2;
+  viewModeVersion?: 1 | 2;
 };
 
 type HistoryTransferNotice = {
@@ -5160,14 +5174,21 @@ type LocalLibraryState = {
   saved: HistoryEntry[];
 };
 
-export function decodeHistoryEntryV1(value: unknown): HistoryEntry | null {
+export function decodeHistoryEntry(value: unknown): HistoryEntry | null {
   if (!value || typeof value !== "object") return null;
-  const entry = value as HistoryEntry;
+  const entry = value as HistoryEntry & { viewModeVersion?: unknown; viewMode?: unknown };
   if (!entry.molecule?.atoms?.length) return null;
+  const persistedVersion = entry.viewModeVersion === 2 ? 2 : 1;
+  const decoded = persistedVersion === 2
+    ? decodeViewModeV2(entry.viewMode)
+    : { ok: true as const, viewMode: decodeViewModeV1(entry.viewMode) ?? "semi-developed" };
+  const requestedMode = decoded.ok ? decoded.viewMode : "semi-developed";
+  const viewMode = requestedMode === "condensed" && getCondensedUnavailableReason(entry.molecule)
+    ? "semi-developed"
+    : requestedMode;
   return {
     ...entry,
-    // Versionless local/cloud history records use the existing V1 vocabulary.
-    viewMode: decodeViewModeV1((value as { viewMode?: unknown }).viewMode) ?? "semi-developed",
+    viewMode,
   };
 }
 
@@ -5353,12 +5374,12 @@ function readLocalLibrary(): LocalLibraryState {
     if (!stored) return { draft: null, history: [], saved: [] };
     const parsed = JSON.parse(stored) as Partial<{ draft: unknown; history: unknown[]; saved: unknown[] }>;
     return {
-      draft: decodeHistoryEntryV1(parsed.draft),
+      draft: decodeHistoryEntry(parsed.draft),
       history: Array.isArray(parsed.history)
-        ? parsed.history.map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 50)
+        ? parsed.history.map(decodeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 50)
         : [],
       saved: Array.isArray(parsed.saved)
-        ? parsed.saved.map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 200)
+        ? parsed.saved.map(decodeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null).slice(0, 200)
         : [],
     };
   } catch {
@@ -5367,9 +5388,9 @@ function readLocalLibrary(): LocalLibraryState {
 }
 
 function writeLocalLibrary(state: LocalLibraryState) {
-  // The versionless local library keeps the established V1 wire identifiers.
+  // Existing unversioned rows load as V1; subsequent edits write explicit V2.
   const serializeEntry = (entry: HistoryEntry | null) => entry
-    ? { ...entry, viewMode: encodeViewModeV1(entry.viewMode) }
+    ? { ...entry, viewModeVersion: 2, viewMode: encodeViewModeV2(entry.viewMode) }
     : null;
   window.localStorage.setItem(localLibraryStorageKey, JSON.stringify({
     draft: serializeEntry(state.draft),
@@ -5447,16 +5468,71 @@ function clearLocalHistoryEntries() {
 }
 
 export function toPortableStructure(entry: HistoryEntry): SerializedPortableStructureV1 {
-  return {
+  return toSerializedPortableStructureV1({
     name: entry.name,
     formula: entry.formula,
     family: entry.family,
     molecule: cloneMolecule(entry.molecule),
-    viewMode: encodeViewModeV1(entry.viewMode),
+    viewMode: entry.viewMode,
     atomCount: entry.atomCount,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
-  };
+  });
+}
+
+function toPortableStructureV2(entry: HistoryEntry) {
+  return toSerializedPortableStructureV2({
+    name: entry.name,
+    formula: entry.formula,
+    family: entry.family,
+    molecule: cloneMolecule(entry.molecule),
+    viewMode: entry.viewMode,
+    atomCount: entry.atomCount,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+  });
+}
+
+export function createChemistryDocument(
+  kind: "structure" | "library",
+  entries: readonly HistoryEntry[],
+  exportedAt: string,
+): ChemistryDocument {
+  const useV2 = entries.some((entry) => entry.viewMode === "condensed");
+  if (kind === "structure") {
+    const entry = entries[0];
+    if (!entry) throw new Error("No hay una estructura para exportar.");
+    return useV2
+      ? {
+          format: "laboratorio-quimica-organica",
+          version: 2,
+          kind,
+          exportedAt,
+          structure: toPortableStructureV2(entry),
+        } satisfies ChemistryDocumentV2
+      : {
+          format: "laboratorio-quimica-organica",
+          version: 1,
+          kind,
+          exportedAt,
+          structure: toPortableStructure(entry),
+        } satisfies ChemistryDocumentV1;
+  }
+  return useV2
+    ? {
+        format: "laboratorio-quimica-organica",
+        version: 2,
+        kind,
+        exportedAt,
+        structures: entries.map(toPortableStructureV2),
+      } satisfies ChemistryDocumentV2
+    : {
+        format: "laboratorio-quimica-organica",
+        version: 1,
+        kind,
+        exportedAt,
+        structures: entries.map(toPortableStructure),
+      } satisfies ChemistryDocumentV1;
 }
 
 function safeChemistryFileName(value: string) {
@@ -5470,7 +5546,7 @@ function safeChemistryFileName(value: string) {
   return normalized || "estructura-organica";
 }
 
-function downloadChemistryDocument(document: ChemistryDocumentV1, fileName: string) {
+function downloadChemistryDocument(document: ChemistryDocument, fileName: string) {
   const blob = new Blob([JSON.stringify(document, null, 2)], {
     type: "application/json;charset=utf-8",
   });
@@ -7443,7 +7519,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         setSavedEntries(data.saved);
         if (data.draft?.molecule?.atoms?.length) {
           const restored = cloneMolecule(data.draft.molecule);
-          const restoredViewMode = decodeViewModeV1(data.draft.viewMode) ?? "semi-developed";
+          const restoredViewMode = data.draft.viewMode;
           lastPersistedSignature.current = JSON.stringify({
             molecule: restored,
             viewMode: restoredViewMode,
@@ -7495,11 +7571,11 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         if (cancelled) return;
         setHistoryIdentity(visitorId);
         setHistoryScope(data.scope ?? savedData.scope ?? "device");
-        setHistoryEntries((data.history ?? []).map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null));
-        setSavedEntries((savedData.saved ?? []).map(decodeHistoryEntryV1).filter((entry): entry is HistoryEntry => entry !== null));
+        setHistoryEntries((data.history ?? []).map(decodeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null));
+        setSavedEntries((savedData.saved ?? []).map(decodeHistoryEntry).filter((entry): entry is HistoryEntry => entry !== null));
         if (data.draft?.molecule?.atoms?.length) {
           const restored = cloneMolecule(data.draft.molecule);
-          const restoredViewMode = decodeViewModeV1(data.draft.viewMode) ?? "semi-developed";
+          const restoredViewMode = decodeHistoryEntry(data.draft)?.viewMode ?? "semi-developed";
           lastPersistedSignature.current = JSON.stringify({
             molecule: restored,
             viewMode: restoredViewMode,
@@ -7641,7 +7717,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
           formula: analysis.formula,
           family: historyFamilyLabel,
           molecule,
-          viewMode: encodeViewModeV1(viewMode),
+          viewModeVersion: 2,
+          viewMode: encodeViewModeV2(viewMode),
           archive: true,
         }),
       })
@@ -7656,7 +7733,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         })
         .then((data) => {
           lastPersistedSignature.current = signature;
-          const item = decodeHistoryEntryV1(data.item);
+          const item = decodeHistoryEntry(data.item);
           if (item) {
             setHistoryEntries((items) => mergeHistoryEntry(items, item));
           }
@@ -7746,7 +7823,14 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       setReasoningSourceName(null);
       setSourceNameOverride(null);
     }
-    setNotice(message);
+    if (viewMode === "condensed" && getCondensedUnavailableReason(sanitizedNext)) {
+      setViewMode("semi-developed");
+      setNotice(language === "en"
+        ? "Condensed view supports acyclic structures only. Switched to Semi-developed."
+        : "La vista condensada admite solo estructuras acíclicas. Se cambió a semidesarrollada.");
+    } else {
+      setNotice(message);
+    }
     return true;
   };
 
@@ -8774,7 +8858,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
           formula: analysis.formula,
           family: historyFamilyLabel,
           molecule,
-          viewMode: encodeViewModeV1(viewMode),
+      viewModeVersion: 2,
+      viewMode: encodeViewModeV2(viewMode),
         }),
       });
       const data = await response.json() as {
@@ -8783,7 +8868,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         error?: string;
       };
       if (!response.ok) throw new Error(data.error || "No se pudo guardar.");
-      const item = decodeHistoryEntryV1(data.item);
+      const item = decodeHistoryEntry(data.item);
       if (item) {
         setSavedEntries((items) => mergeHistoryEntry(items, item, 200));
       }
@@ -8821,13 +8906,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   };
 
   const exportHistoryEntry = (entry: HistoryEntry) => {
-    const document: ChemistryDocumentV1 = {
-      format: "laboratorio-quimica-organica",
-      version: 1,
-      kind: "structure",
-      exportedAt: new Date().toISOString(),
-      structure: toPortableStructure(entry),
-    };
+    const document = createChemistryDocument("structure", [entry], new Date().toISOString());
     downloadChemistryDocument(document, entry.name);
     setHistoryTransferNotice({
       kind: "success",
@@ -8837,13 +8916,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
 
   const exportHistoryLibrary = () => {
     if (!historyEntries.length) return;
-    const document: ChemistryDocumentV1 = {
-      format: "laboratorio-quimica-organica",
-      version: 1,
-      kind: "library",
-      exportedAt: new Date().toISOString(),
-      structures: historyEntries.map(toPortableStructure),
-    };
+    const document = createChemistryDocument("library", historyEntries, new Date().toISOString());
     const date = new Date().toISOString().slice(0, 10);
     downloadChemistryDocument(document, `mi-historial-quimico-${date}`);
     setHistoryTransferNotice({
@@ -8854,13 +8927,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
 
   const exportSavedLibrary = () => {
     if (!savedEntries.length) return;
-    const document: ChemistryDocumentV1 = {
-      format: "laboratorio-quimica-organica",
-      version: 1,
-      kind: "library",
-      exportedAt: new Date().toISOString(),
-      structures: savedEntries.map(toPortableStructure),
-    };
+    const document = createChemistryDocument("library", savedEntries, new Date().toISOString());
     const date = new Date().toISOString().slice(0, 10);
     downloadChemistryDocument(document, `mis-estructuras-guardadas-${date}`);
     setHistoryTransferNotice({
@@ -9289,7 +9356,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
             formula: structure.formula,
             family: structure.family,
             molecule: structure.molecule,
-            viewMode: encodeViewModeV1(structure.viewMode),
+            viewModeVersion: 2,
+            viewMode: encodeViewModeV2(structure.viewMode),
           }),
         });
         const data = await response.json() as {
@@ -9299,7 +9367,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
         if (!response.ok || !data.item) {
           throw new Error(data.error || `No fue posible importar ${structure.name}.`);
         }
-        const item = decodeHistoryEntryV1(data.item);
+        const item = decodeHistoryEntry(data.item);
         if (!item) throw new Error(`No fue posible importar ${structure.name}.`);
         importedEntries.push(item);
       }
@@ -9523,11 +9591,19 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   };
 
   const changeViewMode = (mode: ViewMode) => {
+    if (mode === "condensed" && getCondensedUnavailableReason(molecule)) {
+      setNotice(language === "en"
+        ? "Condensed view for cyclic structures is not available yet."
+        : "La vista condensada para estructuras cíclicas aún no está disponible.");
+      return;
+    }
     setViewMode(mode);
     setNotice(
       mode === "skeletal"
         ? "Vista esquelética activada: cada extremo y cada vértice representa un carbono."
-        : "Vista semidesarrollada activada: se muestran los carbonos y sus hidrógenos implícitos.",
+        : mode === "semi-developed"
+          ? "Vista semidesarrollada activada: se muestran los carbonos y sus hidrógenos implícitos."
+          : language === "en" ? "Condensed structural formula activated." : "Vista estructural condensada activada.",
     );
   };
 
@@ -9750,6 +9826,22 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
     : null;
   const semiDevelopedAtomGlyphs = new Map(semiDevelopedRenderModel?.atoms.map((glyph) => [glyph.atomId, glyph]) ?? []);
   const semiDevelopedBondGlyphs = new Map(semiDevelopedRenderModel?.bonds.map((glyph) => [glyph.bondId, glyph]) ?? []);
+  const condensedStereoBonds = stereochemistryEnabled
+    ? molecule.bonds.flatMap((bond) => {
+        if (getBondOrder(bond) !== 2 || bond[3] !== true) return [];
+        const inspection = inspectDoubleBondStereochemistry(molecule, bond[0], bond[1]);
+        return inspection.stereogenic && inspection.configuration
+          ? [{ atomIds: [bond[0], bond[1]] as const, configuration: inspection.configuration }]
+          : [];
+      })
+    : [];
+  const condensedRenderModel = viewMode === "condensed"
+    ? buildCondensedRenderModel(molecule, (atomId) => getImplicitHydrogens(atomId, molecule), {
+        numbering: effectiveShowNumbering ? analysis.numberedAtoms : undefined,
+        stereoBonds: condensedStereoBonds,
+        includeTetrahedralParity: stereochemistryEnabled,
+      })
+    : null;
   const tetrahedralStereoBonds = viewMode === "skeletal" && stereochemistryEnabled
     ? getTetrahedralStereoBonds({
         ...molecule,
@@ -9806,7 +9898,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
       charge: atom.charge === 1 ? "+" : atom.charge === -1 ? "−" : "",
       scale: viewMode === "semi-developed"
         ? semiDevelopedLabelScale
-        : carbon ? 1 : functionalGroupScale,
+        : viewMode === "skeletal" && !carbon ? functionalGroupScale : 1,
     };
   };
   const numberingGeometry = getSkeletalNumberBadgeGeometry(numberingScale);
@@ -9820,7 +9912,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               containingRing.atomIds.map((atomId) => displayPositions.get(atomId)!),
               numberingScale,
             )
-          : viewMode !== "skeletal"
+          : viewMode === "semi-developed"
             ? {
                 x: (molecule.isMirrored ? -25 : 25) * numberingScale,
                 y: -27 * numberingScale,
@@ -10013,18 +10105,22 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
   const visualExtents = [...numberingBadgeExtents, ...atomLabelExtents, ...tetrahedralBadgeExtents, ...steroidRingLabelExtents];
   const moleculeVisualBounds = viewMode === "semi-developed"
     ? { ...getSemiDevelopedBounds(displayPositions.values(), { labelRadius: 48, padding: 72, extents: visualExtents }), padding: 72 }
-    : getMoleculeVisualBounds(displayPositions.values(), { additionalExtents: visualExtents });
+    : viewMode === "condensed" && condensedRenderModel?.available
+      ? condensedRenderModel.bounds
+      : getMoleculeVisualBounds(displayPositions.values(), { additionalExtents: visualExtents });
   // The normal canvas keeps a generous classroom workspace. The expanded
   // editor instead starts from the same content bounds used by export, with a
   // smaller presentation margin, so its SVG fills the modal without scaling
   // DOM pixels or changing the molecular coordinates.
   const expandedFitBounds = viewMode === "semi-developed"
     ? { ...getSemiDevelopedBounds(displayPositions.values(), { labelRadius: 58, padding: 36, extents: visualExtents }), padding: 36 }
-    : getMoleculeVisualBounds(displayPositions.values(), {
-        atomExtent: 58,
-        padding: 36,
-        additionalExtents: visualExtents,
-      });
+    : viewMode === "condensed" && condensedRenderModel?.available
+      ? { ...condensedRenderModel.bounds, x: condensedRenderModel.bounds.x - 12, y: condensedRenderModel.bounds.y - 12, width: condensedRenderModel.bounds.width + 24, height: condensedRenderModel.bounds.height + 24 }
+      : getMoleculeVisualBounds(displayPositions.values(), {
+          atomExtent: 58,
+          padding: 36,
+          additionalExtents: visualExtents,
+        });
   const readExpandedFitBounds = useEffectEvent(() => expandedFitBounds);
   /* eslint-disable react-hooks/set-state-in-effect -- modal-open transition synchronizes its derived viewport once */
   useEffect(() => {
@@ -10429,6 +10525,21 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                 >
                   <span className="condensed-icon" aria-hidden="true">CH₃</span>
                   <span className="mode-label">{t("Semides.")}</span>
+                </button>
+                <button
+                  className={viewMode === "condensed" ? "active" : ""}
+                  onClick={() => changeViewMode("condensed")}
+                  aria-pressed={viewMode === "condensed"}
+                  aria-disabled={Boolean(getCondensedUnavailableReason(molecule))}
+                  disabled={Boolean(getCondensedUnavailableReason(molecule))}
+                  title={getCondensedUnavailableReason(molecule)
+                    ? language === "en"
+                      ? "Condensed view for cyclic structures is not available yet."
+                      : "La vista condensada para estructuras cíclicas aún no está disponible."
+                    : language === "en" ? "Condensed structural formula" : "Fórmula estructural condensada"}
+                >
+                  <span className="condensed-mode-icon" aria-hidden="true">CH₃CH₂</span>
+                  <span className="mode-label">{language === "en" ? "Condensed" : "Condensada"}</span>
                 </button>
                 <button
                   className={viewMode === "skeletal" ? "active" : ""}
@@ -10919,7 +11030,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               </div>
             )}
           <div
-            className={`molecule-stage ${placementTool ? "is-placing" : ""} ${draggedRingTemplate ? "is-dragging-ring" : ""} ${viewMode === "skeletal" ? "skeletal-view" : "semi-developed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasScaleClass}`}
+            className={`molecule-stage ${placementTool ? "is-placing" : ""} ${draggedRingTemplate ? "is-dragging-ring" : ""} ${viewMode === "skeletal" ? "skeletal-view" : viewMode === "semi-developed" ? "semi-developed-view" : "condensed-view"} ${highlightSubstituents ? "" : "uniform-colors"} ${canvasScaleClass}`}
             style={structureColorStyle}
             tabIndex={advancedScreenReaderEnabled ? 0 : undefined}
             role={advancedScreenReaderEnabled ? "group" : undefined}
@@ -11001,8 +11112,8 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
               ref={moleculeSvgRef}
               role={advancedScreenReaderEnabled ? "img" : undefined}
               aria-label={advancedScreenReaderEnabled ? language === "en"
-                ? `${viewMode === "skeletal" ? "Skeletal representation" : "Semi-developed structural representation"} ${showIupacName ? `of ${displayedIupacName}` : "of the constructed molecule"}`
-                : `${viewMode === "skeletal" ? "Representación esquelética" : "Representación semidesarrollada"} ${showIupacName ? `de ${displayedIupacName}` : "de la molécula construida"}` : undefined}
+                ? `${viewMode === "skeletal" ? "Skeletal representation" : viewMode === "semi-developed" ? "Semi-developed structural representation" : "Condensed structural representation"} ${showIupacName ? `of ${displayedIupacName}` : "of the constructed molecule"}`
+                : `${viewMode === "skeletal" ? "Representación esquelética" : viewMode === "semi-developed" ? "Representación semidesarrollada" : "Representación condensada"} ${showIupacName ? `de ${displayedIupacName}` : "de la molécula construida"}` : undefined}
               viewBox={`${viewCenterX - viewWidth / 2} ${viewCenterY - viewHeight / 2} ${viewWidth} ${viewHeight}`}
             >
               <defs>
@@ -11019,11 +11130,11 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                 fill="url(#dotGrid)"
               />
 
-              <g className="molecule-bonds-layer">
+              <g className="molecule-bonds-layer" display={viewMode === "condensed" ? "none" : undefined}>
               {molecule.bonds.map((bond) => {
                 const [a, b] = bond;
                 const semiBond = semiDevelopedBondGlyphs.get(`${Math.min(a, b)}:${Math.max(a, b)}`);
-                const order = viewMode === "skeletal" ? getBondOrder(bond) : semiBond?.order ?? getBondOrder(bond);
+                const order = viewMode === "semi-developed" ? semiBond?.order ?? getBondOrder(bond) : getBondOrder(bond);
                 const positionA = displayPositions.get(a)!;
                 const positionB = displayPositions.get(b)!;
                 const isMainBond = mainChainSet.has(a) && mainChainSet.has(b);
@@ -11412,7 +11523,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                 </g>
               )}
 
-              <g className="molecule-nodes-layer">
+              <g className="molecule-nodes-layer" display={viewMode === "condensed" ? "none" : undefined}>
               {molecule.atoms.map((atom) => {
                 const element = getElement(atom);
                 const carbonAtom = isCarbonAtom(atom);
@@ -11436,7 +11547,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                 return (
                   <g
                     key={atom.id}
-                    className={`carbon-node ${carbonAtom ? "carbon-element" : `hetero-node element-${element.toLowerCase()}`} ${viewMode === "skeletal" ? (carbonAtom ? "skeletal-node" : "skeletal-hetero-node") : "semi-developed-node"} ${isSelected ? "selected" : ""} ${mainChainSet.has(atom.id) ? "on-main-chain" : "on-branch"}`}
+                    className={`carbon-node ${carbonAtom ? "carbon-element" : `hetero-node element-${element.toLowerCase()}`} ${viewMode === "skeletal" ? (carbonAtom ? "skeletal-node" : "skeletal-hetero-node") : viewMode === "semi-developed" ? "semi-developed-node" : "condensed-node-hidden"} ${isSelected ? "selected" : ""} ${mainChainSet.has(atom.id) ? "on-main-chain" : "on-branch"}`}
                     transform={`translate(${position.x} ${position.y})`}
                     data-guided-tour-anchor={showGuidedTour && guidedTourTarget === "carbon" && atom.id === guidedTourCarbonAtomId ? "carbon" : undefined}
                     data-guided-tour-target={showGuidedTour && guidedTourTarget === "carbon" && atom.id === guidedTourCarbonAtomId ? "active" : undefined}
@@ -11587,7 +11698,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                           )}
                         </>
                       )
-                    ) : (
+                    ) : viewMode === "semi-developed" ? (
                       <>
                         <SemiDevelopedAtomSvg
                           label={atomLabel}
@@ -11623,11 +11734,42 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
                           </>
                         )}
                       </>
-                    )}
+                    ) : null}
                   </g>
                 );
               })}
               </g>
+              {viewMode === "condensed" && condensedRenderModel?.available && (
+                <CondensedMoleculeSvg
+                  model={condensedRenderModel}
+                  selectedAtomId={selectedId}
+                  showNumbering={effectiveShowNumbering}
+                  language={language}
+                  advancedScreenReaderEnabled={advancedScreenReaderEnabled}
+                  onSelectAtom={(atomId) => {
+                    const atom = getAtom(atomId, molecule);
+                    if (!atom) return;
+                    if (placementTool) {
+                      if (placementTool.kind === "alkyl") addAlkylGroup(placementTool.template, atomId);
+                      else if (placementTool.kind === "functional") addFunctionalGroup(placementTool.template, atomId);
+                      else loadRingTemplate(placementTool.template, placementTool.mode, atomId);
+                      return;
+                    }
+                    previousSelectedId.current = selectedId;
+                    setFusionSelection(null);
+                    setSelectedId(atomId);
+                    if (isCarbonAtom(atom)) dispatchGuidedTour({ type: "carbon-selected" });
+                    const selectedElementName = elementNames[getElement(atom)] ?? "Átomo";
+                    setNotice(`${selectedElementName} ${analysis.numberedAtoms.get(atomId) ?? "del grupo funcional"} seleccionado.`);
+                  }}
+                  onActivateBond={(left, right, toggleStereo = false) => {
+                    if (placementTool) return;
+                    setFusionSelection(null);
+                    changeBondOrderFromInput(left, right, undefined, toggleStereo);
+                  }}
+                  onToggleTetrahedral={toggleTetrahedralCenter}
+                />
+              )}
             </svg>
 
             {!buildEditor?.hideCategory && <div className={`structure-family-badge family-${analysis.family} ${analysis.functionalGroups.length ? "has-functional-group" : ""}`}>

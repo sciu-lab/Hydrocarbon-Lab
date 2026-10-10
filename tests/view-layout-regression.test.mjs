@@ -5,6 +5,7 @@ import ts from "typescript";
 
 import { calculateMolecule2DLayout } from "../app/molecule-2d-layout.ts";
 import { decodeViewModeV1 } from "../app/view-mode.ts";
+import { buildCondensedRenderModel, getCondensedUnavailableReason } from "../app/condensed-layout.ts";
 import { flipCoordinates } from "../app/coordinate-flip.ts";
 import { getAutoPlacedCarbonPosition } from "../app/manual-layout.ts";
 import { inspectDoubleBondStereochemistry } from "../app/double-bond-stereochemistry.ts";
@@ -212,20 +213,29 @@ test("the actual canvas view switch selects derived layouts without touching mol
   } }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const run = new Function(`${code}; return run;`)();
   const molecule = imported("C[C@H](O)CC");
+  const branchAtomId = molecule.atoms.find((atom) => atom.element === "O").id;
+  const branchBond = molecule.bonds.find(([left, right]) => left === branchAtomId || right === branchAtomId);
+  const branchParentId = branchBond.find((id) => id !== branchAtomId);
+  molecule.manualDisplayDirections = [{
+    parentAtomId: branchParentId, childAtomId: branchAtomId, direction: "up",
+  }];
   const snapshot = structuredClone(molecule);
   const smiles = moleculeToSmiles(molecule);
   assert.equal(smiles.ok, true);
   assert.ok(molecule.atoms.some((atom) => atom.tetrahedralParity), "fixture has R/S metadata");
   const context = {
-    molecule, analysis: chemistry.engine.analyzeMolecule(molecule), calculateMolecule2DLayout,
-    viewMode: "skeletal", undoStack: [], future: [], setNotice() {},
+    molecule, analysis: chemistry.engine.analyzeMolecule(molecule), calculateMolecule2DLayout, getCondensedUnavailableReason,
+    viewMode: "skeletal", language: "en", undoStack: [], future: [], setNotice() {},
     setViewMode(mode) { context.viewMode = mode; },
     commit() { assert.fail("view switching must not commit an edit"); },
     setMolecule() { assert.fail("view switching must not overwrite editor coordinates"); },
   };
   const original = run(context, "skeletal");
-  const condensed = run(context, "semi-developed");
-  assertHorizontal(pointsOn(condensed, context.analysis.mainChain));
+  const semiDeveloped = run(context, "semi-developed");
+  assertHorizontal(pointsOn(semiDeveloped, context.analysis.mainChain));
+  const condensed = run(context, "condensed");
+  assert.deepEqual(condensed, original, "the textual renderer owns its layout, while graph projection stays safe");
+  assertHorizontal(pointsOn(run(context, "semi-developed"), context.analysis.mainChain));
   assert.deepEqual(run(context, "skeletal"), original);
   assert.deepEqual(molecule, snapshot);
   assert.deepEqual(moleculeToSmiles(molecule), smiles);
@@ -234,7 +244,21 @@ test("the actual canvas view switch selects derived layouts without touching mol
   assert.match(page, /onClick=\{\(\) => changeViewMode\("semi-developed"\)\}/);
   assert.match(page, /aria-pressed=\{viewMode === "semi-developed"\}/);
   assert.match(page, /Semi-developed structural representation/);
-  assert.doesNotMatch(page, /changeViewMode\("condensed"\)/);
+  assert.match(page, /onClick=\{\(\) => changeViewMode\("condensed"\)\}/);
+  assert.match(page, /aria-pressed=\{viewMode === "condensed"\}/);
+  assert.match(page, /Condensed structural representation/);
+  assert.match(page, /viewMode === "skeletal" \? "skeletal-view" : viewMode === "semi-developed" \? "semi-developed-view" : "condensed-view"/);
+});
+
+test("Condensed model is independent of canvas layout and retains one identity token per graph atom and bond", () => {
+  const molecule = {
+    atoms: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }],
+    bonds: [[1, 2, 1], [2, 3, 1], [3, 4, 1], [2, 5, 1]],
+  };
+  const model = buildCondensedRenderModel(molecule, (atomId) => ({ 1: 3, 2: 1, 3: 2, 4: 3, 5: 3 })[atomId]);
+  assert.equal(model.formulaText, "CH3–CH(CH3)–CH2–CH3");
+  assert.equal(model.tokens.filter((token) => token.type === "atom").length, molecule.atoms.length);
+  assert.equal(model.tokens.filter((token) => token.type === "bond").length, molecule.bonds.length);
 });
 
 test("legacy condensed view identifiers normalize to the same Semi-developed layout", () => {
@@ -249,7 +273,7 @@ test("legacy condensed view identifiers normalize to the same Semi-developed lay
   );
 });
 
-test("redraw mirrors each mode reversibly while retaining its display convention", () => {
+test("redraw mirrors both geometric modes reversibly while retaining their display convention", () => {
   const molecule = chain(10);
   const path = pathOf(molecule);
   const mirrored = flipCoordinates(molecule);
