@@ -12390,7 +12390,7 @@ export default function Home({ initialLanguage = "es", buildEditor }: { initialL
           <img src="../sciu-eye.png" alt="Sciu Science" />
         </div>
         <div className="brand-copy">
-          <h1>{t("Laboratorio de Hidrocarburos")}</h1>
+          <h1>OrgoRush</h1>
         </div>
         <div className="lab-entry-actions">
         <button

@@ -1,6 +1,42 @@
 @import "tailwindcss";
 
+/* Phase 1 typography: direct WOFF2 requests, no blocking font stylesheet. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/sora/v17/xMQ9uFFYT72X5wkB_18qmnndmSdSnh2BAfO5mnuyOo1lfiQwV6-x.woff2") format("woff2");
+}
+
 :root {
+  /* Brand tokens are separate from chemistry, validation and export colors. */
+  --brand-primary: #3563ff;
+  --brand-primary-hover: #284fe0;
+  --brand-primary-soft: #eef2ff;
+  --brand-accent: #c7f36b;
+  --brand-ink: #111827;
+  --brand-muted: #667085;
+  --brand-background: #f8fafc;
+  --brand-surface: #ffffff;
+  --brand-border: #e2e8f0;
+  --brand-success: #22c55e;
+  --brand-error: #ff6b57;
+  --brand-warning: #f59e0b;
+  --brand-card-radius: 16px;
+  --brand-control-radius: 11px;
+  --brand-shadow: 0 2px 12px rgb(17 24 39 / 4%);
+  --brand-transition: 160ms ease;
+  --font-ui: "Inter", "Segoe UI", Arial, Helvetica, sans-serif;
+  --font-heading: "Sora", "Inter", "Segoe UI", Arial, sans-serif;
   --layer-workspace-sticky: 10;
   --layer-workspace-floating: 20;
   --layer-expanded-backdrop: 30;
@@ -9977,3 +10013,131 @@ html[data-theme="dark"] .practice-mode button[aria-pressed="true"] { background:
 .practice-build-editor .builder-card .direction-pad button:hover { transform: none; }
 .practice-config-fields label.practice-endless { display: flex; align-items: center; gap: 8px; }
 .practice-config-fields .practice-endless input { width: 18px; min-height: 18px; }
+
+/* OrgoRush Phase 1. Presentation only; leave molecular SVGs, semantic
+   feedback, existing dark theme and accessibility overrides untouched. */
+html:not([data-theme="dark"]),
+html:not([data-theme="dark"]) body {
+  background: var(--brand-background);
+}
+
+.app-shell:not(.a11y-dyslexia-typeface) {
+  font-family: var(--font-ui);
+}
+
+/* Keep molecular notation in its existing typeface, including previews. */
+.app-shell:not(.a11y-dyslexia-typeface) svg {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.app-shell:not(.a11y-dyslexia-typeface) :is(
+  .brand-copy h1, .card-heading h2, .analysis-heading h2,
+  .examples-card h2, .practice-header h2, .practice-review h3
+) {
+  font-family: var(--font-heading);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .brand-copy h1, .card-heading h2, .analysis-heading h2,
+  .examples-card h2, .practice-header h2
+) {
+  color: var(--brand-ink);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .builder-card, .analysis-card, .examples-card, .practice-card, .intro-strip
+) {
+  border-color: var(--brand-border);
+  border-radius: var(--brand-card-radius);
+  background: var(--brand-surface);
+  box-shadow: var(--brand-shadow);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .brand-mark, .scope-pill, .view-mode-switch, .language-switch
+) {
+  border-color: var(--brand-border);
+  background: var(--brand-surface);
+  box-shadow: var(--brand-shadow);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .guided-tour-launch, .name-builder-toggle, .settings-control
+) {
+  border-color: var(--brand-border);
+  border-radius: var(--brand-control-radius);
+  background: var(--brand-surface);
+  color: var(--brand-ink);
+  box-shadow: var(--brand-shadow);
+  transition: background-color var(--brand-transition),
+    border-color var(--brand-transition), color var(--brand-transition);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .name-builder-toggle > span, .step-number
+) {
+  background: var(--brand-primary-soft);
+  color: var(--brand-primary);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .guided-tour-launch, .name-builder-toggle, .settings-control
+):hover:not(:disabled),
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .name-builder-toggle.active, .settings-control[aria-expanded="true"],
+  .guided-tour-launch[aria-expanded="true"], .view-mode-switch button.active,
+  .language-switch button.active
+) {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+  color: var(--brand-primary);
+}
+
+/* Lime is limited to the challenge entry point; correctness stays semantic. */
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) .practice-launch {
+  border-color: var(--brand-accent);
+  background: var(--brand-accent);
+  color: var(--brand-ink);
+  box-shadow: none;
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) .practice-launch:hover:not(:disabled),
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) .practice-launch[aria-expanded="true"] {
+  border-color: var(--brand-primary);
+  background: var(--brand-accent);
+  color: var(--brand-ink);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) .practice-card .practice-primary {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+  color: var(--brand-surface);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) .practice-card .practice-primary:hover:not(:disabled) {
+  border-color: var(--brand-primary-hover);
+  background: var(--brand-primary-hover);
+}
+
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .intro-strip p, .scope-pill, .view-mode-switch button:not(.active),
+  .language-switch button:not(.active)
+) {
+  color: var(--brand-muted);
+}
+
+/* Focus styling is restricted to HTML controls, never atom/bond targets. */
+html:not([data-theme="dark"]) .app-shell:not(.a11y-high-contrast) :is(
+  .guided-tour-launch, .name-builder-toggle, .settings-control,
+  .view-mode-switch button, .language-switch button, .practice-card button,
+  .practice-card input, .practice-card select
+):focus-visible {
+  outline: 3px solid var(--brand-primary);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :is(.guided-tour-launch, .name-builder-toggle, .settings-control) {
+    transition: none;
+  }
+}
