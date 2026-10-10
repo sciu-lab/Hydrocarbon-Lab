@@ -6,6 +6,7 @@ import { Molecule as OCLMolecule, SmilesParser } from "openchemlib";
 import { moleculeFromSmiles, moleculeToSmiles } from "../app/openchemlib-adapter.ts";
 import { readSmilesFileRecord } from "../app/smiles-file.ts";
 import { retainValidManualDisplayPlacements } from "../app/manual-display-direction.ts";
+import { getCondensedUnavailableReason } from "../app/condensed-layout.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -24,15 +25,16 @@ function action(name, context) {
   return new Function("context", `with (context) { ${compiled}; return ${name}; }`)(context);
 }
 
-function editor() {
+function editor(viewMode = "semi-developed") {
   const initial = moleculeFromSmiles("CO");
   assert.equal(initial.ok, true);
   const context = {
     molecule: initial.molecule,
     undoStack: [], future: [], undoPristineStates: [], futurePristineStates: [],
     isPristineInitialMolecule: true, smilesFeedback: null, analysisCalls: 0,
-    language: "en", moleculeFromSmiles,
+    language: "en", moleculeFromSmiles, viewMode,
     retainValidManualDisplayPlacements,
+    getCondensedUnavailableReason,
     cloneMolecule: structuredClone,
     findMoleculeValenceViolation: () => null,
     analyzeMolecule: () => { context.analysisCalls += 1; return { name: "test name" }; },
@@ -42,6 +44,7 @@ function editor() {
     localizedDynamicText: (message) => message,
     t: (message) => message,
   };
+  context.setViewMode = (mode) => { context.viewMode = mode; };
   for (const key of ["molecule", "undoStack", "future", "undoPristineStates", "futurePristineStates", "isPristineInitialMolecule", "smilesFeedback"]) {
     context[`set${key[0].toUpperCase()}${key.slice(1)}`] = (value) => {
       context[key] = typeof value === "function" ? value(context[key]) : value;
@@ -95,6 +98,19 @@ test("direct text trims only surrounding whitespace", () => {
   direct.importSmilesString("   CCC   ", { kind: "text" });
   assert.deepEqual(direct.context.molecule, moleculeFromSmiles("CCC").molecule);
   assert.equal(direct.context.smilesFeedback.kind, "success");
+});
+
+test("importing an aromatic ring while Condensed is active falls back without changing the graph", () => {
+  const direct = editor("condensed");
+  const expected = moleculeFromSmiles("c1ccccc1");
+  assert.equal(expected.ok, true);
+
+  direct.importSmilesString("c1ccccc1", { kind: "text" });
+
+  assert.equal(direct.context.smilesFeedback.kind, "success");
+  assert.equal(direct.context.viewMode, "semi-developed");
+  assert.deepEqual(direct.context.molecule, expected.molecule);
+  assert.equal(direct.context.molecule.rings?.[0].kind, "aromatic");
 });
 
 for (const [label, source] of [["empty", "   "], ["invalid", "C1("]]) {

@@ -142,7 +142,7 @@ test("scaled labels stay inside their atom targets and selection rings at 75–1
 
 test("node hit targets are above bond targets and reuse the existing atom event owner", () => {
   const bondLayerIndex = page.indexOf('className="bond-hit-target"');
-  const nodeLayerIndex = page.indexOf('<g className="molecule-nodes-layer">');
+  const nodeLayerIndex = page.indexOf('<g className="molecule-nodes-layer"');
   const rendererIndex = page.indexOf("<SemiDevelopedAtomSvg", nodeLayerIndex);
   assert.ok(bondLayerIndex >= 0 && nodeLayerIndex > bondLayerIndex && rendererIndex > nodeLayerIndex);
 
